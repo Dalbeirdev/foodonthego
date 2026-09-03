@@ -268,7 +268,7 @@ than asserting on pixels.
 Full transcript: [`evidence/module-03-verification-run.txt`](evidence/module-03-verification-run.txt).
 Screenshots: [`evidence/module-03/`](evidence/module-03/).
 
-## Automated tests — 380 total, 380 passed, 0 failed, 0 skipped
+## Automated tests — 381 total, 381 passed, 0 failed, 0 skipped
 
 | Suite | Command | Tests | Passed | Failed | Skipped |
 | --- | --- | --: | --: | --: | --: |
@@ -285,15 +285,15 @@ Screenshots: [`evidence/module-03/`](evidence/module-03/).
 | Backend — challenge pruning | `--filter=PruneOtpChallengesTest` | 4 | 4 | 0 | 0 |
 | Backend — production guard (extended) | `--filter=ProductionConfigGuardTest` | 13 | 13 | 0 | 0 |
 | **Backend total** | `php artisan test` | **197** | **197** | **0** | **0** |
-| Mobile — auth flow | `flutter test test/auth_flow_test.dart` | 26 | 26 | 0 | 0 |
+| Mobile — auth flow | `flutter test test/auth_flow_test.dart` | 27 | 27 | 0 | 0 |
 | Mobile — session lifecycle | `flutter test test/auth_session_test.dart` | 12 | 12 | 0 | 0 |
 | Mobile — API client | `flutter test test/api_client_test.dart` | 13 | 13 | 0 | 0 |
 | Mobile — auth models | `flutter test test/auth_models_test.dart` | 21 | 21 | 0 | 0 |
-| **Mobile total** | `flutter test` | **154** | **154** | **0** | **0** |
+| **Mobile total** | `flutter test` | **155** | **155** | **0** | **0** |
 | Web (regression) | `npm test` | 29 | 29 | 0 | 0 |
-| **Project total** | | **380** | **380** | **0** | **0** |
+| **Project total** | | **381** | **381** | **0** | **0** |
 
-Backend grew from 67 to 197; mobile from 82 to 154.
+Backend grew from 67 to 197; mobile from 82 to 155.
 
 ## Integration — no mocks
 
@@ -399,7 +399,7 @@ KI-002. Not claimed as passed.
 
 ## Defects found and fixed
 
-Twelve, with root causes, in [13-known-issues.md](13-known-issues.md) (M03-B01 … M03-B12). Five were
+Thirteen, with root causes, in [13-known-issues.md](13-known-issues.md) (M03-B01 … M03-B13). Five were
 **critical or high**, and the two most serious were found by tests rather than by looking: the OTP
 closure that hashed an undefined variable (nothing could ever verify) and the missing Sanctum trait
 (no session could be issued). Two more were found only by running the app in a browser: the welcome

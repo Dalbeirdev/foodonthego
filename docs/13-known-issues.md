@@ -140,7 +140,7 @@ per-request status check is worth its cost.
 
 ## Bug register — Module 03
 
-All found during Module 03, all fixed and retested. Environment: PHP 8.4.19 / Laravel 12.69.1 /
+Thirteen, all found during Module 03, all fixed and retested. Environment: PHP 8.4.19 / Laravel 12.69.1 /
 MySQL 8.0.46 / Flutter 3.47.2 on Ubuntu 24.04; live-view render in Chromium at 320–768dp.
 
 | ID | Description | Severity | Reproduction | Cause | Fix | Retest | Status |
@@ -156,6 +156,7 @@ MySQL 8.0.46 / Flutter 3.47.2 on Ubuntu 24.04; live-view render in Chromium at 3
 | M03-B09 | Blank optional fields were sent as `""` rather than absent | Medium | Register with no surname | The screen passed the controller's raw text | Blank → `null` in the screen, with the repository normalising defensively too | `auth_flow_test.dart` asserts `last_name` is null | **Fixed** |
 | M03-B10 | `users.status` was `varchar(20)` where `users.role` is a MySQL `ENUM` | Medium | `SHOW COLUMNS FROM users` | The migration used `->string()` against the Module 01 convention | `->enum('status', AccountStatus::values())`; the database now refuses a status the application has no case for | `SHOW COLUMNS` after `migrate:fresh`; 197 tests | **Fixed** |
 | M03-B11 | "Change number" rendered centred under left-aligned copy, reading as a heading | Low | Open the OTP screen | The column stretches its children, so the link's text centred | Wrapped in `Align(centerLeft)` | `state-05-otp-empty.png` | **Fixed** |
+| M03-B13 | The OTP countdowns stopped while the app was backgrounded | Medium | Background the app on the code screen, return after 25 s | The countdowns decremented a counter on a `Timer.periodic`, and both platforms suspend timers for a backgrounded app — so the one thing a customer does on this screen (switch to their SMS app) froze the clock they were watching | Countdowns derived from absolute deadlines read through `package:clock`; the timer only repaints | A test moves the clock 25 s with no ticks and asserts the display caught up | **Fixed** |
 | M03-B12 | A revoked token kept working within a feature test | Low | Log out, then call `/customer/me` in the same test | Test-harness artefact: the app object is reused across calls and Sanctum's `RequestGuard` memoises the resolved user. Production forks a process per request | `forgetGuards()` between requests, with a comment explaining the test measures the API rather than the harness | `CustomerSessionTest` — 11 tests | **Fixed** |
 
 No Module 03 issue was left open.

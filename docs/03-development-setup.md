@@ -107,7 +107,7 @@ Four terminals: MySQL, Redis, `php artisan serve`, and the two Vite servers.
 ```bash
 cd backend && php artisan test        # 197 tests
 cd web     && npm test                # 29 tests
-cd mobile  && flutter test            # 154 tests
+cd mobile  && flutter test            # 155 tests
 ```
 
 ## Static checks

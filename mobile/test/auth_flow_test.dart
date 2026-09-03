@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodonthego/core/network/api_error_code.dart';
@@ -317,42 +318,79 @@ void main() {
     testWidgets('resend is on a countdown the customer can see', (
       WidgetTester tester,
     ) async {
-      final FakeAuthRepository auth = FakeAuthRepository()
-        ..resendAvailableInSeconds = 3;
-      await reachOtpScreen(tester, auth: auth);
+      // The countdown reads a clock rather than decrementing a counter, so that
+      // backgrounding the app to read the SMS does not stop it. That means the
+      // test has to move the clock, not just pump frames.
+      final DateTime start = DateTime(2026, 9, 3, 12);
+      DateTime now = start;
 
-      expect(find.text('Resend code in 3s'), findsOneWidget);
-      expect(find.text('Resend code'), findsNothing);
+      await withClock(Clock(() => now), () async {
+        final FakeAuthRepository auth = FakeAuthRepository()
+          ..resendAvailableInSeconds = 3;
+        await reachOtpScreen(tester, auth: auth);
 
-      await tester.pump(const Duration(seconds: 3));
-      expect(find.text('Resend code'), findsOneWidget);
+        expect(find.text('Resend code in 3s'), findsOneWidget);
+        expect(find.text('Resend code'), findsNothing);
 
-      await tester.tap(find.text('Resend code'));
-      await tester.pumpAndSettle();
+        now = start.add(const Duration(seconds: 3));
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.text('Resend code'), findsOneWidget);
 
-      expect(auth.requestCount, 2);
+        await tester.tap(find.text('Resend code'));
+        await tester.pumpAndSettle();
+
+        expect(auth.requestCount, 2);
+      });
+    });
+
+    testWidgets('the countdown keeps running while the app is backgrounded', (
+      WidgetTester tester,
+    ) async {
+      final DateTime start = DateTime(2026, 9, 3, 12);
+      DateTime now = start;
+
+      await withClock(Clock(() => now), () async {
+        final FakeAuthRepository auth = FakeAuthRepository()
+          ..resendAvailableInSeconds = 30;
+        await reachOtpScreen(tester, auth: auth);
+
+        expect(find.text('Resend code in 30s'), findsOneWidget);
+
+        // Both platforms suspend timers for a backgrounded app, so no ticks
+        // happen while the customer is in their SMS app. Wall-clock time still
+        // passes, and on return the countdown must reflect that rather than
+        // resuming from where it stopped.
+        now = start.add(const Duration(seconds: 25));
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(find.text('Resend code in 5s'), findsOneWidget);
+      });
     });
 
     testWidgets('the server wins when it says a resend is too soon', (
       WidgetTester tester,
     ) async {
-      final FakeAuthRepository auth = FakeAuthRepository()
-        ..resendAvailableInSeconds = 0;
-      await reachOtpScreen(tester, auth: auth);
+      final DateTime now = DateTime(2026, 9, 3, 12);
 
-      auth.nextRequestError = const ApiException(
-        code: ApiErrorCode.otpResendTooSoon,
-        message: 'Please wait.',
-        status: 429,
-        details: <String, dynamic>{'retry_after_seconds': 25},
-      );
+      await withClock(Clock(() => now), () async {
+        final FakeAuthRepository auth = FakeAuthRepository()
+          ..resendAvailableInSeconds = 0;
+        await reachOtpScreen(tester, auth: auth);
 
-      await tester.tap(find.text('Resend code'));
-      await tester.pumpAndSettle();
+        auth.nextRequestError = const ApiException(
+          code: ApiErrorCode.otpResendTooSoon,
+          message: 'Please wait.',
+          status: 429,
+          details: <String, dynamic>{'retry_after_seconds': 25},
+        );
 
-      // The device countdown is corrected to what the server said, not to what
-      // this device believed.
-      expect(find.text('Resend code in 25s'), findsOneWidget);
+        await tester.tap(find.text('Resend code'));
+        await tester.pumpAndSettle();
+
+        // The device countdown is corrected to what the server said, not to
+        // what this device believed.
+        expect(find.text('Resend code in 25s'), findsOneWidget);
+      });
     });
 
     testWidgets('change number returns to phone entry', (

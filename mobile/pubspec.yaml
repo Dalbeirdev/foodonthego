@@ -44,6 +44,7 @@ dependencies:
   # Android. Plain SharedPreferences is world-readable on a rooted device, and a
   # long-lived bearer token is exactly what must not be readable there.
   flutter_secure_storage: ^11.0.0
+  clock: ^1.1.3
 
 dev_dependencies:
   flutter_test:

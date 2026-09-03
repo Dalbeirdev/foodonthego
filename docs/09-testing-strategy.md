@@ -45,7 +45,7 @@ Redis integration itself is covered by the readiness test.
 | `admin/App.test.tsx` | Navigation architecture completeness; System Health states |
 | `restaurant/App.test.tsx` | Navigation architecture completeness |
 
-## Mobile — 154 tests
+## Mobile — 155 tests
 
 | Suite | Tests | Covers |
 | --- | --: | --- |
@@ -55,7 +55,7 @@ Redis integration itself is covered by the readiness test.
 | `home_screen_test.dart` | 14 | Personas A–D, loading, four error kinds, retry re-fetch, dark mode |
 | `fixture_isolation_test.dart` | 11 | Environment gating, feature flags, production repository invents nothing |
 | `tokens_test.dart` | 8 | 4px grid, touch targets, type floors, **WCAG contrast ratios**, theme wiring |
-| `auth_flow_test.dart` | 26 | The whole sign-in walk: guard redirects, local validation, every server failure code, resend countdown, registration binding |
+| `auth_flow_test.dart` | 27 | The whole sign-in walk: guard redirects, local validation, every server failure code, resend countdown, registration binding |
 | `auth_session_test.dart` | 12 | Restore with and without a network, expired tokens, sign-out confirmation, sign-out with the server unreachable |
 | `api_client_test.dart` | 13 | Envelope unwrapping, unknown codes, gateway HTML, credential placement, one-401-ends-the-session |
 | `auth_models_test.dart` | 21 | Trunk-zero handling, per-country plausibility, masking parity with the server, token never printed, every backend error code mapped |

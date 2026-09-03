@@ -162,7 +162,7 @@ Eight defects, in [13-known-issues.md](13-known-issues.md). The three worth repe
 
 ### Fixed
 
-Twelve defects, all found by the tests and the live-view run written for this module and all
+Thirteen defects, all found by the tests and the live-view run written for this module and all
 retested — full table in [13-known-issues.md](13-known-issues.md). The ones worth naming here:
 
 - **M03-B01** — the OTP transaction closure never captured `$code`, so every challenge stored the
@@ -174,6 +174,9 @@ retested — full table in [13-known-issues.md](13-known-issues.md). The ones wo
   to fill the whole field and made the number being typed invisible.
 - **M03-B10** — `users.status` shipped as `varchar` where `role` is a MySQL `ENUM`, against the
   Module 01 convention.
+- **M03-B13** — the OTP countdowns decremented a counter on a timer, and both platforms suspend
+  timers for a backgrounded app; switching to the SMS app to read the code froze the clock the
+  customer was watching. Now derived from absolute deadlines.
 
 ### Not done, and why
 

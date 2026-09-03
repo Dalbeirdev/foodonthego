@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -57,21 +58,52 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   final FocusNode _focus = FocusNode();
 
   Timer? _ticker;
-  late int _resendIn;
-  late int _expiresIn;
+
+  /// Absolute deadlines, not counters.
+  ///
+  /// A counter decremented once a second is wrong the moment the app is
+  /// backgrounded: both Android and iOS suspend timers, so a customer who
+  /// switches to their SMS app to read the code — which is the single most
+  /// likely thing they will do on this screen — comes back to a countdown that
+  /// stopped while they were away. Deriving the remaining time from a deadline
+  /// means the timer only drives repaints, and being suspended costs nothing.
+  late DateTime _resendAt;
+  late DateTime _expiresAt;
 
   bool _submitting = false;
   bool _resending = false;
   String? _error;
   late String _maskedPhone;
 
+  int get _resendIn => _secondsUntil(_resendAt);
+
+  int get _expiresIn => _secondsUntil(_expiresAt);
+
+  // clock.now() rather than DateTime.now(): identical in production, and a
+  // widget test can move it, which a wall clock cannot be.
+  static int _secondsUntil(DateTime deadline) {
+    final int seconds = deadline.difference(clock.now()).inSeconds;
+    return seconds > 0 ? seconds : 0;
+  }
+
   @override
   void initState() {
     super.initState();
     _maskedPhone = widget.arguments.maskedPhone;
-    _resendIn = widget.arguments.resendAvailableInSeconds;
-    _expiresIn = widget.arguments.expiresInSeconds;
+    _setDeadlines(
+      resendInSeconds: widget.arguments.resendAvailableInSeconds,
+      expiresInSeconds: widget.arguments.expiresInSeconds,
+    );
     _startTicker();
+  }
+
+  void _setDeadlines({
+    required int resendInSeconds,
+    required int expiresInSeconds,
+  }) {
+    final DateTime now = clock.now();
+    _resendAt = now.add(Duration(seconds: resendInSeconds));
+    _expiresAt = now.add(Duration(seconds: expiresInSeconds));
   }
 
   @override
@@ -82,11 +114,11 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     super.dispose();
   }
 
-  /// One timer drives both countdowns.
+  /// One timer, and it only repaints.
   ///
-  /// Both are a courtesy: the server enforces the resend cooldown and the code's
-  /// expiry itself, so a device with a wrong clock cannot talk its way past
-  /// either — it just sees a countdown that does not match.
+  /// Both countdowns are a courtesy: the server enforces the resend cooldown and
+  /// the code's expiry itself, so a device with a wrong clock cannot talk its
+  /// way past either — it just sees a countdown that does not match.
   void _startTicker() {
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 1), (Timer timer) {
@@ -95,10 +127,9 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
         return;
       }
 
-      setState(() {
-        if (_resendIn > 0) _resendIn--;
-        if (_expiresIn > 0) _expiresIn--;
-      });
+      // Nothing is decremented here; the getters read the clock. This exists
+      // purely so the numbers on screen keep up with it.
+      setState(() {});
 
       if (_resendIn == 0 && _expiresIn == 0) timer.cancel();
     });
@@ -161,8 +192,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
         // on, giving the customer the action that actually helps.
         if (authErrorNeedsRestart(error.code)) {
           _controller.clear();
-          _expiresIn = 0;
-          _resendIn = 0;
+          _setDeadlines(resendInSeconds: 0, expiresInSeconds: 0);
         }
       });
     } finally {
@@ -191,8 +221,10 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       setState(() {
         _controller.clear();
         _maskedPhone = result.maskedPhone;
-        _resendIn = result.resendAvailableInSeconds;
-        _expiresIn = result.expiresInSeconds;
+        _setDeadlines(
+          resendInSeconds: result.resendAvailableInSeconds,
+          expiresInSeconds: result.expiresInSeconds,
+        );
       });
       _startTicker();
       _focus.requestFocus();
@@ -207,7 +239,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
         // than to what this device thought.
         final int? retryAfter = error.retryAfterSeconds;
         if (retryAfter != null && retryAfter > 0) {
-          _resendIn = retryAfter;
+          _resendAt = clock.now().add(Duration(seconds: retryAfter));
           _startTicker();
         }
       });

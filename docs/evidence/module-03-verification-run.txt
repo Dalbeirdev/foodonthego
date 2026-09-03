@@ -152,3 +152,24 @@ FotgTypography.fontFamily is null, as Module 01 requires. LiberationSans has no
 regional-indicator glyphs, so the country flag emoji appears as two empty boxes
 in the screenshots. On iOS and Android the platform emoji font renders it; the
 dial code beside it is the functional part and renders everywhere.
+
+--- PERFORMANCE: real API latency, measured from the structured log ---
+Every auth request logs its own duration. Figures below are from the whole
+Module 03 development and verification period (local MySQL 8 + Redis 7).
+
+route                                       n   min      median   max
+api/v1/auth/customer/otp/request          273   1.4 ms    4.8 ms  69.3 ms
+api/v1/auth/customer/otp/verify           194   0.6 ms    4.9 ms  29.1 ms
+api/v1/auth/customer/register              94   1.0 ms    5.3 ms  27.9 ms
+api/v1/auth/logout                         29   0.4 ms    3.6 ms  11.2 ms
+api/v1/customer/me                        145   0.2 ms    1.6 ms  15.5 ms
+
+The maxima are cold-start requests after a migrate:fresh. Nothing here is close
+to a budget; the dominant cost in production will be the SMS provider, which is
+outside the request (the challenge is committed first, then handed to the
+provider) and is why OTP_SEND_FAILED exists as its own 503 code.
+
+Client side: the OTP hash is a single HMAC, not bcrypt, precisely so this stays
+in single-digit milliseconds on a path every sign-in takes. No work in the
+Flutter auth screens happens on the UI thread beyond widget building; every
+network call is awaited off it.
