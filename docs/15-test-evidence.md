@@ -349,7 +349,7 @@ A Flutter **web release build with `FOTG_ENV=production`** — so no fixtures an
 harness — served at `http://localhost:5173` and talking to the Laravel server at
 `http://localhost:8000` against MySQL. Driven with Playwright through Flutter's DOM semantics tree.
 
-Twenty screenshots in [`evidence/module-03/`](evidence/module-03/):
+Twenty-two screenshots in [`evidence/module-03/`](evidence/module-03/):
 
 | State | File |
 | --- | --- |
@@ -371,8 +371,20 @@ Twenty screenshots in [`evidence/module-03/`](evidence/module-03/):
 | Dark mode, welcome and phone | `variant-dark-*.png` |
 | 320dp (smallest supported) | `variant-320-*.png` |
 | 768dp tablet | `variant-768-welcome.png` |
+| Provider outage (`OTP_SEND_FAILED` from the real server) | `state-16-provider-outage.png` |
+| Offline — every API call aborted at the network layer | `state-17-offline.png` |
 
 Final run: **"No console errors, no page errors, all expected content present."**
+
+The last two states are the failure paths, driven the same way:
+
+- **Provider outage** — `OTP_SIMULATE_PROVIDER_FAILURE=true` on the real backend, so the server
+  genuinely accepted the request, failed to deliver, invalidated the challenge and returned
+  `OTP_SEND_FAILED` (503). The screen shows *"We couldn't send your code. Please try again in a
+  moment."* — not a success, and not a stack trace.
+- **Offline** — every `/api/v1/**` request aborted at the network layer with
+  `internetdisconnected`, which is the traveller-in-a-tunnel case rather than a mocked error. The
+  screen shows *"No connection. Check your signal and try again."*
 
 ## Android verification
 

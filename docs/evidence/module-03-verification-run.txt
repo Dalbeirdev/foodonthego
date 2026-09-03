@@ -173,3 +173,22 @@ Client side: the OTP hash is a single HMAC, not bcrypt, precisely so this stays
 in single-digit milliseconds on a path every sign-in takes. No work in the
 Flutter auth screens happens on the UI thread beyond widget building; every
 network call is awaited off it.
+
+--- FAILURE PATHS, DRIVEN LIVE ---
+Provider outage: OTP_SIMULATE_PROVIDER_FAILURE=true against the running backend.
+
+$ curl -s -X POST .../auth/customer/otp/request -d '{"phone":"9999912001"}'
+{"error":{"code":"OTP_SEND_FAILED",
+          "message":"We couldn't send your verification code. Please try again.",
+          "request_id":"e0a6070a-fe20-44ea-9b09-68f942d298dc"}}
+
+  → state-16-provider-outage.png (the app's rendering of the same failure)
+
+Offline: every /api/v1/** request aborted at the network layer with
+`internetdisconnected` — the request never reaches the server at all.
+
+  → state-17-offline.png  ("No connection. Check your signal and try again.")
+
+Both runs: no page errors, both failure states rendered as designed.
+The simulated-failure switch was set back to false afterwards, and the
+production config guard refuses to boot while it is true.
