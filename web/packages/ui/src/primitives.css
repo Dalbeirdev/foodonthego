@@ -1,0 +1,138 @@
+/* Every value below is a token. No literal colours, sizes or durations. */
+
+.fotg-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+.fotg-card--padded { padding: var(--space-5); }
+
+.fotg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.6;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.fotg-badge--neutral { background: var(--color-surface-sunken); color: var(--color-text-secondary); border-color: var(--color-border); }
+.fotg-badge--primary { background: var(--color-primary-50); color: var(--color-primary-700); border-color: var(--color-primary-200); }
+.fotg-badge--success { background: var(--color-success-surface); color: var(--color-success); }
+.fotg-badge--warning { background: var(--color-warning-surface); color: var(--color-warning); }
+.fotg-badge--error   { background: var(--color-error-surface); color: var(--color-error); }
+.fotg-badge--info    { background: var(--color-info-surface); color: var(--color-info); }
+
+.fotg-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-family: inherit;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard),
+    transform var(--duration-instant) var(--easing-standard);
+}
+.fotg-button:active:not(:disabled) { transform: translateY(1px); }
+.fotg-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Height floors, not fixed heights: text that wraps must not be clipped. */
+.fotg-button--sm { min-height: var(--control-height-sm); padding: 0 var(--space-3); }
+.fotg-button--md { min-height: var(--control-height-md); padding: 0 var(--space-4); }
+.fotg-button--lg { min-height: var(--control-height-lg); padding: 0 var(--space-5); font-size: var(--font-size-body); }
+
+.fotg-button--primary { background: var(--color-primary-interactive); color: var(--color-text-on-primary); }
+.fotg-button--primary:hover:not(:disabled) { background: var(--color-primary-interactive-hover); }
+.fotg-button--secondary { background: var(--color-surface); color: var(--color-text-primary); border-color: var(--color-border-strong); }
+.fotg-button--secondary:hover:not(:disabled) { background: var(--color-surface-sunken); }
+.fotg-button--ghost { background: transparent; color: var(--color-text-secondary); }
+.fotg-button--ghost:hover:not(:disabled) { background: var(--color-surface-sunken); color: var(--color-text-primary); }
+.fotg-button--danger { background: var(--color-error-surface); color: var(--color-error); border-color: var(--color-error); }
+.fotg-button__icon { display: inline-flex; }
+
+.fotg-placeholder {
+  display: flex;
+  gap: var(--space-5);
+  align-items: flex-start;
+  padding: var(--space-8);
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+}
+.fotg-placeholder__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 56px; height: 56px;
+  border-radius: var(--radius-lg);
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+}
+.fotg-placeholder__body { display: grid; gap: var(--space-3); }
+.fotg-placeholder__heading { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.fotg-placeholder__description { color: var(--color-text-secondary); max-width: 62ch; }
+.fotg-placeholder__module {
+  font-size: var(--font-size-label);
+  color: var(--color-text-secondary);
+  padding: var(--space-3);
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-md);
+  max-width: 62ch;
+}
+
+.fotg-stat {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  position: relative;
+  overflow: hidden;
+}
+/* A 3px tone rail rather than a tinted card: it carries the status without
+   reducing the contrast of the text sitting on the surface. */
+.fotg-stat::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--color-border-strong);
+}
+.fotg-stat--primary::before { background: var(--color-primary-500); }
+.fotg-stat--success::before { background: var(--color-success); }
+.fotg-stat--warning::before { background: var(--color-warning); }
+.fotg-stat--error::before   { background: var(--color-error); }
+.fotg-stat--info::before    { background: var(--color-info); }
+
+.fotg-stat__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.fotg-stat__label { font-size: var(--font-size-label); color: var(--color-text-secondary); font-weight: var(--font-weight-medium); }
+.fotg-stat__icon { color: var(--color-text-disabled); display: inline-flex; }
+.fotg-stat__value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+  font-variant-numeric: tabular-nums;
+}
+.fotg-stat__hint { font-size: var(--font-size-caption); color: var(--color-text-secondary); }
+
+.fotg-skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--color-surface-sunken) 25%, var(--color-border) 50%, var(--color-surface-sunken) 75%);
+  background-size: 200% 100%;
+  animation: fotg-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes fotg-shimmer { to { background-position: -200% 0; } }

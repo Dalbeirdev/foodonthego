@@ -1,24 +1,48 @@
+# Dependencies
 node_modules/
+vendor/
+.dart_tool/
+.packages
+
+# Build output
 dist/
 build/
-coverage/
 *.tsbuildinfo
+/backend/public/build/
+/backend/public/hot
+/mobile/android/app/debug
+/mobile/android/app/profile
+/mobile/android/app/release
 
-# local databases + uploads
-*.db
-*.db-shm
-*.db-wal
-data/
-
-# env
+# Environment — never commit a real credential
 .env
-.env.local
-.env.*.local
+.env.*
 !.env.example
+!.env.development
 
-# editors / os
+# Laravel runtime
+/backend/storage/*.key
+/backend/storage/logs/*.log
+/backend/storage/framework/cache/data/*
+/backend/storage/framework/sessions/*
+/backend/storage/framework/views/*
+/backend/bootstrap/cache/*.php
+
+# Flutter
+*.iml
+.flutter-plugins
+.flutter-plugins-dependencies
+/mobile/ios/Pods/
+/mobile/ios/.symlinks/
+/mobile/android/.gradle/
+/mobile/android/local.properties
+
+# Editors / OS
 .DS_Store
 .idea/
 .vscode/
-*.log
-npm-debug.log*
+*.swp
+
+# Coverage
+coverage/
+/mobile/coverage/

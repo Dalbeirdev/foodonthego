@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="FoodOnTheGo">
+  <rect width="32" height="32" rx="8" fill="#ef6008"/>
+  <path d="M11 8v7a3 3 0 0 0 2 2.83V24a1 1 0 0 0 2 0v-6.17A3 3 0 0 0 17 15V8a1 1 0 0 0-2 0v5h-1V8a1 1 0 0 0-2 0v5h-1V8a1 1 0 0 0-2 0Z" fill="#fff"/>
+  <path d="M22 8c-1.66 0-3 2.24-3 5 0 2.42 1.03 4.44 2.4 4.9V24a1 1 0 0 0 2 0V8Z" fill="#fff"/>
+</svg>
