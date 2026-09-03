@@ -108,3 +108,64 @@ deliberately integrates no backend (see [13-known-issues.md](13-known-issues.md)
 
 "PASSED (device pending)" means: built, tested, and visually inspected in a rendered Flutter widget
 tree, but **not** run on an Android emulator or iOS simulator.
+
+---
+
+## Module 03 — Customer Authentication, Registration, OTP, Session & Security
+
+Role for every row below is **Customer**. FE = Flutter UI. "PASSED (device pending)" carries the
+same meaning as in Module 02: built, integrated against the real API, tested and visually inspected
+in a rendered widget tree, but not run on an Android emulator or iOS simulator (KI-001, KI-002).
+
+| ID | Feature | FE | BE | API | DB | Sec | Tests | Android | iOS | Docs | Status | Evidence |
+| --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
+| M03-001 | Welcome / unauthenticated entry screen | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-01-welcome.png`; 3 tests |
+| M03-002 | Phone entry with country selector | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-02/03/04*.png`; 7 tests |
+| M03-003 | E.164 normalization, one identity per subscriber | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `PhoneNormalizerTest` (27); unique index |
+| M03-004 | Supported-country table mirrored client/server | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `auth_models_test.dart`; `PhoneNormalizerTest` |
+| M03-005 | Client validation never authoritative | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `PhoneFormRequest::phoneNumber()` |
+| M03-006 | OTP request endpoint | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `CustomerOtpTest`; integration run |
+| M03-007 | CSPRNG code generation | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `random_int`; distribution test |
+| M03-008 | Codes stored as a peppered hash, never plaintext | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Column-by-column test; live MySQL query |
+| M03-009 | Constant-time comparison | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `hash_equals` |
+| M03-010 | Code expiry (5 min, configurable) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Service + API tests; on-screen countdown |
+| M03-011 | Attempt limit; correct code dies with the challenge | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `OtpChallengeServiceTest`; `CustomerOtpTest` |
+| M03-012 | Single-use codes; replay refused | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Replay tests + integration run |
+| M03-013 | New code invalidates the previous one | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `superseded` reason; 2 tests |
+| M03-014 | Resend cooldown, server-enforced | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `CustomerOtpTest`; integration run |
+| M03-015 | Per-phone and per-IP rate limits | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `OtpRateLimiter`; `CustomerOtpTest` |
+| M03-016 | Rate-limit responses disclose no threshold | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Threshold-disclosure test |
+| M03-017 | OTP entry screen (countdown, resend, change number) | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-05/06*.png`; 11 tests |
+| M03-018 | SMS autofill hint, no SMS-read permission | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `AutofillHints.oneTimeCode`; no manifest permission |
+| M03-019 | Registration screen, minimum fields | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-07/08/09*.png`; 8 tests |
+| M03-020 | Registration bound to the verified challenge | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `RegistrationTokenServiceTest` (9); no `phone` field anywhere |
+| M03-021 | Registration token expiry and single-challenge binding | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 4 rejection tests |
+| M03-022 | Idempotent registration (retry returns the same account) | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Unique-violation path; `CustomerRegistrationTest` |
+| M03-023 | Returning customer signs straight in | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `CustomerOtpTest`; integration run (2nd pass) |
+| M03-024 | Session token issue, storage, expiry | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Sanctum; live MySQL hash check |
+| M03-025 | Secure token storage on device (Keychain / KeyStore) | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `SecureSessionStore`; no plaintext store |
+| M03-026 | Session restore without a flash | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `SessionSplash`; 6 restore tests |
+| M03-027 | Route guards for every protected screen | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | 5 routes asserted; `state-15*.png` |
+| M03-028 | Logout: local clear, server revoke, one device only | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-13/14*.png`; 5 tests |
+| M03-029 | `/customer/me` unreachable without a token | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 401 tests + integration run |
+| M03-030 | Cross-role authorization (customer ≠ restaurant ≠ admin) | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `AuthorizationBoundaryTest` (8) |
+| M03-031 | Account status gating (active/suspended/disabled/deleted) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `AccountStatus` ENUM; 4 tests |
+| M03-032 | No account enumeration | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Identical-response test |
+| M03-033 | No OTP, token or full number in any log | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `AuthLoggingTest` (5); live log grep |
+| M03-034 | Production refuses a sender that cannot reach a handset | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `ProductionConfigGuardTest` (+3) |
+| M03-035 | Error-code → message mapping, never server prose | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `auth_error_messages.dart`; coverage test |
+| M03-036 | Offline / network-failure handling in the flow | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `ApiException.network`; 3 tests |
+| M03-037 | Home and profile use the authenticated identity | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-10/11*.png`; 3 tests |
+| M03-038 | Stale-challenge retention policy | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `otp:prune`; `PruneOtpChallengesTest` (4) |
+| M03-039 | Real Flutter → Laravel → MySQL integration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `tool/integration_smoke.dart`, 15 assertions |
+| M03-040 | Android build / device test | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ➖ | ✅ | **BLOCKED** | KI-001 — `dl.google.com` denied |
+| M03-041 | iOS build / device test | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ✅ | **BLOCKED** | KI-002 — no macOS host |
+| M03-042 | Module 01 + Module 02 regression | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | PASS | 197 backend + 29 web + 154 mobile re-run |
+
+### Summary
+
+40 of 42 Module 03 requirements COMPLETE or PASSED. Two (M03-040 Android, M03-041 iOS) remain
+**BLOCKED** by the same environment restrictions recorded in Module 01 — not by the code.
+
+**Android runtime verification = PENDING — environment unavailable.**
+**iOS runtime verification = PENDING — environment unavailable.**

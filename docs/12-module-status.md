@@ -4,8 +4,8 @@
 | --: | --- | --- | --- |
 | 01 | Foundation, Architecture & Design System | **COMPLETE (with 3 environment blockers)** | See below |
 | 02 | Customer Mobile App Shell, Navigation & Premium Home | **COMPLETE (Android/iOS device verification pending)** | 82 mobile tests; 11 states inspected live |
-| 03 | Customer Authentication, Registration & OTP | NOT STARTED | Next, on approval |
-| 04 | Users, Roles & Staff | NOT STARTED | |
+| 03 | Customer Authentication, Registration, OTP, Session & Security | **COMPLETE (Android/iOS device verification pending)** | 130 backend + 72 mobile tests; real Flutter→Laravel→MySQL integration run; 20 states inspected live |
+| 04 | Users, Roles & Staff | NOT STARTED | Next, on approval |
 | 05 | Restaurant Onboarding & Profile | NOT STARTED | |
 | 06 | Menu Management | NOT STARTED | |
 | 07 | Restaurant Availability & Capacity | NOT STARTED | |

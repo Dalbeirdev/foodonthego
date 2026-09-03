@@ -31,12 +31,13 @@ class CountryPickerButton extends StatelessWidget {
       child: InkWell(
         onTap: () => _open(context),
         borderRadius: FotgRadius.control,
-        child: Container(
-          // Matches the field height exactly so the two do not look like
-          // different controls that happen to be adjacent.
-          height: FotgSizing.controlHeightLg,
-          padding: const EdgeInsets.symmetric(horizontal: FotgSpacing.x3),
-          alignment: Alignment.center,
+        child: Padding(
+          // No Container with an alignment here, and no height: a Container that
+          // is told to align its child expands to every pixel its constraints
+          // allow. As a field prefix that means it swallows the whole field and
+          // the number being typed becomes invisible — which is exactly what it
+          // did before this was written as a shrink-wrapping Padding.
+          padding: const EdgeInsets.only(right: FotgSpacing.x2),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[

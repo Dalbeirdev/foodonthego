@@ -50,6 +50,18 @@ Index before a feature ships, not after it is slow in production — but only wh
   `password_reset_tokens`, `sessions`, plus Laravel's `cache` and `jobs` tables.
 - Every migration has a working `down()`.
 
+## Personal data has a retention policy
+
+A table that records *who tried to do what and when* is personal data, and keeping it forever only
+widens what a compromise discloses. `otp_challenges` rows are deleted 48 hours after they become
+unusable (`php artisan otp:prune`, scheduled daily).
+
+Two rules the pruner follows, both worth copying when the next such table appears:
+
+- a row that is still **usable** is never deleted however old it is — deleting a live OTP challenge
+  would show "code expired" to somebody looking at the SMS on their screen;
+- pruning never touches rate-limit counters, which would hand an attacker a fresh budget.
+
 ## Tests run against real MySQL
 
 `phpunit.xml` pins `DB_CONNECTION=mysql`. The schema uses MySQL types (`ENUM`, `utf8mb4` collation)

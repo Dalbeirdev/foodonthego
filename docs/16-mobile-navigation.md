@@ -68,6 +68,45 @@ The label is "Alerts" rather than "Notifications" purely because the longer word
 **The selected state changes shape as well as colour** — outlined to filled — so the current tab is
 identifiable without relying on hue.
 
+## Authentication routes and the guard
+
+Four routes live **outside** the shell, because a customer who is not signed in has nowhere else to
+be and a bottom bar leading to five guarded screens would be a lie:
+
+| Route | Screen |
+| --- | --- |
+| `/welcome` | `WelcomeScreen` |
+| `/auth/phone` | `PhoneEntryScreen` |
+| `/auth/otp` | `OtpVerificationScreen` |
+| `/auth/register` | `RegistrationScreen` |
+
+`createRouter` takes a `redirect` with three cases, and the order matters:
+
+1. **Restoring** — return `null` and go nowhere. Redirecting while secure storage is still being
+   read would send a returning customer to the welcome screen for a frame and then bounce them back.
+   `SessionSplash` covers this state, so the home screen behind it never builds and never fires a
+   request for somebody who turns out not to be signed in.
+2. **Not authenticated** — anything outside the four routes above becomes `/welcome`.
+3. **Authenticated** — the four auth routes become `/`.
+
+`AuthChangeNotifier` bridges Riverpod's auth state to go_router's `refreshListenable`, so the guard
+re-runs when the session changes rather than only on an explicit navigation. Without it, a session
+that ended in the background would leave a customer looking at a screen they are no longer entitled
+to until they happened to tap something. It notifies only on *structural* changes — a refreshed
+profile with the same sign-in status must not rebuild the tree.
+
+Nothing in the auth screens navigates on success. Accepting a session flips the guard, which moves
+the app; so does signing out. One path in, one path out, whatever caused it.
+
+The auth screens navigate with `go`, not `push`, and their back buttons say where they go rather
+than calling `pop()` — on a cold start straight into one of them there may be nothing to pop, and
+popping an empty stack leaves a black page.
+
+`/auth/otp` and `/auth/register` take their arguments as route `extra` rather than query parameters:
+a phone number in a URL ends up in a deep-link log and in the browser history of the web build.
+Reached without those arguments — a deep link, or a hot restart mid-flow — they render the phone
+screen instead of a form bound to nothing.
+
 ## Unbuilt features
 
 Tapping a future feature must never show a dead button and must never do nothing silently.

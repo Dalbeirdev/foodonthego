@@ -260,3 +260,157 @@ Eight, with root causes, in [13-known-issues.md](13-known-issues.md) (M02-B01 �
 found only by running the app: the harness crash, the 320dp greeting truncation and the full-width
 button bug. One — the silent retry loop — was found by a test that counted repository calls rather
 than asserting on pixels.
+
+---
+
+# Module 03 — test evidence
+
+Full transcript: [`evidence/module-03-verification-run.txt`](evidence/module-03-verification-run.txt).
+Screenshots: [`evidence/module-03/`](evidence/module-03/).
+
+## Automated tests — 380 total, 380 passed, 0 failed, 0 skipped
+
+| Suite | Command | Tests | Passed | Failed | Skipped |
+| --- | --- | --: | --: | --: | --: |
+| Backend — phone normalization | `php artisan test --filter=PhoneNormalizerTest` | 27 | 27 | 0 | 0 |
+| Backend — OTP challenges | `--filter=OtpChallengeServiceTest` | 15 | 15 | 0 | 0 |
+| Backend — registration token | `--filter=RegistrationTokenServiceTest` | 9 | 9 | 0 | 0 |
+| Backend — customer auth service | `--filter=CustomerAuthServiceTest` | 12 | 12 | 0 | 0 |
+| Backend — development sender | `--filter=LogOtpProviderTest` | 6 | 6 | 0 | 0 |
+| Backend — OTP endpoints | `--filter=CustomerOtpTest` | 19 | 19 | 0 | 0 |
+| Backend — registration endpoint | `--filter=CustomerRegistrationTest` | 11 | 11 | 0 | 0 |
+| Backend — session endpoints | `--filter=CustomerSessionTest` | 11 | 11 | 0 | 0 |
+| Backend — authorization boundary | `--filter=AuthorizationBoundaryTest` | 8 | 8 | 0 | 0 |
+| Backend — auth logging | `--filter=AuthLoggingTest` | 5 | 5 | 0 | 0 |
+| Backend — challenge pruning | `--filter=PruneOtpChallengesTest` | 4 | 4 | 0 | 0 |
+| Backend — production guard (extended) | `--filter=ProductionConfigGuardTest` | 13 | 13 | 0 | 0 |
+| **Backend total** | `php artisan test` | **197** | **197** | **0** | **0** |
+| Mobile — auth flow | `flutter test test/auth_flow_test.dart` | 26 | 26 | 0 | 0 |
+| Mobile — session lifecycle | `flutter test test/auth_session_test.dart` | 12 | 12 | 0 | 0 |
+| Mobile — API client | `flutter test test/api_client_test.dart` | 13 | 13 | 0 | 0 |
+| Mobile — auth models | `flutter test test/auth_models_test.dart` | 21 | 21 | 0 | 0 |
+| **Mobile total** | `flutter test` | **154** | **154** | **0** | **0** |
+| Web (regression) | `npm test` | 29 | 29 | 0 | 0 |
+| **Project total** | | **380** | **380** | **0** | **0** |
+
+Backend grew from 67 to 197; mobile from 82 to 154.
+
+## Integration — no mocks
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Flutter network layer → Laravel → MySQL | `dart run tool/integration_smoke.dart` | **15 passed, 0 failed** |
+| Same, returning-customer path (second run) | as above | **13 passed, 0 failed** |
+
+The 15 assertions cover: masking in the API response, no code in the response, code delivery, a
+wrong code rejected by the real server, the registration branch, the token not containing the phone
+number, a session for the verified number, a real Sanctum token, `/customer/me` authenticating,
+UUIDs rather than database keys, an unauthenticated 401, replay refusal, logout revocation, an
+invalid number, and the resend cooldown.
+
+## Static analysis
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Backend style | `vendor/bin/pint --test` | **passed** |
+| Backend advisories | `composer audit` | **none** |
+| Dart analyzer | `flutter analyze --fatal-infos` | **No issues found** |
+| Dart format | `dart format --set-exit-if-changed .` | **77 files, 0 changed** |
+| Flutter web build | `flutter build web --release` | **✓ Built** |
+| TypeScript (regression) | `npm run typecheck` | **0 errors** |
+
+## Database verification — real MySQL
+
+| Check | Query | Result |
+| --- | --- | --- |
+| No plaintext code in any column | `SUM(otp_hash REGEXP '^[0-9]{6}$')` | **0** |
+| All codes hashed | `SUM(otp_hash REGEXP '^[0-9a-f]{64}$')` | **all rows** |
+| Token stored as a hash of the plaintext | `token = SHA2(<plaintext>,256)` | **1** |
+| Token never stored in plaintext | `token = <plaintext>` | **0** |
+| Token carries one ability and an expiry | `abilities`, `expires_at` | `["customer"]`, set |
+| Customer has no password | `password IS NULL` | **1** |
+| Phone verified, email not | `phone_verified_at`, `email_verified_at` | set, NULL |
+| Status is an ENUM, like `role` | `SHOW COLUMNS` | `enum('active','suspended','disabled','deleted')` |
+
+## Log review — real application log
+
+2,589 lines from a complete sign-up flow.
+
+| Check | Occurrences |
+| --- | --: |
+| Any full test phone number | **0** |
+| Any OTP written to the development channel | **0** |
+| Phone numbers appearing masked (`+91 ••••••0002`) | every auth line |
+| Token ids | `[REDACTED]` |
+
+## Live-view verification
+
+A Flutter **web release build with `FOTG_ENV=production`** — so no fixtures and no development
+harness — served at `http://localhost:5173` and talking to the Laravel server at
+`http://localhost:8000` against MySQL. Driven with Playwright through Flutter's DOM semantics tree.
+
+Twenty screenshots in [`evidence/module-03/`](evidence/module-03/):
+
+| State | File |
+| --- | --- |
+| Welcome (unauthenticated entry) | `state-01-welcome.png` |
+| Phone entry, empty | `state-02-phone-empty.png` |
+| Country picker sheet | `state-03-country-picker.png` |
+| Phone entry, valid, action enabled | `state-04-phone-valid.png` |
+| Code entry with live countdowns | `state-05-otp-empty.png` |
+| Wrong code rejected by the real server | `state-06-otp-wrong-code.png` |
+| Registration (new number) | `state-07-registration-empty.png` |
+| Registration validation | `state-08-registration-validation.png` |
+| Registration filled | `state-09-registration-filled.png` |
+| Home, signed in, real identity | `state-10-home-signed-in.png` |
+| Profile, real name and masked number | `state-11-profile-identity.png` |
+| Profile scrolled | `state-12-profile-scrolled.png` |
+| Sign-out confirmation | `state-13-sign-out-confirm.png` |
+| Welcome after a deliberate sign-out | `state-14-welcome-after-signout.png` |
+| Reload stays signed out | `state-15-reload-stays-signed-out.png` |
+| Dark mode, welcome and phone | `variant-dark-*.png` |
+| 320dp (smallest supported) | `variant-320-*.png` |
+| 768dp tablet | `variant-768-welcome.png` |
+
+Final run: **"No console errors, no page errors, all expected content present."**
+
+## Android verification
+
+**PENDING — environment unavailable.** `dl.google.com` is denied by the network egress policy, so
+the Android SDK cannot be installed. See KI-001. Not claimed as passed.
+
+## iOS verification
+
+**iOS Runtime Verification = PENDING — environment unavailable.** No macOS host and no Xcode. See
+KI-002. Not claimed as passed.
+
+## Accessibility evidence
+
+| Check | Method | Result |
+| --- | --- | --- |
+| Semantic label on the code field | `Semantics(textField:)` asserted in the live semantics tree | ✅ |
+| Semantic label on the country picker | Reads "Select country, India +91" | ✅ |
+| Loading buttons announce state | `PrimaryButton`/`SecondaryButton` add ", loading" | ✅ |
+| Touch targets ≥ 48dp | Picker sized to the full control height; `LinkAction` padded | ✅ |
+| Text scaling | Rendered at 320dp with the app's 1.4x clamp; no overflow | ✅ |
+| Errors are text, not colour alone | Every error carries an icon and a sentence | ✅ |
+| Autofill without a permission | `AutofillHints.oneTimeCode`; no SMS-read permission requested | ✅ |
+| Contrast, light and dark | Unchanged tokens; `tokens_test.dart` still passes | ≥ 4.5:1 |
+
+## Defects found and fixed
+
+Twelve, with root causes, in [13-known-issues.md](13-known-issues.md) (M03-B01 … M03-B12). Five were
+**critical or high**, and the two most serious were found by tests rather than by looking: the OTP
+closure that hashed an undefined variable (nothing could ever verify) and the missing Sanctum trait
+(no session could be issued). Two more were found only by running the app in a browser: the welcome
+screen's layout assertion and the country picker swallowing the phone field.
+
+## A note on the screenshots
+
+CanvasKit fetches its fallback font from a CDN this environment blocks, so a font (LiberationSans)
+was bundled temporarily to make text render and then removed. The committed `pubspec.yaml` bundles
+no font and `FotgTypography.fontFamily` is `null`, as Module 01 requires.
+
+LiberationSans has no regional-indicator glyphs, so the country flag appears as two empty boxes in
+the screenshots. On iOS and Android the platform emoji font renders it; the dial code beside it is
+the functional part and renders everywhere.

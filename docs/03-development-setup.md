@@ -64,8 +64,39 @@ backend is not running or `VITE_API_BASE_URL` is wrong.
 ```bash
 cd mobile
 flutter pub get
-flutter run                # a connected device or emulator
+flutter run --dart-define=FOTG_API_BASE_URL=http://10.0.2.2:8000
 ```
+
+`10.0.2.2` is the Android emulator's alias for the host machine — it is the default, and it is what
+a developer running `php artisan serve` actually needs, because `localhost` inside an emulator is
+the emulator. On an iOS simulator use `http://localhost:8000`; on a physical handset use the
+machine's LAN address.
+
+### Signing in during development
+
+Set `OTP_PROVIDER=log` in `backend/.env` (it is the default in `.env.example`). Codes are then
+written to `backend/storage/logs/otp-development.log` — a dedicated channel, so they never reach the
+structured application log:
+
+```bash
+tail -f backend/storage/logs/otp-development.log
+```
+
+Use a number from the reserved test range (`+919999900000`–`+919999999999`) so a code can never
+reach a real person's handset. The development sender refuses to be constructed in production, and a
+production or staging boot fails outright while it is configured — see
+[18-customer-authentication.md](18-customer-authentication.md).
+
+### Checking the app really talks to the API
+
+```bash
+cd mobile
+dart run --define=FOTG_API_BASE_URL=http://127.0.0.1:8000 tool/integration_smoke.dart
+```
+
+This drives the app's own network layer against a running backend and a real MySQL database — no
+mocks. It is a `dart run` rather than a `flutter test` because `flutter_test` replaces `HttpClient`
+with a mock and could not make a real request.
 
 ## Running everything at once
 
@@ -74,9 +105,9 @@ Four terminals: MySQL, Redis, `php artisan serve`, and the two Vite servers.
 ## Tests
 
 ```bash
-cd backend && php artisan test        # 67 tests
+cd backend && php artisan test        # 197 tests
 cd web     && npm test                # 29 tests
-cd mobile  && flutter test            # 19 tests
+cd mobile  && flutter test            # 154 tests
 ```
 
 ## Static checks
@@ -84,5 +115,6 @@ cd mobile  && flutter test            # 19 tests
 ```bash
 cd backend && vendor/bin/pint --test  # code style
 cd web     && npm run typecheck       # TypeScript, all workspaces
-cd mobile  && flutter analyze         # Dart analyzer
+cd mobile  && flutter analyze --fatal-infos
+cd mobile  && dart format --set-exit-if-changed .
 ```

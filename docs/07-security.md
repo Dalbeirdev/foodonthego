@@ -48,6 +48,23 @@ An exact-match allow-list from `FRONTEND_URLS`, never a reflection of the inboun
 `supports_credentials` is on, which is precisely why a wildcard origin is refused at boot: wildcard
 plus credentials is the configuration that leaks them.
 
+## Authentication and sessions
+
+The customer flow, its threat model and every decision behind it are documented in
+[18-customer-authentication.md](18-customer-authentication.md). The rules that matter platform-wide:
+
+- One-time codes are generated with `random_int`, stored as a **peppered SHA-256 HMAC** (the pepper
+  is `APP_KEY`, which is not in the database), and compared with `hash_equals`.
+- A code is never returned, logged, or stored in plaintext. The attempt counter lives in **MySQL**,
+  not Redis — losing a rate-limit counter is generous, losing an attempt counter is dangerous.
+- Registration is bound to the completed challenge by an encrypted token. The registration endpoint
+  accepts **no phone number at all**, so verifying one number and registering another is not a check
+  that could be forgotten — it is structurally impossible.
+- Access tokens are stored as `sha256` hashes, carry a single ability, and expire.
+- The OTP request response is identical whether or not an account exists (no enumeration).
+- A production or staging deployment **refuses to boot** on an OTP sender that reports it cannot
+  reach a real handset, and the development sender refuses to be constructed in production at all.
+
 ## Logging
 
 Structured JSON, one object per line, carrying `request_id`, `actor_id` and `actor_role`.
@@ -75,7 +92,12 @@ brute-force and scraping, the second prevents a retried payment being charged tw
 
 Named rather than implied:
 
-- **Authentication** — Module 02. No login exists; the shells render clearly-labelled test personas.
+- **Authentication for the restaurant and admin surfaces** — those shells still render
+  clearly-labelled test personas. The **customer** surface is built: phone + OTP, Sanctum sessions,
+  role and ability gates. See [18-customer-authentication.md](18-customer-authentication.md).
+- **Token revocation on account suspension** — a suspended account cannot obtain a new session, but
+  an existing token keeps working until it expires. KI-008; the fix belongs with the admin module
+  that does the suspending.
 - **Per-resource authorisation policies** — with the modules that own the resources.
 - **File upload scanning** — with the first module that accepts an upload.
 - **Webhook signature verification** — with the payment module.

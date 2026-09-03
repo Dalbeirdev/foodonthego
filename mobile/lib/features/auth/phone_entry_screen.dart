@@ -207,11 +207,21 @@ class _PhoneField extends StatelessWidget {
         // Wraps rather than clipping, because several of these messages are a
         // full sentence and a clipped error is not an error message.
         errorMaxLines: 3,
-        prefixIcon: CountryPickerButton(
+        // `prefix`, not `prefixIcon`. A prefixIcon is centred over the whole
+        // decoration box, which leaves the dial code floating above the number's
+        // baseline once the label has floated up. `prefix` sits inside the input
+        // row itself, so "+91" and the digits share a baseline and read as one
+        // number.
+        //
+        // Flutter only renders a prefix when the field is focused or filled,
+        // hence the always-floating label: the country code has to be visible
+        // before anybody has typed, or the field looks like it takes a full
+        // international number.
+        prefix: CountryPickerButton(
           selected: country,
           onChanged: onCountryChanged,
         ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 96),
+        floatingLabelBehavior: FloatingLabelBehavior.always,
       ),
     );
   }

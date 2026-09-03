@@ -249,9 +249,15 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                 ),
               ),
               const SizedBox(height: FotgSpacing.x2),
-              LinkAction(
-                label: strings.authOtpChangeNumber,
-                onPressed: () => context.go(Routes.authPhone),
+              // Aligned left with everything else on the screen. The column
+              // stretches its children, which would otherwise centre this link
+              // under left-aligned copy and make it read as a heading.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: LinkAction(
+                  label: strings.authOtpChangeNumber,
+                  onPressed: () => context.go(Routes.authPhone),
+                ),
               ),
               const SizedBox(height: FotgSpacing.x8),
               OtpInputField(

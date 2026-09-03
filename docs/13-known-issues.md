@@ -74,30 +74,91 @@ KI-001 is cleared. The iOS job is written but gated behind a macOS runner.
 
 ## Open — product gaps (by design, scheduled)
 
-### KI-005 · No authentication
+### KI-005 · No authentication ~~open~~ → **partially resolved in Module 03**
 
-Module 01 has no login. Both web shells render a clearly-labelled development persona and the
-account menu's items are disabled and marked *Module 02*. **Every API endpoint that will need
-authorisation must gain it in the module that introduces it** — no endpoint currently authenticates
-because none currently carries data.
+Module 01 had no login at all. Module 03 closed it for the **customer** surface: phone + OTP
+sign-in, Sanctum sessions, and `role`/`abilities` gates on every protected route
+(see [18-customer-authentication.md](18-customer-authentication.md)).
 
-### KI-006 · Only `users` exists in the database
+Still open for the **restaurant and admin** surfaces: both web shells continue to render a
+clearly-labelled development persona and their account menus stay disabled. The middleware those
+surfaces will use (`role:`, `abilities:`) exists and is tested — `AuthorizationBoundaryTest` proves
+a customer token is refused by routes shaped like theirs — but no restaurant or admin sign-in is
+built yet.
+
+**Every API endpoint that will need authorisation must gain it in the module that introduces it.**
+
+### KI-006 · The schema covers only what the built modules need
 
 Deliberate: creating thirty half-designed tables now would fix decisions before the features that
 depend on them are understood. Module-specific migrations arrive with their modules.
 
+As of Module 03 the schema is `users` (extended with customer identity, status and last-login),
+`otp_challenges`, and `personal_access_tokens`. Restaurants, menus, journeys, orders and payments
+arrive with Modules 04–11.
+
 ---
 
-### KI-005 · The customer app has no backend integration
+### KI-007 · The customer app has no backend integration for journeys and orders
+
+*(Numbered KI-007 in Module 03. It was written as a second "KI-005" during Module 02 — two different
+issues under one id, which is exactly the silent drift this register exists to prevent. Renumbered
+rather than quietly corrected.)*
 
 **Severity:** Medium — by design, but worth stating plainly.
 
-Module 02 is a shell. `UnconfiguredHomeRepository` is what a production build resolves to, and it
-returns a dashboard with no journey and no order — the truthful state for an account with nothing in
-it. It never invents data.
+`UnconfiguredHomeRepository` is what a production build resolves to. From Module 03 it carries the
+**real** signed-in customer's name, and still returns no journey and no order — the truthful state
+for an account with nothing in it. It never invents data.
 
 Real data arrives when the modules that own it land: journeys in Module 05, orders in Module 08.
 Only the provider changes; no widget does.
+
+---
+
+### KI-008 · Suspending an account does not revoke its live tokens
+
+**Severity:** Medium — a real gap, not a design choice.
+
+Sanctum access tokens are bearer credentials, and `/customer/me` does not re-check
+`users.status` on every request. So an account suspended while a customer's phone is in their
+pocket keeps working until the token expires (30 days) or somebody deletes the row.
+
+`CustomerAuthService::issueSession()` **does** refuse a suspended or disabled account, so the
+account cannot obtain a *new* session — the gap is only about sessions that already exist.
+
+It is not closed here because the tooling that suspends an account is the admin module, which does
+not exist yet; the correct fix belongs with it (`$user->tokens()->delete()` on suspension, plus a
+periodic status check for long-lived sessions). The current behaviour is pinned by a test that
+documents it honestly rather than pretending otherwise:
+`CustomerSessionTest::test_an_account_suspended_after_sign_in_keeps_its_token_until_it_is_revoked`.
+
+**To clear:** revoke tokens in the admin suspension path (Module 13), and decide whether a
+per-request status check is worth its cost.
+
+---
+
+## Bug register — Module 03
+
+All found during Module 03, all fixed and retested. Environment: PHP 8.4.19 / Laravel 12.69.1 /
+MySQL 8.0.46 / Flutter 3.47.2 on Ubuntu 24.04; live-view render in Chromium at 320–768dp.
+
+| ID | Description | Severity | Reproduction | Cause | Fix | Retest | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| M03-B01 | Every OTP challenge stored the hash of an empty string, so no code could ever verify | **Critical** | Request a code, submit it | `DB::transaction(function () use ($phone, $requestIp))` did not capture `$code`, so `$this->hash($code)` hashed an undefined variable | Added `$code` to the closure's `use` list | `OtpChallengeServiceTest` — 15 tests, full issue/verify round trip | **Fixed** |
+| M03-B02 | Every international number failed with a `TypeError` | **High** | `PhoneNormalizer::normalize('+919876543210')` | PHP silently casts numeric string array keys to int, so `array_keys(COUNTRIES)` returned `[91, 971, 44, 1]` as integers and `str_starts_with()` rejected them | Cast to string once, with a comment naming the footgun | `PhoneNormalizerTest` — 27 tests including every calling code | **Fixed** |
+| M03-B03 | `supportedCountries()` returned `{"code": 91}` — a number — so a client comparing against `"91"` never matched | Medium | Call the helper, inspect the type | Same integer-key coercion | `(string) $code` in the projection | Type asserted in `PhoneNormalizerTest` | **Fixed** |
+| M03-B04 | `User::createToken()` did not exist | **High** | Issue a session | `Laravel\Sanctum\HasApiTokens` was imported but never `use`d in the class body | Trait added, with a comment saying why it is the whole credential mechanism | `CustomerAuthServiceTest` — 12 tests | **Fixed** |
+| M03-B05 | `OtpVerifyRequest` could not extend `OtpRequestRequest` — the app would not boot | **High** | Any request to the API | Both classes were `final`; one extended the other | Shared rules extracted to an abstract `PhoneFormRequest`; both leaves stay `final` | 197 backend tests | **Fixed** |
+| M03-B06 | The welcome screen threw on layout | **High** | Open the app signed out | `Spacer` inside a `SingleChildScrollView`: `minHeight` does not bound a column, and a flex child in an unbounded column is an assertion failure | Copy scrolls inside an `Expanded`; the CTA is pinned. Better at a 1.4× text scale too | `state-01-welcome.png` at 320/393/768dp | **Fixed** |
+| M03-B07 | The typed phone number was invisible and the dial code drifted right | **Critical** | Type a number on the phone screen | The country picker was a `prefixIcon` built from a `Container` with an `alignment`, which expands to every pixel its constraints allow — swallowing the whole field | Rewritten as `prefix` (inside the input row, on the text baseline) around a shrink-wrapping `Padding` | `state-04-phone-valid.png`; `variant-320-phone.png` | **Fixed** |
+| M03-B08 | The client masked `+919876543210` as `+••••••••3210` while the server produced `+91 ••••••3210` | Medium | Compare the OTP screen with the profile | Two independent masking implementations | `maskE164()` mirrors `PhoneNumber::masked()` using the shared country table | `auth_models_test.dart`; `state-11-profile-identity.png` | **Fixed** |
+| M03-B09 | Blank optional fields were sent as `""` rather than absent | Medium | Register with no surname | The screen passed the controller's raw text | Blank → `null` in the screen, with the repository normalising defensively too | `auth_flow_test.dart` asserts `last_name` is null | **Fixed** |
+| M03-B10 | `users.status` was `varchar(20)` where `users.role` is a MySQL `ENUM` | Medium | `SHOW COLUMNS FROM users` | The migration used `->string()` against the Module 01 convention | `->enum('status', AccountStatus::values())`; the database now refuses a status the application has no case for | `SHOW COLUMNS` after `migrate:fresh`; 197 tests | **Fixed** |
+| M03-B11 | "Change number" rendered centred under left-aligned copy, reading as a heading | Low | Open the OTP screen | The column stretches its children, so the link's text centred | Wrapped in `Align(centerLeft)` | `state-05-otp-empty.png` | **Fixed** |
+| M03-B12 | A revoked token kept working within a feature test | Low | Log out, then call `/customer/me` in the same test | Test-harness artefact: the app object is reused across calls and Sanctum's `RequestGuard` memoises the resolved user. Production forks a process per request | `forgetGuards()` between requests, with a comment explaining the test measures the API rather than the harness | `CustomerSessionTest` — 11 tests | **Fixed** |
+
+No Module 03 issue was left open.
 
 ---
 

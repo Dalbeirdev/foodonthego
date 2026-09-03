@@ -39,34 +39,46 @@ class WelcomeScreen extends ConsumerWidget {
               // The copy scrolls; the action does not. Pinning the button means
               // it stays reachable at a 1.4x text scale on a short device,
               // which a single scroll view containing everything would not.
+              //
+              // The minHeight/center pair is what centres the copy when it fits
+              // and lets it scroll when it does not. A Spacer cannot do this: a
+              // scroll view gives its child unbounded height, and a flex child
+              // in an unbounded column throws on layout.
               Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      if (wasSignedOut) ...<Widget>[
-                        _SignedOutNotice(
-                          message: strings.authSessionExpiredNotice,
+                child: LayoutBuilder(
+                  builder: (BuildContext context, BoxConstraints available) =>
+                      SingleChildScrollView(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: available.maxHeight,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              if (wasSignedOut) ...<Widget>[
+                                _SignedOutNotice(
+                                  message: strings.authSessionExpiredNotice,
+                                ),
+                                const SizedBox(height: FotgSpacing.x6),
+                              ],
+                              const _BrandMark(),
+                              const SizedBox(height: FotgSpacing.x8),
+                              Text(
+                                strings.authWelcomeTitle,
+                                style: theme.textTheme.displaySmall,
+                              ),
+                              const SizedBox(height: FotgSpacing.x4),
+                              Text(
+                                strings.authWelcomeBody,
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: FotgSpacing.x6),
-                      ],
-                      const SizedBox(height: FotgSpacing.x10),
-                      const _BrandMark(),
-                      const SizedBox(height: FotgSpacing.x8),
-                      Text(
-                        strings.authWelcomeTitle,
-                        style: theme.textTheme.displaySmall,
                       ),
-                      const SizedBox(height: FotgSpacing.x4),
-                      Text(
-                        strings.authWelcomeBody,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: FotgSpacing.x6),
-                    ],
-                  ),
                 ),
               ),
               PrimaryButton(

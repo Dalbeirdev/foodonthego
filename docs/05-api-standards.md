@@ -61,6 +61,30 @@ Clients branch on `code`, never on `message` — the message is free to be rewor
 | `DEPENDENCY_UNAVAILABLE` | 503 | MySQL or Redis is down |
 | `SERVER_ERROR` | 500 | A bug — never described to the client |
 
+Added in Module 03 ([18-customer-authentication.md](18-customer-authentication.md)):
+
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| `INVALID_PHONE` | 422 | Not a number we can serve |
+| `UNSUPPORTED_PHONE_REGION` | 422 | A valid number in a country we do not operate in |
+| `OTP_SEND_FAILED` | 503 | The sender definitely did not deliver |
+| `OTP_RATE_LIMITED` | 429 | Too many code requests for this number or IP |
+| `OTP_INVALID` | 422 | Wrong code |
+| `OTP_EXPIRED` | 422 | Expired, already used, or no live challenge |
+| `OTP_TOO_MANY_ATTEMPTS` | 422 | The challenge is dead; request a new code |
+| `OTP_RESEND_TOO_SOON` | 429 | Inside the resend cooldown |
+| `REGISTRATION_TOKEN_INVALID` | 401 | Forged, altered, or not from a completed verification |
+| `REGISTRATION_TOKEN_EXPIRED` | 401 | Verified too long ago |
+| `ACCOUNT_SUSPENDED` | 403 | The account cannot authenticate right now |
+| `ACCOUNT_DISABLED` | 403 | The account cannot authenticate at all |
+
+Two deliberate choices in that table. `OTP_RESEND_TOO_SOON` and `OTP_RATE_LIMITED` share a status so
+a caller cannot distinguish "too soon" from "too many". `ACCOUNT_DISABLED` also covers a deleted
+account: reporting deletion would confirm to whoever now holds that number that an account existed.
+
+Rate-limit errors carry `details.retry_after_seconds` — a client needs it for a countdown — and
+never the threshold, which would hand a caller the shape of the limit to work around.
+
 Adding a code is backwards compatible. Changing or removing one is a breaking change requiring a new
 API version. `GET /api/v1/meta` returns this table so clients read it from the server rather than
 copying it into three codebases.
@@ -69,6 +93,25 @@ copying it into three codebases.
 against the same `request_id` the client was given. The client receives a fixed sentence and that
 id. This is asserted by a test that throws an exception containing a fake password and asserts the
 response body contains neither it nor the exception class.
+
+## Authentication
+
+Bearer tokens (Laravel Sanctum). `Authorization: Bearer <token>` and nowhere else — a token in a
+query string ends up in access logs, proxy logs and `Referer` headers, and the API rejects one there.
+
+`config/sanctum.php` sets `'guard' => []`: session cookies never authenticate an API request, so no
+state-changing route is reachable with an ambient cookie.
+
+A protected route carries **three** middleware, not one:
+
+```php
+Route::middleware(['auth:sanctum', 'role:customer', 'abilities:customer', 'throttle:api-public'])
+```
+
+`auth:sanctum` proves the token is real and unexpired. `role:` proves the account is the kind that
+belongs on this surface. `abilities:` proves this particular token was minted for this work. A route
+that checks only the first has checked neither of the others, and a valid customer token is a
+perfectly good credential with no business reaching a restaurant's order queue.
 
 ## Correlation IDs
 

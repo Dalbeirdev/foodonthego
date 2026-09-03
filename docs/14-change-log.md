@@ -108,3 +108,76 @@ Eight defects, in [13-known-issues.md](13-known-issues.md). The three worth repe
 - **The greeting lost the customer's name at 320dp**, truncating to "Good evening, R…".
 - **The development harness crashed the app**, because `MaterialApp.builder` sits above the Navigator
   and the handle's `Tooltip` found no `Overlay`.
+
+---
+
+## Module 03 — Customer Authentication, Registration, OTP, Session & Security
+
+### Added
+
+**Backend (Laravel 12.69.1, Sanctum 4.3.3)**
+- Phone + OTP sign-in: `POST /auth/customer/otp/request`, `POST /auth/customer/otp/verify`,
+  `POST /auth/customer/register`, plus `GET /customer/me` and `POST /auth/logout` behind a token.
+- `OtpChallengeService` — CSPRNG codes, peppered SHA-256 HMAC storage, constant-time comparison,
+  expiry, single use, attempt exhaustion that kills a correct code, and supersession on resend.
+- `RegistrationTokenService` — an encrypted, signed, short-lived token that carries the verified
+  number so registration cannot be pointed at a different one.
+- `PhoneNormalizer` / `PhoneNumber` — E.164 normalization for four markets, trunk-prefix handling,
+  and a masking form shared with the client.
+- OTP sender abstraction: `LogOtpProvider` (development, refuses production) and
+  `UnconfiguredOtpProvider` (the production default, fails loudly).
+- `OtpRateLimiter` — per-phone and per-IP budgets on hashed keys; a server-enforced resend cooldown.
+- `EnsureRole` middleware, plus Sanctum's `abilities`/`ability` aliases, so a protected route states
+  its account kind and its token scope rather than only its authentication.
+- `AccountStatus` enum and gating; 12 new `ApiErrorCode` cases.
+- `otp:prune` artisan command, scheduled daily, with a 48-hour retention window.
+- Migrations: customer identity on `users` (`first_name`, `last_name`, `phone_e164` unique,
+  `status` ENUM, `last_login_at`; `password`/`email`/`name` made nullable), `otp_challenges`, and
+  Sanctum's `personal_access_tokens`.
+
+**Mobile (Flutter)**
+- Welcome, phone entry with a country picker, code entry, and registration screens.
+- `ApiClient` — the single place the app speaks HTTP, unwrapping the documented envelope and
+  translating failures into `ApiErrorCode`.
+- `SecureSessionStore` — Keychain / Android KeyStore, never plaintext preferences.
+- `AuthController` + `AuthState` — session restore that is confirmed with the server but survives a
+  network outage, and one 401 anywhere ending the session everywhere.
+- Router guard over every protected route, with `SessionSplash` so restore never flashes.
+- `authErrorMessage()` — code-to-wording mapping, never the server's prose.
+- `tool/integration_smoke.dart` — a real run against Laravel and MySQL.
+
+**Documentation**
+- `18-customer-authentication.md`; Module 03 traceability (42 requirements) and bug register (12).
+
+### Changed
+
+- `config/sanctum.php`: `guard` emptied, so a session cookie can never authenticate an API request.
+- `ProductionConfigGuard` now refuses to boot on a sender that cannot reach a real handset, or while
+  the simulated-failure switch is on.
+- `UnconfiguredHomeRepository` carries the signed-in customer's real name; the profile header reads
+  the session rather than the home dashboard payload.
+- `SecondaryButton` gained `isLoading`, matching `PrimaryButton`'s contract.
+- `PhoneFormRequest` extracted so requesting and verifying cannot normalize differently.
+- KI-005 renumbered where it had been used twice for different issues.
+
+### Fixed
+
+Twelve defects, all found by the tests and the live-view run written for this module and all
+retested — full table in [13-known-issues.md](13-known-issues.md). The ones worth naming here:
+
+- **M03-B01** — the OTP transaction closure never captured `$code`, so every challenge stored the
+  hash of an empty string and no code could ever verify.
+- **M03-B02/B03** — PHP casts numeric string array keys to int, so the country table's keys came
+  back as integers: every international number raised a `TypeError`, and the country list was
+  serialised as numbers.
+- **M03-B07** — the country picker, built as a `prefixIcon` around an aligned `Container`, expanded
+  to fill the whole field and made the number being typed invisible.
+- **M03-B10** — `users.status` shipped as `varchar` where `role` is a MySQL `ENUM`, against the
+  Module 01 convention.
+
+### Not done, and why
+
+- Android and iOS device verification — KI-001, KI-002 (environment).
+- Token revocation when an account is suspended — KI-008; belongs with the admin module that
+  performs the suspension.
+- Profile editing, saved addresses, social sign-in, biometric unlock — later modules.

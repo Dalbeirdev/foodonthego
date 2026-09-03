@@ -4,6 +4,11 @@
 
 ```
 FoodOnTheGoApp                     theme · localization · router · text-scale clamp
+├── SessionSplash                  while secure storage is read — never flashes a wrong screen
+├── WelcomeScreen                  unauthenticated entry, one decision, no form
+├── PhoneEntryScreen               country picker + number, nothing else asked
+├── OtpVerificationScreen          countdown · resend · change number
+├── RegistrationScreen             first name required, everything else optional
 └── CustomerShell                  offline banner · bottom navigation · Android back
     ├── HomeScreen                 loading | error | data
     │   ├── GreetingHeader
@@ -18,6 +23,34 @@ FoodOnTheGoApp                     theme · localization · router · text-scale
     └── ProfileScreen              header + three grouped sections
 ComingSoonScreen                   pushed over the shell
 ```
+
+## The authentication screens
+
+Four screens, each with one job, and a guard that decides which of them (or the shell) is on screen.
+The reasoning behind each control is in
+[18-customer-authentication.md](18-customer-authentication.md); what matters for the UI:
+
+**Welcome** explains the product before asking for anything. A sign-in screen that opens with a
+phone field is the last screen a lot of people see. The copy scrolls and the action is pinned, so it
+stays reachable at a 1.4× text scale on a short device.
+
+**Phone entry** asks for a number and nothing else — no device id, no referral code, no marketing
+opt-in. The country picker is a bottom sheet rather than a dropdown: at four markets a dropdown
+would do, but a sheet stays usable at twenty and at large text sizes. The picker sits inside the
+field as a `prefix`, so the dial code and the digits share a baseline and read as one number.
+
+**Code entry** is one real text field behind the appearance of digit boxes, never one field per
+digit: separate fields look identical and behave badly — they break paste, fight SMS autofill, and
+make backspacing an accessibility problem. Two countdowns run, both a courtesy over a server rule.
+An expired or exhausted code clears the field and ends the countdown, which turns *Resend code* on:
+the screen offers the action that can actually help rather than inviting another doomed attempt.
+
+**Registration** shows the verified number back as a chip and has no field to change it. First name
+is required; surname is optional because plenty of people have one name, and a required surname is a
+wall they cannot pass. Email is optional and labelled with why it is wanted.
+
+Every failure is a sentence the customer can act on, chosen by the API's machine-readable error code
+— never the server's own prose, which is free to be reworded or translated.
 
 ## The three home states
 
@@ -137,6 +170,20 @@ in dark mode for a reason.
 
 Portrait only for now (`main.dart`). Landscape is a real layout with real work behind it; shipping a
 stretched portrait layout would be worse than not offering it.
+
+## The profile identity block
+
+From Module 03 the header reads the **session**, not the home dashboard: name, initials and the
+masked number come from the signed-in account. The number is masked even here, on the account's own
+screen — a phone is read over shoulders and screenshotted into support tickets, and the last four
+digits are enough to confirm which number it is.
+
+Sign out is behind a confirmation dialog. That is not friction for its own sake: signing back in
+means waiting for an SMS, so an accidental tap in a list people scroll has a real cost.
+
+Everything else in the list still routes to a controlled placeholder naming its module. Profile
+*editing* belongs to a later module, and a form that silently discards what somebody typed is worse
+than one that is honestly not there yet.
 
 ## Development harness
 
