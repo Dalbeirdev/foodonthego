@@ -36,6 +36,14 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_riverpod: ^3.4.2
   go_router: ^18.0.1
+  # The API client. Deliberately `http` and not `dio`: this app makes plain
+  # JSON calls against one host, and the interceptor machinery dio exists for is
+  # a page of code here (see core/network/api_client.dart).
+  http: ^1.6.0
+  # Access tokens go to the Keychain on iOS and to EncryptedSharedPreferences on
+  # Android. Plain SharedPreferences is world-readable on a rooted device, and a
+  # long-lived bearer token is exactly what must not be readable there.
+  flutter_secure_storage: ^11.0.0
 
 dev_dependencies:
   flutter_test:

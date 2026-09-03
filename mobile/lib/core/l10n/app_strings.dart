@@ -127,6 +127,81 @@ class AppStrings {
   String get retry => 'Try again';
   String get loading => 'Loading';
 
+  // --- authentication ------------------------------------------------------
+  String get authWelcomeTitle => 'Eat well on the road';
+  String get authWelcomeBody =>
+      'Tell us your route, order from a kitchen on the way, and collect it '
+      'without waiting.';
+  String get authWelcomeCta => 'Continue with mobile number';
+  String get authWelcomeLegal =>
+      'By continuing you agree to our Terms and Privacy Policy.';
+  String get authSessionExpiredNotice =>
+      'You were signed out. Please sign in again.';
+
+  String get authPhoneTitle => 'What is your mobile number?';
+  String get authPhoneBody =>
+      'We will send a one-time code to confirm it is you.';
+  String get authPhoneLabel => 'Mobile number';
+  String get authPhoneCta => 'Send code';
+  String get authCountryPickerTitle => 'Select country';
+  String get authPhoneTooShort => 'That number looks too short.';
+  String get authPhoneNotMobile =>
+      'Enter a mobile number — we need to send a text.';
+
+  String get authOtpTitle => 'Enter the code';
+  String authOtpSentTo(String masked) => 'Sent to $masked';
+  String get authOtpCta => 'Verify';
+  String get authOtpResend => 'Resend code';
+  String authOtpResendIn(int seconds) => 'Resend code in ${seconds}s';
+  String get authOtpChangeNumber => 'Change number';
+  String authOtpExpiresIn(String time) => 'Code expires in $time';
+  String get authOtpExpiredNotice => 'That code has expired.';
+
+  String get authRegisterTitle => 'Tell us your name';
+  String get authRegisterBody =>
+      'So the kitchen knows who is collecting the order.';
+  String get authFirstNameLabel => 'First name';
+  String get authLastNameLabel => 'Last name (optional)';
+  String get authEmailLabel => 'Email (optional)';
+  String get authEmailHelper =>
+      'For receipts. We will not email you otherwise.';
+  String get authRegisterCta => 'Create account';
+  String get authFirstNameRequired => 'Please enter your first name.';
+  String get authEmailInvalid => 'That email address does not look right.';
+
+  String get authSignOutTitle => 'Sign out?';
+  String get authSignOutBody =>
+      'You will need your mobile number to sign back in.';
+  String get authSignOutConfirm => 'Sign out';
+  String get authCancel => 'Cancel';
+
+  // Error messages, keyed by the API's machine-readable code. The app never
+  // branches on server prose — see core/network/api_error_code.dart.
+  String get authErrorInvalidPhone => 'Enter a valid mobile number.';
+  String get authErrorUnsupportedRegion =>
+      'FoodOnTheGo is not available in that country yet.';
+  String get authErrorOtpSendFailed =>
+      "We couldn't send your code. Please try again in a moment.";
+  String get authErrorOtpInvalid =>
+      "That code isn't correct. Check it and try again.";
+  String get authErrorOtpExpired => 'That code has expired. Request a new one.';
+  String get authErrorOtpTooManyAttempts =>
+      'Too many incorrect attempts. Request a new code.';
+  String authErrorOtpResendTooSoon(int seconds) =>
+      'Please wait ${seconds}s before requesting another code.';
+  String get authErrorOtpRateLimited =>
+      'Too many requests. Please wait a little before trying again.';
+  String get authErrorRegistrationExpired =>
+      'That took a while — please verify your number again.';
+  String get authErrorAccountSuspended =>
+      'Your account is currently unavailable. Please contact support.';
+  String get authErrorAccountDisabled =>
+      'This account is no longer active. Please contact support.';
+  String get authErrorOffline =>
+      'No connection. Check your signal and try again.';
+  String get authErrorGeneric => 'Something went wrong. Please try again.';
+  String authErrorReference(String requestId) => 'Reference: $requestId';
+
   // --- development scaffolding (never shown in production) -----------------
   String get notBuiltYet => 'Not built yet';
   String comingInModule(String module) => 'Arrives in $module.';

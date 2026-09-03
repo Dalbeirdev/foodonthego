@@ -79,6 +79,7 @@ class SecondaryButton extends StatelessWidget {
     required this.label,
     this.onPressed,
     this.icon,
+    this.isLoading = false,
     this.expand = false,
     super.key,
   });
@@ -86,16 +87,37 @@ class SecondaryButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
+
+  /// Same contract as [PrimaryButton]: the label stays and the button keeps its
+  /// width, because a control that shrinks into a spinner moves everything
+  /// around it at exactly the moment somebody is about to tap again.
+  final bool isLoading;
+
   final bool expand;
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool disabled = isLoading || onPressed == null;
+
     final Widget button = OutlinedButton(
-      onPressed: onPressed,
+      onPressed: disabled ? null : onPressed,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          if (icon != null) ...<Widget>[
+          if (isLoading) ...<Widget>[
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  theme.colorScheme.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: FotgSpacing.x2),
+          ] else if (icon != null) ...<Widget>[
             Icon(icon, size: FotgSizing.iconSm),
             const SizedBox(width: FotgSpacing.x2),
           ],
@@ -104,7 +126,12 @@ class SecondaryButton extends StatelessWidget {
       ),
     );
 
-    return expand ? SizedBox(width: double.infinity, child: button) : button;
+    return Semantics(
+      button: true,
+      enabled: !disabled,
+      label: isLoading ? '$label, loading' : null,
+      child: expand ? SizedBox(width: double.infinity, child: button) : button,
+    );
   }
 }
 

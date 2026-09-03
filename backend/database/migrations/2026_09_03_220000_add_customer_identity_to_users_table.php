@@ -35,7 +35,13 @@ return new class extends Migration
             // SELECT-then-INSERT that races.
             $table->string('phone_e164', 20)->nullable()->unique()->after('phone');
 
-            $table->string('status', 20)->default(AccountStatus::Active->value)->after('role');
+            // ENUM, not a string — the same convention as `role`, and for the
+            // same reason: the database refuses a status the application does
+            // not have a case for, so a typo in a migration or a manual UPDATE
+            // fails loudly instead of creating an account nobody can classify.
+            $table->enum('status', AccountStatus::values())
+                ->default(AccountStatus::Active->value)
+                ->after('role');
             $table->timestamp('last_login_at')->nullable()->after('last_seen_at');
 
             $table->index(['status', 'role']);

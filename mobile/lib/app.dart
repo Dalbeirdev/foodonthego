@@ -7,12 +7,15 @@ import 'core/l10n/app_strings.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'dev/development_harness.dart';
+import 'features/auth/session_splash.dart';
+import 'shared/state/auth_controller.dart';
+import 'shared/state/auth_state.dart';
 
 /// The router lives in a provider so a test can override it with one pointed at
 /// a specific initial route, and so it is created once rather than on rebuild —
 /// recreating a GoRouter loses the navigation stack.
 final routerProvider = Provider<GoRouter>((Ref ref) {
-  final GoRouter router = createRouter();
+  final GoRouter router = createRouter(ref: ref);
   ref.onDispose(router.dispose);
   return router;
 });
@@ -28,6 +31,10 @@ class FoodOnTheGoApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final GoRouter router = ref.watch(routerProvider);
+
+    // Watched here rather than inside a screen because the answer decides what
+    // the *whole* app shows for its first frames.
+    final bool restoring = ref.watch(authControllerProvider) is AuthRestoring;
 
     return MaterialApp.router(
       title: 'FoodOnTheGo',
@@ -61,7 +68,15 @@ class FoodOnTheGoApp extends ConsumerWidget {
           ),
           // The harness returns its child untouched outside development, so this
           // wrapper costs a production build nothing.
-          child: DevelopmentHarness(child: child ?? const SizedBox.shrink()),
+          //
+          // The splash replaces the routed page rather than covering it, so the
+          // home screen behind it never builds and never fires a request for a
+          // customer who turns out not to be signed in.
+          child: DevelopmentHarness(
+            child: restoring
+                ? const SessionSplash()
+                : (child ?? const SizedBox.shrink()),
+          ),
         );
       },
     );

@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/otp_verification_screen.dart';
+import '../../features/auth/phone_entry_screen.dart';
+import '../../features/auth/registration_screen.dart';
+import '../../features/auth/welcome_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/orders/orders_screen.dart';
 import '../../features/placeholder/coming_soon_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/trips/trips_screen.dart';
+import '../../shared/state/auth_controller.dart';
+import '../../shared/state/auth_state.dart';
 import '../../shared/widgets/customer_shell.dart';
 import 'routes.dart';
 
@@ -23,13 +30,71 @@ import 'routes.dart';
 /// `/orders/:reference` under the Orders branch — and inherit its back stack for
 /// free.
 GoRouter createRouter({
+  required Ref ref,
   String initialLocation = Routes.home,
   GlobalKey<NavigatorState>? navigatorKey,
 }) {
   return GoRouter(
     initialLocation: initialLocation,
     navigatorKey: navigatorKey,
+
+    // Re-evaluates `redirect` whenever the session changes, so signing out —
+    // from anywhere, including a 401 on a background request — moves the app to
+    // the welcome screen without any screen having to navigate.
+    refreshListenable: AuthChangeNotifier(ref),
+
+    redirect: (BuildContext context, GoRouterState state) {
+      final AuthState auth = ref.read(authControllerProvider);
+      final String location = state.matchedLocation;
+      final bool onAuthRoute = Routes.unauthenticated.contains(location);
+
+      // Still reading secure storage. Redirecting now would send a returning
+      // customer to the welcome screen for a frame before bouncing them back —
+      // the flash this module exists to avoid. Staying put is correct: the
+      // splash-equivalent is rendered by the shell below.
+      if (auth is AuthRestoring) return null;
+
+      if (!auth.isAuthenticated) {
+        return onAuthRoute ? null : Routes.welcome;
+      }
+
+      // Signed in and looking at a sign-in screen: nothing to do here.
+      return onAuthRoute ? Routes.home : null;
+    },
+
     routes: <RouteBase>[
+      GoRoute(
+        path: Routes.welcome,
+        builder: (BuildContext context, GoRouterState state) =>
+            const WelcomeScreen(),
+      ),
+      GoRoute(
+        path: Routes.authPhone,
+        builder: (BuildContext context, GoRouterState state) =>
+            const PhoneEntryScreen(),
+      ),
+      GoRoute(
+        path: Routes.authOtp,
+        builder: (BuildContext context, GoRouterState state) {
+          final Object? extra = state.extra;
+
+          // Reached without arguments — a deep link, or a hot restart mid-flow.
+          // The screen cannot work without a number to verify, so the flow
+          // restarts rather than rendering a form bound to nothing.
+          if (extra is! OtpScreenArguments) return const PhoneEntryScreen();
+
+          return OtpVerificationScreen(arguments: extra);
+        },
+      ),
+      GoRoute(
+        path: Routes.authRegister,
+        builder: (BuildContext context, GoRouterState state) {
+          final Object? extra = state.extra;
+          if (extra is! RegistrationArguments) return const PhoneEntryScreen();
+
+          return RegistrationScreen(arguments: extra);
+        },
+      ),
       StatefulShellRoute.indexedStack(
         builder: (
           BuildContext context,
@@ -97,4 +162,35 @@ GoRouter createRouter({
       ),
     ],
   );
+}
+
+/// Bridges Riverpod's auth state to go_router's [Listenable]-based refresh.
+///
+/// go_router re-runs `redirect` when this notifies. Without it the guard would
+/// only be consulted on an explicit navigation, so a session that ended in the
+/// background would leave the customer looking at a screen they are no longer
+/// entitled to until they happened to tap something.
+class AuthChangeNotifier extends ChangeNotifier {
+  AuthChangeNotifier(this._ref) {
+    _subscription = _ref.listen<AuthState>(authControllerProvider, (
+      AuthState? previous,
+      AuthState next,
+    ) {
+      // Only structural changes matter. A refreshed profile with the same
+      // sign-in status must not re-run the guard and rebuild the tree.
+      if (previous?.isAuthenticated != next.isAuthenticated ||
+          (previous is AuthRestoring) != (next is AuthRestoring)) {
+        notifyListeners();
+      }
+    });
+  }
+
+  final Ref _ref;
+  late final ProviderSubscription<AuthState> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.close();
+    super.dispose();
+  }
 }

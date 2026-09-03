@@ -74,7 +74,9 @@ void main() {
       expect(find.text("You're all caught up"), findsOneWidget);
 
       await tapTab(tester, 'Profile');
-      expect(find.text('Rahul Sharma'), findsWidgets);
+      // The signed-in account's name, not the home dashboard's — from Module 03
+      // the profile header reads the session rather than the dashboard payload.
+      expect(find.text('Ravi Kumar'), findsWidgets);
 
       await tapTab(tester, 'Home');
       expect(find.text('Where are you travelling today?'), findsOneWidget);

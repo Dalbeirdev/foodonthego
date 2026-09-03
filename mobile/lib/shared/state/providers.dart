@@ -3,13 +3,19 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/analytics/analytics.dart';
+import '../../core/network/api_client.dart';
+import '../../core/network/api_error_code.dart';
 import '../../core/config/app_environment.dart';
 import '../../core/config/feature_flags.dart';
+import '../../data/auth/session_store.dart';
 import '../../data/fixtures/development_personas.dart';
+import '../../data/repositories/api_auth_repository.dart';
 import '../../data/repositories/fixture_home_repository.dart';
 import '../../data/repositories/unconfigured_home_repository.dart';
 import '../../domain/models/home_dashboard.dart';
+import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/home_repository.dart';
+import 'auth_controller.dart';
 import 'connectivity.dart';
 
 /// Riverpod is the state-management choice for the customer app.
@@ -97,7 +103,14 @@ final connectivityStatusProvider = StreamProvider<ConnectivityStatus>((
 /// resolve to it.
 final homeRepositoryProvider = Provider<HomeRepository>((Ref ref) {
   if (!AppEnvironment.current.allowsFixtures) {
-    return const UnconfiguredHomeRepository();
+    // The name is real from Module 03 onwards — it comes from the signed-in
+    // account. The journey and the order are still absent because the modules
+    // that create them do not exist yet, and inventing either would be a lie
+    // told to a real customer.
+    return UnconfiguredHomeRepository(
+      customerName:
+          ref.watch(authControllerProvider).customer?.fullName ?? 'there',
+    );
   }
 
   return FixtureHomeRepository(
@@ -127,4 +140,41 @@ final homeDashboardProvider = FutureProvider.autoDispose<HomeDashboard>(
   // them becomes decorative. Recovery is an explicit user action, and the
   // offline banner is what tells them when it is worth taking.
   retry: (int retryCount, Object error) => null,
+);
+
+/// Where a session is persisted between launches.
+///
+/// The real store on every platform the app ships to; tests override it with the
+/// in-memory one because there is no Keychain in a test binary.
+final sessionStoreProvider = Provider<SessionStore>(
+  (Ref ref) => SecureSessionStore(),
+);
+
+/// The HTTP client, wired to read the current token from secure storage.
+///
+/// The token is read per request through a callback rather than captured once,
+/// so a sign-out or a re-issued session takes effect on the very next call
+/// instead of leaving a stale credential inside a long-lived object.
+final apiClientProvider = Provider<ApiClient>((Ref ref) {
+  final SessionStore store = ref.watch(sessionStoreProvider);
+  final ApiClient client = ApiClient(
+    tokenReader: () async => (await store.read())?.accessToken,
+    // One rejected authenticated request ends the session app-wide. Reading the
+    // controller lazily (rather than watching) keeps this provider from being
+    // rebuilt every time the auth state changes, which would recreate the HTTP
+    // client mid-flight.
+    onAuthenticationFailure: (ApiErrorCode code) => unawaited(
+      ref
+          .read(authControllerProvider.notifier)
+          .handleAuthenticationFailure(code),
+    ),
+  );
+  ref.onDispose(client.close);
+  return client;
+});
+
+/// The seam between the auth screens and the API. Overridden in widget tests
+/// with a fake that can produce every failure the server can.
+final authRepositoryProvider = Provider<AuthRepository>(
+  (Ref ref) => ApiAuthRepository(ref.watch(apiClientProvider)),
 );
