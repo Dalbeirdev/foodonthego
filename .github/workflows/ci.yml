@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# A new push supersedes an in-flight run on the same ref; there is nothing to learn
+# from a run against a commit that has already been replaced.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # The API and web app import @fotg/contracts' built output, so it has to be
+      # compiled before anything that depends on it is typechecked.
+      - name: Build shared contracts
+        run: npm run build --workspace @fotg/contracts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build web app
+        run: npm run build --workspace @fotg/web
+
+      - name: Build API
+        run: npm run build --workspace @fotg/api
+
+      # Fails the build on a high or critical advisory. Moderate ones are reported
+      # but not fatal: today they are all esbuild's dev-server issue reached through
+      # drizzle-kit, which never runs in production. See the README.
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
