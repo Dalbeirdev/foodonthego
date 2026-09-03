@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Exceptions\ApiExceptionRenderer;
 use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnforceIdempotency;
+use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\LogApiRequests;
 use App\Http\Middleware\SecureHeaders;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -13,6 +14,8 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Laravel\Sanctum\Http\Middleware\CheckAbilities;
+use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -36,6 +39,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // Deliberately NOT applied globally: /health/* must stay unthrottled so an
         // orchestrator polling liveness cannot rate-limit itself into a false
         // "unhealthy" verdict. Routes opt in with `throttle:api-public`.
+
+        // Authorisation is two independent gates and both are named here so that a
+        // route reads as a sentence: `role:` asks what kind of account this is,
+        // `abilities:` asks what this particular token was issued to do. A route
+        // that only checks authentication has checked neither.
+        $middleware->alias([
+            'role' => EnsureRole::class,
+            'abilities' => CheckAbilities::class,
+            'ability' => CheckForAnyAbility::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(fn (Throwable $e, Request $request) => app(ApiExceptionRenderer::class)->render($e, $request));
@@ -46,5 +59,24 @@ return Application::configure(basePath: dirname(__DIR__))
         RateLimiter::for('api-public', static fn (Request $request): Limit => $request->user()
             ? Limit::perMinute((int) config('foodonthego.rate_limits.authenticated'))->by('user:'.$request->user()->getAuthIdentifier())
             : Limit::perMinute((int) config('foodonthego.rate_limits.public'))->by('ip:'.$request->ip()));
+
+        // Unauthenticated auth endpoints are the ones worth attacking, so they get
+        // their own much tighter budget rather than the general public allowance.
+        //
+        // This is the coarse per-IP net and is not the real OTP control: the precise
+        // per-phone and per-IP limits live in OtpRateLimiter, which counts issued
+        // challenges rather than HTTP requests and survives a client that retries
+        // through a proxy pool. This one exists so a flood never reaches the
+        // database at all.
+        RateLimiter::for('auth-otp', static fn (Request $request): Limit => Limit::perMinute(
+            (int) config('foodonthego.rate_limits.auth_otp'),
+        )->by('ip:'.$request->ip()));
+
+        // Verification and registration are guessing surfaces. The per-challenge
+        // attempt counter in MySQL is authoritative — an attacker who cycles
+        // challenges to dodge it still meets this.
+        RateLimiter::for('auth-verify', static fn (Request $request): Limit => Limit::perMinute(
+            (int) config('foodonthego.rate_limits.auth_verify'),
+        )->by('ip:'.$request->ip()));
     })
     ->create();

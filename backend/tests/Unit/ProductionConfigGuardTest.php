@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Services\Otp\OtpDeliveryProvider;
+use App\Services\Otp\Providers\LogOtpProvider;
 use App\Support\ProductionConfigGuard;
 use Illuminate\Foundation\Application;
 use RuntimeException;
+use Tests\Support\RecordingOtpProvider;
 use Tests\TestCase;
 
 /**
@@ -32,7 +35,12 @@ final class ProductionConfigGuardTest extends TestCase
             'foodonthego.frontend_urls' => ['https://dashboard.foodonthego.example'],
             'database.default' => 'mysql',
             'database.connections.mysql.password' => 'a-real-password',
+            'foodonthego.otp.simulate_provider_failure' => false,
         ]);
+
+        // Stands in for a real SMS vendor: the only thing the guard asks a
+        // provider is whether it can reach a handset.
+        $this->app->instance(OtpDeliveryProvider::class, new RecordingOtpProvider(deliversToRealDevices: true));
     }
 
     public function test_a_correctly_configured_production_boots(): void
@@ -138,5 +146,40 @@ final class ProductionConfigGuardTest extends TestCase
             $this->assertStringContainsString('APP_KEY', $e->getMessage());
             $this->assertStringContainsString('FRONTEND_URLS', $e->getMessage());
         }
+    }
+
+    public function test_a_provider_that_cannot_reach_a_handset_stops_production_from_starting(): void
+    {
+        $this->validProductionConfig();
+        $this->app->instance(OtpDeliveryProvider::class, new RecordingOtpProvider(deliversToRealDevices: false));
+
+        // The failure this prevents: a release goes out still wired to a
+        // development sender, every sign-in "succeeds" at the API, and no
+        // customer ever receives a code.
+        $this->expectExceptionMessageMatches('/does not deliver to real devices/');
+
+        ProductionConfigGuard::assert($this->appIn('production'));
+    }
+
+    public function test_the_development_log_provider_refuses_to_exist_in_production(): void
+    {
+        $this->validProductionConfig();
+        $this->app->bind(OtpDeliveryProvider::class, static fn (): LogOtpProvider => new LogOtpProvider('production'));
+
+        // Two independent defences, and this asserts the inner one: even if the
+        // guard were removed, the provider itself will not construct.
+        $this->expectExceptionMessageMatches('/never be used in production/');
+
+        ProductionConfigGuard::assert($this->appIn('production'));
+    }
+
+    public function test_the_simulated_failure_switch_stops_production_from_starting(): void
+    {
+        $this->validProductionConfig();
+        config(['foodonthego.otp.simulate_provider_failure' => true]);
+
+        $this->expectExceptionMessageMatches('/OTP_SIMULATE_PROVIDER_FAILURE/');
+
+        ProductionConfigGuard::assert($this->appIn('production'));
     }
 }

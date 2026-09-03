@@ -55,6 +55,19 @@ return [
 
     'channels' => [
 
+        /*
+         | Development-only channel for OTP codes. Deliberately separate from the
+         | structured application log so a one-time code can never be shipped to a
+         | log aggregator. LogOtpProvider is the only writer, and it refuses to be
+         | constructed in production.
+         */
+        'otp-development' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/otp-development.log'),
+            'level' => 'debug',
+            'replace_placeholders' => true,
+        ],
+
         'structured' => [
             'driver' => 'daily',
             'path' => storage_path('logs/foodonthego.log'),

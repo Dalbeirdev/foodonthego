@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use App\Enums\ApiErrorCode;
+use App\Http\Controllers\Api\V1\Auth\CustomerOtpController;
+use App\Http\Controllers\Api\V1\Auth\CustomerRegistrationController;
+use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MetaController;
 use App\Http\Responses\ApiResponse;
@@ -18,8 +21,9 @@ use Illuminate\Support\Facades\Route;
 | header because it survives a browser address bar, a curl in a bug report and a
 | CDN cache key — see docs/05-api-standards.md.
 |
-| Module 01 deliberately ships only health and meta. Feature routes arrive with
-| the modules that implement them, each behind the middleware it needs.
+| Feature routes arrive with the modules that implement them, each behind the
+| middleware it needs. Module 01 shipped health and meta; Module 03 adds customer
+| authentication.
 */
 
 Route::prefix('v1')->group(function (): void {
@@ -31,6 +35,51 @@ Route::prefix('v1')->group(function (): void {
     Route::middleware('throttle:api-public')->group(function (): void {
         Route::get('/meta', MetaController::class)->name('api.v1.meta');
     });
+
+    /*
+     |----------------------------------------------------------------------
+     | Customer authentication (Module 03)
+     |----------------------------------------------------------------------
+     |
+     | Phone + OTP only. A customer never has a password, so there is no password
+     | reset, no credential stuffing surface and nothing to breach — the trade is
+     | that the OTP endpoints themselves are the attack surface, which is why they
+     | carry their own throttles rather than the general public allowance.
+     */
+    Route::prefix('auth/customer')->group(function (): void {
+        Route::post('/otp/request', [CustomerOtpController::class, 'request'])
+            ->middleware('throttle:auth-otp')
+            ->name('api.v1.auth.customer.otp.request');
+
+        Route::post('/otp/verify', [CustomerOtpController::class, 'verify'])
+            ->middleware('throttle:auth-verify')
+            ->name('api.v1.auth.customer.otp.verify');
+
+        // Not under 'auth:sanctum': there is no account yet. The registration
+        // token issued by otp/verify is the credential, and it carries the
+        // verified phone number with it.
+        Route::post('/register', CustomerRegistrationController::class)
+            ->middleware('throttle:auth-verify')
+            ->name('api.v1.auth.customer.register');
+    });
+
+    /*
+     |----------------------------------------------------------------------
+     | Authenticated customer
+     |----------------------------------------------------------------------
+     |
+     | Both gates, always. 'auth:sanctum' proves the token is real and unexpired;
+     | 'role:customer' proves the account behind it is a customer; 'abilities'
+     | proves the token was minted for the customer app rather than, say, a future
+     | restaurant tablet token belonging to the same person. A restaurant or admin
+     | token presented here fails on the role gate, not on a controller check
+     | somebody might forget to write.
+     */
+    Route::middleware(['auth:sanctum', 'role:customer', 'abilities:customer', 'throttle:api-public'])
+        ->group(function (): void {
+            Route::get('/customer/me', [SessionController::class, 'me'])->name('api.v1.customer.me');
+            Route::post('/auth/logout', [SessionController::class, 'logout'])->name('api.v1.auth.logout');
+        });
 });
 
 /*

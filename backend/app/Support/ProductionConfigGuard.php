@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Services\Otp\OtpDeliveryProvider;
 use Illuminate\Contracts\Foundation\Application;
 use RuntimeException;
+use Throwable;
 
 /**
  * Startup checks that only apply once the environment claims to be staging or
@@ -61,6 +63,8 @@ final class ProductionConfigGuard
             $failures[] = 'DB_PASSWORD must not be empty.';
         }
 
+        $failures = array_merge($failures, self::otpFailures($app));
+
         if ($failures !== []) {
             throw new RuntimeException(
                 "FoodOnTheGo refused to start in the \"{$app->environment()}\" environment.\n\n  - "
@@ -68,5 +72,44 @@ final class ProductionConfigGuard
                 ."\n\nFix the configuration and restart. See docs/07-security.md.\n",
             );
         }
+    }
+
+    /**
+     * One-time passcode configuration.
+     *
+     * The failure this prevents is specific and has happened to other people: a
+     * deployment goes out with OTP_PROVIDER still on the development log writer,
+     * every sign-in silently "succeeds" at the API while no SMS is ever sent, and
+     * the codes sit in a log file on a production host where anybody with read
+     * access can sign in as any customer who has ever requested one. The provider
+     * itself refuses to be constructed in production; this catches the same
+     * mistake at boot, before a single request, and for any future provider that
+     * reports it cannot reach a real handset.
+     *
+     * @return array<int, string>
+     */
+    private static function otpFailures(Application $app): array
+    {
+        $failures = [];
+
+        if (config('foodonthego.otp.simulate_provider_failure') === true) {
+            $failures[] = 'OTP_SIMULATE_PROVIDER_FAILURE must be false — it is a development switch that makes every sign-in fail.';
+        }
+
+        try {
+            $provider = $app->make(OtpDeliveryProvider::class);
+        } catch (Throwable $e) {
+            // Includes LogOtpProvider's own refusal to exist in production.
+            return [...$failures, 'OTP_PROVIDER could not be resolved: '.$e->getMessage()];
+        }
+
+        if (! $provider->deliversToRealDevices()) {
+            $failures[] = sprintf(
+                'OTP_PROVIDER is "%s", which does not deliver to real devices. Configure a real SMS provider before serving customers.',
+                $provider->name(),
+            );
+        }
+
+        return $failures;
     }
 }

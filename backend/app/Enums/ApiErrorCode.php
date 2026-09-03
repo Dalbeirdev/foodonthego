@@ -25,6 +25,20 @@ enum ApiErrorCode: string
     case DependencyUnavailable = 'DEPENDENCY_UNAVAILABLE';
     case ServerError = 'SERVER_ERROR';
 
+    // --- Module 03: customer authentication -----------------------------
+    case InvalidPhone = 'INVALID_PHONE';
+    case UnsupportedPhoneRegion = 'UNSUPPORTED_PHONE_REGION';
+    case OtpSendFailed = 'OTP_SEND_FAILED';
+    case OtpRateLimited = 'OTP_RATE_LIMITED';
+    case OtpInvalid = 'OTP_INVALID';
+    case OtpExpired = 'OTP_EXPIRED';
+    case OtpTooManyAttempts = 'OTP_TOO_MANY_ATTEMPTS';
+    case OtpResendTooSoon = 'OTP_RESEND_TOO_SOON';
+    case RegistrationTokenInvalid = 'REGISTRATION_TOKEN_INVALID';
+    case RegistrationTokenExpired = 'REGISTRATION_TOKEN_EXPIRED';
+    case AccountSuspended = 'ACCOUNT_SUSPENDED';
+    case AccountDisabled = 'ACCOUNT_DISABLED';
+
     public function httpStatus(): int
     {
         return match ($this) {
@@ -38,6 +52,27 @@ enum ApiErrorCode: string
             self::BusinessRuleViolated => 422,
             self::DependencyUnavailable => 503,
             self::ServerError => 500,
+
+            self::InvalidPhone,
+            self::UnsupportedPhoneRegion,
+            self::OtpInvalid,
+            self::OtpExpired,
+            self::OtpTooManyAttempts => 422,
+
+            // 429 for both: a resend asked for too early is a rate limit, and
+            // giving it its own status would let a caller distinguish "too soon"
+            // from "too many" and tune an abuse loop against it.
+            self::OtpRateLimited,
+            self::OtpResendTooSoon => 429,
+
+            self::RegistrationTokenInvalid,
+            self::RegistrationTokenExpired => 401,
+
+            // 403, not 401: the caller proved who they are. They are not allowed.
+            self::AccountSuspended,
+            self::AccountDisabled => 403,
+
+            self::OtpSendFailed => 503,
         };
     }
 }
