@@ -1,0 +1,155 @@
+import 'package:flutter/widgets.dart';
+
+/// Every user-visible string in the customer app.
+///
+/// Widgets read `AppStrings.of(context)` rather than holding literals, so adding
+/// a language later is a new subclass and a delegate — not a hunt through every
+/// screen. This is a deliberately small hand-rolled implementation instead of
+/// `gen-l10n`: with one language it gives the same separation without an ARB
+/// pipeline and a code-generation step in CI. The moment a second language is
+/// commissioned, this class becomes the interface `gen-l10n` implements.
+///
+/// Strings that name a module ("Module 05") are development scaffolding and are
+/// only ever rendered where `AppEnvironment.showsDevelopmentNotices` allows.
+@immutable
+class AppStrings {
+  const AppStrings();
+
+  static const AppStrings _english = AppStrings();
+
+  static AppStrings of(BuildContext context) =>
+      Localizations.of<AppStrings>(context, AppStrings) ?? _english;
+
+  // --- brand ---------------------------------------------------------------
+  String get appName => 'FoodOnTheGo';
+  String get tagline => 'Order ahead. Eat on time.';
+
+  // --- greetings -----------------------------------------------------------
+  String greetingMorning(String name) => 'Good morning, $name';
+  String greetingAfternoon(String name) => 'Good afternoon, $name';
+  String greetingEvening(String name) => 'Good evening, $name';
+  String get greetingSubtitleIdle => 'Ready for your next journey?';
+  String get greetingSubtitleTravelling => 'Here is how your journey is going.';
+
+  // --- journey planner -----------------------------------------------------
+  String get plannerTitle => 'Where are you travelling today?';
+  String get plannerFromLabel => 'From';
+  String get plannerToLabel => 'To';
+  String get plannerCurrentLocation => 'Use my current location';
+  String get plannerDestinationHint => 'Where are you going?';
+  String get plannerCta => 'Plan a journey';
+
+  // --- journey card --------------------------------------------------------
+  String get journeySectionTitle => 'Your journey';
+  String get journeyViewCta => 'View journey';
+  String get journeyRemaining => 'remaining';
+  String get journeyNextPickup => 'Next pickup';
+
+  // --- order card ----------------------------------------------------------
+  String get orderSectionTitle => 'Your order';
+  String get orderViewCta => 'View order';
+  String orderReference(String reference) => 'Order $reference';
+  String orderItemCount(int count) => count == 1 ? '1 item' : '$count items';
+  String get orderPickupIn => 'Pickup in about';
+  String get orderPickupNow => 'Ready now';
+
+  // --- how it works --------------------------------------------------------
+  String get howItWorksTitle => 'How FoodOnTheGo works';
+  String get howItWorksStep1Title => 'Tell us your route';
+  String get howItWorksStep1Body =>
+      'Origin and destination — Delhi to Jaipur, say.';
+  String get howItWorksStep2Title => 'Pick a kitchen on the way';
+  String get howItWorksStep2Body =>
+      'Restaurants a short detour from your route, with the detour in minutes.';
+  String get howItWorksStep3Title => 'Order before you arrive';
+  String get howItWorksStep3Body =>
+      'The kitchen cooks to your arrival time, not to when you tapped.';
+  String get howItWorksStep4Title => 'Collect and go';
+  String get howItWorksStep4Body =>
+      'Ready as you pull in — not an hour early, not made on arrival.';
+
+  // --- quick actions -------------------------------------------------------
+  String get quickActionsTitle => 'Quick actions';
+  String get quickActionOrders => 'Orders';
+  String get quickActionSavedPlaces => 'Saved places';
+  String get quickActionSupport => 'Support';
+
+  // --- navigation ----------------------------------------------------------
+  String get navHome => 'Home';
+  String get navTrips => 'Trips';
+  String get navOrders => 'Orders';
+  String get navNotifications => 'Alerts';
+  String get navProfile => 'Profile';
+  String get navNotificationsFull => 'Notifications';
+
+  // --- empty states --------------------------------------------------------
+  String get tripsEmptyTitle => 'No journeys yet';
+  String get tripsEmptyBody =>
+      'Plan a journey and FoodOnTheGo will find restaurants conveniently placed along your route.';
+  String get ordersEmptyTitle => 'No orders yet';
+  String get ordersEmptyBody =>
+      'Your current and past FoodOnTheGo orders will appear here.';
+  String get notificationsEmptyTitle => "You're all caught up";
+  String get notificationsEmptyBody =>
+      'Order and journey updates will appear here.';
+
+  // --- profile -------------------------------------------------------------
+  String get profilePersonalInformation => 'Personal information';
+  String get profileSavedAddresses => 'Saved addresses';
+  String get profilePaymentMethods => 'Payment methods';
+  String get profileOrderHistory => 'Order history';
+  String get profileNotifications => 'Notification preferences';
+  String get profileHelp => 'Help & support';
+  String get profileLegal => 'Terms & conditions';
+  String get profilePrivacy => 'Privacy policy';
+  String get profileAbout => 'About FoodOnTheGo';
+  String get profileSignOut => 'Sign out';
+  String get profileAccountSection => 'Account';
+  String get profilePreferencesSection => 'Preferences';
+  String get profileSupportSection => 'Support & legal';
+
+  // --- connectivity / errors / loading -------------------------------------
+  String get offlineTitle => 'You are offline';
+  String get offlineBody => 'Showing the latest information we have.';
+  String get offlineReconnected => 'Back online';
+  String get errorGenericTitle => 'Something went wrong';
+  String get errorGenericBody =>
+      'We could not load this just now. Please try again.';
+  String get errorOfflineTitle => 'No connection';
+  String get errorOfflineBody =>
+      'Check your signal and try again. Highway coverage can be patchy.';
+  String get errorServerTitle => 'FoodOnTheGo is unavailable';
+  String get errorServerBody =>
+      'The service is not responding. We are looking into it.';
+  String get errorTimeoutTitle => 'That took too long';
+  String get errorTimeoutBody =>
+      'The connection timed out before we heard back.';
+  String get retry => 'Try again';
+  String get loading => 'Loading';
+
+  // --- development scaffolding (never shown in production) -----------------
+  String get notBuiltYet => 'Not built yet';
+  String comingInModule(String module) => 'Arrives in $module.';
+  String get placeholderBody =>
+      'This screen is navigation scaffolding. It holds no data and calls no API.';
+  String get developmentDataNotice =>
+      'Development preview — this is fixture data, not a real journey or order.';
+}
+
+/// Registers [AppStrings] with the widget tree.
+class AppStringsDelegate extends LocalizationsDelegate<AppStrings> {
+  const AppStringsDelegate();
+
+  /// English only for now. A new locale is added here and in [load]; nothing in
+  /// the widget tree changes.
+  static const List<Locale> supportedLocales = <Locale>[Locale('en')];
+
+  @override
+  bool isSupported(Locale locale) => locale.languageCode == 'en';
+
+  @override
+  Future<AppStrings> load(Locale locale) async => const AppStrings();
+
+  @override
+  bool shouldReload(AppStringsDelegate old) => false;
+}

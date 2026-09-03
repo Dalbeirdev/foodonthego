@@ -142,6 +142,29 @@ Every flex child of the topbar sets `min-width: 0`. Without it one longer string
 "API unreachable" instead of "API local" — pushes the bar past the viewport. That was a real defect:
 the layout only fitted while the API was up.
 
+## Order status visual language (Module 02)
+
+Six states, each varying **three** things — colour, icon and label — because colour alone is not a
+usable signal:
+
+| State | Icon | Tone |
+| --- | --- | --- |
+| Placed | `receipt_long_outlined` | Info blue |
+| Accepted | `check_circle_outline` | Teal (secondary) |
+| Cooking | `local_fire_department_outlined` | Amber (warning) |
+| Ready for pickup | `takeout_dining_outlined` | Green (success) |
+| Picked up | `task_alt_outlined` | Neutral |
+| Cancelled | `cancel_outlined` | Red (error) |
+
+A cancelled order renders **no** progress track: drawing the remaining steps as "still to come" for
+an order that will never reach them would be a lie.
+
+## Button sizing — a trap worth naming
+
+Use `Size(0, height)` for a minimum size, never `Size.fromHeight(height)`. The latter sets width to
+`double.infinity`, which forces every button to fill its parent and silently defeats any `expand`
+parameter. Width is the caller's decision; only the height floor belongs to the theme.
+
 ## Accessibility baseline
 
 - Visible `:focus-visible` ring on every interactive element

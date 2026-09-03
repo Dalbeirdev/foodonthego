@@ -138,3 +138,125 @@ Screenshots: `flutter-iphone-se` · `flutter-iphone-15` · `flutter-iphone-15-pr
 Thirteen, listed with root causes in [13-known-issues.md](13-known-issues.md). Live-view inspection
 found five that no unit test would have caught (CORS, overflow, desktop button visibility, dead CSS
 rule, favicon 404); the contrast test found the palette defect.
+
+
+---
+
+# Module 02 — test evidence
+
+Full transcript: [`evidence/module-02-verification-run.txt`](evidence/module-02-verification-run.txt).
+Screenshots: [`evidence/module-02/`](evidence/module-02/).
+
+## Automated tests — 197 total, 197 passed, 0 failed, 0 skipped
+
+| Suite | Command | Tests | Passed | Failed | Skipped |
+| --- | --- | --: | --: | --: | --: |
+| Mobile — domain models | `flutter test test/domain_models_test.dart` | 16 | 16 | 0 | 0 |
+| Mobile — components | `flutter test test/components_test.dart` | 21 | 21 | 0 | 0 |
+| Mobile — navigation | `flutter test test/navigation_test.dart` | 12 | 12 | 0 | 0 |
+| Mobile — home screen | `flutter test test/home_screen_test.dart` | 14 | 14 | 0 | 0 |
+| Mobile — fixture isolation | `flutter test test/fixture_isolation_test.dart` | 11 | 11 | 0 | 0 |
+| Mobile — design tokens | `flutter test test/tokens_test.dart` | 8 | 8 | 0 | 0 |
+| **Mobile total** | `flutter test` | **82** | **82** | **0** | **0** |
+| Backend (regression) | `php artisan test` | 67 | 67 | 0 | 0 |
+| Web (regression) | `npm test` | 29 | 29 | 0 | 0 |
+| **Project total** | | **178** | **178** | **0** | **0** |
+
+Mobile grew from 19 tests in Module 01 to 82.
+
+## Static analysis
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Dart analyzer | `flutter analyze --fatal-infos` | **No issues found** |
+| Dart format | `dart format --output=none --set-exit-if-changed .` | **53 files, 0 changed** |
+| Flutter web build | `flutter build web --release` | **✓ Built** |
+| Backend style (regression) | `vendor/bin/pint --test` | **passed** |
+| TypeScript (regression) | `npm run typecheck` | **0 errors** |
+
+## Live-view verification
+
+The Flutter app was **built and run**, and the rendered widget tree was inspected. Zero runtime
+errors and zero console errors across every capture.
+
+### Required states
+
+| # | State | Screenshot | Inspected |
+| --: | --- | --- | :-: |
+| 1 | Home — new customer | `state-01-home-new-customer.png` | ✅ |
+| 2 | Home — active journey | `state-02-home-active-journey.png` | ✅ |
+| 3 | Home — active order | `state-03-home-active-order.png`, `state-03b-…-scrolled.png` | ✅ |
+| 4 | Trips — empty | `tab-trips.png` | ✅ |
+| 5 | Orders — empty | `tab-orders.png` | ✅ |
+| 6 | Notifications — empty | `tab-alerts.png` | ✅ |
+| 7 | Profile | `tab-profile.png` | ✅ |
+| 8 | Offline banner | `state-08-offline-banner.png` | ✅ |
+| 9 | Error state | `state-09-error.png` | ✅ |
+| 10 | Loading / skeleton | asserted by widget test (`bySemanticsLabel('Loading your home screen')`) | ✅ |
+| 11 | Future-feature placeholder | `state-11-coming-soon-placeholder.png` | ✅ |
+| + | Long content | `state-11-long-content.png`, `…-scrolled.png` | ✅ |
+| + | Dark mode | `home-dark.png` | ✅ |
+| + | Large text | `home-large-text.png` | ✅ |
+| + | Development harness | `dev-harness-open.png` | ✅ |
+
+### Screen sizes rendered
+
+| Profile | Logical size | Screenshot |
+| --- | --- | --- |
+| Compact | 320 × 640 | `home-320-compact.png` |
+| Small Android | 360 × 800 | `home-360-android.png` |
+| iPhone SE | 375 × 667 | `home-375-iphone-se.png` |
+| iPhone 15 | 390 × 852 | `home-390-iphone15.png` |
+| iPhone 15 Pro Max | 430 × 932 | `home-430-promax.png` |
+| Tablet (graceful rendering only) | 768 × 1024 | `home-768-tablet.png` |
+
+### Navigation matrix — all verified by test
+
+| From | Action | Expected | Result |
+| --- | --- | --- | --- |
+| Home | tap Trips | Trips tab | ✅ |
+| Trips | tap Orders | Orders tab | ✅ |
+| Orders | tap Notifications | Alerts tab | ✅ |
+| Notifications | tap Profile | Profile tab | ✅ |
+| Profile | tap Home | Home tab | ✅ |
+| Any | 60 rapid un-settled taps | index intact, no exception | ✅ |
+| Orders | double-tap Orders | idempotent | ✅ |
+| Profile | Android back | returns to Home, does not exit | ✅ |
+| Home → Trips → Home | — | no re-fetch (`loadCount` stays 1) | ✅ |
+
+## Android verification
+
+**PENDING — environment unavailable.**
+
+`flutter doctor` reports `✗ Android toolchain — Unable to locate Android SDK`, because
+`dl.google.com` is denied by this environment's egress policy (HTTP 000 / CONNECT refused, verified
+again in this run). No emulator was launched and no APK was built. Not claimed as passed.
+
+## iOS verification
+
+**PENDING — environment unavailable.**
+
+`xcodebuild` is not present and cannot be: the host is Linux. No simulator was launched. Safe-area,
+Dynamic Island, keyboard, gesture-navigation and orientation behaviour on iOS remain **unverified**.
+The code uses `SafeArea` and the platform font resolves to San Francisco, but that is design intent,
+not evidence.
+
+## Accessibility evidence
+
+| Check | Method | Result |
+| --- | --- | --- |
+| Touch targets ≥ 48dp | Widget tests measure avatar and buttons | ✅ |
+| Text scaling to 1.4x | Order card rendered at 1.4x, no overflow | ✅ |
+| Type floors | `tokens_test.dart` | body ≥ 15sp |
+| Contrast, light and dark | WCAG ratio computed in `tokens_test.dart` | ≥ 4.5:1 |
+| Status not colour-alone | Every state asserted to carry a distinct icon | ✅ |
+| Semantic labels | Avatar, chips, progress track, quick actions, route endpoints | ✅ |
+| Reduced motion | Token-level durations + `FotgMotion` + skeleton stops looping | ✅ |
+| Long content at 320dp | Persona D renders without a RenderFlex overflow | ✅ |
+
+## Defects found and fixed
+
+Eight, with root causes, in [13-known-issues.md](13-known-issues.md) (M02-B01 … M02-B08). Three were
+found only by running the app: the harness crash, the 320dp greeting truncation and the full-width
+button bug. One — the silent retry loop — was found by a test that counted repository calls rather
+than asserting on pixels.

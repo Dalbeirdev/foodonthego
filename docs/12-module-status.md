@@ -3,8 +3,8 @@
 | # | Module | Status | Notes |
 | --: | --- | --- | --- |
 | 01 | Foundation, Architecture & Design System | **COMPLETE (with 3 environment blockers)** | See below |
-| 02 | Authentication & Accounts | NOT STARTED | |
-| 03 | Account Settings & Profiles | NOT STARTED | |
+| 02 | Customer Mobile App Shell, Navigation & Premium Home | **COMPLETE (Android/iOS device verification pending)** | 82 mobile tests; 11 states inspected live |
+| 03 | Customer Authentication, Registration & OTP | NOT STARTED | Next, on approval |
 | 04 | Users, Roles & Staff | NOT STARTED | |
 | 05 | Restaurant Onboarding & Profile | NOT STARTED | |
 | 06 | Menu Management | NOT STARTED | |
@@ -35,4 +35,15 @@
 **115 automated tests pass.** All static checks pass. Both web shells and the Flutter app were run
 and visually inspected.
 
-Module 02 has **not** been started, per the one-module-at-a-time rule.
+## Module 02 detail
+
+**30 of 32 requirements PASSED or COMPLETE.** The two blocked are M02-017 (Android) and M02-018
+(iOS) — the same environment restrictions as Module 01, not code defects.
+
+**82 mobile tests pass** (up from 19). `flutter analyze --fatal-infos` clean, `dart format` clean.
+All eleven required live-view states were inspected in a rendered app. Module 01 regression: **PASS**
+(67 backend + 29 web tests, both web builds).
+
+Eight defects were found and fixed during the module; none left open.
+
+Module 03 has **not** been started, per the one-module-at-a-time rule.

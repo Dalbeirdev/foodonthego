@@ -112,7 +112,11 @@ class FotgTheme {
       dividerTheme: DividerThemeData(color: border, thickness: 1, space: 1),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(FotgSizing.controlHeightLg),
+          // Size(0, h), NOT Size.fromHeight(h): the latter sets width to
+          // double.infinity, which makes every button fill its parent and
+          // silently defeats PrimaryButton's `expand` parameter. Width is the
+          // caller's decision; only the height floor belongs to the theme.
+          minimumSize: const Size(0, FotgSizing.controlHeightLg),
           shape: const RoundedRectangleBorder(borderRadius: FotgRadius.control),
           textStyle: text.labelLarge!.copyWith(
             fontSize: 16,
@@ -133,7 +137,7 @@ class FotgTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(FotgSizing.controlHeightMd),
+          minimumSize: const Size(0, FotgSizing.controlHeightMd),
           shape: const RoundedRectangleBorder(borderRadius: FotgRadius.control),
           side: BorderSide(color: border),
         ),

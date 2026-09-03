@@ -88,6 +88,39 @@ depend on them are understood. Module-specific migrations arrive with their modu
 
 ---
 
+### KI-005 · The customer app has no backend integration
+
+**Severity:** Medium — by design, but worth stating plainly.
+
+Module 02 is a shell. `UnconfiguredHomeRepository` is what a production build resolves to, and it
+returns a dashboard with no journey and no order — the truthful state for an account with nothing in
+it. It never invents data.
+
+Real data arrives when the modules that own it land: journeys in Module 05, orders in Module 08.
+Only the provider changes; no widget does.
+
+---
+
+## Bug register — Module 02
+
+All found during Module 02, all fixed and retested. Environment: Flutter 3.47.2 on Ubuntu 24.04,
+Chromium render at 320–768dp.
+
+| ID | Description | Severity | Reproduction | Cause | Fix | Retest | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| M02-B01 | The home screen re-requested data 11 times after one failure | **High** | Force a repository failure; count calls | Riverpod 3 retries failed providers automatically with backoff. On a highway that is a silent loop burning battery and data, and it makes *Try again* meaningless | `retry: (_, __) => null` on `homeDashboardProvider`; recovery is an explicit user action | Retry test asserts exactly 2 loads after one tap | **Fixed** |
+| M02-B02 | Greeting read "Good afternoon" at 04:00 | Medium | `greetingFor(DateTime(…, 4))` | The morning test was ordered before a bare `hour < 17`, so pre-dawn fell through to afternoon | Check the small hours first. Matters here: pre-dawn starts are exactly when people open this app | Unit test at 04:00, 08:00, 14:00, 21:00 | **Fixed** |
+| M02-B03 | At 320dp the greeting truncated to "Good evening, R…" | **High** | Render Home at 320×640 | 34sp display type against ~210dp of available width once the avatar is placed | Greeting steps down to 28sp below 360dp and 24sp below 300dp | Re-rendered at 320dp — full name visible | **Fixed** |
+| M02-B04 | Every button stretched full width; `expand: false` did nothing | Medium | `PrimaryButton(expand: false)` | The theme used `Size.fromHeight(h)`, whose **width is `double.infinity`** | `Size(0, h)` in the theme; width is the caller's decision. The one control that wants full width now says so | Error view's *Try again* is content-width | **Fixed** |
+| M02-B05 | The development harness crashed the app on launch | **High** | Run the app in development | The harness is installed via `MaterialApp.builder`, which is **above** the Navigator, so the FAB's `Tooltip` found no `Overlay` ancestor | Handle rebuilt from `Material` + `InkWell`; sitting above the Navigator is deliberate so the handle survives a pushed route | Full app boots; 82 tests pass | **Fixed** |
+| M02-B06 | The development handle obscured the order countdown | Low | Open Home with the active-order persona | A solid floating control over scrolling content | Reduced to 55% opacity and moved clear of the primary CTA | Re-rendered; content legible beneath | **Fixed** |
+| M02-B07 | `StateProvider` did not compile | Low | `flutter analyze` | Riverpod 3 removed it | Rewritten as `Notifier` + `NotifierProvider` | Analyzer clean | **Fixed** |
+| M02-B08 | Module 01's shell tests referenced a deleted class | Low | `flutter analyze` | `FotgAppShell` was replaced by the go_router shell | Tests rewritten against the new architecture; coverage grew from 19 to 82 | 82 pass | **Fixed** |
+
+No Module 02 issue was left open.
+
+---
+
 ## Resolved during Module 01
 
 | ID | Problem | Root cause | Fix |

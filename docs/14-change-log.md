@@ -52,3 +52,59 @@ Thirteen defects found during Module 01, listed with root causes in
 - A CORS misconfiguration that blocked every browser request — caught by live browser inspection
 - A catch-all route that made 405 impossible and shadowed later routes
 - A topbar that only fitted while the API was up
+
+
+---
+
+## Module 02 — Customer Mobile App Shell, Navigation & Premium Home
+
+### Added — mobile only; backend and web untouched
+
+**Foundation**
+- `AppEnvironment` — a compile-time constant from `--dart-define=FOTG_ENV`, so the fixture branch is
+  tree-shaken out of a release build rather than merely unused
+- `FeatureFlags` — one flag per significant capability, all off, each owned by its module
+- `AppStrings` + `AppStringsDelegate` — every user-visible string, localization-ready
+- `Analytics` boundary and `AnalyticsEvents` names — no vendor SDK, by design
+- `ConnectivityService` with an always-online production default and a controllable one for
+  development
+
+**State and routing**
+- **Riverpod 3** chosen and documented (Module 01 left it undefined). Do not add a second.
+- **go_router** with `StatefulShellRoute.indexedStack` — per-branch navigators, so tabs keep state
+  and Android back works
+- `/coming-soon` as the one controlled destination for unbuilt features
+
+**Domain and data**
+- `CustomerSummary`, `ActiveTripSummary`, `ActiveOrderSummary`, `OrderStatus`, `HomeDashboard`
+- `HomeRepository` boundary plus `HomeLoadFailure` with four kinds
+- `FixtureHomeRepository` (four personas) and `UnconfiguredHomeRepository` (invents nothing)
+
+**Screens** — Home with three states, Trips, Orders, Notifications, Profile, ComingSoon
+
+**Components** — `PrimaryButton`, `SecondaryButton`, `LinkAction`, `SectionHeader`, `EmptyStateView`,
+`AppErrorView`, `OfflineBanner`, `AppSkeleton`, `HomeSkeleton`, `OrderStatusChip`,
+`OrderStatusTrack`, `CustomerShell`, `GreetingHeader`, `JourneyPlannerCard`, `RouteSummaryCard`,
+`ActiveOrderCard`, `QuickActions`, `HowItWorks`
+
+**Development harness** — persona / offline / failure switches, development builds only
+
+**Tests** — 82, up from 19
+
+**Docs** — new `16-mobile-navigation.md` and `17-customer-app-ui.md`; updated 08, 09, 11, 12, 13, 15
+
+### Changed
+
+- `FotgTheme` button minimum sizes use `Size(0, h)` rather than `Size.fromHeight(h)`, whose infinite
+  width silently forced every button to fill its parent
+- Module 01's `FotgAppShell` replaced by the go_router shell; its tests rewritten
+
+### Fixed
+
+Eight defects, in [13-known-issues.md](13-known-issues.md). The three worth repeating:
+
+- **A silent retry loop.** Riverpod 3 retries failed providers automatically — on a highway that
+  burns battery and data on requests that cannot succeed, while *Try again* does nothing observable.
+- **The greeting lost the customer's name at 320dp**, truncating to "Good evening, R…".
+- **The development harness crashed the app**, because `MaterialApp.builder` sits above the Navigator
+  and the handle's `Tooltip` found no `Overlay`.

@@ -34,12 +34,20 @@ Redis integration itself is covered by the readiness test.
 | `admin/App.test.tsx` | Navigation architecture completeness; System Health states |
 | `restaurant/App.test.tsx` | Navigation architecture completeness |
 
-## Mobile — 19 tests
+## Mobile — 82 tests
 
-| Suite | Covers |
-| --- | --- |
-| `app_shell_test.dart` | Five destinations, tab switching, state preservation, disabled CTA, honesty notices, dark mode, system theme |
-| `tokens_test.dart` | 4px grid, touch targets, type floors, **WCAG contrast ratios**, theme wiring |
+| Suite | Tests | Covers |
+| --- | --: | --- |
+| `domain_models_test.dart` | 16 | Greeting/initials edge cases, order lifecycle, progress clamping, dashboard states |
+| `components_test.dart` | 21 | Every status state, countdown flooring, touch targets, long content, 1.4x text, error kinds, loading button |
+| `navigation_test.dart` | 12 | The five-tab matrix, rapid switching, double-tap, Android back, state retention, placeholder routing |
+| `home_screen_test.dart` | 14 | Personas A–D, loading, four error kinds, retry re-fetch, dark mode |
+| `fixture_isolation_test.dart` | 11 | Environment gating, feature flags, production repository invents nothing |
+| `tokens_test.dart` | 8 | 4px grid, touch targets, type floors, **WCAG contrast ratios**, theme wiring |
+
+Two of these earn their keep by asserting things a screenshot cannot show: `retry actually re-asks
+the repository` counts calls and caught a silent retry loop; the contrast tests compute WCAG
+luminance and caught a palette below AA.
 
 `tokens_test.dart` computes real WCAG relative luminance. It caught a genuine defect: white on
 `primary-600` was 3.31:1.

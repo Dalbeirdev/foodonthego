@@ -12,24 +12,29 @@ immediately and letting it sit; the product is the *timing*.
 
 ---
 
-## Status — Module 01 complete
+## Status — Modules 01–02 complete
 
-Module 01 is the **foundation only**: architecture, design system, API contract, database
-conventions, security baseline, application shells, CI and documentation.
+**Module 01** — foundation: architecture, design system, API contract, database conventions,
+security baseline, web shells, CI, documentation.
+
+**Module 02** — the customer mobile app: Riverpod + go_router architecture, a premium Home with
+three states, five navigation destinations, offline/loading/error systems, and development fixtures
+isolated from production builds.
 
 **No business feature is implemented.** No authentication, journey planner, restaurant search,
-ordering, payments or ETA engine. Every shell route without a feature behind it renders a
-placeholder that says so and names the module that will deliver it.
+ordering, payments or ETA engine. Every route without a feature behind it goes to a controlled
+placeholder naming the module that will deliver it — never a dead button, never silence.
 
 | | Result |
 | --- | --- |
-| Automated tests | **115 passed**, 0 failed, 0 skipped |
-| Static checks | Pint ✅ · TypeScript 0 errors ✅ · `flutter analyze` clean ✅ |
+| Automated tests | **178 passed**, 0 failed, 0 skipped (67 backend · 29 web · 82 mobile) |
+| Static checks | Pint ✅ · TypeScript 0 errors ✅ · `flutter analyze --fatal-infos` clean ✅ · `dart format` clean ✅ |
 | Dependency audits | `composer audit` clean ✅ · `npm audit` 0 vulnerabilities ✅ |
 | Live API | MySQL 1.9 ms · Redis 0.59 ms, verified through a browser |
-| Responsive | 8 widths × 2 shells, no overflow, no console errors |
-| Android build | **PENDING** — SDK unreachable in this environment |
-| iOS build | **PENDING** — requires macOS + Xcode |
+| Responsive — web | 8 widths × 2 shells, no overflow, no console errors |
+| Responsive — mobile | 6 sizes, 320 → 768dp, rendered and inspected |
+| Android build/device | **PENDING** — SDK host denied by this environment's egress policy |
+| iOS build/simulator | **PENDING** — requires macOS + Xcode |
 
 Full evidence: [`docs/15-test-evidence.md`](docs/15-test-evidence.md).
 
@@ -41,7 +46,7 @@ Full evidence: [`docs/15-test-evidence.md`](docs/15-test-evidence.md).
 | Database | MySQL 8 — source of truth for orders, payments, payouts |
 | Cache / queues / locks | Redis 7 — deliberately treated as lossy |
 | Web | React 19 · TypeScript · Vite — restaurant dashboard + admin panel |
-| Mobile | Flutter 3.47 — one codebase, Android and iOS |
+| Mobile | Flutter 3.47 — one codebase, Android and iOS · Riverpod 3 · go_router |
 
 ```
 backend/          Laravel API — all business rules live here
@@ -80,7 +85,7 @@ Full instructions: [`docs/03-development-setup.md`](docs/03-development-setup.md
 ```bash
 cd backend && php artisan test        # 67
 cd web     && npm test                # 29
-cd mobile  && flutter test            # 19
+cd mobile  && flutter test            # 82
 ```
 
 Backend tests run against **real MySQL**, not SQLite: the schema uses MySQL types and later modules
@@ -106,6 +111,8 @@ create.
 | [13 Known issues](docs/13-known-issues.md) | Open blockers and 13 resolved defects |
 | [14 Change log](docs/14-change-log.md) | What changed |
 | [15 Test evidence](docs/15-test-evidence.md) | Real commands, real numbers, screenshots |
+| [16 Mobile navigation](docs/16-mobile-navigation.md) | Riverpod, go_router, feature flags, fixture isolation |
+| [17 Customer app UI](docs/17-customer-app-ui.md) | Screen hierarchy, components, animation, accessibility |
 
 ## Honest limitations
 
@@ -114,3 +121,5 @@ create.
 - **No PHP static analysis.** PHPStan could not be installed here. Pint runs in its place.
 - **CI has never executed.** The workflow is written; the first run will surface whatever it surfaces.
 - **Only `users` exists in the database.** Module-specific migrations arrive with their modules.
+- **The mobile app has no backend integration.** A production build resolves to a repository that
+  returns no journey and no order — the truthful state for an empty account. It never invents data.
