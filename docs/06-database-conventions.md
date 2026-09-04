@@ -107,6 +107,36 @@ Index before a feature ships, not after it is slow in production — but only wh
 and `(customer_id, type)` because the picker groups by type. It does not carry an index on
 `place_id`: nothing looks an address up that way yet.
 
+`trip_routes` carries `(trip_id, provider_route_index)` as a unique key — a
+provider's own ordering is the natural identity of a route within a trip — and
+`(trip_id, is_selected)` because every read of a trip's routes wants the selected
+one first.
+
+### A uniqueness rule the application cannot break
+
+"Exactly one selected route per trip" is enforced by the schema rather than by
+the service that writes it:
+
+```php
+$table->unsignedBigInteger('selected_trip_id')->nullable()
+    ->virtualAs('CASE WHEN is_selected = 1 THEN trip_id ELSE NULL END');
+$table->unique('selected_trip_id', 'trip_routes_one_selected_per_trip');
+```
+
+MySQL ignores NULLs in a unique index, so unselected rows never collide and two
+selected rows for the same trip cannot exist. Two concurrent selections cannot
+both win, whatever order the application happens to run in. This is the pattern
+to reach for whenever "only one of these may be true at a time" matters —
+`customer_addresses.is_default` is enforced in the service, and would be better
+enforced here.
+
+### Empty `$fillable` where the values are not the client's
+
+`TripRoute` declares no fillable attributes at all. Every column is assigned
+explicitly from a validated provider response. A model whose values must never
+come from a request is clearer with an empty `$fillable` than with a `$guarded`
+list somebody has to keep in step with the migration.
+
 ## Migrations
 
 - One migration per change; never edit a migration that has run anywhere but locally.

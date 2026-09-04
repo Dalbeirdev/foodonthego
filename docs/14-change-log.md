@@ -335,3 +335,82 @@ traffic-aware timing, route alternatives, route display and route validation.
 Also not built: menu, cart, checkout, payment, orders, the ETA engine,
 WebSockets, push notifications, QR pickup, reviews and support workflows.
 
+
+---
+
+## Module 06 — Maps, Route Calculation, Distance & Travel Time
+
+### Added
+
+**Backend**
+- `trip_routes` migration: 21 columns, a unique `(trip_id, provider_route_index)`,
+  an index on `(trip_id, is_selected)`, and a **virtual column plus unique index**
+  that makes two selected routes for one trip unrepresentable.
+- `App\Services\Routing`: `RouteProvider` interface, `GoogleRouteProvider`
+  (Routes API v2 `computeRoutes`, six-field mask), `UnconfiguredRouteProvider`,
+  `DevelopmentRouteProvider`, `RouteRequest`, `RouteOption`, `RouteBounds`,
+  `RouteResult`, `RouteValidator`, `RouteCalculationService`,
+  `RouteSelectionService`, `RouteProviderException`, `RouteFailureKind`.
+- `Support\Route\PolylineCodec` and `Support\Trip\EndpointFingerprint`.
+- `TripRoute` model with an **empty `$fillable`**, `toApiArray()` and a
+  geometry-free `toApiSummaryArray()`.
+- `Trip::routes()`, `selectedRoute()`, and `selectedRouteSummary()` — guarded by
+  both the status and the endpoint fingerprint.
+- `TripRouteController`: `GET /trips/{trip}/routes` (never calculates),
+  `POST /trips/{trip}/route/calculate` (`?refresh=1`),
+  `POST /trips/{trip}/routes/{route}/select`.
+- `RouteStatus` gains `NO_ROUTE` and `STALE`, plus `hasUsableRoute()` and
+  `isRetryable()`.
+- `ApiErrorCode` gains 11 routing codes.
+- `config('foodonthego.routing')` and the matching `.env.example` block.
+- 527 tests (up from 408): `PolylineCodecTest`, `RouteProviderTest`,
+  `RouteValidatorTest`, `RouteCalculationServiceTest`, `TripRouteApiTest`,
+  `TripRouteOwnershipTest`, `RouteLoggingTest`.
+
+**Mobile**
+- `core/geo/polyline_codec.dart` — `GeoPoint`, decode, encode, great-circle
+  distance.
+- `domain/models/trip_route.dart` — a route with no distance, no duration or no
+  geometry does not construct; geometry that will not decode draws nothing rather
+  than throwing.
+- `core/format/journey_measures.dart` — distance, duration, traffic delay (null
+  under a minute), comparison, and "calculated N minutes ago".
+- `core/config/maps_config.dart` — the Maps key, the supported platforms, and one
+  place that knows whether a map is possible.
+- `data/repositories/api_route_repository.dart`, `shared/state/route_controller.dart`
+  with nine distinct failure kinds.
+- `features/routes/`: `RouteScreen`, `RouteMapView`, `MapUnavailableView`,
+  `RouteOptionCard`.
+- `google_maps_flutter` dependency.
+- 382 tests (up from 312), a great many of which do nothing but assert the
+  provider was **not** called.
+
+**Tooling**
+- `mobile/tool/route_smoke.dart` — 21 assertions against a running server and a
+  real database, printing what the configured provider actually returned rather
+  than asserting against numbers baked into the test.
+- `mobile/tool/support/smoke_support.dart` — the session, sign-in and assertion
+  helpers the smoke runs share.
+
+**Documentation**
+- `21-maps-and-routing.md`, and updates to 02, 05, 06, 07, 08, 09, 11, 12, 13,
+  14, 15, 17 and 20.
+
+### Fixed outside this module
+
+- **Module 01.** An unauthenticated request that did not announce
+  `Accept: application/json` was answered **500** instead of 401: Laravel's
+  default guest redirect points at a `login` route this API does not have, and
+  the redirect threw before the authentication exception could be rendered.
+- **Module 03.** `AuthController.restore()` wrote `state` after two async gaps
+  with no disposal check, throwing whenever a scope was torn down mid-restore.
+
+### Deliberately not built
+
+Everything Module 07 and the ETA engine own: restaurant discovery along the
+selected route, cooking-start prediction, restaurant preparation intelligence,
+live GPS progress, and any dynamic customer ETA during a journey.
+
+The number this module produces is a **travel duration** — the routing provider's
+estimate of the drive — and the UI says so in those words. It is not the
+FoodOnTheGo ETA, and the word "ETA" appears nowhere in the module's interface.

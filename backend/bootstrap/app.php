@@ -49,6 +49,15 @@ return Application::configure(basePath: dirname(__DIR__))
             'abilities' => CheckAbilities::class,
             'ability' => CheckForAnyAbility::class,
         ]);
+
+        // There is no HTML login page to send a guest to. Laravel's default
+        // redirect target is `route('login')`, which for any request that does
+        // not announce `Accept: application/json` — a browser opening an API URL,
+        // a probe, a misconfigured client — throws RouteNotFoundException before
+        // the AuthenticationException is ever raised, and the caller is told 500
+        // when the truth is 401. Returning null keeps the exception intact so the
+        // renderer answers with the same 401 every other caller gets.
+        $middleware->redirectGuestsTo(static fn (): ?string => null);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(fn (Throwable $e, Request $request) => app(ApiExceptionRenderer::class)->render($e, $request));

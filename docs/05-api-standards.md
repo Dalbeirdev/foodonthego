@@ -103,6 +103,33 @@ Added in Module 05 ([20-trip-planner.md](20-trip-planner.md)):
 | `TRIP_CREATE_FAILED` | 500 | Ours — offer a retry, not a field |
 | `PLACE_NOT_FOUND` | 404 | The place provider does not know that id |
 | `PLACE_LOOKUP_FAILED` | 503 | The place provider is unavailable |
+| `ROUTE_INPUT_INVALID` | 422 | The journey's own endpoints cannot be routed between |
+| `ROUTE_NOT_FOUND` | 404 | No such route on this journey |
+| `ROUTE_SELECTION_INVALID` | 422 | That route id is not one of this journey's |
+| `ROUTE_STALE` | 409 | The endpoints moved while the screen was open |
+| `ROUTE_ALREADY_CURRENT` | 409 | That route is already the selected one |
+| `ROUTE_NO_ROUTE_FOUND` | 422 | The provider found no road route |
+| `ROUTE_PROVIDER_UNAVAILABLE` | 503 | The routing provider is down or unreachable |
+| `ROUTE_PROVIDER_RATE_LIMITED` | 429 | The routing provider refused on quota |
+| `ROUTE_TIMEOUT` | 504 | The routing provider did not answer in time |
+| `ROUTE_RESPONSE_INVALID` | 502 | The routing provider answered with something unusable |
+| `ROUTE_CALCULATION_IN_PROGRESS` | 409 | A calculation is already running for this journey |
+
+The eleven routing codes are eleven rather than one because the customer's next
+move differs for each: `ROUTE_NO_ROUTE_FOUND` is the provider's considered answer
+and must not offer a retry, `ROUTE_TIMEOUT` should, and `ROUTE_STALE` means the
+screen is out of date rather than the network. A single "something went wrong"
+offers the same useless button to all of them.
+
+Like `PLACE_LOOKUP_FAILED`, none of them carries a word of the provider's own
+message: an upstream routing error names our project, our key state and our
+quota.
+
+**A guest is answered 401, whatever they sent.** Laravel's default redirects an
+unauthenticated request that does not announce `Accept: application/json` to a
+`login` route. This API has none, so that path threw and the caller was told 500
+when the truth was 401. The guest redirect is configured to return null so the
+authentication exception survives to the renderer.
 
 `SAVED_ADDRESS_NOT_LOCATED` earns its own code rather than folding into
 `VALIDATION_FAILED` because the client's answer is specific and different:

@@ -31,11 +31,21 @@ class MapsConfig {
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
 
+  /// Forces the answer in a test.
+  ///
+  /// A test binary is given no key and hosts no platform view, so without this
+  /// the map-capable half of the route screen could only ever be verified by
+  /// hand on a device. Null in every real build — nothing outside a test sets
+  /// it, and `flutter test` resets it between cases.
+  @visibleForTesting
+  static bool? debugCanRenderMap;
+
   /// Whether to attempt a map at all.
   ///
   /// When false the route screen shows its map-unavailable state — which is a
   /// required state in its own right, not a fallback bolted on: a customer whose
   /// map tiles will not load must still see where they are going, how far it is
   /// and how long it takes.
-  static bool get canRenderMap => hasKey && isSupportedPlatform;
+  static bool get canRenderMap =>
+      debugCanRenderMap ?? (hasKey && isSupportedPlatform);
 }

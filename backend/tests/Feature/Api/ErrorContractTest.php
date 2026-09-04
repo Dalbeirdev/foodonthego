@@ -26,6 +26,18 @@ final class ErrorContractTest extends TestCase
             ->assertJsonPath('error.code', ApiErrorCode::NotFound->value);
     }
 
+    public function test_a_guest_is_told_401_even_without_an_accept_header(): void
+    {
+        // `getJson` announces `Accept: application/json`, which is the one case
+        // the framework's default guest redirect skips. A browser opening an API
+        // URL, a probe, or a client that forgot the header takes the other path,
+        // and this application has no HTML login route for it to be sent to.
+        $response = $this->get('/api/v1/customer/trips', ['Accept' => 'text/html']);
+
+        $response->assertStatus(401)
+            ->assertJsonPath('error.code', ApiErrorCode::Unauthenticated->value);
+    }
+
     public function test_wrong_method_is_reported_as_method_not_allowed(): void
     {
         $this->postJson('/api/v1/health/live')

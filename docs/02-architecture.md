@@ -119,6 +119,24 @@ provider: every lookup goes through `/customer/places/*`, so the key is in one
 environment rather than in every installed bundle, and swapping providers is a
 change to one adapter rather than an app release.
 
+**Route data is server-owned, all of it.** A route's distance, duration, traffic
+figure, geometry and selection flag come from a validated provider response and
+are written by one service. `TripRoute` has an empty `$fillable`, so no request
+payload has a path into any of them. The client sends one thing: which of the
+calculated routes it wants. See `21-maps-and-routing.md`.
+
+**One selected route per trip is a database invariant, not a convention.** A
+virtual column reduces `is_selected` to the trip id or NULL, and a unique index
+over it makes two selected routes for one trip unrepresentable — whatever two
+concurrent requests do.
+
+**Staleness is closed by construction rather than swept up later.** A route
+stores the fingerprint of the endpoints it was calculated for; the trip's own
+fingerprint is derived on demand, so there is no second copy to drift. Every
+read, calculation and selection compares them first, and a mismatch deletes the
+routes before a response is built. There is no window in which a stale route is
+visible.
+
 ## What Module 01 deliberately did not build
 
 No authentication, no domain tables beyond `users`, no feature endpoints. Module-specific migrations

@@ -8,6 +8,26 @@ gitignored. `.env.example` contains placeholders only.
 If a secret is ever committed: rotate it first, then rewrite history. Removing it from `HEAD` does
 nothing — it is in the clone every developer already has.
 
+### Two Maps Platform keys, restricted differently
+
+The routing key and the Maps SDK key are separate credentials on purpose, because
+one of them has to ship inside the app and the other must never.
+
+| Key | Where it lives | Restrictions |
+| --- | --- | --- |
+| Routes API (routing) | Backend environment only (`GOOGLE_ROUTES_API_KEY`) | Server/IP where the platform supports it, plus API scope: Routes API alone |
+| Maps SDK (drawing) | Inside the app binary (`--dart-define=FOTG_MAPS_API_KEY`) | Android package name **and** signing certificate; iOS bundle identifier; API scope: Maps SDKs alone |
+
+A key inside a mobile binary is extractable — that is a property of the platform,
+not a mistake — so the Maps key is restricted until it is worth nothing to
+whoever extracts it: it cannot calculate a route, cannot search a place and
+cannot be used from another application. The app holds **no** routing key of any
+kind, and no unrestricted production key is committed anywhere.
+
+Neither key is ever logged. The routing provider's failure path records a failure
+kind and the trip uuid; it records neither the request URL nor the key, and a
+test asserts that `AIza` never appears in the log.
+
 ## Roles
 
 Seven roles in `App\Enums\Role`, stored as strings so a database row is self-describing and
@@ -113,9 +133,9 @@ even for a frame.
 
 ## Ownership of a customer's own records
 
-Two modules now hold records a customer owns and writes — saved addresses and
-journeys — and both follow the same three rules. Any later module that adds one
-is expected to follow them too.
+Three modules now hold records a customer owns and writes — saved addresses,
+journeys and the routes calculated for them — and all three follow the same rules.
+Any later module that adds one is expected to follow them too.
 
 1. **No self-service route carries a customer identifier.** The owner is read
    from the token. There is nothing in the request to tamper with, so an
@@ -130,6 +150,11 @@ is expected to follow them too.
    planning a journey from somebody else's address fails exactly the way reading
    that address fails — and a second, parallel ownership check is not something
    anybody has to remember to keep correct.
+
+4. **A child record is resolved inside its parent, never globally.** A route id
+   is looked up among *this trip's* routes after the trip's ownership has been
+   established. Selecting another customer's route on your own journey is not a
+   refusal — there is no such route to find.
 
 A corollary that has bitten before: **do not validate an identifier with an
 existence rule** (`exists:customer_addresses,uuid`) on a resource the caller may
@@ -155,6 +180,17 @@ is the same and is enforced by tests that read the log file on disk:
 is a statement about where they are going, whether or not they ever create the
 trip. No query text reaches a log line, including the line written when the
 provider fails.
+
+**A route is location data too, and denser than either end of it.** The polyline
+is a minute-by-minute description of where a person intends to be. It is never
+logged, never sent to analytics, and never included in a list or home-card
+response — those carry a summary of distance and duration with no geometry at
+all. The route events (`route.calculated`, `route.no_route`,
+`route.calculation_failed`, `route.invalidated`, `route.provider_rejected`,
+`route.response_rejected`, `route.selection_denied`) carry the trip uuid, the
+actor uuid, the provider and the outcome. The verification sweep greps the day's
+log for place names, the test coordinates, polyline markers and key prefixes, and
+finds none.
 
 ### Third-party credentials never reach a device
 

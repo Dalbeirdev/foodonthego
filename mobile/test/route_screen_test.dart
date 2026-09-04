@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodonthego/core/config/maps_config.dart';
 import 'package:foodonthego/core/network/api_error_code.dart';
 import 'package:foodonthego/core/network/api_exception.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
@@ -109,10 +110,27 @@ void main() {
       expect(find.textContaining('Jaipur'), findsWidgets);
     });
 
-    testWidgets('offers a recentre control', (WidgetTester tester) async {
+    testWidgets('offers a recentre control where there is a map', (
+      WidgetTester tester,
+    ) async {
+      MapsConfig.debugCanRenderMap = true;
+      addTearDown(() => MapsConfig.debugCanRenderMap = null);
+
       await openRoute(tester, routes: FakeRouteRepository(calculated: true));
 
       expect(find.byTooltip('Fit the route back into view'), findsOneWidget);
+    });
+
+    testWidgets('offers no recentre control without a map to recentre', (
+      WidgetTester tester,
+    ) async {
+      // This build carries no Maps key, so the screen is in its map-unavailable
+      // state. The recentre button would have nothing to act on, and a control
+      // that does nothing when tapped reads as a broken app.
+      await openRoute(tester, routes: FakeRouteRepository(calculated: true));
+
+      expect(find.byType(MapUnavailableView), findsOneWidget);
+      expect(find.byTooltip('Fit the route back into view'), findsNothing);
     });
   });
 
@@ -421,6 +439,26 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('278 km'), findsWidgets);
+    });
+
+    testWidgets('a notice never covers the map-unavailable text', (
+      WidgetTester tester,
+    ) async {
+      // A banner over map tiles hides nothing that matters. A banner over the
+      // map-unavailable state hides the only thing on it — on a 320-wide phone
+      // the development notice landed on top of the two place names.
+      await openRoute(
+        tester,
+        routes: FakeRouteRepository()..provider = 'development',
+        size: const Size(320, 568),
+      );
+
+      final Rect fallback = tester.getRect(find.byType(MapUnavailableView));
+      final Rect notice = tester.getRect(
+        find.textContaining('this is not a real road route'),
+      );
+
+      expect(fallback.overlaps(notice), isFalse);
     });
 
     testWidgets('survives long place names', (WidgetTester tester) async {

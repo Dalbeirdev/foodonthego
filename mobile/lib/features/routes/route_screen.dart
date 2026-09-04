@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/config/maps_config.dart';
 import '../../core/format/journey_measures.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/tokens.dart';
@@ -64,7 +65,10 @@ class _RouteScreenState extends ConsumerState<RouteScreen> {
       appBar: AppBar(
         title: Text(strings.routeTitle),
         actions: <Widget>[
-          if (state.hasRoutes)
+          // Only where there is a map to recentre. On a build that cannot draw
+          // one the button is inert, and an offered control that does nothing
+          // when tapped reads as a broken app rather than as an absent feature.
+          if (state.hasRoutes && MapsConfig.canRenderMap)
             IconButton(
               icon: const Icon(Icons.my_location_rounded),
               tooltip: strings.routeRecenterHint,
@@ -107,6 +111,30 @@ class _RouteBody extends ConsumerWidget {
     final List<TripRoute> routes = state.routes!.routes;
     final TripRoute? selected = state.selected ?? state.routes!.recommended;
 
+    final Widget map = RouteMapView(
+      key: mapKey,
+      trip: trip,
+      routes: routes,
+      selectedRouteId: selected?.id,
+      onRouteTapped: (String id) =>
+          ref.read(routeControllerProvider.notifier).select(id),
+    );
+
+    final Widget? offlineBanner = state.isOffline
+        ? _Banner(
+            icon: Icons.cloud_off_rounded,
+            message: strings.routeOfflineCached,
+          )
+        : null;
+
+    final Widget? providerBanner = state.routes!.isFromRealProvider
+        ? null
+        : _Banner(
+            icon: Icons.science_outlined,
+            message: strings.routeDevelopmentProvider,
+            isWarning: true,
+          );
+
     return Column(
       children: <Widget>[
         // The map takes what is left after the sheet, rather than the sheet
@@ -114,41 +142,53 @@ class _RouteBody extends ConsumerWidget {
         // screen — the route would sit under the panel on a short phone.
         Expanded(
           flex: 4,
-          child: Stack(
-            children: <Widget>[
-              Positioned.fill(
-                child: RouteMapView(
-                  key: mapKey,
-                  trip: trip,
-                  routes: routes,
-                  selectedRouteId: selected?.id,
-                  onRouteTapped: (String id) =>
-                      ref.read(routeControllerProvider.notifier).select(id),
+          // A banner floats over map tiles, which lose nothing by being partly
+          // covered. It must not float over the map-unavailable state, whose
+          // whole content is the words the customer is there to read — on a
+          // 320-wide phone the notice landed squarely on top of "New Delhi →
+          // Jaipur International Airport".
+          child: MapsConfig.canRenderMap
+              ? Stack(
+                  children: <Widget>[
+                    Positioned.fill(child: map),
+                    if (offlineBanner != null)
+                      Positioned(
+                        left: FotgSpacing.x4,
+                        right: FotgSpacing.x4,
+                        top: FotgSpacing.x4,
+                        child: offlineBanner,
+                      ),
+                    if (providerBanner != null)
+                      Positioned(
+                        left: FotgSpacing.x4,
+                        right: FotgSpacing.x4,
+                        bottom: FotgSpacing.x4,
+                        child: providerBanner,
+                      ),
+                  ],
+                )
+              : Column(
+                  children: <Widget>[
+                    Expanded(child: map),
+                    if (offlineBanner != null || providerBanner != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          FotgSpacing.x4,
+                          FotgSpacing.x3,
+                          FotgSpacing.x4,
+                          0,
+                        ),
+                        child: Column(
+                          children: <Widget>[
+                            ?offlineBanner,
+                            if (offlineBanner != null && providerBanner != null)
+                              const SizedBox(height: FotgSpacing.x2),
+                            ?providerBanner,
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-              if (state.isOffline)
-                Positioned(
-                  left: FotgSpacing.x4,
-                  right: FotgSpacing.x4,
-                  top: FotgSpacing.x4,
-                  child: _Banner(
-                    icon: Icons.cloud_off_rounded,
-                    message: strings.routeOfflineCached,
-                  ),
-                ),
-              if (!state.routes!.isFromRealProvider)
-                Positioned(
-                  left: FotgSpacing.x4,
-                  right: FotgSpacing.x4,
-                  bottom: FotgSpacing.x4,
-                  child: _Banner(
-                    icon: Icons.science_outlined,
-                    message: strings.routeDevelopmentProvider,
-                    isWarning: true,
-                  ),
-                ),
-            ],
-          ),
         ),
         Expanded(
           flex: 5,

@@ -96,6 +96,67 @@ ids, which refuses to be constructed in production.
 in [20-trip-planner.md](20-trip-planner.md) and re-run the integration script
 with `PLACES_PROVIDER=google`.
 
+### KI-011 · Live map SDK render cannot be performed
+
+**Severity:** Medium
+
+Drawing a real map needs a Maps SDK key and a device or emulator. This
+environment has neither: no key is configured, `dl.google.com` is blocked so
+there is no Android SDK (KI-001), and there is no macOS host (KI-002). The web
+harness used for live verification deliberately carries no Maps key either —
+putting one in a page served from a static directory would publish it.
+
+So every live screenshot in `docs/evidence/module-06/` shows the documented
+**map-unavailable** state, which is a designed state in its own right and not a
+failure: the two place names, the distance, the travel time and the age of the
+calculation are all present. What is *not* established here is that tiles load,
+that the camera frames the route, that the markers land in the right places, and
+that a tap on an alternative polyline selects it.
+
+**This is reported as PENDING, not as PASS.** See M06-053.
+
+**To clear:** build with `--dart-define=FOTG_MAPS_API_KEY=…` on an Android
+emulator or an iOS simulator and re-run the route screen.
+
+---
+
+### KI-012 · Live routing provider verification cannot be performed
+
+**Severity:** High
+
+No Google Routes API key is configured here, and `routes.googleapis.com` refuses
+without one. Every alternative that could have stood in — OSRM, Valhalla,
+OpenRouteService, Mapbox, GraphHopper, TomTom — is refused by this environment's
+egress policy.
+
+`GoogleRouteProvider` is therefore verified against a **stubbed HTTP transport**
+(`RouteProviderTest`, 28 assertions): what is established is that the adapter
+sends the right request — key in the `X-Goog-Api-Key` header, the six-field mask,
+travel mode, traffic preference, alternatives flag — and reads the documented
+response shapes, including the `staticDuration`/`duration` traffic mapping and
+the `"16200s"` duration format. Whether Google's live responses match those
+shapes is not established here.
+
+Local work and automated verification run against `DevelopmentRouteProvider`,
+which draws a straight line between the two points. It **refuses to be
+constructed in production**, labels itself `development` in the stored row, in
+the API response and in a banner on the screen, and never invents a traffic
+figure or a second route. It is a stand-in, not a fallback: it is never selected
+automatically, and no code path falls back to it when a real provider fails.
+
+The consequence is worth stating plainly: **this module's Definition of Done
+asks for a real route result from a real provider, and that cannot be satisfied
+in this environment.** Everything around it — persistence, validation,
+invalidation, selection, ownership, cost control, the screen — is verified; the
+one live call is not.
+
+**This is reported as PENDING, not as PASS.** See M06-051.
+
+**To clear:** configure `GOOGLE_ROUTES_API_KEY` with the restrictions documented
+in [21-maps-and-routing.md](21-maps-and-routing.md), set `ROUTE_PROVIDER=google`,
+and re-run `mobile/tool/route_smoke.dart`. The run prints what the provider
+actually returned, so the evidence updates itself.
+
 ---
 
 ## Open — product gaps (by design, scheduled)
@@ -180,6 +241,38 @@ needs an explicit audit trail anyway.
 the account, inside one transaction.
 
 ---
+
+## Bug register — Module 06
+
+All found during Module 06, all fixed and retested. Environment: PHP 8.4.19 /
+Laravel 12.69.1 / MySQL 8.0.46 / Flutter 3.47.2 on Ubuntu 24.04; live-view render
+in Chromium at 320–430dp.
+
+| ID | Requirement | Description | Severity | Reproduction | Expected | Actual | Root cause | Fix | Retest | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| M06-B01 | M06-041 | A test proving recovery after a provider failure could not fail | Medium | Swap the bound `RouteProvider` between two requests in one test process | The second request uses the new provider | The first provider answered both | `Route::getController()` caches the resolved controller on the `Route` object, which outlives a request inside one test process — so `$app->instance()` changed what `make()` returned and not what the controller already held | The double is mutable (`failWith`, `findsNothing`) rather than replaced. **A container rebind mid-test does not reach an already-constructed controller** | `RouteCalculationServiceTest` (23) | **Fixed** |
+| M06-B02 | M06-050 | A successful calculation could be reported as a failure | Medium | Calculate a route while the trips list endpoint is failing | The route is shown | The whole operation reported an error | After a successful calculation the controller re-reads the surfaces that carry a route summary; an error from *those* reads propagated as though the calculation itself had failed | The refresh is best-effort, in a `try`/`catch`, and documented as such | `route_controller_test.dart` (16) | **Fixed** |
+| M06-B03 | M06-006 | Restoring a session threw whenever a scope was torn down mid-restore | **High** | Dispose the container while `AuthController.restore()` is between its two awaits | The restore is abandoned quietly | `Bad state: Tried to use … after dispose` | A Module 03 defect this module's tests exposed: `state` was written after two async gaps with no disposal check | A `_disposed` flag and a `_set()` used at every post-await write, matching the pattern M05-B07 established | Auth controller tests | **Fixed** |
+| M06-B04 | M06-033 | The map-unavailable state overflowed the smallest supported screen | Medium | Open the route screen at 320×568 with no Maps key | The state fits or scrolls | `RenderFlex overflowed by 132 pixels` | The icon, title, body and both place names are taller than the ~180dp a short phone leaves for the map area | A `SingleChildScrollView` with a smaller icon and tighter spacing | `route_screen_test.dart` at 320dp | **Fixed** |
+| M06-B05 | M06-024 | An alternative's chips overflowed at 390dp | Low | Show a route with both a traffic chip and a comparison chip | Both chips fit or wrap | `RenderFlex overflowed by 4.6 pixels` | The chips were in a `Row` | A `Wrap` | `route_screen_test.dart` | **Fixed** |
+| M06-B06 | M06-046 | An unauthenticated request without `Accept: application/json` was answered 500 | **High** | `curl -H 'Accept: text/html' /api/v1/customer/trips` | 401 with the documented error shape | 500, and `Route [login] not defined` in the log | Laravel's default guest redirect points at a `login` route. This API has none, so the redirect threw *before* the `AuthenticationException` the renderer knows how to turn into a 401. Every JSON client was fine, which is why four modules of tests never saw it | `redirectGuestsTo` returns null, so the authentication exception survives to the renderer | `ErrorContractTest`: "a guest is told 401 even without an accept header" | **Fixed** |
+| M06-B07 | M06-033 | The recentre button was offered where there was no map to recentre | Medium | Open the route screen in a build with no Maps key | No recentre control | The control was there and did nothing when tapped | The action was gated on "there are routes", not on "there is a map" | Gated on `MapsConfig.canRenderMap`, which gained a `@visibleForTesting` override so both halves can be tested | Two tests: offered with a map, absent without | **Fixed** |
+| M06-B08 | M06-033 | The development-provider banner covered the map-unavailable text at 320dp | Medium | Open the route screen at 320×568 with `ROUTE_PROVIDER=development` | The notice and the place names are both readable | The banner sat squarely on top of "New Delhi → Jaipur International Airport" | The banner is `Positioned` over the map area, which is right over tiles and wrong over the fallback, whose whole content is the words the customer is there to read | Overlaid only where a map renders; in flow beneath the fallback otherwise | `route_screen_test.dart` asserts the two rects do not overlap; `state-17-320-route.png` | **Fixed** |
+
+No Module 06 issue was left open.
+
+### Also found here — two defects in the verification harness itself
+
+Neither is a product defect, and both are worth recording because they made the
+live run lie in opposite directions.
+
+`Playwright`'s `hasText` matches **case-insensitively**, so the assertion "the
+route screen never says ETA" was matching the word "route d**eta**ils" and
+reporting a failure that did not exist. And Flutter renders a semantic heading as
+an `<h2>` element rather than an `<flt-semantics>` one, so the assertion "home
+shows *Your journey*" could never have passed however correct the app was. An
+assertion that cannot fail for the right reason is worse than no assertion; both
+now walk the whole semantics host and match case.
 
 ## Bug register — Module 05
 

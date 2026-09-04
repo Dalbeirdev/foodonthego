@@ -7,10 +7,10 @@
 | 03 | Customer Authentication, Registration, OTP, Session & Security | **COMPLETE (Android/iOS device verification pending)** | 130 backend + 72 mobile tests; real Flutter→Laravel→MySQL integration run; 20 states inspected live |
 | 04 | Customer Profile & Saved Addresses | **COMPLETE (Android/iOS device verification pending)** | 99 backend + 68 mobile tests; real Flutter→Laravel→MySQL integration run; 24 states inspected live |
 | 05 | Trip Planner — Origin, Destination & Trip Creation | **COMPLETE (Android/iOS device verification pending; live Places verification pending)** | 408 backend + 312 mobile tests; real Flutter→Laravel→MySQL integration run (31 assertions); 28 states inspected live |
-| 06 | Menu Management | NOT STARTED | Next, on approval |
-| 07 | Restaurant Availability & Capacity | NOT STARTED | |
+| 06 | Maps, Route Calculation, Distance & Travel Time | **NOT COMPLETE — live routing provider verification unavailable** | 527 backend + 382 mobile + 29 web tests; integration run (21 assertions); 20 states inspected live. See below |
+| 07r | Restaurant Availability & Capacity (roadmap numbering) | NOT STARTED | |
 | 08 | Order Lifecycle | NOT STARTED | |
-| 06 | Maps, Route Calculation, Distance & Travel Time | NOT STARTED | Owns everything Module 05 deliberately refuses: route, polyline, distance, duration, ETA |
+| 07 | Restaurant Discovery Along the Selected Route | NOT STARTED | Next, on approval |
 | 09 | Route & Corridor Management | NOT STARTED | On-route restaurant search; the planner itself moved to 05 |
 | 10 | Notifications | NOT STARTED | |
 | 11 | Payments, Refunds & Settlements | NOT STARTED | |
@@ -70,4 +70,35 @@ repository could catch, an accessibility defect that only appeared when driving
 the built app, and a spinner that never resolved when a browser left a permission
 prompt unanswered.
 
-Module 06 has **not** been started, per the one-module-at-a-time rule.
+## Module 06 detail
+
+**66 of 70 requirements COMPLETE or PASSED.** Four are not, and none of them is a
+code failure — but one of them is the module's own Definition of Done, so the
+module is reported as **NOT COMPLETE**:
+
+| ID | Requirement | Status | Blocker |
+| --- | --- | --- | --- |
+| M06-051 | Live Google Routes API verification | **PENDING** | KI-012 — no Routes key, and every alternative routing provider is blocked by the egress policy |
+| M06-052 | Alternative-route runtime test | **NOT APPLICABLE for this test response** | The configured provider returned one route; none was fabricated |
+| M06-053 | Live map SDK render | **PENDING** | KI-011 — no Maps key, no Android SDK, no macOS host |
+| M06-065/066 | Android and iOS runtime verification | **PENDING** | KI-001, KI-002 |
+
+The specification's Definition of Done requires a **real route result from a real
+provider**, and that cannot be produced here. Everything around it is verified:
+persistence, validation, invalidation, selection, ownership, cost control and the
+screen. The one live call is not, and calling that a pass would be exactly the
+kind of invention this module exists to prevent.
+
+**938 automated tests pass** (527 backend, 382 Flutter, 29 web), plus a 21-assertion
+integration run against a live server and database, and 20 live states inspected
+in a rendered release build. Pint clean, `flutter analyze` clean, `dart format`
+clean. Modules 01–05 regression: **PASS** (three integration runs and Module 05's
+own 28-state live run, all green).
+
+Eight defects were found and fixed during the module; none left open. Two of them
+were in other modules — a Module 01 error-contract defect that answered **500**
+to an unauthenticated request without a JSON `Accept` header, and a Module 03
+disposal defect — and two more were in the verification harness itself, where
+assertions had been quietly incapable of failing for the right reason.
+
+Module 07 has **not** been started, per the one-module-at-a-time rule.

@@ -5,7 +5,7 @@
 A test exists to catch a specific failure. Tests that assert a framework works are noise; tests that
 pin a decision (redaction, contrast, idempotency, error disclosure) are the ones worth having.
 
-## Backend — 391 tests
+## Backend — 527 tests
 
 Run against **real MySQL 8**, not SQLite. The schema uses MySQL types and later modules will use
 MySQL locking semantics; a SQLite run would pass against a schema production cannot create.
@@ -18,6 +18,13 @@ Redis integration itself is covered by the readiness test.
 | `TripServiceTest` | Endpoint resolution, coordinate validation, the same-place rule, the open limit |
 | `TripApiTest` | The trip endpoints as a client sees them; that no DELETE exists and no route field is ever returned |
 | `TripOwnershipTest` | The trip IDOR matrix, including creating a trip from another customer's saved address |
+| `PolylineCodecTest` | Google's own worked example, round trips, and refusal of empty, truncated and over-long geometry |
+| `RouteProviderTest` | The Google Routes v2 adapter against a stubbed transport: field mask, traffic-aware mapping, timeouts, 429, malformed bodies, and the unconfigured/development providers |
+| `RouteValidatorTest` | What a provider response has to satisfy before it is stored |
+| `RouteCalculationServiceTest` | Freshness window, the concurrency lock, invalidation on an endpoint change, failure kinds, recovery |
+| `TripRouteApiTest` | The three route endpoints as a client sees them, including that `GET` never calculates |
+| `TripRouteOwnershipTest` | The route IDOR matrix, including selecting another customer's route on your own trip |
+| `RouteLoggingTest` | Reads the log file on disk: route events present, geometry and coordinates absent |
 | `TripLoggingTest` | That no place a customer chose, no coordinate and no search query reaches the log file |
 | `PlaceApiTest` | The place endpoints: caching by query alone, session tokens, one opaque failure code |
 | `PlaceProviderTest` | All three providers — the Google adapter against a stubbed transport, the refusal, the gazetteer |
@@ -58,7 +65,7 @@ Redis integration itself is covered by the readiness test.
 | `admin/App.test.tsx` | Navigation architecture completeness; System Health states |
 | `restaurant/App.test.tsx` | Navigation architecture completeness |
 
-## Mobile — 287 tests
+## Mobile — 382 tests
 
 | Suite | Tests | Covers |
 | --- | --: | --- |
@@ -116,6 +123,20 @@ trip did not move with it, coordinate and same-place validation, a mass-assignme
 `customer_id`, `status`, `route_status`, `distance` and `eta`, and the trip IDOR matrix across two
 real accounts — including creating a trip *from somebody else's saved address*. 31 assertions.
 
+Module 06 adds `mobile/tool/route_smoke.dart`: a trip planned through the Module 05
+flow, a route calculated, the geometry decoded and checked to run between the two
+places, the freshness window proved by counting provider calls, an endpoint moved
+underneath a stored route to prove invalidation, a tamper payload carrying
+`distance_meters`, `duration_seconds` and `route_status`, and the route IDOR
+matrix across two real accounts. 21 assertions.
+
+That run prints what the configured provider actually returned — provider name,
+whether it is a real one, route count, distance, duration, traffic figure,
+polyline point count — rather than asserting against numbers baked into the test.
+Where the provider returns a single route it records
+`Alternative-route runtime test = NOT APPLICABLE` instead of inventing a second
+one to assert against.
+
 One of those assertions exists because of a defect no fake could have caught: the client was sending
 `?scope=open` and the server filters on `?status=`. An unknown query parameter is *ignored*, so every
 list came back unfiltered — discarded trips sat in the open list — while every widget test against a
@@ -160,6 +181,26 @@ removed the tap action underneath: the rows announced themselves as buttons and 
 activated by anything but a finger on the glass. And with the browser's permission prompt left
 unanswered, `geolocator`'s own `timeLimit` never fired, so the sheet sat on "Finding you…"
 indefinitely. Both are now pinned by widget tests.
+
+Module 06 drives the route screen the same way: a journey planned from a real
+device fix, calculated, recalculated, then the trip detail, the journeys list and
+a cold reload of home to prove the figures reached every surface — followed by
+each provider failure injected at the network (no route, timeout, rate limit,
+outage), offline with a stored route and offline with none, 320/360/430dp and
+dark mode. 20 states, and the run asserts throughout that the word **"ETA"**
+appears nowhere.
+
+Three defects came out of *that* run, and two of them were in the harness rather
+than the app — which is itself the point. `Playwright`'s `hasText` matches
+case-insensitively, so the assertion "the screen never says ETA" was quietly
+matching the word "d**eta**ils" and reporting a failure that did not exist; and
+Flutter renders a semantic heading as an `<h2>`, not an `<flt-semantics>`
+element, so a query written against the tag name alone could never see a section
+title. **An assertion that can neither pass nor fail for the right reason is
+worse than no assertion**, and both were fixed by walking the whole semantics host
+and matching case. The third was real: the development-provider banner, overlaid
+on the space a map would occupy, landed on top of the place names in the
+map-unavailable state at 320dp.
 
 ## What is not tested yet
 

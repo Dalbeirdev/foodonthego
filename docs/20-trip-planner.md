@@ -24,14 +24,22 @@ than in a convention somebody has to remember.
 | Selecting a saved address | Route alternatives |
 | Creating a trip, and persisting both ends | Displaying a route, or validating one |
 
+**Module 06 has since been built**, and it did not change a word of the above.
+Routing lives in its own table (`trip_routes`) and its own endpoints; `trips`
+still has no distance, duration or polyline column, and a trip that has never been
+routed still reports `NOT_CALCULATED`. What Module 06 added to this module's
+surfaces is a *summary* — distance and duration, no geometry — attached to a trip
+only when the status is `READY` **and** the endpoints have not moved since. See
+[21-maps-and-routing.md](21-maps-and-routing.md).
+
 There is **no** `distance`, `duration`, `polyline` or `eta` column on `trips`,
 and no such key in any API response. A column is an invitation to fill it, and a
 nullable one is an invitation to render "0 km" while it is still null.
 
 The one thing this module *does* record about routing is that none has happened:
 `route_status` is `NOT_CALCULATED` on every row Module 05 can create. The app
-reads that value rather than assuming it, so the day Module 06 starts moving it
-there is exactly one line of UI to change.
+reads that value rather than assuming it — which is why Module 06 moving that
+value cost this module's screens nothing but a new branch for `READY`.
 
 ---
 

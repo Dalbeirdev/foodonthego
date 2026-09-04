@@ -165,6 +165,29 @@ Use `Size(0, height)` for a minimum size, never `Size.fromHeight(height)`. The l
 `double.infinity`, which forces every button to fill its parent and silently defeats any `expand`
 parameter. Width is the caller's decision; only the height floor belongs to the theme.
 
+## Map surfaces (Module 06)
+
+A map is a picture, so everything that matters must also exist as words.
+
+- **Never colour alone.** The selected route is distinguished from alternatives by
+  stroke width and z-order as well as colour: an 8dp line on top, 5dp lines
+  beneath. On a greyscale display the selected route is still obviously the
+  selected one.
+- **A polyline is not a touch target.** Every route tappable on the map is also a
+  row in the list beneath it, at full width and full height. Tapping a 5dp line
+  is a fine shortcut and a poor only-way.
+- **A banner floats over tiles, never over words.** The offline and
+  development-provider notices are overlaid on a real map, where they cover
+  nothing that cannot be panned back into view. In the map-unavailable state,
+  where the content *is* the words, they take their own place in the layout
+  instead.
+- **A control that cannot act is not shown.** The recentre button appears only
+  where there is a map to recentre. An inert control reads as a broken app rather
+  than as an absent feature.
+- **The map-unavailable state is a designed state**, not a fallback: the icon, a
+  one-line explanation, both place names, and the full summary below it — never a
+  blank grey rectangle, and never a screen that has lost the journey.
+
 ## Accessibility baseline
 
 - Visible `:focus-visible` ring on every interactive element

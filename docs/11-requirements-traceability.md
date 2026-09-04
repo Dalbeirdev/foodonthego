@@ -316,3 +316,115 @@ requirements covered two distinguishable things each — reading versus modifyin
 another customer's trip, range validation versus the (0, 0) sentinel, permission
 outcomes versus the services-disabled case — and splitting them keeps each row
 independently verifiable. Nothing was removed.
+
+---
+
+## Module 06 — Maps, Route Calculation, Distance & Travel Time
+
+Role for every row below is **Customer**. FE = Flutter UI. "PASSED (device
+pending)" carries the same meaning as in Modules 02–05: built, integrated against
+the real API, tested and visually inspected in a rendered app, but not run on an
+Android emulator or iOS simulator (KI-001, KI-002).
+
+Screenshot names refer to the Module 06 live-view run recorded in
+[15-test-evidence.md](15-test-evidence.md) and captured under
+`docs/evidence/module-06/`.
+
+| ID | Feature | FE | BE | API | DB | Sec | Tests | Android | iOS | Docs | Status | Evidence |
+| --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
+| M06-001 | A created trip can have a route calculated | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-01/02`; integration run |
+| M06-002 | Routing provider abstraction (`RouteProvider`) | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RouteProviderTest` (28) |
+| M06-003 | Google Routes API v2 adapter | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE (unverified live) | `RouteProviderTest`; stubbed transport — see M06-051 |
+| M06-004 | `unconfigured` provider fails loudly and blocks production boot | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `ProductionConfigGuardTest` (17) |
+| M06-005 | `development` provider refuses production and labels itself | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-04`; `RouteProviderTest` |
+| M06-006 | The app never calls a routing provider directly | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | No routing key in the app; `ApiRouteRepository` only |
+| M06-007 | Maps SDK key restricted by Android package + signing certificate | ➖ | ➖ | ➖ | ➖ | ✅ | ➖ | ⛔ | ➖ | ✅ | DOCUMENTED (device pending) | `21-maps-and-routing.md`; `07-security.md` |
+| M06-008 | Maps SDK key restricted by iOS bundle identifier | ➖ | ➖ | ➖ | ➖ | ✅ | ➖ | ➖ | ⛔ | ✅ | DOCUMENTED (device pending) | Same |
+| M06-009 | Routing key restricted by server/IP and API scope, backend only | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `.env.example` guidance; key absent from the app |
+| M06-010 | No unrestricted production key committed; no key logged | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RouteLoggingTest`; live log grep for `AIza`, 0 hits |
+| M06-011 | Environment configuration for routing | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `config/foodonthego.php`; `.env.example` |
+| M06-012 | `POST /trips/{trip}/route/calculate` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `TripRouteApiTest` (26); integration run |
+| M06-013 | `GET /trips/{trip}/routes` never calculates | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `TripRouteApiTest`; integration run asserts 0 provider calls |
+| M06-014 | `POST /trips/{trip}/routes/{route}/select` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `TripRouteApiTest`; `route_controller_test.dart` |
+| M06-015 | Normalized route response model | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `TripRoute::toApiArray()`; `route_models_test.dart` (25) |
+| M06-016 | Distance stored exactly as the provider returned it | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | DB verification; `RouteValidatorTest` |
+| M06-017 | Travel duration stored exactly as returned | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Same |
+| M06-018 | Traffic duration stored, NULL when not supplied | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RouteProviderTest`; DB shows `with_traffic = 0` for the development provider |
+| M06-019 | Encoded polyline stored and never fabricated | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `PolylineCodecTest` (8); integration run decodes it |
+| M06-020 | Viewport bounds stored for camera framing | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `RouteBounds`; integration run |
+| M06-021 | `trip_routes` table | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Migration; `SHOW COLUMNS` in the evidence file |
+| M06-022 | Exactly one selected route per trip, enforced by the database | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Unique index over a virtual column; DB check = 0 violations |
+| M06-023 | The recommended route is selected by default | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `RouteCalculationServiceTest`; integration run |
+| M06-024 | Alternatives listed with their own figures and a comparison | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `route_screen_test.dart` (29) — see M06-052 |
+| M06-025 | Route map screen | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-02`; `route_screen_test.dart` |
+| M06-026 | Camera fits the whole route, once per route | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (map render pending) | `RouteMapView`; KI-011 |
+| M06-027 | Markers at both ends | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (map render pending) | Same |
+| M06-028 | Selected route distinguished by width and z-order, not colour alone | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (map render pending) | Same; `08-design-system.md` |
+| M06-029 | Summary sheet: distance, travel time, traffic delay, age | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-02/05`; `journey_measures.dart` tests |
+| M06-030 | Loading state is a skeleton, not a blank screen | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `route_screen_test.dart` |
+| M06-031 | Timeout state, with a retry | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-12` |
+| M06-032 | No-route state, with **no** retry | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-11` |
+| M06-033 | Map-unavailable state keeps the whole summary; never a blank map | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-03`; `state-17` |
+| M06-034 | Travel mode DRIVE | ➖ | ✅ | ➖ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RouteProviderTest` asserts the request body |
+| M06-035 | Traffic-aware routing requested | ➖ | ✅ | ➖ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Same |
+| M06-036 | `calculated_at` recorded and shown as an age | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-05`; DB verification |
+| M06-037 | Endpoint change invalidates the route | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `EndpointFingerprint`; integration run moves an endpoint |
+| M06-038 | Route fingerprint, derived on the trip and stored on the route | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | DB check: 0 null fingerprints |
+| M06-039 | `route_status` covers NOT_CALCULATED/CALCULATING/READY/NO_ROUTE/FAILED/STALE | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `RouteStatus`; `route_models_test.dart` |
+| M06-040 | Retry is safe and never duplicates a route set | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Integration run: repeated calculation leaves one set |
+| M06-041 | Concurrent calculation makes one provider call | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Cache lock; `RouteCalculationServiceTest` |
+| M06-042 | Persistence is transactional | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RouteCalculationServiceTest`; DB check: 0 READY trips without routes |
+| M06-043 | Provider responses are validated before storage | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RouteValidatorTest` (15) |
+| M06-044 | Malformed polyline is refused, and never half-drawn | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `PolylineCodecTest`; `polyline_codec.dart` tests |
+| M06-045 | Oversized route data is refused before storage | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `max_polyline_bytes`; `RouteValidatorTest` |
+| M06-046 | Ownership and IDOR across calculate, read and select | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `TripRouteOwnershipTest` (9); integration run (6 IDOR assertions) |
+| M06-047 | Route ids are uuids and are resolved within their trip | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `TripRouteApiTest` |
+| M06-048 | Mass assignment: measured fields cannot come from a client | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Empty `$fillable`; tamper test in the integration run |
+| M06-049 | Provider failure, rate limit and invalid response are told apart | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-12/13/14`; 11 error codes |
+| M06-050 | Cost control: freshness window, no calculation on read or rebuild | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 6 backend + 4 Flutter tests count provider calls |
+| M06-051 | Live Google Routes API verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ✅ | **PENDING — environment unavailable** | KI-012: no key, and every alternative provider is blocked by egress policy |
+| M06-052 | Alternative-route runtime test | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ✅ | **NOT APPLICABLE for this test response** | The configured provider returned one route; nothing was fabricated to test against |
+| M06-053 | Live map SDK render (tiles, camera, markers on a device) | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ⛔ | ✅ | **PENDING — environment unavailable** | KI-011: no Maps key, no Android SDK, no macOS host |
+| M06-054 | Offline: a stored route is kept and labelled | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-15`; `route_controller_test.dart` |
+| M06-055 | Offline with nothing stored is an offline state, not an empty map | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-16` |
+| M06-056 | Home, Trips and the trip detail carry the route figures | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-08/09/10` |
+| M06-057 | "Travel time", never "ETA" | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Live run asserts "ETA" appears nowhere |
+| M06-058 | Delhi → Jaipur end-to-end journey | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | Live run, 20 states; integration run, 21 assertions |
+| M06-059 | Selection persists across a reload | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Integration run; DB: 1 selected row per trip |
+| M06-060 | Responsive at 320/360/430dp, long names and large text | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-17/18/19`; 3 layout tests |
+| M06-061 | Dark mode | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-20` |
+| M06-062 | Accessibility: labels, touch targets, semantics for the map fallback | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `route_screen_test.dart` |
+| M06-063 | Route geometry absent from logs and analytics | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RouteLoggingTest` (7); live log grep, 13 needles, 0 hits |
+| M06-064 | Observability: eight route events recorded by record and actor | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Event counts in the evidence file |
+| M06-065 | Android runtime verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ➖ | ✅ | **PENDING — environment unavailable** | KI-001 |
+| M06-066 | iOS runtime verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ✅ | **PENDING — environment unavailable** | KI-002 |
+| M06-067 | Live-view inspection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 20 states, no application errors |
+| M06-068 | Database verification | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Direct queries in the evidence file |
+| M06-069 | Documentation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `21-*.md` created + 13 documents updated |
+| M06-070 | Modules 01–05 regression | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | PASS | 527 backend + 382 Flutter + 29 web; 3 integration runs; Module 05 live view |
+
+### Summary
+
+66 of 70 Module 06 requirements are COMPLETE or PASSED. Four are not, and none of
+the four is a code failure:
+
+- **M06-051 Live Google Routes API verification = PENDING — environment
+  unavailable.** No Routes API key is configured here, and every alternative
+  routing provider (OSRM, Valhalla, OpenRouteService, Mapbox, GraphHopper,
+  TomTom) is refused by this environment's egress policy. The adapter is verified
+  against a stubbed HTTP transport by 28 tests; it has not answered a real
+  request. KI-012.
+- **M06-052 Alternative-route runtime test = NOT APPLICABLE for this test
+  response.** The configured provider returned a single route for the test
+  journey. No second route was fabricated in order to have something to select.
+- **M06-053 Live map SDK render = PENDING — environment unavailable.** No Maps
+  SDK key, no Android SDK (KI-001) and no macOS host (KI-002), so every live
+  screenshot shows the documented map-unavailable state. KI-011.
+- **M06-065 / M06-066 Android and iOS runtime verification = PENDING —
+  environment unavailable.** KI-001, KI-002.
+
+The ID range grew from the specification's minimum of 47 to 70 because several of
+its requirements covered two or three distinguishable things each — the three key
+restriction contexts, the six route states, offline-with-a-route versus
+offline-without — and splitting them keeps each row independently verifiable.
+Nothing was removed.

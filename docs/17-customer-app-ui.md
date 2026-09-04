@@ -329,6 +329,45 @@ registered with the `Form` and `validate()` skips it silently. And the primary a
 the bottom** above the keyboard, not placed after the last field, where on a small screen it sat
 under the bottom navigation bar and the tap went to the wrong widget.
 
+## The route screen
+
+Reached from a journey — from the detail screen's "Calculate route", or from a
+journey that already has one. Map above, summary below, in a 4:5 split, so the
+map takes what is left after the sheet rather than framing itself for the whole
+screen and then being covered by it.
+
+The summary sheet, in order: both place names, then **Travel time** and
+**Distance** as two large figures, then the traffic delay where the provider
+supplied one, then the sentence that keeps this module honest —
+
+> Driving time from the route. Pickup timing arrives with restaurants.
+
+— then how long ago it was calculated, then "Calculate again", then the
+alternatives if there are any.
+
+Four rules the screen follows:
+
+1. **Opening it does not spend money.** The route is calculated once per journey,
+   automatically only if there is none, and never again on a rebuild. "Calculate
+   again" is the only thing that asks a second time.
+2. **A failure never costs the customer what they already had.** A refresh that
+   fails leaves the existing route on screen with a banner, rather than replacing
+   a working route with an error.
+3. **No selection is optimistic.** Tapping an alternative asks the server; the
+   screen shows what came back. A choice the server refused must not linger
+   looking accepted.
+4. **Every failure is its own state.** No route, timed out, busy, provider down,
+   offline-with-a-route, offline-with-nothing — six states rather than one
+   "something went wrong", because the customer's next move differs for each and
+   two of them should not offer a retry at all.
+
+### When the map cannot be drawn
+
+Not an error state. The screen shows the map icon, one line of explanation, both
+place names, and the entire summary underneath — everything except the picture.
+A customer whose tiles will not load still needs to know where they are going,
+how far it is and how long it takes.
+
 ## Development harness
 
 A floating control (development builds only) that switches persona, forces offline, and forces a

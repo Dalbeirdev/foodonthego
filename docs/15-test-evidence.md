@@ -769,3 +769,190 @@ been found any other way:
 - **iOS runtime verification = PENDING — environment unavailable.** (KI-002.)
 
 None of the three is a code failure, and none is reported as a pass.
+
+---
+
+# Module 06 — Maps, Route Calculation, Distance & Travel Time
+
+Full transcript: [`evidence/module-06-verification-run.txt`](evidence/module-06-verification-run.txt).
+Screenshots: [`evidence/module-06/`](evidence/module-06/).
+
+## Automated tests — 938 total, 938 passed, 0 failed, 0 skipped
+
+| Suite | Command | Tests | Passed | Failed | Skipped |
+| --- | --- | --: | --: | --: | --: |
+| Backend | `php artisan test` | 527 | 527 | 0 | 0 |
+| Flutter | `flutter test` | 382 | 382 | 0 | 0 |
+| Web shells and `@fotg/ui` | `npm test` | 29 | 29 | 0 | 0 |
+
+Static checks: `./vendor/bin/pint --test` → passed. `flutter analyze` → no
+issues. `dart format --set-exit-if-changed` → clean.
+
+### The suites this module added
+
+| Suite | Tests | What it pins |
+| --- | --: | --- |
+| `PolylineCodecTest` | 8 | Google's own worked example; refusal of empty, truncated, over-long and out-of-alphabet geometry |
+| `RouteProviderTest` | 28 | The Routes v2 request (key header, six-field mask, travel mode, traffic preference, alternatives), the `staticDuration`/`duration` traffic mapping, `"16200s"` parsing, timeouts, 429, malformed bodies, and both non-Google providers |
+| `RouteValidatorTest` | 15 | What a response must satisfy before it is stored |
+| `RouteCalculationServiceTest` | 23 | Freshness window, concurrency lock, invalidation, transactional persistence, each failure kind, and recovery |
+| `TripRouteApiTest` | 26 | The three endpoints as a client sees them, including that `GET` never calculates |
+| `TripRouteOwnershipTest` | 9 | The route IDOR matrix |
+| `RouteLoggingTest` | 7 | Reads the log file on disk: events present, geometry and coordinates absent |
+| `route_models_test.dart` | 25 | A route with no distance, duration or geometry does not construct; crossed bounds are dropped; formatting |
+| `route_controller_test.dart` | 16 | Mostly counting provider calls: opening twice calculates once, a rebuild calculates never, a refresh asks again |
+| `route_screen_test.dart` | 29 | Every state, the alternatives, the layout at 320dp, long names, large text |
+
+## Integration — no mocks, no fakes, no stubs
+
+`dart run tool/route_smoke.dart` drives this app's own `ApiClient` and
+`ApiRouteRepository` against a running Laravel server and a real MySQL database.
+**21 assertions, 21 passed.**
+
+It plans a journey through the Module 05 flow, calculates a route, decodes the
+geometry and checks it runs between the two places, proves the freshness window
+by counting provider calls, moves an endpoint underneath a stored route to prove
+invalidation, sends a tamper payload carrying `distance_meters: 1`,
+`duration_seconds: 1` and `route_status: READY`, and runs the route IDOR matrix
+across two real accounts.
+
+It prints what the configured provider returned rather than asserting against
+numbers baked into the test:
+
+```
+── what the configured provider returned ──
+   provider          : development
+   real provider     : false
+   routes returned   : 1
+   distance (metres) : 235526
+   duration (seconds): 14103
+   traffic (seconds) : not supplied
+   summary           : Development stand-in — not a real route
+   polyline points   : 25
+```
+
+and, because that provider returned one route:
+
+```
+NOTE  Alternative-route runtime test = NOT APPLICABLE — the configured
+      provider returned a single route for this journey.
+```
+
+No second route was fabricated in order to have something to select.
+
+### Regression, same live backend
+
+| Run | Assertions | Result |
+| --- | --: | --- |
+| `tool/integration_smoke.dart` (Module 03) | 13 | 13 passed, 0 failed |
+| `tool/profile_addresses_smoke.dart` (Module 04) | 24 | 24 passed, 0 failed |
+| `tool/trip_planner_smoke.dart` (Module 05) | 31 | 31 passed, 0 failed |
+
+## Database verification
+
+Read back directly from MySQL after the runs:
+
+| Check | Result |
+| --- | --- |
+| Routes stored | 55 |
+| Rows with `is_selected = 1` | 55 |
+| Distinct trips with a selection | 55 |
+| Trips with more than one selected route | **0** |
+| Routes with a zero or negative distance, duration, or empty geometry | **0** |
+| Routes whose traffic duration is below the base duration | **0** |
+| Routes with no endpoint fingerprint | **0** |
+| Trips `READY` with no routes | **0** |
+| Orphan routes | **0** |
+| `trip_routes_one_selected_per_trip` unique index present | yes |
+
+Every stored route carries a positive distance, a positive duration and real
+geometry, and the one-selected-route invariant holds at the storage layer rather
+than only in the service that writes it.
+
+## Log verification
+
+Eight route events were recorded during the runs: `route.calculated`,
+`route.calculation_failed`, `route.invalidated`, `route.no_route`,
+`route.provider_rejected`, `route.provider_unconfigured`,
+`route.response_rejected`, `route.selection_denied`.
+
+The privacy sweep greps the day's application log for thirteen needles — both
+place names, the four test coordinates, `encoded_polyline`, `polyline`, the
+polyline prefix `_p~`, the `AIza` key prefix and the test phone numbers — and
+finds **0 hits for every one of them**. What is logged is the trip uuid, the
+actor uuid, the provider and the outcome.
+
+## Live-view verification — 20 states
+
+A **release** web build (`--dart-define=FOTG_ENV=production`) served over HTTP and
+driven in headless Chromium through Flutter's DOM semantics tree, against the
+real API and the real database, with the browser's geolocation standing in for a
+handset's.
+
+| # | State | What it establishes |
+| --: | --- | --- |
+| 01 | Journey without a route | "Route not calculated yet"; nothing claims a distance |
+| 02 | Route ready | Distance and travel time from a real calculation |
+| 03 | Map unavailable | The full summary and both place names survive without a map |
+| 04 | Development-provider notice | A non-real route says so, on screen |
+| 05 | Travel-time wording | "Driving time from the route"; "Calculated just now"; **no "ETA" anywhere** |
+| 06 | No recentre without a map | A control that cannot act is not offered |
+| 07 | Recalculated | An explicit refresh asks again |
+| 08 | Trip detail | The figures reached the detail screen |
+| 09 | Journeys list | And the list |
+| 10 | Home, after a cold reload | And the home card: "3 hr 56 min · 237 km" |
+| 11 | No route | The provider's considered answer, with **no** retry |
+| 12 | Timeout | "That took too long", with a retry |
+| 13 | Rate limited | "Route planning is busy", with a retry |
+| 14 | Provider outage | "We couldn't work out your route", with a retry |
+| 15 | Offline with a stored route | The route is kept, and labelled as the last calculated one |
+| 16 | Offline with nothing | An offline state, and no empty map frame |
+| 17–19 | 320 / 360 / 430dp | The route screen at every supported width |
+| 20 | Dark mode | The whole screen in the dark theme |
+
+The run asserts throughout that no screen shows the word **"ETA"**, and that no
+console error or page error occurs outside the four deliberately injected
+provider failures.
+
+Module 05's live run was re-driven against the same build as a regression: 28
+states, no problems.
+
+## Defects found and fixed
+
+Eight, all closed, all in [13-known-issues.md](13-known-issues.md):
+
+- **B01** — a test that could not fail, because Laravel caches a resolved
+  controller on the `Route` object across requests in one test process.
+- **B02** — a successful calculation reported as a failure when an unrelated
+  refresh failed.
+- **B03** — a Module 03 defect this module's tests exposed: `AuthController.restore()`
+  wrote state after two async gaps with no disposal check.
+- **B04, B05, B08** — three layout defects at 320–390dp, the last of which put the
+  development-provider banner on top of the place names.
+- **B06** — a Module 01 defect: an unauthenticated request without
+  `Accept: application/json` was answered **500** instead of 401. Four modules of
+  JSON-speaking tests never saw it.
+- **B07** — a recentre control offered where there was no map to recentre.
+
+Two further defects were found in the verification harness itself and are
+recorded in the same place: `Playwright`'s `hasText` matches case-insensitively,
+so "the screen never says ETA" was matching "route d**eta**ils"; and Flutter
+renders a semantic heading as an `<h2>`, so "home shows *Your journey*" could
+never have passed. Both assertions could only ever have produced the wrong
+answer.
+
+## What is pending, and why
+
+- **Live Google Routes API verification = PENDING — environment unavailable.** No
+  key here, and every alternative routing provider is blocked by the egress
+  policy. The adapter is verified against a stubbed HTTP transport by 28 tests.
+  (KI-012, M06-051.)
+- **Live map SDK render = PENDING — environment unavailable.** No Maps key, no
+  Android SDK, no macOS host, so every screenshot shows the documented
+  map-unavailable state. (KI-011, M06-053.)
+- **Alternative-route runtime test = NOT APPLICABLE for this test response.** The
+  configured provider returned one route. (M06-052.)
+- **Android runtime verification = PENDING — environment unavailable.** (KI-001.)
+- **iOS runtime verification = PENDING — environment unavailable.** (KI-002.)
+
+None is a code failure, and none is reported as a pass.
