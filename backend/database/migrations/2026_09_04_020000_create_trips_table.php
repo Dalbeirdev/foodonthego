@@ -2,26 +2,40 @@
 
 declare(strict_types=1);
 
+use App\Enums\LocationSourceType;
+use App\Enums\RouteStatus;
 use App\Enums\TripStatus;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * A planned journey: where a customer is setting off from, where they are going,
- * and when.
+ * A trip: where a customer is setting off from, where they are going, and where
+ * those two places came from.
  *
- * The one design decision worth reading before the columns: **each endpoint is a
- * snapshot, not a foreign key.** A journey records the address as it was when the
- * journey was planned. If it held only `origin_address_id`, then editing a saved
- * address would silently rewrite journeys already planned against it, and Module
- * 04 deletes addresses for real, which would either orphan the journey or block
- * the delete. `origin_address_id` is kept alongside the snapshot as provenance
- * only — it goes NULL when the address goes, and nothing about the journey moves.
+ * Three decisions worth reading before the columns.
  *
- * Coordinates repeat Module 04's discipline exactly: nullable, and NULL until
- * something actually geocodes the place. Module 09 will resolve a corridor from
- * these two points, and a fabricated point produces a fabricated corridor.
+ * **Each endpoint is a snapshot, not a foreign key.** A trip records the place as
+ * it was when the trip was created. Holding only `origin_saved_address_id` would
+ * mean that editing a saved address silently rewrote trips already created from
+ * it, and Module 04 deletes addresses for real, so the key would either orphan
+ * the trip or block the delete. The id is kept alongside as provenance, with
+ * `ON DELETE SET NULL`: losing the link loses nothing.
+ *
+ * **Coordinates are NOT NULL.** This is the opposite of `customer_addresses`,
+ * deliberately. A saved address is a note to oneself and may never be geocoded;
+ * a trip endpoint is an input to route calculation, and one without a position is
+ * a trip Module 06 cannot do anything with. Requiring them here is what forces
+ * the app to resolve a saved address properly instead of quietly filling in
+ * something plausible.
+ *
+ * **Status and route status are separate columns.** `status` is what the customer
+ * means; `route_status` is how far a technical job has got. Conflating them would
+ * make "the customer's current plan" and "waiting for a route" mutually
+ * exclusive, which is the state every trip is in the moment Module 05 finishes.
+ * Module 05 only ever writes NOT_CALCULATED, and there are no distance, duration,
+ * polyline or ETA columns at all — a nullable one would be an invitation to fill
+ * it in with an estimate.
  */
 return new class extends Migration
 {
@@ -31,55 +45,48 @@ return new class extends Migration
             $table->id();
             $table->uuid()->unique();
 
-            // RESTRICT, matching customer_addresses: a customer with journeys is
-            // history, and erasing them is Module 17's job with an audit entry,
-            // not a side effect of a DELETE somewhere else.
+            // RESTRICT, matching customer_addresses: a customer with trips is
+            // history, and erasing them is Module 17's job with an audit entry
+            // rather than a side effect of a DELETE somewhere else.
             $table->foreignId('customer_id')->constrained('users')->restrictOnDelete();
 
-            $table->enum('status', TripStatus::values())->default(TripStatus::Planned->value);
+            $table->enum('status', TripStatus::values())->default(TripStatus::RoutePending->value);
+            $table->enum('route_status', RouteStatus::values())->default(RouteStatus::NotCalculated->value);
 
-            foreach (['origin', 'destination'] as $endpoint) {
-                // Provenance. Nullable and SET NULL: the snapshot below is what
-                // the journey means, so losing the link loses nothing.
-                $table->foreignId("{$endpoint}_address_id")
+            foreach (['origin', 'destination'] as $end) {
+                $table->enum("{$end}_source_type", LocationSourceType::values());
+
+                // Provenance only. The snapshot below is what the trip means.
+                $table->foreignId("{$end}_saved_address_id")
                     ->nullable()
                     ->constrained('customer_addresses')
                     ->nullOnDelete();
 
-                $table->string("{$endpoint}_label", 60);
-                $table->string("{$endpoint}_formatted_address", 400);
-                $table->string("{$endpoint}_city", 90);
-                $table->char("{$endpoint}_country_code", 2);
+                // The provider's identifier, when the place came from a search.
+                $table->string("{$end}_place_id", 255)->nullable();
 
-                $table->decimal("{$endpoint}_latitude", 10, 7)->nullable();
-                $table->decimal("{$endpoint}_longitude", 10, 7)->nullable();
-                $table->string("{$endpoint}_place_id", 255)->nullable();
+                $table->string("{$end}_name", 180);
+                $table->string("{$end}_formatted_address", 400);
+
+                // Required, and the reason is in the class comment above.
+                $table->decimal("{$end}_latitude", 10, 7);
+                $table->decimal("{$end}_longitude", 10, 7);
+
+                $table->string("{$end}_city", 120)->nullable();
+                $table->string("{$end}_region", 120)->nullable();
+                $table->char("{$end}_country_code", 2)->nullable();
+                $table->string("{$end}_postal_code", 16)->nullable();
             }
 
-            // Stored UTC, like every other timestamp in this schema. The customer's
-            // local time is a presentation concern; storing it would make "is this
-            // journey in the past?" depend on where the server is.
-            $table->dateTime('departure_at');
-
-            // Nullable, and null is the normal case. A traveller who knows when
-            // they will arrive may say so; nothing computes it yet. When Module 09
-            // can derive it from a real route, it fills this in — until then an
-            // invented arrival time would set an invented cooking time.
-            $table->dateTime('expected_arrival_at')->nullable();
-
-            $table->unsignedTinyInteger('traveller_count')->default(1);
-            $table->string('note', 280)->nullable();
-
             $table->dateTime('cancelled_at')->nullable();
-            $table->string('cancellation_reason', 120)->nullable();
 
             $table->timestamps();
 
-            // The list query: this customer's journeys in a status, by departure.
-            $table->index(['customer_id', 'status', 'departure_at']);
-            // The "what is next" query, which does not filter on status because a
-            // cancelled journey still has to be excluded by value, not by index.
-            $table->index(['customer_id', 'departure_at']);
+            // The list query: this customer's trips, newest first.
+            $table->index(['customer_id', 'created_at']);
+            // "What is this customer waiting on a route for" — the query Module
+            // 06's worker will want, indexed before it is slow rather than after.
+            $table->index(['customer_id', 'status', 'route_status']);
         });
     }
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Services\Otp\OtpDeliveryProvider;
+use App\Services\Places\PlaceProvider;
+use App\Services\Places\UnconfiguredPlaceProvider;
 use Illuminate\Contracts\Foundation\Application;
 use RuntimeException;
 use Throwable;
@@ -64,6 +66,7 @@ final class ProductionConfigGuard
         }
 
         $failures = array_merge($failures, self::otpFailures($app));
+        $failures = array_merge($failures, self::placeFailures($app));
 
         if ($failures !== []) {
             throw new RuntimeException(
@@ -72,6 +75,36 @@ final class ProductionConfigGuard
                 ."\n\nFix the configuration and restart. See docs/07-security.md.\n",
             );
         }
+    }
+
+    /**
+     * Place provider configuration.
+     *
+     * The failure this prevents: a deployment ships with no Places credentials,
+     * every search returns an error, and the trip planner is unusable for
+     * everybody — discovered by a customer who cannot type a destination rather
+     * than by a deploy that refused to finish. The development gazetteer refuses
+     * to be constructed in production on its own account; this catches the
+     * quieter case of a provider that resolves to "unconfigured".
+     *
+     * @return array<int, string>
+     */
+    private static function placeFailures(Application $app): array
+    {
+        try {
+            $provider = $app->make(PlaceProvider::class);
+        } catch (Throwable $e) {
+            // Includes the development gazetteer's refusal to exist in production.
+            return ['PLACES_PROVIDER could not be resolved: '.$e->getMessage()];
+        }
+
+        if ($provider instanceof UnconfiguredPlaceProvider) {
+            return [
+                'PLACES_PROVIDER is not configured. Set it and its credentials, or the trip planner cannot resolve a destination.',
+            ];
+        }
+
+        return [];
     }
 
     /**

@@ -6,6 +6,9 @@ namespace Tests\Unit;
 
 use App\Services\Otp\OtpDeliveryProvider;
 use App\Services\Otp\Providers\LogOtpProvider;
+use App\Services\Places\DevelopmentGazetteerProvider;
+use App\Services\Places\PlaceProvider;
+use App\Services\Places\UnconfiguredPlaceProvider;
 use App\Support\ProductionConfigGuard;
 use Illuminate\Foundation\Application;
 use RuntimeException;
@@ -41,6 +44,33 @@ final class ProductionConfigGuardTest extends TestCase
         // Stands in for a real SMS vendor: the only thing the guard asks a
         // provider is whether it can reach a handset.
         $this->app->instance(OtpDeliveryProvider::class, new RecordingOtpProvider(deliversToRealDevices: true));
+
+        // And for a real place provider. The guard only asks whether one is
+        // configured at all, so any implementation that is not the unconfigured
+        // stand-in satisfies it.
+        $this->app->instance(PlaceProvider::class, new DevelopmentGazetteerProvider(isProduction: false));
+    }
+
+    public function test_production_refuses_to_boot_with_no_place_provider(): void
+    {
+        $this->validProductionConfig();
+        $this->app->instance(PlaceProvider::class, new UnconfiguredPlaceProvider);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/PLACES_PROVIDER is not configured/');
+
+        ProductionConfigGuard::assert($this->appIn('production'));
+    }
+
+    public function test_the_development_gazetteer_refuses_to_exist_in_production(): void
+    {
+        // Two independent refusals, deliberately: the provider will not be
+        // constructed, and the guard will not let the application boot if
+        // something constructs one anyway.
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/never run in production/');
+
+        new DevelopmentGazetteerProvider(isProduction: true);
     }
 
     public function test_a_correctly_configured_production_boots(): void

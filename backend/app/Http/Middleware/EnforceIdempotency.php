@@ -49,7 +49,7 @@ final class EnforceIdempotency
             );
         }
 
-        $actor = $request->user()?->getAuthIdentifier() ?? 'anonymous:'.$request->ip();
+        $actor = self::actorFingerprint($request);
         $cacheKey = 'idempotency:'.hash('sha256', $actor.'|'.$key);
         $fingerprint = hash('sha256', $request->getContent());
 
@@ -82,5 +82,30 @@ final class EnforceIdempotency
         }
 
         return $response;
+    }
+
+    /**
+     * A stable identity for the caller, for scoping the key.
+     *
+     * Taken from the credential the request *carries*, not from
+     * `$request->user()`. This middleware runs before authentication, so the
+     * resolved user is normally null here — but "normally" is doing dangerous
+     * work in that sentence: anything that resolves a user earlier (a change of
+     * middleware order, a framework that caches a guard across requests) would
+     * silently give two retries of one request two different cache keys, and
+     * idempotency would stop working precisely when it was needed.
+     *
+     * The credential is hashed. A raw token must not become a cache key, where
+     * it would sit in Redis in plaintext for a day.
+     */
+    private static function actorFingerprint(Request $request): string
+    {
+        $authorization = (string) $request->headers->get('Authorization', '');
+
+        if ($authorization !== '') {
+            return 'token:'.hash('sha256', $authorization);
+        }
+
+        return 'anonymous:'.$request->ip();
     }
 }

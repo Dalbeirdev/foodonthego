@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Auth\CustomerOtpController;
 use App\Http\Controllers\Api\V1\Auth\CustomerRegistrationController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Customer\AddressController;
+use App\Http\Controllers\Api\V1\Customer\PlaceController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController;
 use App\Http\Controllers\Api\V1\Customer\TripController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -115,31 +116,41 @@ Route::prefix('v1')->group(function (): void {
 
             /*
              |------------------------------------------------------------------
-             | Journeys (Module 05)
+             | Trip planner (Module 05)
              |------------------------------------------------------------------
              |
-             | Same shape, same reason: no customer id in any path. `/next` is
+             | Same shape, same reason: no customer id in any path. `/current` is
              | declared before `/{trip}` so it is matched as a literal rather
-             | than captured as a journey id — the reverse order would send
-             | "next" to ownedByOrFail() and answer 404 for the home screen.
+             | than captured as a trip id — the reverse order would send
+             | "current" to ownedByOrFail() and answer 404 for the home screen.
              |
-             | There is no DELETE. A journey is cancelled, never removed: a
-             | traveller's record of what they planned is history, and a later
-             | module's orders point at it.
+             | There is no DELETE. A trip is discarded, never removed: it is a
+             | record of an intention, and Module 08's orders will point at one.
+             |
+             | Place lookup is authenticated too. An open endpoint on a server
+             | holding a metered provider key is somebody else's free geocoder.
              */
+            Route::prefix('customer/places')->group(function (): void {
+                Route::get('/search', [PlaceController::class, 'search'])
+                    ->name('api.v1.customer.places.search');
+                Route::post('/reverse-geocode', [PlaceController::class, 'reverseGeocode'])
+                    ->name('api.v1.customer.places.reverse');
+                Route::get('/{place}', [PlaceController::class, 'show'])
+                    ->where('place', '.*')
+                    ->name('api.v1.customer.places.show');
+            });
+
             Route::prefix('customer/trips')->group(function (): void {
                 Route::get('/', [TripController::class, 'index'])
                     ->name('api.v1.customer.trips.index');
                 Route::post('/', [TripController::class, 'store'])
                     ->name('api.v1.customer.trips.store');
-                Route::get('/next', [TripController::class, 'next'])
-                    ->name('api.v1.customer.trips.next');
+                Route::get('/current', [TripController::class, 'current'])
+                    ->name('api.v1.customer.trips.current');
                 Route::get('/{trip}', [TripController::class, 'show'])
                     ->name('api.v1.customer.trips.show');
-                Route::patch('/{trip}', [TripController::class, 'update'])
-                    ->name('api.v1.customer.trips.update');
-                Route::post('/{trip}/cancel', [TripController::class, 'cancel'])
-                    ->name('api.v1.customer.trips.cancel');
+                Route::post('/{trip}/discard', [TripController::class, 'discard'])
+                    ->name('api.v1.customer.trips.discard');
             });
         });
 });

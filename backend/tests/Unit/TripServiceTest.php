@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use App\Enums\ApiErrorCode;
+use App\Enums\LocationSourceType;
+use App\Enums\RouteStatus;
 use App\Enums\TripStatus;
 use App\Exceptions\ApiException;
 use App\Models\CustomerAddress;
 use App\Models\Trip;
 use App\Models\User;
 use App\Services\Address\CustomerAddressService;
-use App\Services\Trip\TripScope;
 use App\Services\Trip\TripService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -20,11 +21,12 @@ use Tests\Support\CustomerFactory;
 use Tests\TestCase;
 
 /**
- * The journey lifecycle and the ownership boundary.
+ * Trip creation, the rules that decide whether a trip is usable, and the
+ * ownership boundary.
  *
- * Every test injects its own "now" rather than letting the service read the
- * clock, because half the rules in this module are about time and a rule you can
- * only exercise by waiting is a rule that is never exercised.
+ * Every coordinate in this file is a real position of a real place, because the
+ * same-location rule works in metres: random pairs would make it untestable and
+ * would occasionally collide by accident.
  */
 final class TripServiceTest extends TestCase
 {
@@ -40,6 +42,12 @@ final class TripServiceTest extends TestCase
 
     private CarbonImmutable $now;
 
+    /** Hauz Khas Village, New Delhi. */
+    private const DELHI = ['latitude' => 28.5494, 'longitude' => 77.2001];
+
+    /** Jaipur International Airport. */
+    private const JAIPUR = ['latitude' => 26.8242, 'longitude' => 75.8122];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -52,31 +60,43 @@ final class TripServiceTest extends TestCase
     }
 
     /** @param array<string, mixed> $overrides */
-    private function attributes(array $overrides = []): array
+    private function place(array $overrides = []): array
     {
         return array_merge([
-            'origin' => [
-                'label' => 'Home',
-                'address_line' => 'Hauz Khas',
-                'city' => 'New Delhi',
-                'state' => 'Delhi',
-                'country_code' => 'IN',
-            ],
-            'destination' => [
-                'label' => 'Jaipur',
-                'address_line' => 'MI Road',
-                'city' => 'Jaipur',
-                'state' => 'Rajasthan',
-                'country_code' => 'IN',
-            ],
-            'departure_at' => $this->now->addDay()->toIso8601String(),
-        ], $overrides);
+            'source_type' => LocationSourceType::PlaceSearch->value,
+            'display_name' => 'Hauz Khas Village',
+            'formatted_address' => 'Hauz Khas, New Delhi, Delhi 110016',
+            'place_id' => 'dev:hauz-khas',
+            'city' => 'New Delhi',
+            'region' => 'Delhi',
+            'country_code' => 'IN',
+        ], self::DELHI, $overrides);
     }
 
     /** @param array<string, mixed> $overrides */
-    private function savedAddress(User $owner, array $overrides = []): CustomerAddress
+    private function jaipur(array $overrides = []): array
     {
-        return $this->addresses->create($owner, array_merge([
+        return $this->place(array_merge([
+            'display_name' => 'Jaipur International Airport',
+            'formatted_address' => 'Airport Road, Sanganer, Jaipur, Rajasthan',
+            'place_id' => 'dev:jaipur-airport',
+            'city' => 'Jaipur',
+            'region' => 'Rajasthan',
+        ], self::JAIPUR, $overrides));
+    }
+
+    /** @param array<string, mixed> $overrides */
+    private function attributes(array $overrides = []): array
+    {
+        return array_merge([
+            'origin' => $this->place(),
+            'destination' => $this->jaipur(),
+        ], $overrides);
+    }
+
+    private function savedAddress(User $owner, bool $located = true): CustomerAddress
+    {
+        $address = $this->addresses->create($owner, [
             'type' => 'HOME',
             'label' => 'Home',
             'address_line_1' => '12 Green Park Road',
@@ -84,50 +104,102 @@ final class TripServiceTest extends TestCase
             'state' => 'Delhi',
             'postal_code' => '110016',
             'country_code' => 'IN',
-        ], $overrides), makeDefault: false);
+        ] + ($located ? ['latitude' => '28.5590', 'longitude' => '77.2070'] : []),
+            makeDefault: false,
+        );
+
+        return $address;
     }
 
-    public function test_a_journey_is_planned_for_the_authenticated_customer(): void
+    // --- creation ---------------------------------------------------------
+
+    public function test_a_trip_is_created_for_the_authenticated_customer(): void
     {
         $trip = $this->service->create($this->rahul, $this->attributes(), $this->now);
 
         $this->assertSame($this->rahul->getKey(), $trip->customer_id);
-        $this->assertSame(TripStatus::Planned, $trip->status);
         $this->assertSame('New Delhi', $trip->origin_city);
         $this->assertSame('Jaipur', $trip->destination_city);
     }
 
-    public function test_coordinates_are_null_when_nothing_has_geocoded_the_places(): void
+    public function test_a_new_trip_waits_for_a_route_and_claims_nothing_about_one(): void
     {
         $trip = $this->service->create($this->rahul, $this->attributes(), $this->now);
 
-        // The whole point. A plausible-looking coordinate here would become a
-        // fabricated corridor in Module 09 and a fabricated cooking time after it.
-        $this->assertNull($trip->origin_latitude);
-        $this->assertNull($trip->origin_longitude);
-        $this->assertNull($trip->destination_latitude);
-        $this->assertNull($trip->destination_longitude);
+        // The two statuses this module is allowed to produce, and no others.
+        $this->assertSame(TripStatus::RoutePending, $trip->status);
+        $this->assertSame(RouteStatus::NotCalculated, $trip->route_status);
+
+        // There is nowhere to put a distance, a duration or an ETA, which is the
+        // strongest possible guarantee that none was fabricated.
+        foreach (['distance', 'duration', 'polyline', 'eta'] as $absent) {
+            $this->assertArrayNotHasKey($absent, $trip->getAttributes());
+        }
+    }
+
+    public function test_coordinates_are_stored_at_the_precision_of_the_column(): void
+    {
+        $trip = $this->service->create($this->rahul, $this->attributes(), $this->now);
+
+        $this->assertSame('28.5494000', $trip->origin_latitude);
+        $this->assertSame('75.8122000', $trip->destination_longitude);
+    }
+
+    public function test_the_source_of_each_end_is_recorded(): void
+    {
+        $address = $this->savedAddress($this->rahul);
+
+        $trip = $this->service->create($this->rahul, $this->attributes([
+            'origin' => [
+                'source_type' => LocationSourceType::SavedAddress->value,
+                'saved_address_id' => $address->uuid,
+            ],
+        ]), $this->now);
+
+        $this->assertSame(LocationSourceType::SavedAddress, $trip->origin_source_type);
+        $this->assertSame(LocationSourceType::PlaceSearch, $trip->destination_source_type);
+    }
+
+    public function test_a_current_location_endpoint_is_accepted(): void
+    {
+        $trip = $this->service->create($this->rahul, $this->attributes([
+            'origin' => $this->place([
+                'source_type' => LocationSourceType::CurrentLocation->value,
+                'display_name' => 'Current location',
+                'place_id' => null,
+            ]),
+        ]), $this->now);
+
+        $this->assertSame(LocationSourceType::CurrentLocation, $trip->origin_source_type);
         $this->assertNull($trip->origin_place_id);
     }
 
-    public function test_an_endpoint_can_be_a_saved_address_and_is_snapshotted(): void
+    // --- saved addresses --------------------------------------------------
+
+    public function test_a_saved_address_is_snapshotted_with_its_coordinates(): void
     {
         $address = $this->savedAddress($this->rahul);
 
         $trip = $this->service->create($this->rahul, $this->attributes([
-            'origin' => ['address_id' => $address->uuid],
+            'origin' => [
+                'source_type' => LocationSourceType::SavedAddress->value,
+                'saved_address_id' => $address->uuid,
+            ],
         ]), $this->now);
 
-        $this->assertSame($address->getKey(), $trip->origin_address_id);
+        $this->assertSame($address->getKey(), $trip->origin_saved_address_id);
         $this->assertSame($address->formatted_address, $trip->origin_formatted_address);
-        $this->assertSame('Home', $trip->origin_label);
+        $this->assertSame('28.5590000', $trip->origin_latitude);
     }
 
-    public function test_editing_the_saved_address_later_does_not_rewrite_the_journey(): void
+    public function test_editing_the_saved_address_later_does_not_rewrite_the_trip(): void
     {
         $address = $this->savedAddress($this->rahul);
         $trip = $this->service->create($this->rahul, $this->attributes([
-            'origin' => ['address_id' => $address->uuid],
+            'origin' => [
+                'source_type' => LocationSourceType::SavedAddress->value,
+                'saved_address_id' => $address->uuid,
+            ],
         ]), $this->now);
 
         $this->addresses->update($this->rahul, $address, [
@@ -142,22 +214,45 @@ final class TripServiceTest extends TestCase
 
         $trip->refresh();
 
-        // The journey still says where the traveller was setting off from when
-        // they planned it. A foreign key alone would have silently moved it to
-        // Mumbai.
+        // The trip still says where the customer was setting off from when they
+        // created it. A foreign key alone would have moved it to Mumbai.
         $this->assertSame('New Delhi', $trip->origin_city);
-        $this->assertSame('Home', $trip->origin_label);
     }
 
-    public function test_a_journey_cannot_be_planned_from_another_customers_saved_address(): void
+    public function test_a_saved_address_with_no_map_location_is_refused_rather_than_guessed(): void
     {
-        $ananyasAddress = $this->savedAddress($this->ananya, ['label' => 'Ananya Home']);
+        $address = $this->savedAddress($this->rahul, located: false);
 
         $this->expectException(ApiException::class);
 
         try {
             $this->service->create($this->rahul, $this->attributes([
-                'origin' => ['address_id' => $ananyasAddress->uuid],
+                'origin' => [
+                    'source_type' => LocationSourceType::SavedAddress->value,
+                    'saved_address_id' => $address->uuid,
+                ],
+            ]), $this->now);
+        } catch (ApiException $e) {
+            // Not "address not found" — it is the customer's own address, and it
+            // exists. What is missing is a position, and the app's job is to go
+            // and get one rather than have something plausible filled in.
+            $this->assertSame(ApiErrorCode::SavedAddressNotLocated, $e->errorCode);
+            throw $e;
+        }
+    }
+
+    public function test_a_trip_cannot_be_created_from_another_customers_saved_address(): void
+    {
+        $hers = $this->savedAddress($this->ananya);
+
+        $this->expectException(ApiException::class);
+
+        try {
+            $this->service->create($this->rahul, $this->attributes([
+                'origin' => [
+                    'source_type' => LocationSourceType::SavedAddress->value,
+                    'saved_address_id' => $hers->uuid,
+                ],
             ]), $this->now);
         } catch (ApiException $e) {
             // The same answer a direct read of that address gives. Anything else
@@ -167,80 +262,147 @@ final class TripServiceTest extends TestCase
         }
     }
 
-    public function test_origin_and_destination_may_not_be_the_same_place(): void
+    // --- coordinates ------------------------------------------------------
+
+    public function test_a_latitude_out_of_range_is_refused(): void
     {
-        $this->expectException(ApiException::class);
-
-        $this->service->create($this->rahul, $this->attributes([
-            'destination' => [
-                'label' => 'home again',
-                'address_line' => 'hauz khas',
-                'city' => 'NEW DELHI',
-                'state' => 'Delhi',
-                'country_code' => 'IN',
-            ],
-        ]), $this->now);
-    }
-
-    public function test_a_departure_in_the_past_is_refused(): void
-    {
-        $this->expectException(ApiException::class);
-
-        $this->service->create($this->rahul, $this->attributes([
-            'departure_at' => $this->now->subHour()->toIso8601String(),
-        ]), $this->now);
-    }
-
-    public function test_an_arrival_before_departure_is_refused(): void
-    {
-        $this->expectException(ApiException::class);
-
-        $this->service->create($this->rahul, $this->attributes([
-            'expected_arrival_at' => $this->now->addHours(2)->toIso8601String(),
-            'departure_at' => $this->now->addHours(5)->toIso8601String(),
-        ]), $this->now);
-    }
-
-    public function test_an_arrival_time_is_kept_when_the_traveller_states_one(): void
-    {
-        $trip = $this->service->create($this->rahul, $this->attributes([
-            'expected_arrival_at' => $this->now->addDay()->addHours(5)->toIso8601String(),
-        ]), $this->now);
-
-        $this->assertNotNull($trip->expected_arrival_at);
-    }
-
-    public function test_the_upcoming_limit_counts_only_journeys_still_ahead(): void
-    {
-        $limit = (int) config('foodonthego.trips.max_upcoming_per_customer');
-
-        // History, however much of it, never consumes the allowance.
-        Trip::factory()->count(5)->ownedBy($this->rahul)->departed()->create();
-
-        for ($i = 1; $i <= $limit; $i++) {
-            $this->service->create($this->rahul, $this->attributes([
-                'departure_at' => $this->now->addDays($i)->toIso8601String(),
-                'destination' => [
-                    'label' => "Stop {$i}",
-                    'city' => "City {$i}",
-                    'country_code' => 'IN',
-                ],
-            ]), $this->now);
-        }
-
         $this->expectException(ApiException::class);
 
         try {
             $this->service->create($this->rahul, $this->attributes([
-                'destination' => ['label' => 'One too many', 'city' => 'Agra', 'country_code' => 'IN'],
+                'origin' => $this->place(['latitude' => 999, 'longitude' => -999]),
             ]), $this->now);
+        } catch (ApiException $e) {
+            $this->assertSame(ApiErrorCode::InvalidCoordinates, $e->errorCode);
+            throw $e;
+        }
+    }
+
+    public function test_null_island_is_refused(): void
+    {
+        // (0, 0) is a real point in the Gulf of Guinea and the classic value of
+        // an uninitialised coordinate. Nothing this product plans through is
+        // there, so refusing it costs nothing and catches a class of client bug.
+        $this->expectException(ApiException::class);
+
+        $this->service->create($this->rahul, $this->attributes([
+            'origin' => $this->place(['latitude' => 0, 'longitude' => 0]),
+        ]), $this->now);
+    }
+
+    public function test_a_boundary_coordinate_is_still_accepted(): void
+    {
+        // -90/180 is a real place. A range check written with `<` instead of
+        // `<=` would refuse the poles and the date line.
+        $trip = $this->service->create($this->rahul, $this->attributes([
+            'origin' => $this->place(['latitude' => -90, 'longitude' => 180, 'place_id' => 'dev:pole']),
+        ]), $this->now);
+
+        $this->assertSame('-90.0000000', $trip->origin_latitude);
+    }
+
+    // --- same location ----------------------------------------------------
+
+    public function test_the_same_place_id_at_both_ends_is_refused(): void
+    {
+        $this->expectException(ApiException::class);
+
+        try {
+            $this->service->create($this->rahul, $this->attributes([
+                'destination' => $this->place(),
+            ]), $this->now);
+        } catch (ApiException $e) {
+            $this->assertSame(ApiErrorCode::SameLocation, $e->errorCode);
+            throw $e;
+        }
+    }
+
+    public function test_the_same_saved_address_at_both_ends_is_refused(): void
+    {
+        $address = $this->savedAddress($this->rahul);
+        $endpoint = [
+            'source_type' => LocationSourceType::SavedAddress->value,
+            'saved_address_id' => $address->uuid,
+        ];
+
+        $this->expectException(ApiException::class);
+
+        $this->service->create(
+            $this->rahul,
+            ['origin' => $endpoint, 'destination' => $endpoint],
+            $this->now,
+        );
+    }
+
+    public function test_two_different_sources_for_one_building_are_refused(): void
+    {
+        // The case the distance rule exists for: the same airport reached once
+        // from a search and once from a device fix, with different ids and
+        // different display text, forty metres apart.
+        $this->expectException(ApiException::class);
+
+        $this->service->create($this->rahul, [
+            'origin' => $this->jaipur(),
+            'destination' => $this->place([
+                'source_type' => LocationSourceType::CurrentLocation->value,
+                'display_name' => 'Current location',
+                'place_id' => null,
+                'latitude' => 26.8245,
+                'longitude' => 75.8124,
+            ]),
+        ], $this->now);
+    }
+
+    public function test_a_genuinely_short_journey_is_still_allowed(): void
+    {
+        // Connaught Place to Hauz Khas is about 9 km. A generous same-location
+        // radius would refuse real short journeys, which is why the threshold is
+        // a building rather than a neighbourhood.
+        $trip = $this->service->create($this->rahul, [
+            'origin' => $this->place(),
+            'destination' => $this->place([
+                'display_name' => 'Connaught Place',
+                'place_id' => 'dev:connaught-place',
+                'latitude' => 28.6315,
+                'longitude' => 77.2167,
+            ]),
+        ], $this->now);
+
+        $this->assertSame('Connaught Place', $trip->destination_name);
+    }
+
+    public function test_two_addresses_in_one_street_are_not_the_same_place(): void
+    {
+        // ~200 m apart: two different buildings, and a legitimate journey.
+        $trip = $this->service->create($this->rahul, [
+            'origin' => $this->place(['place_id' => 'dev:a', 'latitude' => 28.5494, 'longitude' => 77.2001]),
+            'destination' => $this->place(['place_id' => 'dev:b', 'latitude' => 28.5512, 'longitude' => 77.2001]),
+        ], $this->now);
+
+        $this->assertNotNull($trip->uuid);
+    }
+
+    // --- limits and ownership ---------------------------------------------
+
+    public function test_the_pending_limit_counts_only_live_trips(): void
+    {
+        $limit = (int) config('foodonthego.trips.max_pending_per_customer');
+
+        // Discarded trips are history and never consume the allowance.
+        Trip::factory()->count(5)->ownedBy($this->rahul)->discarded()->create();
+        Trip::factory()->count($limit)->ownedBy($this->rahul)->create();
+
+        $this->expectException(ApiException::class);
+
+        try {
+            $this->service->create($this->rahul, $this->attributes(), $this->now);
         } catch (ApiException $e) {
             $this->assertSame(ApiErrorCode::TripLimitReached, $e->errorCode);
             throw $e;
         }
     }
 
-    public function test_a_journey_belonging_to_somebody_else_is_not_found(): void
+    public function test_a_trip_belonging_to_somebody_else_is_not_found(): void
     {
         $trip = Trip::factory()->ownedBy($this->ananya)->create();
 
@@ -254,12 +416,12 @@ final class TripServiceTest extends TestCase
         }
     }
 
-    public function test_a_journey_that_does_not_exist_gives_the_identical_answer(): void
+    public function test_a_missing_trip_and_a_foreign_trip_answer_identically(): void
     {
+        $hers = Trip::factory()->ownedBy($this->ananya)->create();
+
         $missing = null;
         $notMine = null;
-
-        $trip = Trip::factory()->ownedBy($this->ananya)->create();
 
         try {
             $this->service->ownedByOrFail($this->rahul, (string) Str::uuid());
@@ -268,192 +430,66 @@ final class TripServiceTest extends TestCase
         }
 
         try {
-            $this->service->ownedByOrFail($this->rahul, $trip->uuid);
+            $this->service->ownedByOrFail($this->rahul, $hers->uuid);
         } catch (ApiException $e) {
             $notMine = [$e->errorCode, $e->getMessage()];
         }
 
-        // Byte-identical, so the endpoint cannot be walked to learn which ids
-        // are real journeys belonging to real customers.
         $this->assertSame($missing, $notMine);
     }
 
-    public function test_a_planned_journey_can_be_changed(): void
+    public function test_a_list_never_reaches_another_customers_trips(): void
+    {
+        Trip::factory()->count(3)->ownedBy($this->ananya)->create();
+
+        $this->assertCount(0, $this->service->listFor($this->rahul));
+    }
+
+    public function test_the_current_trip_is_the_newest_live_one(): void
+    {
+        Trip::factory()->ownedBy($this->rahul)->discarded()->create();
+        $newest = Trip::factory()->ownedBy($this->rahul)->delhiToAgra()->create();
+
+        $this->assertSame($newest->uuid, $this->service->currentFor($this->rahul)?->uuid);
+    }
+
+    public function test_there_is_no_current_trip_when_every_one_was_discarded(): void
+    {
+        Trip::factory()->count(2)->ownedBy($this->rahul)->discarded()->create();
+
+        $this->assertNull($this->service->currentFor($this->rahul));
+    }
+
+    // --- discarding -------------------------------------------------------
+
+    public function test_discarding_records_the_decision(): void
     {
         $trip = $this->service->create($this->rahul, $this->attributes(), $this->now);
 
-        $updated = $this->service->update($this->rahul, $trip, [
-            'traveller_count' => 3,
-            'note' => '  Picking up my sister  ',
-        ], $this->now);
+        $discarded = $this->service->discard($this->rahul, $trip, $this->now);
 
-        $this->assertSame(3, $updated->traveller_count);
-        $this->assertSame('Picking up my sister', $updated->note);
+        $this->assertSame(TripStatus::Cancelled, $discarded->status);
+        $this->assertNotNull($discarded->cancelled_at);
     }
 
-    public function test_a_departed_journey_can_no_longer_be_changed(): void
-    {
-        $trip = Trip::factory()->ownedBy($this->rahul)->departed()->create();
-
-        $this->expectException(ApiException::class);
-
-        try {
-            $this->service->update($this->rahul, $trip, ['traveller_count' => 2], $this->now);
-        } catch (ApiException $e) {
-            $this->assertSame(ApiErrorCode::TripNotEditable, $e->errorCode);
-            throw $e;
-        }
-    }
-
-    public function test_a_cancelled_journey_can_no_longer_be_changed(): void
-    {
-        $trip = Trip::factory()->ownedBy($this->rahul)->cancelled()->create();
-
-        $this->expectException(ApiException::class);
-
-        $this->service->update($this->rahul, $trip, ['traveller_count' => 2], $this->now);
-    }
-
-    public function test_moving_only_the_origin_onto_the_existing_destination_is_refused(): void
+    public function test_discarding_twice_is_refused_rather_than_silently_accepted(): void
     {
         $trip = $this->service->create($this->rahul, $this->attributes(), $this->now);
-
-        $this->expectException(ApiException::class);
-
-        // The request contains one endpoint, so the check has to compare against
-        // what the journey *will be*, not against what was sent.
-        $this->service->update($this->rahul, $trip, [
-            'origin' => ['label' => 'Jaipur', 'address_line' => 'MI Road', 'city' => 'Jaipur', 'state' => 'Rajasthan', 'country_code' => 'IN'],
-        ], $this->now);
-    }
-
-    public function test_a_departure_cannot_be_moved_into_the_past(): void
-    {
-        $trip = $this->service->create($this->rahul, $this->attributes(), $this->now);
-
-        $this->expectException(ApiException::class);
-
-        $this->service->update($this->rahul, $trip, [
-            'departure_at' => $this->now->subDay()->toIso8601String(),
-        ], $this->now);
-    }
-
-    public function test_an_arrival_can_be_cleared_with_an_explicit_null(): void
-    {
-        $trip = $this->service->create($this->rahul, $this->attributes([
-            'expected_arrival_at' => $this->now->addDay()->addHours(5)->toIso8601String(),
-        ]), $this->now);
-
-        $updated = $this->service->update($this->rahul, $trip, [
-            'expected_arrival_at' => null,
-        ], $this->now);
-
-        $this->assertNull($updated->expected_arrival_at);
-    }
-
-    public function test_cancelling_records_when_and_why(): void
-    {
-        $trip = $this->service->create($this->rahul, $this->attributes(), $this->now);
-
-        $cancelled = $this->service->cancel($this->rahul, $trip, 'Meeting moved', $this->now);
-
-        $this->assertSame(TripStatus::Cancelled, $cancelled->status);
-        $this->assertNotNull($cancelled->cancelled_at);
-        $this->assertSame('Meeting moved', $cancelled->cancellation_reason);
-    }
-
-    public function test_cancelling_twice_is_refused_rather_than_silently_accepted(): void
-    {
-        $trip = $this->service->create($this->rahul, $this->attributes(), $this->now);
-        $this->service->cancel($this->rahul, $trip, null, $this->now);
+        $this->service->discard($this->rahul, $trip, $this->now);
 
         $this->expectException(ApiException::class);
 
         // Answering "done" would hide from the customer that they are looking at
         // a screen that is out of date.
-        $this->service->cancel($this->rahul, $trip->fresh(), null, $this->now);
+        $this->service->discard($this->rahul, $trip->fresh(), $this->now);
     }
 
-    public function test_a_departed_journey_cannot_be_cancelled(): void
+    public function test_a_discarded_trip_leaves_the_live_list(): void
     {
-        $trip = Trip::factory()->ownedBy($this->rahul)->departed()->create();
+        $trip = $this->service->create($this->rahul, $this->attributes(), $this->now);
+        $this->service->discard($this->rahul, $trip, $this->now);
 
-        $this->expectException(ApiException::class);
-
-        $this->service->cancel($this->rahul, $trip, null, $this->now);
-    }
-
-    public function test_upcoming_excludes_cancelled_and_departed_journeys(): void
-    {
-        $ahead = Trip::factory()->ownedBy($this->rahul)->departingAt($this->now->addDays(2))->create();
-        Trip::factory()->ownedBy($this->rahul)->departed()->create();
-        Trip::factory()->ownedBy($this->rahul)->departingAt($this->now->addDays(3))->cancelled()->create();
-
-        $upcoming = $this->service->listFor($this->rahul, TripScope::Upcoming, $this->now);
-
-        $this->assertCount(1, $upcoming);
-        $this->assertSame($ahead->uuid, $upcoming->first()?->uuid);
-    }
-
-    public function test_upcoming_is_ordered_soonest_first(): void
-    {
-        Trip::factory()->ownedBy($this->rahul)->departingAt($this->now->addDays(9))->create();
-        $soonest = Trip::factory()->ownedBy($this->rahul)->departingAt($this->now->addDay())->create();
-        Trip::factory()->ownedBy($this->rahul)->departingAt($this->now->addDays(4))->create();
-
-        $upcoming = $this->service->listFor($this->rahul, TripScope::Upcoming, $this->now);
-
-        $this->assertSame($soonest->uuid, $upcoming->first()?->uuid);
-    }
-
-    public function test_the_next_journey_is_the_soonest_one_still_ahead(): void
-    {
-        Trip::factory()->ownedBy($this->rahul)->departed()->create();
-        $soonest = Trip::factory()->ownedBy($this->rahul)->departingAt($this->now->addHours(6))->create();
-        Trip::factory()->ownedBy($this->rahul)->departingAt($this->now->addDays(3))->create();
-
-        $this->assertSame($soonest->uuid, $this->service->nextFor($this->rahul, $this->now)?->uuid);
-    }
-
-    public function test_the_next_journey_is_null_when_there_is_none(): void
-    {
-        Trip::factory()->ownedBy($this->rahul)->departed()->create();
-
-        $this->assertNull($this->service->nextFor($this->rahul, $this->now));
-    }
-
-    public function test_a_list_never_reaches_another_customers_journeys(): void
-    {
-        Trip::factory()->count(3)->ownedBy($this->ananya)->create();
-
-        $this->assertCount(0, $this->service->listFor($this->rahul, TripScope::All, $this->now));
-    }
-
-    public function test_past_holds_departed_journeys_newest_first(): void
-    {
-        $older = Trip::factory()->ownedBy($this->rahul)->departingAt($this->now->subDays(9))->create();
-        $newer = Trip::factory()->ownedBy($this->rahul)->departingAt($this->now->subDay())->create();
-
-        $past = $this->service->listFor($this->rahul, TripScope::Past, $this->now);
-
-        $this->assertSame([$newer->uuid, $older->uuid], $past->pluck('uuid')->all());
-    }
-
-    public function test_a_cancelled_journey_still_ahead_is_in_neither_upcoming_nor_past(): void
-    {
-        Trip::factory()->ownedBy($this->rahul)->departingAt($this->now->addDays(2))->cancelled()->create();
-
-        $this->assertCount(0, $this->service->listFor($this->rahul, TripScope::Upcoming, $this->now));
-        $this->assertCount(0, $this->service->listFor($this->rahul, TripScope::Past, $this->now));
-        $this->assertCount(1, $this->service->listFor($this->rahul, TripScope::Cancelled, $this->now));
-    }
-
-    public function test_a_journey_departing_this_very_second_still_counts_as_upcoming(): void
-    {
-        $trip = Trip::factory()->ownedBy($this->rahul)->departingAt($this->now)->create();
-
-        // The boundary, asserted rather than assumed: `>=`, not `>`.
-        $this->assertSame($trip->uuid, $this->service->nextFor($this->rahul, $this->now)?->uuid);
-        $this->assertTrue($trip->isEditable($this->now));
+        $this->assertCount(0, $this->service->listFor($this->rahul, TripStatus::RoutePending));
+        $this->assertCount(1, $this->service->listFor($this->rahul, TripStatus::Cancelled));
     }
 }

@@ -47,6 +47,14 @@ enum ApiErrorCode: string
     case TripNotFound = 'TRIP_NOT_FOUND';
     case TripLimitReached = 'TRIP_LIMIT_REACHED';
     case TripNotEditable = 'TRIP_NOT_EDITABLE';
+    case TripCreateFailed = 'TRIP_CREATE_FAILED';
+    case OriginRequired = 'ORIGIN_REQUIRED';
+    case DestinationRequired = 'DESTINATION_REQUIRED';
+    case SameLocation = 'SAME_LOCATION';
+    case InvalidCoordinates = 'INVALID_COORDINATES';
+    case SavedAddressNotLocated = 'SAVED_ADDRESS_NOT_LOCATED';
+    case PlaceLookupFailed = 'PLACE_LOOKUP_FAILED';
+    case PlaceNotFound = 'PLACE_NOT_FOUND';
 
     public function httpStatus(): int
     {
@@ -70,7 +78,22 @@ enum ApiErrorCode: string
             self::TripLimitReached,
             // 422 rather than 409: the request is valid, the journey is simply
             // past the point where changing it means anything.
-            self::TripNotEditable => 422,
+            self::TripNotEditable,
+            self::OriginRequired,
+            self::DestinationRequired,
+            self::SameLocation,
+            self::InvalidCoordinates,
+            // 422 and not 404: the address exists and is the caller's own. What
+            // is missing is a map position, and the app's job is to go and get
+            // one rather than to report the address as gone.
+            self::SavedAddressNotLocated => 422,
+
+            self::TripCreateFailed => 500,
+
+            // 503: the place provider is a dependency, and a caller that gets
+            // this should retry rather than change its request.
+            self::PlaceLookupFailed => 503,
+            self::PlaceNotFound => 404,
             self::RateLimited => 429,
             self::BusinessRuleViolated => 422,
             self::DependencyUnavailable => 503,

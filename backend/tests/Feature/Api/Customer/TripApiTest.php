@@ -6,14 +6,13 @@ namespace Tests\Feature\Api\Customer;
 
 use App\Models\Trip;
 use App\Models\User;
-use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
 use Tests\Support\CustomerFactory;
 use Tests\TestCase;
 
 /**
- * The journey endpoints as a client sees them.
+ * The trip endpoints as a client sees them.
  */
 final class TripApiTest extends TestCase
 {
@@ -50,346 +49,319 @@ final class TripApiTest extends TestCase
     {
         return array_merge([
             'origin' => [
-                'label' => 'Home',
-                'address_line' => 'Hauz Khas',
+                'source_type' => 'PLACE_SEARCH',
+                'place_id' => 'dev:hauz-khas',
+                'display_name' => 'Hauz Khas Village',
+                'formatted_address' => 'Hauz Khas, New Delhi, Delhi 110016',
+                'latitude' => 28.5494,
+                'longitude' => 77.2001,
                 'city' => 'New Delhi',
-                'state' => 'Delhi',
+                'region' => 'Delhi',
                 'country_code' => 'IN',
             ],
             'destination' => [
-                'label' => 'Jaipur',
-                'address_line' => 'MI Road',
+                'source_type' => 'PLACE_SEARCH',
+                'place_id' => 'dev:jaipur-airport',
+                'display_name' => 'Jaipur International Airport',
+                'formatted_address' => 'Airport Road, Sanganer, Jaipur, Rajasthan',
+                'latitude' => 26.8242,
+                'longitude' => 75.8122,
                 'city' => 'Jaipur',
-                'state' => 'Rajasthan',
+                'region' => 'Rajasthan',
                 'country_code' => 'IN',
             ],
-            'departure_at' => CarbonImmutable::now()->addDay()->toIso8601String(),
         ], $overrides);
     }
 
     /** @param array<string, mixed> $overrides */
-    private function plan(array $overrides = []): TestResponse
+    private function create(array $overrides = []): TestResponse
     {
         return $this->asRahul()->postJson(self::BASE, $this->payload($overrides));
     }
 
-    private function savedAddress(User $owner, string $label = 'Home'): string
+    // --- creation ---------------------------------------------------------
+
+    public function test_creating_a_trip_returns_201_and_the_trip(): void
     {
-        $token = $owner->is($this->rahul) ? $this->rahulToken : CustomerFactory::tokenFor($owner);
-
-        return $this->as($token)->postJson('/api/v1/customer/addresses', [
-            'type' => 'HOME',
-            'label' => $label,
-            'address_line_1' => '12 Green Park Road',
-            'city' => 'New Delhi',
-            'state' => 'Delhi',
-            'postal_code' => '110016',
-            'country_code' => 'IN',
-        ])->json('data.id');
-    }
-
-    public function test_planning_a_journey_returns_201_and_the_journey(): void
-    {
-        $response = $this->plan();
-
-        $response->assertCreated()
-            ->assertJsonPath('data.status', 'PLANNED')
+        $this->create()
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'ROUTE_PENDING')
+            ->assertJsonPath('data.route_status', 'NOT_CALCULATED')
             ->assertJsonPath('data.origin.city', 'New Delhi')
-            ->assertJsonPath('data.destination.city', 'Jaipur')
-            ->assertJsonPath('data.traveller_count', 1)
-            ->assertJsonPath('data.is_editable', true)
-            ->assertJsonPath('data.has_departed', false);
+            ->assertJsonPath('data.destination.city', 'Jaipur');
     }
 
     public function test_the_response_follows_the_standard_envelope(): void
     {
-        $this->plan()->assertJsonStructure([
+        $this->create()->assertJsonStructure([
             'data' => [
-                'id', 'status', 'origin' => ['label', 'formatted_address', 'city', 'country_code'],
-                'destination', 'departure_at', 'traveller_count', 'is_editable',
+                'id', 'status', 'route_status',
+                'origin' => ['source_type', 'display_name', 'formatted_address', 'latitude', 'longitude'],
+                'destination',
             ],
             'meta' => ['request_id'],
         ]);
     }
 
-    public function test_the_journey_id_is_a_uuid_not_a_database_key(): void
+    public function test_no_route_data_is_returned_because_none_exists(): void
     {
-        $id = $this->plan()->json('data.id');
+        $data = $this->create()->json('data');
 
+        // Not "null distance" — no key at all. A client that finds none cannot
+        // render an estimate, and nobody can be tempted to seed one.
+        foreach (['distance', 'distance_metres', 'duration', 'duration_seconds', 'polyline', 'eta'] as $absent) {
+            $this->assertArrayNotHasKey($absent, $data);
+        }
+    }
+
+    public function test_the_trip_id_is_a_uuid_not_a_database_key(): void
+    {
         $this->assertMatchesRegularExpression(
             '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/',
-            (string) $id,
+            (string) $this->create()->json('data.id'),
         );
     }
 
     public function test_no_internal_identifier_is_exposed(): void
     {
-        $data = $this->plan()->json('data');
+        $data = $this->create()->json('data');
 
-        foreach (['customer_id', 'origin_address_id', 'destination_address_id'] as $leak) {
-            $this->assertArrayNotHasKey($leak, $data);
-        }
+        $this->assertArrayNotHasKey('customer_id', $data);
+        $this->assertArrayNotHasKey('saved_address_id', $data['origin']);
     }
 
-    public function test_the_formatted_address_is_composed_from_the_parts(): void
+    public function test_the_source_of_each_end_comes_back(): void
     {
-        $this->plan()->assertJsonPath(
-            'data.origin.formatted_address',
-            'Hauz Khas, New Delhi, Delhi',
-        );
+        $this->create()
+            ->assertJsonPath('data.origin.source_type', 'PLACE_SEARCH')
+            ->assertJsonPath('data.destination.source_type', 'PLACE_SEARCH');
     }
 
-    public function test_coordinates_come_back_null_rather_than_invented(): void
+    public function test_a_current_location_origin_is_accepted(): void
     {
-        $this->plan()
-            ->assertJsonPath('data.origin.latitude', null)
-            ->assertJsonPath('data.origin.longitude', null)
-            ->assertJsonPath('data.destination.latitude', null)
-            ->assertJsonPath('data.destination.longitude', null);
-    }
-
-    public function test_real_coordinates_are_kept_when_a_client_supplies_them(): void
-    {
-        $this->plan([
+        $this->create([
             'origin' => [
-                'label' => 'Home', 'city' => 'New Delhi', 'country_code' => 'IN',
-                'latitude' => 28.5602, 'longitude' => 77.2100,
+                'source_type' => 'CURRENT_LOCATION',
+                'display_name' => 'Current location',
+                'formatted_address' => 'Gurugram, Haryana',
+                'latitude' => 28.4949,
+                'longitude' => 77.0886,
             ],
-        ])->assertCreated()->assertJsonPath('data.origin.latitude', '28.5602000');
-    }
-
-    public function test_half_a_coordinate_is_refused(): void
-    {
-        $this->plan([
-            'origin' => [
-                'label' => 'Home', 'city' => 'New Delhi', 'country_code' => 'IN',
-                'latitude' => 28.5602,
-            ],
-        ])->assertStatus(422)->assertJsonPath('error.code', 'VALIDATION_FAILED');
-    }
-
-    public function test_an_endpoint_can_be_a_saved_address(): void
-    {
-        $addressId = $this->savedAddress($this->rahul);
-
-        $this->plan(['origin' => ['address_id' => $addressId]])
+        ])
             ->assertCreated()
-            ->assertJsonPath('data.origin.label', 'Home')
-            ->assertJsonPath('data.origin.city', 'New Delhi');
+            ->assertJsonPath('data.origin.source_type', 'CURRENT_LOCATION')
+            ->assertJsonPath('data.origin.place_id', null);
     }
 
-    public function test_a_journey_needs_a_destination(): void
+    public function test_coordinates_round_trip_at_the_column_scale(): void
+    {
+        $this->create()->assertJsonPath('data.origin.latitude', '28.5494000');
+    }
+
+    // --- validation -------------------------------------------------------
+
+    public function test_an_origin_is_required(): void
+    {
+        $payload = $this->payload();
+        unset($payload['origin']);
+
+        $this->asRahul()->postJson(self::BASE, $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('error.details.fields.origin.0', 'Choose where you are setting off from.');
+    }
+
+    public function test_a_destination_is_required(): void
     {
         $payload = $this->payload();
         unset($payload['destination']);
 
         $this->asRahul()->postJson(self::BASE, $payload)
             ->assertStatus(422)
-            ->assertJsonPath('error.code', 'VALIDATION_FAILED')
             ->assertJsonPath('error.details.fields.destination.0', 'Choose where you are going.');
     }
 
-    public function test_a_typed_endpoint_needs_a_city_and_a_country(): void
+    public function test_an_endpoint_without_coordinates_is_refused(): void
     {
-        $response = $this->plan(['destination' => ['label' => 'Somewhere']])->assertStatus(422);
+        $origin = $this->payload()['origin'];
+        unset($origin['latitude'], $origin['longitude']);
 
-        // Read as an array rather than by dotted path: the field key itself
-        // contains a dot ("destination.city"), which a path lookup would split.
-        $fields = $response->json('error.details.fields');
-
-        $this->assertSame('Enter the city you are going to.', $fields['destination.city'][0]);
-        $this->assertArrayHasKey('destination.country_code', $fields);
-    }
-
-    public function test_a_departure_in_the_past_is_refused(): void
-    {
-        $this->plan(['departure_at' => CarbonImmutable::now()->subDay()->toIso8601String()])
-            ->assertStatus(422)
-            ->assertJsonPath('error.details.fields.departure_at.0', 'Choose a departure time in the future.');
-    }
-
-    public function test_a_departure_moments_ago_is_accepted_within_the_grace(): void
-    {
-        // A handset whose clock runs a little behind the server's must still be
-        // able to say "leaving now".
-        $this->plan(['departure_at' => CarbonImmutable::now()->subMinute()->toIso8601String()])
-            ->assertCreated();
-    }
-
-    public function test_a_departure_beyond_the_planning_horizon_is_refused(): void
-    {
-        $days = (int) config('foodonthego.trips.max_days_ahead');
-
-        $this->plan(['departure_at' => CarbonImmutable::now()->addDays($days + 2)->toIso8601String()])
-            ->assertStatus(422)
-            ->assertJsonPath('error.details.fields.departure_at.0', 'That is too far ahead to plan a journey.');
-    }
-
-    public function test_the_same_place_twice_is_not_a_journey(): void
-    {
-        $this->plan(['destination' => $this->payload()['origin']])
+        $this->create(['origin' => $origin])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'VALIDATION_FAILED');
     }
 
-    public function test_a_traveller_count_above_the_ceiling_is_refused(): void
+    public function test_an_impossible_latitude_is_refused_by_the_server(): void
     {
-        $max = (int) config('foodonthego.trips.max_travellers');
+        $this->create([
+            'origin' => $this->payload()['origin'] + [] === [] ? [] : array_merge(
+                $this->payload()['origin'],
+                ['latitude' => 999, 'longitude' => -999],
+            ),
+        ])->assertStatus(422)->assertJsonPath('error.code', 'VALIDATION_FAILED');
 
-        $this->plan(['traveller_count' => $max + 1])->assertStatus(422);
+        $this->assertSame(0, Trip::query()->count());
     }
 
-    public function test_a_note_longer_than_the_column_is_refused(): void
+    public function test_null_island_is_refused_with_its_own_code(): void
     {
-        $this->plan(['note' => str_repeat('a', 281)])->assertStatus(422);
+        $this->create([
+            'origin' => array_merge($this->payload()['origin'], ['latitude' => 0, 'longitude' => 0]),
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'INVALID_COORDINATES');
     }
 
-    public function test_the_list_defaults_to_upcoming(): void
+    public function test_an_unknown_source_type_is_refused(): void
     {
-        Trip::factory()->ownedBy($this->rahul)->departed()->create();
-        $ahead = Trip::factory()->ownedBy($this->rahul)->departingAt(CarbonImmutable::now()->addDays(2))->create();
+        $this->create([
+            'origin' => array_merge($this->payload()['origin'], ['source_type' => 'TELEPORT']),
+        ])->assertStatus(422);
+    }
+
+    public function test_the_same_place_at_both_ends_is_refused_with_its_own_code(): void
+    {
+        $this->create(['destination' => $this->payload()['origin']])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'SAME_LOCATION');
+    }
+
+    public function test_a_saved_address_endpoint_needs_an_address_id(): void
+    {
+        $response = $this->create([
+            'origin' => ['source_type' => 'SAVED_ADDRESS'],
+        ])->assertStatus(422);
+
+        // Read as an array rather than by dotted path: the field key itself
+        // contains a dot, which a path lookup would split.
+        $fields = $response->json('error.details.fields');
+
+        $this->assertSame('Choose a saved address.', $fields['origin.saved_address_id'][0]);
+    }
+
+    // --- reading ----------------------------------------------------------
+
+    public function test_a_trip_can_be_read_back(): void
+    {
+        $id = $this->create()->json('data.id');
+
+        $this->asRahul()->getJson(self::BASE.'/'.$id)
+            ->assertOk()
+            ->assertJsonPath('data.id', $id)
+            ->assertJsonPath('data.route_status', 'NOT_CALCULATED');
+    }
+
+    public function test_the_list_is_newest_first(): void
+    {
+        $older = Trip::factory()->ownedBy($this->rahul)->create();
+        $newer = Trip::factory()->ownedBy($this->rahul)->delhiToAgra()->create();
 
         $this->asRahul()->getJson(self::BASE)
             ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $ahead->uuid);
+            ->assertJsonPath('data.0.id', $newer->uuid)
+            ->assertJsonPath('data.1.id', $older->uuid);
     }
 
-    public function test_the_list_scope_can_be_asked_for_explicitly(): void
+    public function test_the_list_can_be_filtered_by_status(): void
     {
-        Trip::factory()->ownedBy($this->rahul)->departed()->create();
-        Trip::factory()->ownedBy($this->rahul)->departingAt(CarbonImmutable::now()->addDay())->create();
+        Trip::factory()->ownedBy($this->rahul)->create();
+        Trip::factory()->ownedBy($this->rahul)->discarded()->create();
 
-        $this->asRahul()->getJson(self::BASE.'?scope=past')->assertOk()->assertJsonCount(1, 'data');
-        $this->asRahul()->getJson(self::BASE.'?scope=all')->assertOk()->assertJsonCount(2, 'data');
+        $this->asRahul()->getJson(self::BASE.'?status=ROUTE_PENDING')->assertJsonCount(1, 'data');
+        $this->asRahul()->getJson(self::BASE.'?status=CANCELLED')->assertJsonCount(1, 'data');
+        $this->asRahul()->getJson(self::BASE)->assertJsonCount(2, 'data');
     }
 
-    public function test_an_unknown_scope_is_a_validation_failure_not_a_silent_everything(): void
+    public function test_an_unknown_status_filter_is_a_validation_failure(): void
     {
-        $this->asRahul()->getJson(self::BASE.'?scope=everything')
+        $this->asRahul()->getJson(self::BASE.'?status=ACTIVE')
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'VALIDATION_FAILED');
     }
 
-    public function test_next_returns_the_soonest_journey_still_ahead(): void
+    public function test_current_returns_the_newest_live_trip(): void
     {
-        Trip::factory()->ownedBy($this->rahul)->departingAt(CarbonImmutable::now()->addDays(4))->create();
-        $soonest = Trip::factory()->ownedBy($this->rahul)->departingAt(CarbonImmutable::now()->addHours(5))->create();
+        Trip::factory()->ownedBy($this->rahul)->discarded()->create();
+        $live = Trip::factory()->ownedBy($this->rahul)->create();
 
-        $this->asRahul()->getJson(self::BASE.'/next')
+        $this->asRahul()->getJson(self::BASE.'/current')
             ->assertOk()
-            ->assertJsonPath('data.id', $soonest->uuid);
+            ->assertJsonPath('data.id', $live->uuid);
     }
 
-    public function test_next_returns_null_rather_than_404_when_there_is_no_journey(): void
+    public function test_current_returns_null_rather_than_404_when_there_is_none(): void
     {
-        // Null is a normal answer here: the home screen renders nothing for
-        // journeys, and a 404 would make an ordinary state look like a failure.
-        $this->asRahul()->getJson(self::BASE.'/next')->assertOk()->assertJsonPath('data', null);
+        // An ordinary state, not a failure: the home screen renders nothing for
+        // trips when it gets one.
+        $this->asRahul()->getJson(self::BASE.'/current')->assertOk()->assertJsonPath('data', null);
     }
 
-    public function test_next_is_matched_as_a_literal_not_as_a_journey_id(): void
+    public function test_current_is_matched_as_a_literal_not_as_a_trip_id(): void
     {
         Trip::factory()->ownedBy($this->rahul)->create();
 
-        $this->asRahul()->getJson(self::BASE.'/next')
+        $this->asRahul()->getJson(self::BASE.'/current')
             ->assertOk()
             ->assertJsonMissingPath('error');
     }
 
-    public function test_a_journey_can_be_read_back(): void
-    {
-        $id = $this->plan()->json('data.id');
+    // --- discarding -------------------------------------------------------
 
-        $this->asRahul()->getJson(self::BASE.'/'.$id)
+    public function test_a_trip_can_be_discarded(): void
+    {
+        $id = $this->create()->json('data.id');
+
+        $this->asRahul()->postJson(self::BASE.'/'.$id.'/discard')
             ->assertOk()
-            ->assertJsonPath('data.id', $id);
+            ->assertJsonPath('data.status', 'CANCELLED');
     }
 
-    public function test_a_planned_journey_can_be_changed(): void
+    public function test_discarding_twice_is_refused(): void
     {
-        $id = $this->plan()->json('data.id');
+        $id = $this->create()->json('data.id');
+        $this->asRahul()->postJson(self::BASE.'/'.$id.'/discard');
 
-        $this->asRahul()->patchJson(self::BASE.'/'.$id, [
-            'traveller_count' => 4,
-            'note' => 'Two stops on the way',
-        ])
-            ->assertOk()
-            ->assertJsonPath('data.traveller_count', 4)
-            ->assertJsonPath('data.note', 'Two stops on the way');
-    }
-
-    public function test_a_change_persists(): void
-    {
-        $id = $this->plan()->json('data.id');
-        $this->asRahul()->patchJson(self::BASE.'/'.$id, ['traveller_count' => 2]);
-
-        $this->asRahul()->getJson(self::BASE.'/'.$id)->assertJsonPath('data.traveller_count', 2);
-    }
-
-    public function test_a_departed_journey_reports_that_it_cannot_be_changed(): void
-    {
-        $trip = Trip::factory()->ownedBy($this->rahul)->departed()->create();
-
-        $this->asRahul()->getJson(self::BASE.'/'.$trip->uuid)
-            ->assertOk()
-            ->assertJsonPath('data.is_editable', false)
-            ->assertJsonPath('data.has_departed', true);
-
-        $this->asRahul()->patchJson(self::BASE.'/'.$trip->uuid, ['traveller_count' => 2])
+        $this->asRahul()->postJson(self::BASE.'/'.$id.'/discard')
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'TRIP_NOT_EDITABLE');
-    }
-
-    public function test_a_journey_can_be_cancelled_with_a_reason(): void
-    {
-        $id = $this->plan()->json('data.id');
-
-        $this->asRahul()->postJson(self::BASE.'/'.$id.'/cancel', ['reason' => 'Meeting moved'])
-            ->assertOk()
-            ->assertJsonPath('data.status', 'CANCELLED')
-            ->assertJsonPath('data.cancellation_reason', 'Meeting moved');
-    }
-
-    public function test_cancelling_twice_is_refused(): void
-    {
-        $id = $this->plan()->json('data.id');
-        $this->asRahul()->postJson(self::BASE.'/'.$id.'/cancel');
-
-        $this->asRahul()->postJson(self::BASE.'/'.$id.'/cancel')
-            ->assertStatus(422)
-            ->assertJsonPath('error.code', 'TRIP_NOT_EDITABLE');
-    }
-
-    public function test_a_cancelled_journey_leaves_the_upcoming_list(): void
-    {
-        $id = $this->plan()->json('data.id');
-        $this->asRahul()->postJson(self::BASE.'/'.$id.'/cancel');
-
-        $this->asRahul()->getJson(self::BASE)->assertOk()->assertJsonCount(0, 'data');
-        $this->asRahul()->getJson(self::BASE.'?scope=cancelled')->assertOk()->assertJsonCount(1, 'data');
     }
 
     public function test_there_is_no_delete_endpoint(): void
     {
-        $id = $this->plan()->json('data.id');
+        $id = $this->create()->json('data.id');
 
-        // A journey is history. Cancelling records a decision; deleting would
-        // erase the record a later module's orders point at.
         $this->asRahul()->deleteJson(self::BASE.'/'.$id)->assertStatus(405);
     }
 
-    public function test_the_upcoming_limit_is_reported_with_its_own_code(): void
+    public function test_the_pending_limit_is_reported_with_its_own_code(): void
     {
-        $limit = (int) config('foodonthego.trips.max_upcoming_per_customer');
+        $limit = (int) config('foodonthego.trips.max_pending_per_customer');
+        Trip::factory()->count($limit)->ownedBy($this->rahul)->create();
 
-        Trip::factory()->count($limit)->ownedBy($this->rahul)
-            ->departingAt(CarbonImmutable::now()->addDays(3))->create();
-
-        $this->plan()
+        $this->create()
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'TRIP_LIMIT_REACHED');
     }
+
+    // --- duplicate submission ---------------------------------------------
+
+    public function test_an_idempotency_key_makes_a_retried_create_return_the_same_trip(): void
+    {
+        $payload = $this->payload();
+        $key = 'trip-create-'.uniqid();
+
+        // Module 01's idempotency middleware already answers the double-tap
+        // problem properly, and it applies here for free.
+        $first = $this->asRahul()->withHeader('Idempotency-Key', $key)
+            ->postJson(self::BASE, $payload)->assertCreated()->json('data.id');
+
+        $second = $this->asRahul()->withHeader('Idempotency-Key', $key)
+            ->postJson(self::BASE, $payload)->json('data.id');
+
+        $this->assertSame($first, $second);
+        $this->assertSame(1, Trip::query()->count());
+    }
+
+    // --- authentication ---------------------------------------------------
 
     public function test_every_endpoint_requires_a_token(): void
     {
@@ -397,11 +369,10 @@ final class TripApiTest extends TestCase
         $this->flushHeaders();
 
         $this->getJson(self::BASE)->assertUnauthorized();
-        $this->getJson(self::BASE.'/next')->assertUnauthorized();
+        $this->getJson(self::BASE.'/current')->assertUnauthorized();
         $this->postJson(self::BASE, $this->payload())->assertUnauthorized();
         $this->getJson(self::BASE.'/'.$trip->uuid)->assertUnauthorized();
-        $this->patchJson(self::BASE.'/'.$trip->uuid, [])->assertUnauthorized();
-        $this->postJson(self::BASE.'/'.$trip->uuid.'/cancel')->assertUnauthorized();
+        $this->postJson(self::BASE.'/'.$trip->uuid.'/discard')->assertUnauthorized();
     }
 
     public function test_a_revoked_token_reaches_nothing(): void

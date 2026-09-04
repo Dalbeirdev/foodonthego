@@ -84,29 +84,57 @@ return [
 
     /*
      |--------------------------------------------------------------------------
+     | Places (Module 05)
+     |--------------------------------------------------------------------------
+     |
+     | Place search is server-mediated. The key lives here and never ships to a
+     | device: a key in a mobile binary is a published key, and the platform
+     | restrictions Google offers bound the damage rather than preventing it.
+     | Held here it is IP-restricted to our servers and rotatable without an app
+     | release. See docs/20-trip-planner.md.
+     */
+    'places' => [
+        // 'google' in any real deployment. 'development' is a small fixed
+        // gazetteer of real places for local work and refuses to run in
+        // production; 'unconfigured' is the default and fails loudly.
+        'provider' => env('PLACES_PROVIDER', 'unconfigured'),
+
+        'google_api_key' => env('GOOGLE_PLACES_API_KEY'),
+
+        // A search *bias*, not a filter, and a list rather than a constant: the
+        // launch market is India, and a permanently hard-coded country would
+        // have to be hunted down in the first month of the second market.
+        'regions' => array_values(array_filter(
+            array_map('trim', explode(',', (string) env('PLACES_REGIONS', 'in'))),
+        )),
+
+        'timeout_seconds' => (int) env('PLACES_TIMEOUT_SECONDS', 5),
+        'max_results' => (int) env('PLACES_MAX_RESULTS', 8),
+
+        // A search query is personal, so this cache is short and keyed by the
+        // query alone — never by customer. It exists to stop a retyped search
+        // costing twice, not to build a history.
+        'cache_seconds' => (int) env('PLACES_CACHE_SECONDS', 120),
+    ],
+
+    /*
+     |--------------------------------------------------------------------------
      | Journeys (Module 05)
      |--------------------------------------------------------------------------
      */
     'trips' => [
-        // Counts only journeys that are still ahead. Past and cancelled ones are
-        // history and never consume the allowance — a traveller who has used the
-        // app for a year must not be told they have "too many journeys".
-        'max_upcoming_per_customer' => (int) env('TRIP_MAX_UPCOMING_PER_CUSTOMER', 20),
+        // An anti-abuse ceiling on trips still waiting for a route. Cancelled
+        // trips and trips that have been routed do not count, so a customer who
+        // uses the app is never told they have too many.
+        'max_pending_per_customer' => (int) env('TRIP_MAX_PENDING_PER_CUSTOMER', 20),
 
-        // How far ahead a journey may be planned. A year is far beyond any real
-        // trip planning, and still bounds a field somebody could otherwise use to
-        // write the year 9999 into a sort key.
-        'max_days_ahead' => (int) env('TRIP_MAX_DAYS_AHEAD', 365),
-
-        // The grace given to a departure time so that "leaving now" works. A
-        // request takes a moment to arrive, and refusing a departure two seconds
-        // past because the handset's clock runs slightly ahead of the server's
-        // would be a validation error nobody could act on.
-        'departure_grace_minutes' => (int) env('TRIP_DEPARTURE_GRACE_MINUTES', 5),
-
-        // Nobody travels with more people than a coach holds, and the column is a
-        // tinyint. A ceiling here keeps the two in agreement.
-        'max_travellers' => (int) env('TRIP_MAX_TRAVELLERS', 20),
+        // How close two endpoints may be before they are the same place.
+        //
+        // 75 metres is a building, not a neighbourhood. It catches the case this
+        // rule exists for — the same airport chosen once from a saved address and
+        // once from a search — without refusing a genuinely short journey between
+        // two nearby addresses, which a generous radius would.
+        'same_location_threshold_metres' => (int) env('TRIP_SAME_LOCATION_METRES', 75),
     ],
 
     'auth' => [
