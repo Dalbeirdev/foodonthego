@@ -11,12 +11,14 @@ import '../../data/auth/session_store.dart';
 import '../../data/fixtures/development_personas.dart';
 import '../../data/repositories/api_auth_repository.dart';
 import '../../data/repositories/api_customer_repository.dart';
+import '../../data/repositories/api_trip_repository.dart';
 import '../../data/repositories/fixture_home_repository.dart';
 import '../../data/repositories/unconfigured_home_repository.dart';
 import '../../domain/models/home_dashboard.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/customer_repository.dart';
 import '../../domain/repositories/home_repository.dart';
+import '../../domain/repositories/trip_repository.dart';
 import 'auth_controller.dart';
 import 'connectivity.dart';
 
@@ -185,4 +187,10 @@ final authRepositoryProvider = Provider<AuthRepository>(
 /// produce every failure the server can.
 final customerRepositoryProvider = Provider<CustomerRepository>(
   (Ref ref) => ApiCustomerRepository(ref.watch(apiClientProvider)),
+);
+
+/// Journeys. Overridden in widget tests with a fake that applies the server's
+/// own rules, so a test cannot pass against behaviour the server would refuse.
+final tripRepositoryProvider = Provider<TripRepository>(
+  (Ref ref) => ApiTripRepository(ref.watch(apiClientProvider)),
 );

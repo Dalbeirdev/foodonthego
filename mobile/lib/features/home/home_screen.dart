@@ -4,11 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/analytics/analytics.dart';
 import '../../core/config/app_environment.dart';
-import '../../core/config/feature_flags.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/routing/routes.dart';
 import '../../core/theme/tokens.dart';
 import '../../domain/models/home_dashboard.dart';
+import '../../domain/models/trip.dart';
 import '../../domain/repositories/home_repository.dart';
 import '../../shared/state/providers.dart';
 import '../../shared/widgets/app_error_view.dart';
@@ -19,7 +19,10 @@ import 'widgets/greeting_header.dart';
 import 'widgets/how_it_works.dart';
 import 'widgets/journey_planner_card.dart';
 import 'widgets/quick_actions.dart';
-import 'widgets/route_summary_card.dart';
+import '../../shared/state/trips_controller.dart';
+import '../trips/trip_detail_screen.dart';
+import '../trips/trip_form_screen.dart';
+import 'widgets/next_journey_card.dart';
 
 /// The customer home screen.
 ///
@@ -80,8 +83,13 @@ class _HomeContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AppStrings strings = AppStrings.of(context);
-    final FeatureFlags flags = ref.watch(featureFlagsProvider);
     final Analytics analytics = ref.watch(analyticsProvider);
+
+    // The journey section is its own async value rather than part of the
+    // dashboard, because it comes from a different endpoint. It renders nothing
+    // while loading and nothing on failure: home is not the place to report that
+    // one card could not be fetched, and the Trips tab says so properly.
+    final Trip? nextTrip = ref.watch(nextTripControllerProvider).value;
 
     return RefreshIndicator(
       // A real refresh: it invalidates the provider and waits for the next value,
@@ -103,7 +111,6 @@ class _HomeContent extends ConsumerWidget {
         children: <Widget>[
           GreetingHeader(
             customer: dashboard.customer,
-            isTravelling: dashboard.hasActiveTrip,
             now: now,
             onAvatarTap: () => _openUnbuilt(
               context,
@@ -118,30 +125,43 @@ class _HomeContent extends ConsumerWidget {
           JourneyPlannerCard(
             onPlanJourney: () {
               analytics.log(AnalyticsEvents.planJourneyTapped);
-              _openUnbuilt(
-                context,
-                ref,
-                feature: 'Trip planner',
-                module: 'Module 05 — Trip Planner',
-                analyticsEvent: AnalyticsEvents.unbuiltFeatureOpened,
+              // Real from Module 05 onwards. The planner is a screen now, not a
+              // placeholder naming the module that will build it.
+              Navigator.of(context).push<bool>(
+                MaterialPageRoute<bool>(
+                  builder: (BuildContext context) => const TripFormScreen(),
+                ),
               );
             },
-            isEnabled: flags.tripPlannerEnabled || flags.exposesUnbuiltFeatures,
+            isEnabled: true,
           ),
 
-          // Rendered only when there is a journey. No empty shells.
-          if (dashboard.activeTrip != null) ...<Widget>[
+          // The customer's real next journey, from the API. Rendered only when
+          // there is one — an empty "Your next journey" card is worse than no
+          // card, which is why this is a null check rather than an empty state.
+          if (nextTrip != null) ...<Widget>[
             const SizedBox(height: FotgSpacing.x8),
-            SectionHeader(title: strings.journeySectionTitle),
-            RouteSummaryCard(
-              trip: dashboard.activeTrip!,
-              onTap: () => _openUnbuilt(
-                context,
-                ref,
-                feature: 'Journey detail',
-                module: 'Module 05 — Trip Planner',
-                analyticsEvent: AnalyticsEvents.journeyCardTapped,
+            SectionHeader(
+              title: strings.homeNextJourney,
+              action: TextButton(
+                onPressed: () {
+                  analytics.log(AnalyticsEvents.tripsTabOpened);
+                  context.go(Routes.trips);
+                },
+                child: Text(strings.homeJourneyViewAll),
               ),
+            ),
+            NextJourneyCard(
+              trip: nextTrip,
+              onTap: () {
+                analytics.log(AnalyticsEvents.journeyCardTapped);
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (BuildContext context) =>
+                        TripDetailScreen(tripId: nextTrip.id),
+                  ),
+                );
+              },
             ),
           ],
 
@@ -163,7 +183,7 @@ class _HomeContent extends ConsumerWidget {
 
           // For a customer with nothing on, the screen explains the product
           // instead of showing blank space where cards would be.
-          if (dashboard.isNewJourney) ...<Widget>[
+          if (nextTrip == null && !dashboard.hasActiveOrder) ...<Widget>[
             const SizedBox(height: FotgSpacing.x8),
             SectionHeader(title: strings.howItWorksTitle),
             const HowItWorks(),

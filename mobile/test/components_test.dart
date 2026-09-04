@@ -224,7 +224,6 @@ void main() {
         wrapWidget(
           GreetingHeader(
             customer: const CustomerSummary(fullName: 'Rahul Sharma'),
-            isTravelling: false,
             onAvatarTap: () {},
             now: DateTime(2026, 3, 14, 19),
           ),

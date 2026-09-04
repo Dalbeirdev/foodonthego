@@ -6,6 +6,7 @@ import 'package:foodonthego/domain/models/customer.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
 import 'package:foodonthego/domain/models/saved_address.dart';
+import 'package:foodonthego/domain/models/trip.dart';
 import 'package:foodonthego/features/addresses/saved_addresses_screen.dart';
 
 import 'support/harness.dart';
@@ -46,6 +47,7 @@ void main() {
     required FakeCustomerRepository customer,
     required SessionStore store,
     required FakeAuthRepository auth,
+    FakeTripRepository? trips,
   }) async {
     usePhoneSurface(tester);
 
@@ -62,6 +64,7 @@ void main() {
         repository: StubHomeRepository.value(_dashboard),
         auth: auth,
         customer: customer,
+        trips: trips,
         sessionStore: store,
         signedIn: false,
         initialLocation: '/profile',
@@ -232,6 +235,145 @@ void main() {
 
     // Nothing fetches personal data for somebody who is not signed in.
     expect(customer.listReads, 0);
+    expect(find.text('Eat well on the road'), findsOneWidget);
+  });
+
+  testWidgets("Ananya never sees a frame of Rahul's journeys", (
+    WidgetTester tester,
+  ) async {
+    final InMemorySessionStore store = InMemorySessionStore();
+    final FakeAuthRepository auth = FakeAuthRepository(customer: _rahul);
+
+    // One repository across both accounts, exactly like one app talking to one
+    // server: same endpoints, different data once a different token arrives.
+    final FakeTripRepository trips = FakeTripRepository(
+      trips: <Trip>[sampleTrip(id: 'rahul-1', destinationCity: 'Jaipur')],
+    );
+
+    await pumpAsRahul(
+      tester,
+      customer: FakeCustomerRepository(customer: _rahul),
+      store: store,
+      auth: auth,
+      trips: trips,
+    );
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Trips'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('New Delhi → Jaipur'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Profile'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await signOut(tester);
+
+    expect(find.text('Eat well on the road'), findsOneWidget);
+
+    auth.customer = _ananya;
+    trips.switchTo(<Trip>[
+      sampleTrip(
+        id: 'ananya-1',
+        originCity: 'Gurugram',
+        destinationCity: 'Chandigarh',
+      ),
+    ]);
+
+    await tester.tap(find.text('Continue with mobile number'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextField).first,
+      _ananya.phone.substring(3),
+    );
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Send code'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, '123456');
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Trips'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Hers, and not one frame of his — where he was going is as sensitive as
+    // where he lives.
+    expect(find.text('Gurugram → Chandigarh'), findsOneWidget);
+    expect(find.text('New Delhi → Jaipur'), findsNothing);
+    expect(find.textContaining('Jaipur'), findsNothing);
+  });
+
+  testWidgets('signing out empties the journey state immediately', (
+    WidgetTester tester,
+  ) async {
+    final InMemorySessionStore store = InMemorySessionStore();
+    final FakeTripRepository trips = FakeTripRepository(
+      trips: <Trip>[sampleTrip()],
+    );
+
+    await pumpAsRahul(
+      tester,
+      customer: FakeCustomerRepository(customer: _rahul),
+      store: store,
+      auth: FakeAuthRepository(customer: _rahul),
+      trips: trips,
+    );
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Trips'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('New Delhi → Jaipur'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Profile'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await signOut(tester);
+
+    // Not merely hidden behind the welcome screen — gone. `TripsController`
+    // watches the session, so ending one rebuilds it from nothing.
+    expect(find.text('New Delhi → Jaipur'), findsNothing);
+    expect(await store.read(), isNull);
+  });
+
+  testWidgets('a signed-out app makes no request for journeys', (
+    WidgetTester tester,
+  ) async {
+    usePhoneSurface(tester);
+    final FakeTripRepository trips = FakeTripRepository(
+      trips: <Trip>[sampleTrip()],
+    );
+
+    await tester.pumpWidget(
+      wrapApp(
+        repository: StubHomeRepository.value(_dashboard),
+        auth: FakeAuthRepository(customer: _rahul),
+        trips: trips,
+        signedIn: false,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(trips.listReads, 0);
     expect(find.text('Eat well on the road'), findsOneWidget);
   });
 }

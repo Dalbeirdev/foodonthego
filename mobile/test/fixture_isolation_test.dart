@@ -63,14 +63,11 @@ void main() {
       expectLater(
         repository.loadDashboard(),
         completion(
-          isA<HomeDashboard>()
-              .having((HomeDashboard d) => d.activeTrip, 'activeTrip', isNull)
-              .having((HomeDashboard d) => d.activeOrder, 'activeOrder', isNull)
-              .having(
-                (HomeDashboard d) => d.isNewJourney,
-                'isNewJourney',
-                isTrue,
-              ),
+          isA<HomeDashboard>().having(
+            (HomeDashboard d) => d.activeOrder,
+            'activeOrder',
+            isNull,
+          ),
         ),
       );
     });
@@ -82,8 +79,6 @@ void main() {
       ).loadDashboard();
 
       expect(dashboard.customer.fullName, 'Rahul Sharma');
-      expect(dashboard.activeTrip?.originLabel, 'Delhi');
-      expect(dashboard.activeTrip?.destinationLabel, 'Jaipur');
       expect(dashboard.activeOrder?.reference, 'FOTG-1024');
       expect(dashboard.activeOrder?.restaurantName, 'Highway Spice Kitchen');
       expect(dashboard.activeOrder?.status, OrderStatus.cooking);
@@ -95,20 +90,18 @@ void main() {
         latency: Duration.zero,
       ).loadDashboard();
 
-      expect(dashboard.isNewJourney, isTrue);
-      expect(dashboard.activeTrip, isNull);
       expect(dashboard.activeOrder, isNull);
     });
 
-    test('the active-journey persona has a trip but no order', () async {
+    test('the active-journey persona carries no order', () async {
       final HomeDashboard dashboard = await FixtureHomeRepository(
         persona: DevelopmentPersona.activeJourney,
         latency: Duration.zero,
       ).loadDashboard();
 
-      expect(dashboard.hasActiveTrip, isTrue);
       // Persona B must not leak an order, or the "no false active order" rule is
-      // untested in every screen that uses it.
+      // untested in every screen that uses it. The journey half of this persona
+      // moved to the real API in Module 05.
       expect(dashboard.hasActiveOrder, isFalse);
     });
 
@@ -139,15 +132,6 @@ void main() {
         ).loadDashboard();
 
         expect(dashboard.customer.fullName, isNotEmpty, reason: persona.name);
-        // An order without a journey would be nonsense in this product: you
-        // order from a restaurant on a route.
-        if (dashboard.hasActiveOrder) {
-          expect(
-            dashboard.hasActiveTrip,
-            isTrue,
-            reason: '${persona.name} has an order but no trip',
-          );
-        }
       }
     });
   });

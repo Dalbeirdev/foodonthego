@@ -42,6 +42,17 @@ class Routes {
   static const String savedAddressesPath = '/profile/addresses';
   static const String addressFormPath = '/profile/addresses/form';
 
+  /// The trip planner (Module 05). Pushed over the Trips branch for the same
+  /// reason: the bottom bar stays put, and Android back returns to the list.
+  static const String tripPlan = 'plan';
+  static const String tripDetail = ':tripId';
+
+  static const String tripPlanPath = '/trips/plan';
+
+  static String tripDetailPath(String id) => '/trips/$id';
+
+  static String tripEditPath(String id) => '/trips/$id/edit';
+
   /// The controlled destination for anything not built yet. Takes the feature
   /// name and owning module as query parameters so one screen serves them all.
   static const String comingSoon = '/coming-soon';

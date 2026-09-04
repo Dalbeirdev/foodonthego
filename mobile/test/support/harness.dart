@@ -13,9 +13,11 @@ import 'package:foodonthego/domain/models/auth_models.dart';
 import 'package:foodonthego/domain/models/customer.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
 import 'package:foodonthego/domain/models/saved_address.dart';
+import 'package:foodonthego/domain/models/trip.dart';
 import 'package:foodonthego/domain/repositories/auth_repository.dart';
 import 'package:foodonthego/domain/repositories/customer_repository.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
+import 'package:foodonthego/domain/repositories/trip_repository.dart';
 import 'package:foodonthego/shared/state/connectivity.dart';
 import 'package:foodonthego/shared/state/providers.dart';
 
@@ -594,6 +596,318 @@ Widget wrapWidget(Widget child, {ThemeData? theme}) {
 /// [signedIn] seeds the session store, which is what a returning customer's
 /// device looks like on launch. Left false, the app starts where a new install
 /// starts: the welcome screen.
+/// A journey repository that applies the *server's* rules.
+///
+/// The point of the exercise: a fake that accepted anything would let a screen
+/// pass its tests while doing something the real backend refuses. So this one
+/// refuses a departure in the past, refuses an origin and destination that name
+/// the same place, enforces the upcoming limit, and keeps a cancelled journey
+/// out of the upcoming list — exactly as `TripService` does.
+class FakeTripRepository implements TripRepository {
+  FakeTripRepository({List<Trip>? trips, this.upcomingLimit = 20})
+    : _trips = <Trip>[...?trips];
+
+  final List<Trip> _trips;
+  final int upcomingLimit;
+
+  /// Thrown by the next matching call and then cleared, so a test can script one
+  /// failure followed by a success.
+  ApiException? nextListError;
+  ApiException? nextWriteError;
+
+  int listReads = 0;
+  int planCount = 0;
+  int cancelCount = 0;
+
+  TripDraft? lastDraft;
+  String? lastCancelReason;
+
+  List<Trip> get snapshot => List<Trip>.unmodifiable(_trips);
+
+  /// Stands in for what the server does when a different token arrives: the same
+  /// endpoints, different data.
+  void switchTo(List<Trip> trips) {
+    _trips
+      ..clear()
+      ..addAll(trips);
+  }
+
+  @override
+  Future<List<Trip>> trips({TripScope scope = TripScope.upcoming}) async {
+    listReads++;
+
+    final ApiException? error = nextListError;
+    if (error != null) {
+      nextListError = null;
+      throw error;
+    }
+
+    final List<Trip> matching = switch (scope) {
+      TripScope.upcoming =>
+        _trips.where((Trip t) => t.isUpcoming).toList()
+          ..sort((Trip a, Trip b) => a.departureAt.compareTo(b.departureAt)),
+      TripScope.past =>
+        _trips.where((Trip t) => t.hasDeparted).toList()
+          ..sort((Trip a, Trip b) => b.departureAt.compareTo(a.departureAt)),
+      TripScope.cancelled => _trips.where((Trip t) => t.isCancelled).toList(),
+      TripScope.all => <Trip>[..._trips],
+    };
+
+    return List<Trip>.unmodifiable(matching);
+  }
+
+  @override
+  Future<Trip?> nextTrip() async {
+    final List<Trip> upcoming = await trips();
+    return upcoming.isEmpty ? null : upcoming.first;
+  }
+
+  @override
+  Future<Trip> trip(String id) async {
+    for (final Trip candidate in _trips) {
+      if (candidate.id == id) return candidate;
+    }
+    throw const ApiException(
+      code: ApiErrorCode.tripNotFound,
+      message: 'That journey does not exist.',
+      status: 404,
+    );
+  }
+
+  @override
+  Future<Trip> planTrip(TripDraft draft) async {
+    planCount++;
+    lastDraft = draft;
+    _throwScriptedWriteError();
+
+    if (_trips.where((Trip t) => t.isUpcoming).length >= upcomingLimit) {
+      throw const ApiException(
+        code: ApiErrorCode.tripLimitReached,
+        message: 'Too many upcoming journeys.',
+        status: 422,
+      );
+    }
+
+    final Trip created = _materialise(
+      id: 'trip-${_trips.length + 1}',
+      draft: draft,
+    );
+
+    _trips.add(created);
+    return created;
+  }
+
+  @override
+  Future<Trip> updateTrip(String id, TripDraft draft) async {
+    lastDraft = draft;
+    _throwScriptedWriteError();
+
+    final Trip existing = await trip(id);
+
+    if (!existing.isEditable) {
+      throw const ApiException(
+        code: ApiErrorCode.tripNotEditable,
+        message: 'That journey can no longer be changed.',
+        status: 422,
+      );
+    }
+
+    final Trip updated = _materialise(id: id, draft: draft, existing: existing);
+    _trips[_trips.indexOf(existing)] = updated;
+
+    return updated;
+  }
+
+  @override
+  Future<Trip> cancelTrip(String id, {String? reason}) async {
+    cancelCount++;
+    lastCancelReason = reason;
+    _throwScriptedWriteError();
+
+    final Trip existing = await trip(id);
+
+    if (existing.isCancelled || existing.hasDeparted) {
+      throw const ApiException(
+        code: ApiErrorCode.tripNotEditable,
+        message: 'That journey can no longer be cancelled.',
+        status: 422,
+      );
+    }
+
+    final Trip cancelled = Trip(
+      id: existing.id,
+      status: TripStatus.cancelled,
+      origin: existing.origin,
+      destination: existing.destination,
+      departureAt: existing.departureAt,
+      expectedArrivalAt: existing.expectedArrivalAt,
+      travellerCount: existing.travellerCount,
+      note: existing.note,
+      cancelledAt: DateTime.now().toUtc(),
+      cancellationReason: reason,
+      isEditable: false,
+      hasDeparted: existing.hasDeparted,
+    );
+
+    _trips[_trips.indexOf(existing)] = cancelled;
+    return cancelled;
+  }
+
+  void _throwScriptedWriteError() {
+    final ApiException? error = nextWriteError;
+    if (error != null) {
+      nextWriteError = null;
+      throw error;
+    }
+  }
+
+  /// Turns a draft into the journey the server would have stored.
+  Trip _materialise({
+    required String id,
+    required TripDraft draft,
+    Trip? existing,
+  }) {
+    final DateTime departure =
+        draft.departureAt?.toUtc() ??
+        existing?.departureAt ??
+        DateTime.now().toUtc();
+
+    if (departure.isBefore(
+      DateTime.now().toUtc().subtract(const Duration(minutes: 5)),
+    )) {
+      throw const ApiException(
+        code: ApiErrorCode.validationFailed,
+        message: 'Choose a departure time in the future.',
+        status: 422,
+        details: <String, dynamic>{
+          'fields': <String, dynamic>{
+            'departure_at': <String>['Choose a departure time in the future.'],
+          },
+        },
+      );
+    }
+
+    final JourneyPlace origin = _placeFrom(draft.origin, existing?.origin);
+    final JourneyPlace destination = _placeFrom(
+      draft.destination,
+      existing?.destination,
+    );
+
+    if (origin.formattedAddress.toLowerCase() ==
+            destination.formattedAddress.toLowerCase() &&
+        origin.city.toLowerCase() == destination.city.toLowerCase()) {
+      throw const ApiException(
+        code: ApiErrorCode.validationFailed,
+        message: 'Your starting point and destination are the same place.',
+        status: 422,
+        details: <String, dynamic>{
+          'fields': <String, dynamic>{
+            'destination': <String>[
+              'Choose a destination different from your starting point.',
+            ],
+          },
+        },
+      );
+    }
+
+    return Trip(
+      id: id,
+      status: TripStatus.planned,
+      origin: origin,
+      destination: destination,
+      departureAt: departure,
+      expectedArrivalAt: draft.clearArrival
+          ? null
+          : (draft.expectedArrivalAt?.toUtc() ?? existing?.expectedArrivalAt),
+      travellerCount: draft.travellerCount ?? existing?.travellerCount ?? 1,
+      note: draft.clearNote
+          ? null
+          : ((draft.note?.trim().isEmpty ?? true)
+                ? existing?.note
+                : draft.note!.trim()),
+      isEditable: true,
+      hasDeparted: false,
+    );
+  }
+
+  JourneyPlace _placeFrom(JourneyPlaceDraft? draft, JourneyPlace? existing) {
+    if (draft == null) {
+      return existing ??
+          const JourneyPlace(
+            label: '',
+            formattedAddress: '',
+            city: '',
+            countryCode: 'IN',
+          );
+    }
+
+    if (draft.isSavedAddress) {
+      // The server snapshots the saved address; the fake resolves it to a stable
+      // stand-in, because what matters to a widget test is that the id travelled.
+      return JourneyPlace(
+        label: 'Saved place',
+        formattedAddress: 'Saved address ${draft.savedAddressId}',
+        city: 'New Delhi',
+        countryCode: 'IN',
+      );
+    }
+
+    final Map<String, dynamic> json = draft.toJson();
+
+    return JourneyPlace(
+      label: (json['label'] as String?) ?? (json['city'] as String? ?? ''),
+      formattedAddress: <String>[
+        json['address_line'] as String? ?? '',
+        json['city'] as String? ?? '',
+        json['state'] as String? ?? '',
+      ].where((String part) => part.isNotEmpty).join(', '),
+      city: json['city'] as String? ?? '',
+      countryCode: json['country_code'] as String? ?? 'IN',
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
+      placeId: json['place_id'] as String?,
+    );
+  }
+}
+
+/// A journey for a test to work with. Departs tomorrow, no coordinates.
+Trip sampleTrip({
+  String id = 'trip-1',
+  String originCity = 'New Delhi',
+  String destinationCity = 'Jaipur',
+  DateTime? departureAt,
+  DateTime? expectedArrivalAt,
+  int travellerCount = 1,
+  String? note,
+  TripStatus status = TripStatus.planned,
+  bool isEditable = true,
+  bool hasDeparted = false,
+}) {
+  return Trip(
+    id: id,
+    status: status,
+    origin: JourneyPlace(
+      label: originCity,
+      formattedAddress: 'Hauz Khas, $originCity, Delhi',
+      city: originCity,
+      countryCode: 'IN',
+    ),
+    destination: JourneyPlace(
+      label: destinationCity,
+      formattedAddress: 'MI Road, $destinationCity, Rajasthan',
+      city: destinationCity,
+      countryCode: 'IN',
+    ),
+    departureAt:
+        departureAt ?? DateTime.now().toUtc().add(const Duration(days: 1)),
+    expectedArrivalAt: expectedArrivalAt,
+    travellerCount: travellerCount,
+    note: note,
+    isEditable: isEditable,
+    hasDeparted: hasDeparted,
+  );
+}
+
 Widget wrapApp({
   required HomeRepository repository,
   ThemeData? theme,
@@ -602,6 +916,7 @@ Widget wrapApp({
   FakeAuthRepository? auth,
   FakeCustomerRepository? customer,
   SessionStore? sessionStore,
+  FakeTripRepository? trips,
   bool signedIn = true,
 }) {
   final FakeAuthRepository authRepository = auth ?? FakeAuthRepository();
@@ -623,6 +938,7 @@ Widget wrapApp({
       homeRepositoryProvider.overrideWithValue(repository),
       authRepositoryProvider.overrideWithValue(authRepository),
       customerRepositoryProvider.overrideWithValue(customerRepository),
+      tripRepositoryProvider.overrideWithValue(trips ?? FakeTripRepository()),
       sessionStoreProvider.overrideWithValue(store),
       if (connectivity != null)
         connectivityServiceProvider.overrideWithValue(connectivity),

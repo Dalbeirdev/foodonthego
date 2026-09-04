@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
 
+import 'package:foodonthego/features/trips/trip_form_screen.dart';
+
 import 'support/harness.dart';
 
 const HomeDashboard _dashboard = HomeDashboard(
@@ -201,7 +203,7 @@ void main() {
   });
 
   group('unbuilt features', () {
-    testWidgets('the journey CTA routes to a controlled placeholder', (
+    testWidgets('the journey CTA opens the real planner', (
       WidgetTester tester,
     ) async {
       await pumpApp(tester);
@@ -209,9 +211,10 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Plan a journey'));
       await tester.pumpAndSettle();
 
-      // Never a dead button, never silence.
-      expect(find.text('Not built yet'.toUpperCase()), findsOneWidget);
-      expect(find.textContaining('Module 05'), findsOneWidget);
+      // Real from Module 05. It was a placeholder naming this module until the
+      // module arrived, which is the point of the placeholder convention.
+      expect(find.text('Not built yet'.toUpperCase()), findsNothing);
+      expect(find.byType(TripFormScreen), findsOneWidget);
     });
 
     testWidgets('the placeholder can be dismissed back to where it came from', (

@@ -29,7 +29,6 @@ class AppStrings {
   String greetingAfternoon(String name) => 'Good afternoon, $name';
   String greetingEvening(String name) => 'Good evening, $name';
   String get greetingSubtitleIdle => 'Ready for your next journey?';
-  String get greetingSubtitleTravelling => 'Here is how your journey is going.';
 
   // --- journey planner -----------------------------------------------------
   String get plannerTitle => 'Where are you travelling today?';
@@ -277,6 +276,107 @@ class AppStrings {
       'That address is no longer saved to your account.';
   String get customerErrorGeneric => 'Something went wrong. Please try again.';
   String get customerRetry => 'Try again';
+
+  // --- trips: the list (Module 05) -----------------------------------------
+  String get tripsTitle => 'Your journeys';
+  String get tripsPlan => 'Plan a journey';
+  String get tripsPlanFirst => 'Plan your first journey';
+  String get tripsScopeUpcoming => 'Upcoming';
+  String get tripsScopePast => 'Past';
+  String get tripsScopeCancelled => 'Cancelled';
+  String get tripsPastEmptyTitle => 'No past journeys';
+  String get tripsPastEmptyBody =>
+      'Journeys you have travelled will be listed here.';
+  String get tripsCancelledEmptyTitle => 'No cancelled journeys';
+  String get tripsCancelledEmptyBody =>
+      'Journeys you call off will be listed here.';
+  String get tripsLoadFailed => "We couldn't load your journeys.";
+  String tripOptionsFor(String route) => 'Options for $route';
+  String get tripDeparts => 'Departs';
+  String get tripArrives => 'Arrives';
+  String get tripArrivalUnknown => 'Not set';
+  String get tripCancelledLabel => 'CANCELLED';
+  String get tripDepartedLabel => 'Departed';
+  String tripTravellers(int count) =>
+      count == 1 ? '1 traveller' : '$count travellers';
+
+  // --- trips: the planner form ---------------------------------------------
+  String get tripFormPlanTitle => 'Plan a journey';
+  String get tripFormEditTitle => 'Edit journey';
+  String get tripFormFrom => 'Setting off from';
+  String get tripFormTo => 'Going to';
+  String get tripFormFromHint => 'Choose your starting point';
+  String get tripFormToHint => 'Choose your destination';
+  String get tripFormDeparture => 'Departure';
+  String get tripFormDepartureDate => 'Date';
+  String get tripFormDepartureTime => 'Time';
+  String get tripFormArrival => 'Expected arrival (optional)';
+  String get tripFormArrivalHelp =>
+      'Only if you know it. FoodOnTheGo will work it out for you once route planning arrives.';
+  String get tripFormArrivalClear => 'Clear';
+  String get tripFormTravellers => 'Travellers';
+  String get tripTravellersFewer => 'One fewer traveller';
+  String get tripTravellersMore => 'One more traveller';
+  String get tripFormNote => 'Note (optional)';
+  String get tripFormNoteHint => 'Anything the kitchen should know';
+  String get tripFormSave => 'Save journey';
+  String get tripFormUpdate => 'Save changes';
+  String get tripPlanned => 'Journey saved';
+  String get tripUpdated => 'Journey updated';
+
+  // --- trips: choosing a place ---------------------------------------------
+  String get placePickerTitle => 'Choose a place';
+  String get placePickerSaved => 'Your saved addresses';
+  String get placePickerTypeOne => 'Enter a different place';
+  String get placePickerNoSaved =>
+      'You have no saved addresses yet. Enter a place below.';
+  String get placeFormCity => 'City';
+  String get placeFormCityHint => 'New Delhi';
+  String get placeFormArea => 'Area or street (optional)';
+  String get placeFormState => 'State (optional)';
+  String get placeFormLabel => 'Name this place (optional)';
+  String get placeFormCountry => 'Country';
+  String get placeUse => 'Use this place';
+
+  // --- trips: detail and cancelling ----------------------------------------
+  String get tripDetailTitle => 'Journey';
+  String get tripDetailEdit => 'Edit journey';
+  String get tripDetailCancel => 'Cancel journey';
+  String get tripCancelTitle => 'Cancel this journey?';
+  String get tripCancelBody =>
+      'The journey stays in your history, marked as cancelled.';
+  String get tripCancelReason => 'Reason (optional)';
+  String get tripCancelConfirm => 'Cancel journey';
+  String get tripCancelKeep => 'Keep it';
+  String get tripCancelled => 'Journey cancelled';
+  String get tripNoteHeading => 'Your note';
+  String get tripCancellationHeading => 'Why it was cancelled';
+  String get tripReadOnlyDeparted =>
+      'This journey has departed, so it can no longer be changed.';
+  String get tripReadOnlyCancelled =>
+      'This journey is cancelled, so it can no longer be changed.';
+
+  // --- trips: validation and failure ---------------------------------------
+  String get tripErrorOriginRequired =>
+      'Choose where you are setting off from.';
+  String get tripErrorDestinationRequired => 'Choose where you are going.';
+  String get tripErrorSamePlace =>
+      'Choose a destination different from your starting point.';
+  String get tripErrorDepartureRequired => 'Choose when you are setting off.';
+  String get tripErrorDeparturePast => 'Choose a departure time in the future.';
+  String get tripErrorArrivalBeforeDeparture =>
+      'Arrival has to be after departure.';
+  String get tripErrorCityRequired => 'Enter the city.';
+  String get tripErrorCountry => 'Country must be a two-letter code, like IN.';
+  String get tripErrorNotEditable =>
+      'This journey can no longer be changed. Pull to refresh.';
+  String get tripErrorGone => 'That journey is no longer on your account.';
+  String tripErrorLimit(int limit) =>
+      'You can have up to $limit upcoming journeys. Cancel one to plan another.';
+
+  // --- home: the next journey ----------------------------------------------
+  String get homeNextJourney => 'Your next journey';
+  String get homeJourneyViewAll => 'All journeys';
 
   // --- development scaffolding (never shown in production) -----------------
   String get notBuiltYet => 'Not built yet';

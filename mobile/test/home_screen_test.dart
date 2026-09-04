@@ -2,26 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodonthego/core/theme/app_theme.dart';
 import 'package:foodonthego/domain/models/active_order_summary.dart';
-import 'package:foodonthego/domain/models/active_trip_summary.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
 import 'package:foodonthego/domain/models/order_status.dart';
+import 'package:foodonthego/domain/models/trip.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
 
 import 'support/harness.dart';
 
 const CustomerSummary _rahul = CustomerSummary(fullName: 'Rahul Sharma');
 
-const ActiveTripSummary _delhiToJaipur = ActiveTripSummary(
-  id: 'trip-1',
-  originLabel: 'Delhi',
-  destinationLabel: 'Jaipur',
-  status: TripStatus.onTheRoad,
-  estimatedDuration: Duration(hours: 4, minutes: 35),
-  remainingDuration: Duration(hours: 2, minutes: 50),
-  totalDistanceKm: 281,
-  progress: 0.38,
-);
+/// The journey the home screen renders now comes from the real trips API, so a
+/// test supplies it through the trip repository rather than through the
+/// dashboard.
+Trip _delhiToJaipur() =>
+    sampleTrip(originCity: 'Delhi', destinationCity: 'Jaipur');
 
 ActiveOrderSummary _cookingOrder(DateTime now) => ActiveOrderSummary(
   reference: 'FOTG-1024',
@@ -41,10 +36,15 @@ void main() {
     WidgetTester tester,
     HomeDashboard dashboard, {
     ThemeData? theme,
+    List<Trip> trips = const <Trip>[],
   }) async {
     usePhoneSurface(tester);
     await tester.pumpWidget(
-      wrapApp(repository: StubHomeRepository.value(dashboard), theme: theme),
+      wrapApp(
+        repository: StubHomeRepository.value(dashboard),
+        trips: FakeTripRepository(trips: trips),
+        theme: theme,
+      ),
     );
     await tester.pumpAndSettle();
   }
@@ -69,7 +69,7 @@ void main() {
 
       // The rule: no empty containers. If there is no journey, there is no
       // journey heading either.
-      expect(find.text('Your journey'), findsNothing);
+      expect(find.text('Your next journey'), findsNothing);
       expect(find.text('Your order'), findsNothing);
     });
 
@@ -87,25 +87,35 @@ void main() {
     });
   });
 
-  group('Persona B — active journey, no order', () {
-    const HomeDashboard dashboard = HomeDashboard(
-      customer: _rahul,
-      activeTrip: _delhiToJaipur,
-    );
+  group('Persona B — a planned journey, no order', () {
+    const HomeDashboard dashboard = HomeDashboard(customer: _rahul);
 
-    testWidgets('shows the journey', (WidgetTester tester) async {
-      await pumpHome(tester, dashboard);
+    testWidgets('shows the next journey, from the real API', (
+      WidgetTester tester,
+    ) async {
+      await pumpHome(tester, dashboard, trips: <Trip>[_delhiToJaipur()]);
 
-      expect(find.text('Your journey'), findsOneWidget);
-      expect(find.text('Delhi'), findsOneWidget);
-      expect(find.text('Jaipur'), findsOneWidget);
-      expect(find.text('On the road'), findsOneWidget);
+      expect(find.text('Your next journey'), findsOneWidget);
+      expect(find.textContaining('Delhi'), findsWidgets);
+      expect(find.textContaining('Jaipur'), findsWidgets);
+    });
+
+    testWidgets('shows no progress bar for a journey nothing is tracking', (
+      WidgetTester tester,
+    ) async {
+      await pumpHome(tester, dashboard, trips: <Trip>[_delhiToJaipur()]);
+
+      // The Module 02 card drew progress, remaining time and a next pickup —
+      // none of which exists. A bar at zero would imply the app is watching a
+      // journey it cannot see.
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(find.textContaining('remaining'), findsNothing);
     });
 
     testWidgets('shows no order card — there is no order', (
       WidgetTester tester,
     ) async {
-      await pumpHome(tester, dashboard);
+      await pumpHome(tester, dashboard, trips: <Trip>[_delhiToJaipur()]);
 
       expect(find.text('Your order'), findsNothing);
       expect(find.textContaining('FOTG-'), findsNothing);
@@ -114,8 +124,22 @@ void main() {
     testWidgets('drops the explainer once there is something real to show', (
       WidgetTester tester,
     ) async {
-      await pumpHome(tester, dashboard);
+      await pumpHome(tester, dashboard, trips: <Trip>[_delhiToJaipur()]);
       expect(find.text('How FoodOnTheGo works'), findsNothing);
+    });
+
+    testWidgets('a cancelled journey is not shown as the next one', (
+      WidgetTester tester,
+    ) async {
+      await pumpHome(
+        tester,
+        dashboard,
+        trips: <Trip>[
+          sampleTrip(status: TripStatus.cancelled, isEditable: false),
+        ],
+      );
+
+      expect(find.text('Your next journey'), findsNothing);
     });
   });
 
@@ -127,12 +151,12 @@ void main() {
         tester,
         HomeDashboard(
           customer: _rahul,
-          activeTrip: _delhiToJaipur,
           activeOrder: _cookingOrder(DateTime.now()),
         ),
+        trips: <Trip>[_delhiToJaipur()],
       );
 
-      expect(find.text('Your journey'), findsOneWidget);
+      expect(find.text('Your next journey'), findsOneWidget);
       await tester.scrollUntilVisible(find.text('Your order'), 300);
       expect(find.text('Highway Spice Kitchen'), findsOneWidget);
       expect(find.textContaining('FOTG-1024'), findsOneWidget);
@@ -146,9 +170,9 @@ void main() {
         tester,
         HomeDashboard(
           customer: _rahul,
-          activeTrip: _delhiToJaipur,
           activeOrder: _cookingOrder(DateTime.now()),
         ),
+        trips: <Trip>[_delhiToJaipur()],
       );
 
       await tester.scrollUntilVisible(find.text('Your order'), 300);
@@ -170,17 +194,6 @@ void main() {
               customer: const CustomerSummary(
                 fullName: 'Rahul Krishnamurthy Sharma',
               ),
-              activeTrip: const ActiveTripSummary(
-                id: 'trip-2',
-                originLabel: 'Indira Gandhi International Airport, New Delhi',
-                destinationLabel: 'Jaipur International Airport, Rajasthan',
-                status: TripStatus.onTheRoad,
-                remainingDuration: Duration(hours: 3, minutes: 15),
-                totalDistanceKm: 304.6,
-                progress: 0.41,
-                nextPickupLabel:
-                    'Shree Rajasthan Highway Family Restaurant & Food Court',
-              ),
               activeOrder: ActiveOrderSummary(
                 reference: 'FOTG-100482',
                 restaurantName:
@@ -190,6 +203,16 @@ void main() {
                 estimatedPickup: DateTime.now().add(const Duration(minutes: 8)),
               ),
             ),
+          ),
+          trips: FakeTripRepository(
+            trips: <Trip>[
+              sampleTrip(
+                originCity: 'Indira Gandhi International Airport, New Delhi',
+                destinationCity: 'Jaipur International Airport, Rajasthan',
+                travellerCount: 12,
+                note: 'Collecting three colleagues on the way out of the city',
+              ),
+            ],
           ),
         ),
       );
@@ -276,16 +299,13 @@ void main() {
     testWidgets('renders the whole home screen', (WidgetTester tester) async {
       await pumpHome(
         tester,
-        HomeDashboard(
-          customer: _rahul,
-          activeTrip: _delhiToJaipur,
-          activeOrder: _cookingOrder(evening),
-        ),
+        HomeDashboard(customer: _rahul, activeOrder: _cookingOrder(evening)),
+        trips: <Trip>[_delhiToJaipur()],
         theme: FotgTheme.dark(),
       );
 
       expect(find.textContaining('Rahul'), findsWidgets);
-      expect(find.text('Your journey'), findsOneWidget);
+      expect(find.text('Your next journey'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

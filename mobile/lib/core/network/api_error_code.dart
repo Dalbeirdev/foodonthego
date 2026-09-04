@@ -37,6 +37,13 @@ enum ApiErrorCode {
   addressLimitReached('ADDRESS_LIMIT_REACHED'),
   addressNotFound('ADDRESS_NOT_FOUND'),
 
+  tripNotFound('TRIP_NOT_FOUND'),
+  tripLimitReached('TRIP_LIMIT_REACHED'),
+
+  /// The journey has departed or been cancelled, so there is nothing left to
+  /// change. Almost always means the screen in front of the customer is stale.
+  tripNotEditable('TRIP_NOT_EDITABLE'),
+
   /// The request never reached the server, or never came back.
   network('NETWORK'),
 

@@ -63,6 +63,25 @@ class ApiClient {
     bool authenticated = false,
   }) => _send('DELETE', path, authenticated: authenticated);
 
+  /// For the endpoints where a null `data` is a real answer rather than a fault.
+  ///
+  /// `/customer/trips/next` is the case: a customer with no journey planned has
+  /// no next journey, and that is an ordinary state, not a 404. Routing it
+  /// through [get] would turn the null into an empty map and the caller would
+  /// build a journey out of nothing.
+  Future<Map<String, dynamic>?> getOrNull(
+    String path, {
+    bool authenticated = false,
+  }) async {
+    final Object? data = await _sendRaw(
+      'GET',
+      path,
+      authenticated: authenticated,
+    );
+
+    return data is Map<String, dynamic> ? data : null;
+  }
+
   /// For the endpoints whose `data` is a list rather than an object.
   ///
   /// A separate method rather than a dynamic return, so a caller cannot forget

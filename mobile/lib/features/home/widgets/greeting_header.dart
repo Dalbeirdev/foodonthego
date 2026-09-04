@@ -12,14 +12,12 @@ import '../../../domain/models/customer_summary.dart';
 class GreetingHeader extends StatelessWidget {
   const GreetingHeader({
     required this.customer,
-    required this.isTravelling,
     this.onAvatarTap,
     this.now,
     super.key,
   });
 
   final CustomerSummary customer;
-  final bool isTravelling;
   final VoidCallback? onAvatarTap;
 
   /// Injectable so the greeting can be tested at a known hour.
@@ -77,9 +75,13 @@ class GreetingHeader extends StatelessWidget {
                   ),
                   const SizedBox(height: FotgSpacing.x1),
                   Text(
-                    isTravelling
-                        ? strings.greetingSubtitleTravelling
-                        : strings.greetingSubtitleIdle,
+                    // One subtitle, because nothing in the product can yet
+                    // tell that somebody has actually set off. A planned
+                    // journey is not a journey in progress, and greeting a
+                    // traveller with "here is how your journey is going" three
+                    // days before they leave is worse than saying nothing.
+                    // Module 09 brings the branch back with a signal behind it.
+                    strings.greetingSubtitleIdle,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),

@@ -1,6 +1,5 @@
 import '../../core/config/app_environment.dart';
 import '../../domain/models/active_order_summary.dart';
-import '../../domain/models/active_trip_summary.dart';
 import '../../domain/models/customer_summary.dart';
 import '../../domain/models/home_dashboard.dart';
 import '../../domain/models/order_status.dart';
@@ -53,31 +52,10 @@ class DevelopmentFixtures {
       ),
       DevelopmentPersona.activeJourney => HomeDashboard(
         customer: const CustomerSummary(fullName: 'Rahul Sharma'),
-        activeTrip: const ActiveTripSummary(
-          id: 'trip-dev-1',
-          originLabel: 'Delhi',
-          destinationLabel: 'Jaipur',
-          status: TripStatus.onTheRoad,
-          estimatedDuration: Duration(hours: 4, minutes: 35),
-          remainingDuration: Duration(hours: 2, minutes: 50),
-          totalDistanceKm: 281,
-          progress: 0.38,
-        ),
         unreadNotificationCount: 1,
       ),
       DevelopmentPersona.activeOrder => HomeDashboard(
         customer: const CustomerSummary(fullName: 'Rahul Sharma'),
-        activeTrip: const ActiveTripSummary(
-          id: 'trip-dev-1',
-          originLabel: 'Delhi',
-          destinationLabel: 'Jaipur',
-          status: TripStatus.onTheRoad,
-          estimatedDuration: Duration(hours: 4, minutes: 35),
-          remainingDuration: Duration(hours: 1, minutes: 5),
-          totalDistanceKm: 281,
-          progress: 0.72,
-          nextPickupLabel: 'Highway Spice Kitchen',
-        ),
         activeOrder: ActiveOrderSummary(
           reference: 'FOTG-1024',
           restaurantName: 'Highway Spice Kitchen',
@@ -90,18 +68,6 @@ class DevelopmentFixtures {
       ),
       DevelopmentPersona.longContent => HomeDashboard(
         customer: const CustomerSummary(fullName: 'Rahul Krishnamurthy Sharma'),
-        activeTrip: const ActiveTripSummary(
-          id: 'trip-dev-2',
-          originLabel: 'Indira Gandhi International Airport, New Delhi',
-          destinationLabel: 'Jaipur International Airport, Rajasthan',
-          status: TripStatus.onTheRoad,
-          estimatedDuration: Duration(hours: 5, minutes: 20),
-          remainingDuration: Duration(hours: 3, minutes: 15),
-          totalDistanceKm: 304.6,
-          progress: 0.41,
-          nextPickupLabel:
-              'Shree Rajasthan Highway Family Restaurant & Food Court',
-        ),
         activeOrder: ActiveOrderSummary(
           reference: 'FOTG-100482',
           restaurantName:

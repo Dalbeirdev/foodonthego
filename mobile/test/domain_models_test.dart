@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodonthego/domain/models/active_order_summary.dart';
-import 'package:foodonthego/domain/models/active_trip_summary.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
 import 'package:foodonthego/domain/models/order_status.dart';
@@ -107,71 +106,20 @@ void main() {
     });
   });
 
-  group('ActiveTripSummary', () {
-    test('clamps a progress value that arrives out of range', () {
-      // A future ETA service returning 1.02 must not paint past the track.
-      const ActiveTripSummary over = ActiveTripSummary(
-        id: 't',
-        originLabel: 'Delhi',
-        destinationLabel: 'Jaipur',
-        status: TripStatus.onTheRoad,
-        progress: 1.4,
-      );
-      expect(over.clampedProgress, 1.0);
-
-      const ActiveTripSummary under = ActiveTripSummary(
-        id: 't',
-        originLabel: 'Delhi',
-        destinationLabel: 'Jaipur',
-        status: TripStatus.onTheRoad,
-        progress: -0.2,
-      );
-      expect(under.clampedProgress, 0.0);
-    });
-
-    test('leaves progress null when nothing has computed it', () {
-      const ActiveTripSummary trip = ActiveTripSummary(
-        id: 't',
-        originLabel: 'Delhi',
-        destinationLabel: 'Jaipur',
-        status: TripStatus.planned,
-      );
-      expect(trip.clampedProgress, isNull);
-    });
-
-    test('knows which statuses are still under way', () {
-      expect(TripStatus.planned.isActive, isTrue);
-      expect(TripStatus.onTheRoad.isActive, isTrue);
-      expect(TripStatus.completed.isActive, isFalse);
-      expect(TripStatus.cancelled.isActive, isFalse);
-    });
-  });
-
   group('HomeDashboard', () {
     const CustomerSummary rahul = CustomerSummary(fullName: 'Rahul Sharma');
 
-    test('a customer with nothing on is treated as a new journey', () {
+    test('carries no journey of its own', () {
+      // Module 05 moved journeys onto the real API, and the dashboard stopped
+      // holding a second, fixture-shaped copy. This test exists so a future
+      // change that reintroduces one has to argue with it: two representations
+      // of the same journey are how two parts of a screen come to disagree.
       const HomeDashboard dashboard = HomeDashboard(customer: rahul);
-      expect(dashboard.isNewJourney, isTrue);
-      expect(dashboard.hasActiveTrip, isFalse);
+
       expect(dashboard.hasActiveOrder, isFalse);
     });
 
-    test('a trip alone is not a new journey', () {
-      const HomeDashboard dashboard = HomeDashboard(
-        customer: rahul,
-        activeTrip: ActiveTripSummary(
-          id: 't',
-          originLabel: 'Delhi',
-          destinationLabel: 'Jaipur',
-          status: TripStatus.onTheRoad,
-        ),
-      );
-      expect(dashboard.isNewJourney, isFalse);
-      expect(dashboard.hasActiveOrder, isFalse);
-    });
-
-    test('an order alone still counts as having something on', () {
+    test('knows whether an order is on', () {
       const HomeDashboard dashboard = HomeDashboard(
         customer: rahul,
         activeOrder: ActiveOrderSummary(
@@ -180,8 +128,8 @@ void main() {
           status: OrderStatus.cooking,
         ),
       );
-      expect(dashboard.isNewJourney, isFalse);
-      expect(dashboard.hasActiveTrip, isFalse);
+
+      expect(dashboard.hasActiveOrder, isTrue);
     });
   });
 
