@@ -5,7 +5,7 @@
 A test exists to catch a specific failure. Tests that assert a framework works are noise; tests that
 pin a decision (redaction, contrast, idempotency, error disclosure) are the ones worth having.
 
-## Backend — 197 tests
+## Backend — 296 tests
 
 Run against **real MySQL 8**, not SQLite. The schema uses MySQL types and later modules will use
 MySQL locking semantics; a SQLite run would pass against a schema production cannot create.
@@ -35,6 +35,13 @@ Redis integration itself is covered by the readiness test.
 | `AuthorizationBoundaryTest` | A customer token refused by restaurant- and admin-shaped routes, and the reverse |
 | `AuthLoggingTest` | A complete sign-up written to disk, then grepped: no code, no token, no full number |
 | `PruneOtpChallengesTest` | Retention window; a live challenge is never pruned |
+| `CustomerAddressServiceTest` | The one-default invariant from every angle, including a write that bypasses the service; ownership; deletion promoting a survivor |
+| `CustomerProfileServiceTest` | What a customer may change and what is inert however it is sent; email un-verification; Unicode names |
+| `AddressSupportTest` | The composed one-line address; per-country postal rules, including a country with none |
+| `ProfileApiTest` | Phone, role and status tampering; validation; markup and SQL-shaped input; cross-role refusal |
+| `AddressApiTest` | Full CRUD; default handling; every validation rule; the address limit |
+| `AddressOwnershipTest` | IDOR read/update/delete/default, ownership injection, concurrent defaults, duplicate submission |
+| `AddressLoggingTest` | A full round of operations written to disk, then grepped: no address, no email, no phone |
 
 ## Web — 29 tests
 
@@ -45,7 +52,7 @@ Redis integration itself is covered by the readiness test.
 | `admin/App.test.tsx` | Navigation architecture completeness; System Health states |
 | `restaurant/App.test.tsx` | Navigation architecture completeness |
 
-## Mobile — 155 tests
+## Mobile — 224 tests
 
 | Suite | Tests | Covers |
 | --- | --: | --- |
@@ -59,6 +66,10 @@ Redis integration itself is covered by the readiness test.
 | `auth_session_test.dart` | 12 | Restore with and without a network, expired tokens, sign-out confirmation, sign-out with the server unreachable |
 | `api_client_test.dart` | 13 | Envelope unwrapping, unknown codes, gateway HTML, credential placement, one-401-ends-the-session |
 | `auth_models_test.dart` | 21 | Trunk-zero handling, per-country plausibility, masking parity with the server, token never printed, every backend error code mapped |
+| `profile_edit_test.dart` | 17 | The locked phone panel, what the form can and cannot send, validation, server field messages, offline, a 500 that shows no stack trace |
+| `saved_addresses_test.dart` | 27 | Empty/loaded/error, add, edit, set default, delete with confirmation, long content at 320dp, the type selector on the smallest screen |
+| `address_models_test.dart` | 21 | Parsing, absent coordinates staying null, blank-to-absent on the wire, client postal rules mirroring the server |
+| `account_isolation_test.dart` | 3 | Rahul → sign out → Ananya through the real sign-in flow; no stale frame, no request while signed out |
 
 Two of these earn their keep by asserting things a screenshot cannot show: `retry actually re-asks
 the repository` counts calls and caught a silent retry loop; the contrast tests compute WCAG
@@ -80,6 +91,11 @@ field renamed on one side and not the other passes both suites and fails in a cu
 
 It is deliberately a `dart run` and not a `flutter test`: `flutter_test` replaces `HttpClient` with
 a mock, so a "test" there could never make a real request.
+
+Module 04 adds `mobile/tool/profile_addresses_smoke.dart`, which walks the whole worked example —
+Rahul edits his profile, saves Home, Work and a custom address, moves the default, edits, deletes,
+and then Ananya's address is attacked four ways and survives. 24 assertions against the running
+server and its database.
 
 ## Live-view verification
 

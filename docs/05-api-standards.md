@@ -78,6 +78,17 @@ Added in Module 03 ([18-customer-authentication.md](18-customer-authentication.m
 | `ACCOUNT_SUSPENDED` | 403 | The account cannot authenticate right now |
 | `ACCOUNT_DISABLED` | 403 | The account cannot authenticate at all |
 
+Added in Module 04 ([19-customer-profile-and-addresses.md](19-customer-profile-and-addresses.md)):
+
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| `ADDRESS_LIMIT_REACHED` | 422 | The customer already holds the maximum saved addresses |
+| `ADDRESS_NOT_FOUND` | 404 | No such address *for this customer* — the same answer either way |
+
+`ADDRESS_NOT_FOUND` is returned both when the address does not exist and when it belongs to someone
+else. A 403 for the second case would confirm that the identifier is real, which is the whole of what
+an attacker wants; the two answers are byte-identical.
+
 Two deliberate choices in that table. `OTP_RESEND_TOO_SOON` and `OTP_RATE_LIMITED` share a status so
 a caller cannot distinguish "too soon" from "too many". `ACCOUNT_DISABLED` also covers a deleted
 account: reporting deletion would confirm to whoever now holds that number that an account existed.
@@ -162,3 +173,10 @@ Conflating them turns a slow database into a restart loop.
 - Money is an integer of minor units, with the currency alongside — never a float
 - Timestamps are ISO-8601 UTC
 - Filtering `?status=pending&status=confirmed`; paging `?page=2&per_page=25`
+- A resource a customer owns is addressed without naming the owner: `/api/v1/customer/addresses/{uuid}`,
+  never `/api/v1/customers/{customer}/addresses/{uuid}`. The actor comes from the token. Admin and
+  support surfaces, when they exist, get their own routes with their own abilities rather than
+  reusing a self-service path with an id in it.
+- Update requests take an allow-list of fields, declared in the form request. A field a customer may
+  not change is not "rejected" — it is not read. `PATCH` with `phone_e164` in the body returns 200
+  and changes nothing about the phone.

@@ -34,28 +34,40 @@ class AddressTypeSelector extends StatelessWidget {
           ),
         ),
         const SizedBox(height: FotgSpacing.x3),
-        SegmentedButton<AddressType>(
-          segments: <ButtonSegment<AddressType>>[
-            ButtonSegment<AddressType>(
-              value: AddressType.home,
-              label: Text(strings.addressTypeHome),
-              icon: const Icon(Icons.home_outlined),
-            ),
-            ButtonSegment<AddressType>(
-              value: AddressType.work,
-              label: Text(strings.addressTypeWork),
-              icon: const Icon(Icons.work_outline_rounded),
-            ),
-            ButtonSegment<AddressType>(
-              value: AddressType.other,
-              label: Text(strings.addressTypeOther),
-              icon: const Icon(Icons.place_outlined),
-            ),
-          ],
-          selected: <AddressType>{selected},
-          showSelectedIcon: false,
-          onSelectionChanged: (Set<AddressType> selection) =>
-              onChanged(selection.first),
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints available) {
+            // Below ~360dp there is not enough width for an icon *and* a label
+            // in each of three segments, and Material wraps the label rather
+            // than shrinking it — "Othe / r" on a 320dp phone. The label is the
+            // part that carries the meaning, so the icon is what goes.
+            final bool roomForIcons = available.maxWidth >= 320;
+
+            return SegmentedButton<AddressType>(
+              segments: <ButtonSegment<AddressType>>[
+                ButtonSegment<AddressType>(
+                  value: AddressType.home,
+                  label: Text(strings.addressTypeHome),
+                  icon: roomForIcons ? const Icon(Icons.home_outlined) : null,
+                ),
+                ButtonSegment<AddressType>(
+                  value: AddressType.work,
+                  label: Text(strings.addressTypeWork),
+                  icon: roomForIcons
+                      ? const Icon(Icons.work_outline_rounded)
+                      : null,
+                ),
+                ButtonSegment<AddressType>(
+                  value: AddressType.other,
+                  label: Text(strings.addressTypeOther),
+                  icon: roomForIcons ? const Icon(Icons.place_outlined) : null,
+                ),
+              ],
+              selected: <AddressType>{selected},
+              showSelectedIcon: false,
+              onSelectionChanged: (Set<AddressType> selection) =>
+                  onChanged(selection.first),
+            );
+          },
         ),
       ],
     );

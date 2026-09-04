@@ -30,6 +30,39 @@ Models set `getRouteKeyName()` to `uuid`.
 - `restrict` — deleting would destroy history (a user with orders)
 - `set null` — the link is optional (an order's courier)
 
+### At most one of something per owner
+
+MySQL 8 has no partial or filtered index, so "exactly one default address per customer" cannot be
+expressed as `UNIQUE (customer_id) WHERE is_default`. It can be expressed as a stored generated
+column that is the customer id when the row is the default and `NULL` otherwise, plus a plain unique
+index over it — MySQL does not collide `NULL`s, so every non-default row is exempt and the defaults
+are forced apart:
+
+```php
+$table->rawColumn(
+    'default_for_customer',
+    'bigint unsigned generated always as (if(is_default = 1, customer_id, null)) stored',
+)->nullable();
+$table->unique('default_for_customer', 'customer_addresses_one_default_unique');
+```
+
+Three things to know before reusing this:
+
+- **`->nullable()` is not optional.** Laravel appends `NOT NULL` to a `rawColumn` without it, and
+  then every non-default row stores `NULL`-as-not-null → `0`, and the second address a customer saves
+  collides. It fails loudly and immediately, which is the good case; the point is that the pattern
+  looks correct without it.
+- **The column must be declared inside `CREATE TABLE`.** Adding it later by `ALTER TABLE` makes MySQL
+  copy the table, and it cannot re-create the foreign key while it does — error 1215.
+- **The referenced column can no longer be `ON DELETE CASCADE`.** MySQL refuses a cascade on a column
+  a stored generated column depends on, also 1215. `customer_addresses.customer_id` is therefore
+  `RESTRICT`, and deleting a customer means deleting their addresses first — recorded as KI-009 in
+  [13-known-issues.md](13-known-issues.md) so the erasure path in a later module accounts for it.
+
+The invariant is worth the friction: it holds against a direct `INSERT`, a future service that
+forgets the rule, and a race between two concurrent writes. It is verified by a test that writes
+around the service and asserts error 1062.
+
 ## Soft deletes and audit
 
 A deleted row stays, so a deletion is recoverable and audit rows keep their foreign keys. Anything
@@ -42,6 +75,10 @@ Add an index for a query you have, not one you imagine. `users` carries `(role, 
 the admin list filters on exactly that pair, and `created_at` because it sorts on it.
 
 Index before a feature ships, not after it is slow in production — but only where the query exists.
+
+`customer_addresses` carries `(customer_id, is_default)` because the list query sorts defaults first,
+and `(customer_id, type)` because the picker groups by type. It does not carry an index on
+`place_id`: nothing looks an address up that way yet.
 
 ## Migrations
 

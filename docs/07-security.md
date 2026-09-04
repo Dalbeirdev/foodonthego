@@ -65,6 +65,50 @@ The customer flow, its threat model and every decision behind it are documented 
 - A production or staging deployment **refuses to boot** on an OTP sender that reports it cannot
   reach a real handset, and the development sender refuses to be constructed in production at all.
 
+## Owning your own data
+
+Module 04 is the first module where one customer's request could, if written carelessly, reach
+another customer's row. Four controls, each independent of the others:
+
+- **No identifier to tamper with.** Self-service routes name the resource, never the owner:
+  `PATCH /api/v1/customer/profile`, `DELETE /api/v1/customer/addresses/{uuid}`. The owner comes from
+  the Sanctum token. There is no `customer_id` in any path, query or body that the server reads.
+- **One door to an address.** Every handler reaches a row through
+  `CustomerAddressService::ownedByOrFail()`, which scopes by the authenticated customer before it
+  looks anything up. Not-found and not-yours return the identical 404 body, so the endpoint is not an
+  oracle for which identifiers exist. A denied attempt logs `address.access_denied` with the actor id
+  and the requested uuid, and no address content.
+- **Allow-lists, three deep.** The form request declares the three fields a customer may send
+  (`first_name`, `last_name`, `email`); the model's `$fillable` excludes `customer_id`, `uuid` and
+  `is_default`; and the service reads keys by name rather than passing an array through. A payload
+  carrying `phone_e164`, `phone_verified_at`, `role`, `status`, `created_at` or `customer_id`
+  succeeds and changes none of them, because nothing ever reads them.
+- **The verified phone is identity, not profile.** It is displayed read-only and there is no route
+  that changes it. Changing a verified number will be a re-verification flow of its own, not a field
+  in a form.
+
+Changing the email address clears `email_verified_at`. The app never labels an email verified on the
+strength of the customer having typed it.
+
+### Addresses are sensitive
+
+A saved address is where someone lives. It is treated as application-sensitive data, not as ordinary
+content: it is returned only to its owner, never included in an analytics event, and never written to
+a log. Operational logs for this module carry record ids and actor ids and nothing else — verified
+against the real 1,634-line application log, which contains zero address lines, zero email addresses
+and zero complete phone numbers.
+
+**Coordinates are never invented.** If geocoding has not run, `latitude` and `longitude` are `NULL`.
+A plausible-looking coordinate derived from a text address is worse than no coordinate, because the
+routing module in Module 05 would trust it.
+
+### Cache isolation between accounts
+
+The Flutter addresses provider watches the auth session rather than listening for a logout event, so
+the session ending disposes the state; there is no per-customer cache that can outlive the customer.
+Verified end-to-end: signing out of one account and into another shows no trace of the first, not
+even for a frame.
+
 ## Logging
 
 Structured JSON, one object per line, carrying `request_id`, `actor_id` and `actor_role`.
@@ -98,7 +142,11 @@ Named rather than implied:
 - **Token revocation on account suspension** — a suspended account cannot obtain a new session, but
   an existing token keeps working until it expires. KI-008; the fix belongs with the admin module
   that does the suspending.
-- **Per-resource authorisation policies** — with the modules that own the resources.
+- **Per-resource authorisation policies** — with the modules that own the resources. Module 04's
+  saved addresses are authorised in one service method rather than a policy class; a policy layer
+  arrives with the first resource that more than one role can reach.
+- **Email verification** — an email address on a profile is stored unverified and shown unverified.
+- **Address geocoding** — no Places or Geocoding call is made yet, so coordinates stay `NULL`.
 - **File upload scanning** — with the first module that accepts an upload.
 - **Webhook signature verification** — with the payment module.
 - **Audit log** — Module 18.

@@ -5,12 +5,12 @@
 | 01 | Foundation, Architecture & Design System | **COMPLETE (with 3 environment blockers)** | See below |
 | 02 | Customer Mobile App Shell, Navigation & Premium Home | **COMPLETE (Android/iOS device verification pending)** | 82 mobile tests; 11 states inspected live |
 | 03 | Customer Authentication, Registration, OTP, Session & Security | **COMPLETE (Android/iOS device verification pending)** | 130 backend + 72 mobile tests; real Flutter→Laravel→MySQL integration run; 20 states inspected live |
-| 04 | Users, Roles & Staff | NOT STARTED | Next, on approval |
-| 05 | Restaurant Onboarding & Profile | NOT STARTED | |
+| 04 | Customer Profile & Saved Addresses | **COMPLETE (Android/iOS device verification pending)** | 99 backend + 68 mobile tests; real Flutter→Laravel→MySQL integration run; 24 states inspected live |
+| 05 | Trip Planner — Origin, Destination & Journey Creation | NOT STARTED | Next, on approval. Renumbered from the Module 01 plan, where the trip planner sat at 09 |
 | 06 | Menu Management | NOT STARTED | |
 | 07 | Restaurant Availability & Capacity | NOT STARTED | |
 | 08 | Order Lifecycle | NOT STARTED | |
-| 09 | Route & Corridor Management | NOT STARTED | The journey planner and on-route search |
+| 09 | Route & Corridor Management | NOT STARTED | On-route restaurant search; the planner itself moved to 05 |
 | 10 | Notifications | NOT STARTED | |
 | 11 | Payments, Refunds & Settlements | NOT STARTED | |
 | 12 | Restaurant Analytics | NOT STARTED | |

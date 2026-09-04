@@ -138,6 +138,46 @@ per-request status check is worth its cost.
 
 ---
 
+### KI-009 · Erasing a customer requires deleting their addresses first
+
+**Severity:** Low — a documented consequence of a deliberate trade, not a defect.
+
+`customer_addresses.customer_id` is `ON DELETE RESTRICT` rather than `CASCADE`,
+because MySQL refuses a cascading foreign key on a column that a stored generated
+column depends on (error 1215) — and that generated column is what makes "at most
+one default address per customer" impossible to violate. See
+[19-customer-profile-and-addresses.md](19-customer-profile-and-addresses.md).
+
+So a hard delete of a customer who has saved addresses fails loudly. That is the
+better failure: it cannot silently destroy data, and the account-erasure path
+needs an explicit audit trail anyway.
+
+**To clear:** the erasure feature (Module 17) deletes addresses explicitly before
+the account, inside one transaction.
+
+---
+
+## Bug register — Module 04
+
+All found during Module 04, all fixed and retested. Environment: PHP 8.4.19 /
+Laravel 12.69.1 / MySQL 8.0.46 / Flutter 3.47.2 on Ubuntu 24.04; live-view render
+in Chromium at 320–768dp.
+
+| ID | Requirement | Description | Severity | Reproduction | Expected | Actual | Root cause | Fix | Retest | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| M04-B01 | M04-017 | The migration would not run | **High** | `php artisan migrate` | Table created | `1215 Cannot add foreign key constraint` | MySQL refuses `ON DELETE CASCADE` on a column a stored generated column depends on, and `default_for_customer` depends on `customer_id` | `RESTRICT` instead, with the consequence documented as KI-009 — the generated column is worth more than the cascade | Migration runs; `SHOW CREATE TABLE` in the evidence file | **Fixed** |
+| M04-B02 | M04-015 | Every row would have collided on the one-default index | **High** | Insert any second address | Non-default rows do not collide | Laravel appends `NOT NULL` to a `rawColumn`, so the generated column could never be NULL | `->nullable()`, which is load-bearing rather than decoration | Two addresses save; the DB still rejects a second default | **Fixed** |
+| M04-B03 | M04-010 | A form could be saved with fields nothing had validated | **Critical** | Open Add address on a phone, tap Save with the lower fields off screen | Validation errors on every empty required field | The request went through with an empty city | `ListView` builds lazily, so an off-screen `TextFormField` is not in the tree and is never registered with the `Form` — `validate()` silently skipped it | Both forms rebuilt on a non-lazy scrolling `Column` | Widget tests assert every required field errors | **Fixed** |
+| M04-B04 | M04-010 | The Save button was off screen and unreachable | **High** | Open Add address at 393×852 | Save is reachable | The tap landed on the bottom navigation instead | A seven-field form is taller than a phone, and the action sat at the end of the scroll | Pinned to the bottom of both forms, above the keyboard | `state-06`, `variant-320-add-form` | **Fixed** |
+| M04-B05 | M04-013 | Type labels wrapped mid-word at 320dp | Medium | Render Add address at 320×640 | "Home / Work / Other" | "Hom e" and "Othe r" | An icon plus a label in each of three segments does not fit 288dp, and Material wraps rather than shrinks | Icons dropped below 320dp of usable width; the label carries the meaning | `variant-320-add-form.png`; a test asserts it at 320dp | **Fixed** |
+| M04-B06 | M04-026 | Three identical row buttons were indistinguishable to a screen reader | Medium | Inspect the semantics of a populated list | Each names its own row | All three were labelled "Edit" | The `PopupMenuButton` tooltip named one of its actions rather than the row | `Options for {label}` | Semantics inspected in the live run | **Fixed** |
+| M04-B07 | M04-002 | The create response disagreed with a later read of the same address | Low | Save an address with coordinates, then fetch it | Identical values | `28.5602` then `28.5602000` | The response was built from the un-persisted model; a decimal column round-trips to a fixed scale | `refresh()` after save, so the response is what the database holds | `AddressApiTest` asserts the stored scale | **Fixed** |
+| M04-B08 | M04-031 | The Module 03 integration script crashed after enough runs | Medium | Run it once the OTP log has grown | The code is read | `RangeError: Not in inclusive range 0..5560: 5740` | A byte offset was used as a string index, and the log's mask characters are three bytes but one UTF-16 unit — the drift grew with every masked number written | Slice the bytes, then decode | The script runs repeatedly | **Fixed** |
+
+No Module 04 issue was left open.
+
+---
+
 ## Bug register — Module 03
 
 Thirteen, all found during Module 03, all fixed and retested. Environment: PHP 8.4.19 / Laravel 12.69.1 /

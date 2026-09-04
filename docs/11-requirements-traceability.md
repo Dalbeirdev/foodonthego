@@ -169,3 +169,64 @@ in a rendered widget tree, but not run on an Android emulator or iOS simulator (
 
 **Android runtime verification = PENDING — environment unavailable.**
 **iOS runtime verification = PENDING — environment unavailable.**
+
+---
+
+## Module 04 — Customer Profile & Saved Addresses
+
+Role for every row below is **Customer**. FE = Flutter UI. "PASSED (device
+pending)" carries the same meaning as in Modules 02 and 03: built, integrated
+against the real API, tested and visually inspected in a rendered widget tree,
+but not run on an Android emulator or iOS simulator (KI-001, KI-002).
+
+| ID | Feature | FE | BE | API | DB | Sec | Tests | Android | iOS | Docs | Status | Evidence |
+| --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
+| M04-001 | Profile screen | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-01-profile.png`; 2 tests |
+| M04-002 | Authenticated profile data, no fixture | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `ProfileApiTest`; integration run |
+| M04-003 | Edit profile | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-02/04*.png`; 15 tests |
+| M04-004 | Profile validation, server authoritative | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-03*.png`; unicode/blank/length tests |
+| M04-005 | Phone read-only and untamperable | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 3 independent defences; API + integration tests |
+| M04-006 | Email management, never falsely verified | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `email_verified` always false; un-verify test |
+| M04-007 | Profile API (GET + PATCH) | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `ProfileApiTest` (19) |
+| M04-008 | Saved address list | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-10/12*.png`; 8 tests |
+| M04-009 | Saved address empty state | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-05*.png` |
+| M04-010 | Add address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-06/07/08/09*.png`; 10 tests |
+| M04-011 | Edit address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-15*.png`; partial-update tests |
+| M04-012 | Delete address, with confirmation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-16*.png`; 4 tests |
+| M04-013 | Address types (HOME/WORK/OTHER) | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | MySQL ENUM; `state-12*.png` |
+| M04-014 | Custom label, required for OTHER | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-11*.png`; blank-label tests |
+| M04-015 | Default address, exactly one | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Generated column + unique index; 8 tests |
+| M04-016 | First address becomes default | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `state-09*.png`; service + API tests |
+| M04-017 | Address data model | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Migration; `SHOW CREATE TABLE` in evidence |
+| M04-018 | Future geo-coordinate support, no fake data | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Columns present, values NULL; range validation |
+| M04-019 | Customer ownership from the token only | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | No id in any route; `ownedByOrFail()` |
+| M04-020 | IDOR protection (read/update/delete/default) | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `AddressOwnershipTest` (14); integration run |
+| M04-021 | Mass-assignment protection | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Allow-listed requests; injection tests |
+| M04-022 | Offline behaviour: read cached, writes need the network | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-17*.png`; 3 tests |
+| M04-023 | Cache isolation across accounts | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `account_isolation_test.dart` (3) |
+| M04-024 | Loading states (skeletons, not spinners) | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `_AddressListSkeleton`; row-level progress |
+| M04-025 | Error states, no stack traces | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Code-to-message mapping; 500 test |
+| M04-026 | Accessibility | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | Semantics, text-not-colour, 320dp, 1.4× |
+| M04-027 | Android testing | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ➖ | ✅ | **BLOCKED** | KI-001 — `dl.google.com` denied |
+| M04-028 | iOS testing | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ✅ | **BLOCKED** | KI-002 — no macOS host |
+| M04-029 | API tests | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 39 feature tests across 3 suites |
+| M04-030 | Flutter tests | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 68 new (widget + unit) |
+| M04-031 | Integration test, no mocks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `tool/profile_addresses_smoke.dart`, 24 assertions |
+| M04-032 | Live-view inspection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 24 screenshots, zero console errors |
+| M04-033 | Database verification | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Direct queries in the evidence file |
+| M04-034 | Documentation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `19-*.md` + 11 updated documents |
+| M04-035 | Modules 01–03 regression | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | PASS | 296 + 224 + 29 tests; M03 integration re-run |
+| M04-036 | Per-country postal-code validation | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Four rules + unlisted fallback; 9 tests |
+| M04-037 | Address limit, configurable | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `ADDRESS_LIMIT_REACHED`; 2 tests |
+| M04-038 | Personal data absent from logs | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `AddressLoggingTest` (6); live log grep |
+| M04-039 | Duplicate-submission safety | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Form submission lock + `Idempotency-Key` test |
+| M04-040 | Auth state updates after a profile change | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `AuthController.updateProfile()`; 1 test |
+
+### Summary
+
+38 of 40 Module 04 requirements COMPLETE or PASSED. Two (M04-027 Android,
+M04-028 iOS) remain **BLOCKED** by the same environment restrictions recorded in
+Module 01 — not by the code.
+
+**Android runtime verification = PENDING — environment unavailable.**
+**iOS runtime verification = PENDING — environment unavailable.**

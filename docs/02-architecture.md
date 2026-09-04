@@ -63,6 +63,29 @@ platform loses throughput and some cached reads; it must never lose an order or 
 spacing scale, radii and durations. Two platforms cannot share a stylesheet, so the contract between
 them is [08-design-system.md](08-design-system.md); a change to one is a change to both.
 
+## Where a customer's own data lives
+
+Module 04 added the first table a customer both owns and writes: `customer_addresses`. Two structural
+decisions in it are worth stating at the architecture level, because later modules inherit them.
+
+**Ownership is a property of the route shape, not of a check inside the handler.** No self-service
+route carries a customer identifier — the paths are `/api/v1/customer/profile` and
+`/api/v1/customer/addresses/{uuid}`, and the owner is read from the Sanctum token. There is nothing
+in the request for a caller to tamper with, so an ownership bug cannot be introduced by forgetting a
+comparison; it would have to be introduced by adding a parameter that does not exist. Every read of
+an address goes through one method, `CustomerAddressService::ownedByOrFail()`, which answers 404 for
+both "no such address" and "not yours" so the endpoint cannot be used to enumerate identifiers.
+
+**Invariants that the product depends on are enforced by the schema, not by the service.** "At most
+one default address per customer" is a stored generated column plus a unique index, so a second
+default cannot be written even by a direct `INSERT` that bypasses every line of PHP. The pattern is
+described in [06-database-conventions.md](06-database-conventions.md#at-most-one-of-something-per-owner).
+
+The same principle runs into the client. `AddressesController` in Flutter *watches* the auth state
+rather than subscribing to a logout event, so ending a session rebuilds the provider from nothing —
+one customer's addresses cannot survive into another customer's session, because there is no cached
+state that outlives the session to forget to clear.
+
 ## What Module 01 deliberately did not build
 
 No authentication, no domain tables beyond `users`, no feature endpoints. Module-specific migrations

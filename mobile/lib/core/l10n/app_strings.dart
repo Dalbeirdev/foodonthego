@@ -229,6 +229,7 @@ class AppStrings {
   String get addressSetDefault => 'Set as default';
   String get addressDefaultChanged => 'Default address updated';
   String get addressEdit => 'Edit';
+  String addressOptionsFor(String label) => 'Options for $label';
   String get addressDelete => 'Remove';
   String addressDeleteTitle(String label) => 'Remove "$label"?';
   String get addressDeleteBody =>

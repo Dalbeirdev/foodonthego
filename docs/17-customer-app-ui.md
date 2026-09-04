@@ -21,6 +21,9 @@ FoodOnTheGoApp                     theme · localization · router · text-scale
     ├── OrdersScreen               EmptyStateView
     ├── NotificationsScreen        EmptyStateView
     └── ProfileScreen              header + three grouped sections
+EditProfileScreen                  three editable fields; the phone is read-only
+SavedAddressesScreen               loading | empty | error | list
+AddressFormScreen                  create and edit, one screen, one form
 ComingSoonScreen                   pushed over the shell
 ```
 
@@ -181,9 +184,49 @@ digits are enough to confirm which number it is.
 Sign out is behind a confirmation dialog. That is not friction for its own sake: signing back in
 means waiting for an SMS, so an accidental tap in a list people scroll has a real cost.
 
-Everything else in the list still routes to a controlled placeholder naming its module. Profile
-*editing* belongs to a later module, and a form that silently discards what somebody typed is worse
-than one that is honestly not there yet.
+From Module 04 the first two rows open real screens. **Edit profile** offers exactly three fields —
+first name, last name, email — and renders the verified number as a locked field with a lock icon and
+a sentence explaining that it is the verified number for this account. It is not a disabled text
+input the customer might try to fight; it looks like what it is, a fact about the account rather than
+a field. **Saved addresses** shows a live count in its trailing text, so the row says something
+before it is tapped.
+
+The rest of the list still routes to a controlled placeholder naming its module. A form that
+silently discards what somebody typed is worse than one that is honestly not there yet.
+
+## Saved addresses
+
+The list is default-first, then newest, and each row carries its type icon, its label, a one-line
+address and — on the default — the word **DEFAULT**, spelled out rather than signalled by colour
+alone. The row menu is a single overflow button whose tooltip names its row ("Options for Home"),
+because a screen reader announcing "Edit" four times tells you nothing about which one you are on.
+
+Four states, all real:
+
+- **Loading** — a skeleton of the list shape, not a spinner on a blank screen, so the layout does not
+  jump when the data lands.
+- **Empty** — an illustration, a sentence, and the add button as the primary action. This is the
+  first thing a new customer sees, so it is a starting point rather than an apology.
+- **Error** — the message the error code maps to, plus Retry. Never the server's prose.
+- **List** — pull to refresh, and a per-row busy state so setting a default disables that row rather
+  than freezing the screen.
+
+Nothing here is optimistic. A row does not show DEFAULT until the server has confirmed the change, an
+address is not added to the list until it has an id from the database, and a deletion removes the row
+only after the server has deleted it. If the server refuses, the list is what the server says it is
+and a snackbar says what went wrong.
+
+### The form
+
+One screen for create and edit, because they are the same fields and two screens would drift apart.
+The type selector is a segmented control; choosing **Other** reveals the label field, and it is
+required only there — Home and Work name themselves.
+
+Two layout rules were learned the hard way and are pinned by tests. The form scrolls in a **non-lazy
+`Column`**, not a `ListView`: `ListView` builds lazily, so a field scrolled off screen is never
+registered with the `Form` and `validate()` skips it silently. And the primary action is **pinned to
+the bottom** above the keyboard, not placed after the last field, where on a small screen it sat
+under the bottom navigation bar and the tap went to the wrong widget.
 
 ## Development harness
 

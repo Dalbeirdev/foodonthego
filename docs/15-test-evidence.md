@@ -426,3 +426,164 @@ no font and `FotgTypography.fontFamily` is `null`, as Module 01 requires.
 LiberationSans has no regional-indicator glyphs, so the country flag appears as two empty boxes in
 the screenshots. On iOS and Android the platform emoji font renders it; the dial code beside it is
 the functional part and renders everywhere.
+
+---
+
+# Module 04 — test evidence
+
+Full transcript: [`evidence/module-04-verification-run.txt`](evidence/module-04-verification-run.txt).
+Screenshots: [`evidence/module-04/`](evidence/module-04/).
+
+## Automated tests — 549 total, 549 passed, 0 failed, 0 skipped
+
+| Suite | Command | Tests | Passed | Failed | Skipped |
+| --- | --- | --: | --: | --: | --: |
+| Backend — address service | `php artisan test --filter=CustomerAddressServiceTest` | 16 | 16 | 0 | 0 |
+| Backend — profile service | `--filter=CustomerProfileServiceTest` | 10 | 10 | 0 | 0 |
+| Backend — formatter, postcodes, types | `--filter=AddressSupportTest` | 9 | 9 | 0 | 0 |
+| Backend — profile endpoints | `--filter=ProfileApiTest` | 19 | 19 | 0 | 0 |
+| Backend — address endpoints | `--filter=AddressApiTest` | 25 | 25 | 0 | 0 |
+| Backend — ownership / IDOR | `--filter=AddressOwnershipTest` | 14 | 14 | 0 | 0 |
+| Backend — address logging | `--filter=AddressLoggingTest` | 6 | 6 | 0 | 0 |
+| **Backend total** | `php artisan test` | **296** | **296** | **0** | **0** |
+| Mobile — edit profile | `flutter test test/profile_edit_test.dart` | 17 | 17 | 0 | 0 |
+| Mobile — saved addresses | `flutter test test/saved_addresses_test.dart` | 27 | 27 | 0 | 0 |
+| Mobile — address models | `flutter test test/address_models_test.dart` | 21 | 21 | 0 | 0 |
+| Mobile — account isolation | `flutter test test/account_isolation_test.dart` | 3 | 3 | 0 | 0 |
+| **Mobile total** | `flutter test` | **224** | **224** | **0** | **0** |
+| Web (regression) | `npm test` | 29 | 29 | 0 | 0 |
+| **Project total** | | **549** | **549** | **0** | **0** |
+
+Backend grew from 197 to 296; mobile from 155 to 224.
+
+## Integration — no mocks
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Flutter network layer → Laravel → MySQL | `dart run tool/profile_addresses_smoke.dart` | **24 passed, 0 failed** |
+| Module 03 regression, same live backend | `dart run tool/integration_smoke.dart` | **13 passed, 0 failed** |
+
+The 24 assertions are listed verbatim in the transcript. Ten of them are security assertions: the
+verified number surviving a `PATCH` that tries to change it, an email change that never claims to be
+verified, the four IDOR attempts (read, update, delete, set-default) against a second real account,
+that account's address being byte-identical afterwards, a create that names another customer landing
+on the caller, an unauthenticated call reaching nothing, and a revoked session reaching nothing.
+
+## Static analysis
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Backend style | `vendor/bin/pint --test` | **passed** |
+| Backend advisories | `composer audit` | **none** |
+| Dart analyzer | `flutter analyze --fatal-infos` | **No issues found** |
+| Dart format | `dart format --set-exit-if-changed .` | **93 files, 0 changed** |
+| Flutter web build | `flutter build web --release` | **✓ Built** |
+| TypeScript (regression) | `npm run typecheck` | **0 errors** |
+
+## Database verification — real MySQL
+
+| Check | Query | Result |
+| --- | --- | --- |
+| One default per customer is a *database* rule | direct `INSERT` of a second default | **ERROR 1062, duplicate key** |
+| No customer holds two defaults | `GROUP BY customer_id HAVING COUNT(*)>1` where `is_default=1` | **empty set** |
+| Generated column behaves | `default_for_customer` | customer id on the default row, `NULL` elsewhere |
+| Coordinates are not invented | `latitude IS NULL` | **all rows** |
+| Verified phone unchanged by tampering | `phone_e164` after a `PATCH` carrying a new one | **unchanged** |
+| Role and status unchanged by tampering | `role`, `status` | `customer`, `active` |
+| A new email is not verified | `email_verified_at` | **NULL** |
+| The victim's address untouched after four IDOR attempts | full row compare | **identical** |
+| No duplicate rows from repeated submission | `GROUP BY customer_id, formatted_address` | **empty set** |
+| Foreign key is explicit | `SHOW CREATE TABLE` | `ON DELETE RESTRICT` (KI-009) |
+
+## Log review — real application log
+
+1,634 lines from a complete profile-and-address session including the IDOR attempts.
+
+| Check | Occurrences |
+| --: | --: |
+| Any saved address line, city or postcode | **0** |
+| Any customer email address | **0** |
+| Any full phone number | **0** |
+| `address.access_denied` lines (the IDOR attempts) | **4** |
+
+Every operational line names the event, the record uuid and the actor uuid — and nothing about where
+anybody lives. `profile.updated` logs the *names* of the fields that changed, never their values.
+
+## Live-view verification
+
+A Flutter **web release build with `FOTG_ENV=production`** — no fixtures, no development harness —
+served at `http://localhost:5173`, talking to Laravel at `http://localhost:8000` against MySQL.
+Driven with Playwright through Flutter's DOM semantics tree.
+
+Twenty-four screenshots in [`evidence/module-04/`](evidence/module-04/):
+
+| State | File |
+| --- | --- |
+| Profile, signed in, real identity | `state-01-profile.png` |
+| Edit profile — phone rendered read-only | `state-02-edit-profile.png` |
+| Profile validation failure | `state-03-profile-validation.png` |
+| Profile saved (after the server confirmed) | `state-04-profile-saved.png` |
+| Saved addresses — empty state | `state-05-addresses-empty.png` |
+| Add address form | `state-06-add-address-form.png` |
+| Add address validation | `state-07-add-address-validation.png` |
+| Add address filled | `state-08-add-address-filled.png` |
+| First address, automatically the default | `state-09-address-home-default.png` |
+| List with two addresses | `state-10-addresses-populated.png` |
+| Other type with a custom label | `state-11-add-other-custom-label.png` |
+| All three types listed | `state-12-addresses-three-types.png` |
+| Row action menu | `state-13-row-menu.png` |
+| Default moved to another address | `state-14-default-changed.png` |
+| Edit an existing address | `state-15-edit-address.png` |
+| Delete confirmation | `state-16-delete-confirmation.png` |
+| Offline — every API call aborted at the network layer | `state-17-addresses-offline.png` |
+| Dark mode, profile and addresses | `variant-dark-*.png` |
+| 320dp (smallest supported), three screens | `variant-320-*.png` |
+| 768dp tablet | `variant-768-addresses.png` |
+| Large text (1.4x clamp) | `variant-large-text-addresses.png` |
+
+Final run: **"No console errors, no page errors, all expected content present."**
+
+Every state above is the real API's answer. The success states were captured *after* the server
+returned 200 — no state in this module is rendered optimistically, and the transcript's database
+section shows the same rows the screenshots show.
+
+## Account isolation
+
+Signed in as Rahul, saved addresses, signed out, signed in as Ananya through the real OTP flow:
+Ananya's list is Ananya's, with no frame of Rahul's data in between. This is not a cleanup step that
+could be forgotten — `AddressesController` watches the auth session, so ending the session disposes
+the state. Pinned by `test/account_isolation_test.dart`, which drives the real sign-in flow rather
+than re-mounting the widget tree.
+
+## Android verification
+
+**PENDING — environment unavailable.** `dl.google.com` is denied by the network egress policy, so the
+Android SDK cannot be installed. See KI-001. Not claimed as passed.
+
+## iOS verification
+
+**iOS Runtime Verification = PENDING — environment unavailable.** No macOS host and no Xcode. See
+KI-002. Not claimed as passed.
+
+## Accessibility evidence
+
+| Check | Method | Result |
+| --- | --- | --- |
+| Read-only phone announces why | `LockedPhoneField` reads the number and "verified, cannot be changed" | ✅ |
+| Row menu is identifiable | Tooltip reads "Options for Home", not a bare "Edit" (M04-B06) | ✅ |
+| Default badge is a word, not a colour | Renders the text "DEFAULT" | ✅ |
+| Touch targets ≥ 48dp | Row menu button and type selector sized to the control height | ✅ |
+| Text scaling | Rendered at the app's 1.4x clamp; no overflow | ✅ |
+| 320dp | Type labels drop their icons rather than wrapping mid-word (M04-B05) | ✅ |
+| Errors are text, not colour alone | Every field error carries a sentence | ✅ |
+| Destructive action is confirmed | Delete opens a dialog naming the address | ✅ |
+| Contrast, light and dark | Unchanged tokens; `tokens_test.dart` still passes | ≥ 4.5:1 |
+
+## Defects found and fixed
+
+Eight, with root causes, in [13-known-issues.md](13-known-issues.md) (M04-B01 … M04-B08). One was
+critical: both forms were built on a lazy `ListView`, so a field scrolled out of view was never
+registered with its `Form` and validation silently skipped it — an invalid address could be
+submitted. Two were found only by running the app in a browser (the primary action sitting under the
+bottom navigation bar, and the row menu's misleading tooltip), and two by running the migration
+against real MySQL rather than SQLite.

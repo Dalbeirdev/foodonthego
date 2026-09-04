@@ -237,8 +237,8 @@ a newer server does not break an older app.
 Belongs to later modules, and building any of it now would mean shipping a screen that silently
 discards what somebody typed:
 
-- profile editing, avatars, saved addresses (Module 04)
-- social sign-in, email/password, biometric unlock
+- avatars, social sign-in, email/password, biometric unlock
+- changing the verified phone number — see below
 - multi-device session management beyond one-token revocation
 - account deletion and data export (Module 17)
 
@@ -247,6 +247,29 @@ existing tokens.** Sanctum tokens are bearer credentials and this module does no
 every request. The admin tooling that suspends an account is responsible for deleting its tokens,
 and that module does not exist yet — recorded as KI-006 and pinned by a test that documents the
 current behaviour honestly rather than pretending otherwise.
+
+---
+
+## The verified number is identity, not profile
+
+Module 04 added profile editing, and the verified number is deliberately not part of it. It is
+displayed read-only, and **no route changes it** — not a `PATCH` with the field in the body, not an
+admin-shaped path, nothing. A payload carrying `phone_e164` is not rejected; the field is simply
+never read, so the request succeeds and the number is unchanged. This is asserted by a test and by an
+assertion in the live integration run, and confirmed by reading the column back out of MySQL.
+
+The number is the account. Everything Module 03 built — the challenge, the encrypted registration
+token, the binding between the verified number and the session — exists to establish that this device
+belongs to that number. A form field that overwrote it would discard all of it in one `PATCH`.
+
+Changing a number is therefore a flow of its own: verify the new number with a fresh OTP challenge,
+confirm the old one still has a live session, then move the account. It belongs with the module that
+also handles account recovery, and until then a customer who has changed numbers is a support case
+rather than a silent overwrite.
+
+The email address is the opposite kind of field: optional, editable, and **never trusted**. Changing
+it clears `email_verified_at`, and the app does not display "verified" beside an email until an actual
+verification flow exists to earn the word.
 
 ---
 

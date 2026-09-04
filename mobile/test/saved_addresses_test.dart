@@ -28,8 +28,9 @@ void main() {
     WidgetTester tester, {
     List<SavedAddress>? addresses,
     FakeCustomerRepository? customer,
+    Size size = const Size(390, 844),
   }) async {
-    usePhoneSurface(tester);
+    usePhoneSurface(tester, size: size);
     final FakeCustomerRepository repository =
         customer ??
         FakeCustomerRepository(customer: _rahul, addresses: addresses);
@@ -170,9 +171,9 @@ void main() {
     testWidgets('a long address wraps instead of overflowing', (
       WidgetTester tester,
     ) async {
-      usePhoneSurface(tester, size: const Size(320, 640));
       await pumpAddresses(
         tester,
+        size: const Size(320, 640),
         addresses: <SavedAddress>[
           sampleAddress(
             addressLine1: 'Flat 204, Shree Krishna Residency',
@@ -277,6 +278,20 @@ void main() {
         findsOneWidget,
       );
       expect(repository.createCount, 0);
+    });
+
+    testWidgets('the type selector fits the smallest supported screen', (
+      WidgetTester tester,
+    ) async {
+      await pumpAddresses(tester, size: const Size(320, 640));
+      await openAddForm(tester);
+
+      // Below 320dp of usable width Material wraps a segment's label rather
+      // than shrinking it — "Othe / r". The icons go instead, because the label
+      // is the part that carries the meaning.
+      expect(tester.takeException(), isNull);
+      expect(find.text('Other'), findsOneWidget);
+      expect(find.byIcon(Icons.place_outlined), findsNothing);
     });
 
     testWidgets('an Other address must be named', (WidgetTester tester) async {

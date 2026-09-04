@@ -231,7 +231,11 @@ class _RowActions extends StatelessWidget {
     }
 
     return PopupMenuButton<String>(
-      tooltip: strings.addressEdit,
+      // Named for the row it belongs to, not for one of the actions inside it.
+      // "Edit" as the label for a menu that also deletes tells a screen-reader
+      // user the wrong thing, and gives no way to tell three identical buttons
+      // apart.
+      tooltip: strings.addressOptionsFor(address.label),
       icon: const Icon(Icons.more_vert_rounded),
       onSelected: (String action) => switch (action) {
         'edit' => onEdit(),

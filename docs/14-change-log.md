@@ -184,3 +184,76 @@ retested — full table in [13-known-issues.md](13-known-issues.md). The ones wo
 - Token revocation when an account is suspended — KI-008; belongs with the admin module that
   performs the suspension.
 - Profile editing, saved addresses, social sign-in, biometric unlock — later modules.
+
+## Module 04 — Customer Profile & Saved Addresses
+
+### Added
+
+**Backend (Laravel 12.69.1, MySQL 8.0.46)**
+- Profile self-service: `GET /customer/profile` and `PATCH /customer/profile`, the latter accepting
+  exactly three fields — `first_name`, `last_name`, `email`.
+- Saved addresses: `GET`, `POST`, `GET/{uuid}`, `PATCH/{uuid}`, `DELETE/{uuid}` and
+  `POST /{uuid}/default` under `/api/v1/customer/addresses`. No route carries a customer identifier.
+- `customer_addresses` migration — uuid route key, typed address, optional landmark and postal code,
+  nullable coordinates, `place_id` reserved for Module 05, and a stored generated column
+  `default_for_customer` under a unique index, so at most one default per customer is a database
+  guarantee rather than a service convention.
+- `CustomerAddressService` — list, ownership-scoped read, create under a row lock with a per-customer
+  limit, update, hard delete that promotes the newest survivor, and default transfer.
+- `CustomerProfileService` — allow-listed writes, blank optional fields normalised to `NULL`, and an
+  email change that clears `email_verified_at`.
+- `AddressType` enum (Home / Work / Other, with a custom label required only for Other),
+  `AddressFormatter`, and a per-country `PostalCode` rule table.
+- `ApiErrorCode`: `ADDRESS_LIMIT_REACHED` (422) and `ADDRESS_NOT_FOUND` (404).
+- `config/foodonthego.php`: `addresses.max_per_customer`, `addresses.default_country_code`.
+- Address creation reuses Module 01's `Idempotency-Key` middleware.
+
+**Mobile (Flutter)**
+- Edit-profile screen with the verified phone rendered read-only, and saved-address list, create and
+  edit screens with real loading, empty, error, retry and per-row busy states.
+- `SavedAddress` / `AddressDraft` models, `ApiCustomerRepository`, and `AddressesController`, a
+  Riverpod `AsyncNotifier` that watches the auth session so no address state can outlive it.
+- `ApiClient` gained `patch`, `delete` and `getList`.
+- `tool/profile_addresses_smoke.dart` — 24 assertions against the real API and MySQL, including the
+  full IDOR matrix between two accounts.
+
+**Documentation**
+- `19-customer-profile-and-addresses.md`; Module 04 traceability (40 requirements) and bug register (8).
+
+### Changed
+
+- `AuthController` gained `updateProfile()`, so a saved profile updates the session's customer
+  without a round trip through sign-in.
+- The Profile tab's "Saved addresses" and "Edit profile" rows open real screens instead of the
+  Module 02 placeholders; the row shows a live address count.
+- `customer_addresses.customer_id` is `RESTRICT`, not `CASCADE` — MySQL refuses a cascade on a column
+  a stored generated column depends on. Recorded as KI-009.
+- Address type labels drop their icons below 320dp of usable width rather than wrapping mid-word.
+
+### Fixed
+
+Eight defects, all found by the tests and the live-view run written for this module and all retested
+— full table in [13-known-issues.md](13-known-issues.md). The ones worth naming here:
+
+- **M04-B03** (critical) — both forms were built on a `ListView`, which builds lazily, so fields
+  scrolled off screen were never registered with the `Form` and `validate()` silently skipped them.
+  An invalid address could be submitted. Both forms now use a non-lazy scrolling `Column`.
+- **M04-B01/B02** — Laravel appends `NOT NULL` to a `rawColumn`, so the generated default column
+  stored `0` rather than `NULL` for every non-default row and the second address a customer saved
+  collided on the unique index.
+- **M04-B04** — the primary action sat below the fold on a small screen and the tap landed on the
+  bottom navigation bar. Both forms now pin the action above the keyboard.
+- **M04-B07** — create returned `28.5602` where a subsequent read returned `28.5602000`; the service
+  now refreshes the model after saving so the response is what the database holds.
+- **M04-B08** — `tool/integration_smoke.dart` indexed a log by byte offset into a Dart string; the
+  masking character is three UTF-8 bytes and one UTF-16 unit, so the drift grew with every masked
+  number until the tool threw a `RangeError`.
+
+### Not done, and why
+
+- Android and iOS device verification — KI-001, KI-002 (environment).
+- Geocoding and Google Places autocomplete — the schema carries `latitude`, `longitude` and
+  `place_id`, and they stay `NULL` until Module 05 actually resolves an address. Inventing a
+  coordinate from typed text would put a fabricated point into the routing engine.
+- Email verification — an email is stored and displayed unverified.
+- Changing the verified phone number — that is a re-verification flow, not a profile field.
