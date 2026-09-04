@@ -21,6 +21,9 @@ FoodOnTheGoApp                     theme · localization · router · text-scale
     ├── OrdersScreen               EmptyStateView
     ├── NotificationsScreen        EmptyStateView
     └── ProfileScreen              header + three grouped sections
+TripsScreen                        three scopes | loading | empty | error | list
+TripFormScreen                     plan and edit, one screen
+TripDetailScreen                   one journey, in full
 EditProfileScreen                  three editable fields; the phone is read-only
 SavedAddressesScreen               loading | empty | error | list
 AddressFormScreen                  create and edit, one screen, one form
@@ -54,6 +57,47 @@ wall they cannot pass. Email is optional and labelled with why it is wanted.
 
 Every failure is a sentence the customer can act on, chosen by the API's machine-readable error code
 — never the server's own prose, which is free to be reworded or translated.
+
+## Journeys
+
+The Trips tab is a list with a three-way segmented control above it — Upcoming,
+Past, Cancelled — and the same four states as every other list in this app.
+A row leads with the route, because "New Delhi → Jaipur" is how somebody
+identifies their own journey; the departure is the second line, because it is how
+they tell two journeys on the same route apart.
+
+Cancelled and departed are spelled out as words in a badge, never signalled by
+colour alone. The row's overflow menu names its own journey ("Options for New
+Delhi → Jaipur"), and it is offered only while the server says the journey can
+still be changed — a menu that offers an edit the server will refuse teaches
+people not to trust the menu.
+
+Each scope has its own empty wording, because "no journeys" under Past means
+something different from "no journeys" under Upcoming, and only one of the three
+is worth offering a button for.
+
+### The planner
+
+One screen for planning and editing. A place is *chosen*, not typed into the
+form: a sheet offers the customer's saved addresses first — this is what Module
+04 was for — and a short form for anywhere else. There is no map and no
+autocomplete, and the typed branch produces no coordinates; a suggestion here
+would be a guess presented as a fact.
+
+The arrival field says plainly that nothing computes it yet, rather than leaving
+a blank that looks like a failure.
+
+Both Module 04 layout rules apply, in the planner and in the picker sheet: a
+non-lazy scrolling `Column` so validation cannot skip an off-screen field, and a
+pinned primary action so it is never under the keyboard or the navigation bar.
+
+### On home
+
+Home shows the customer's real next journey when there is one, and nothing at all
+when there is not. The card shows where, when and how many — no progress bar, no
+remaining time, no next pickup. Module 02's card drew all three from fixture
+data; a progress bar at zero would imply the app is tracking a journey it cannot
+see.
 
 ## The three home states
 
@@ -120,6 +164,13 @@ readable at a glance.
 | `OrderStatusChip` / `OrderStatusTrack` | `shared/widgets/order_status_chip.dart` |
 | `CustomerShell` | `shared/widgets/customer_shell.dart` |
 | `GreetingHeader`, `JourneyPlannerCard`, `RouteSummaryCard`, `ActiveOrderCard`, `QuickActions`, `HowItWorks` | `features/home/widgets/` |
+
+### Empty states on a short screen
+
+`EmptyStateView` shrinks its motif and tightens its spacing below 420px of
+height. The illustration is decoration; the action under it is not, and on a
+320×568 screen only one of the two fits above the fold. Measured, not guessed:
+the Trips action landed 13px below the display before this rule existed.
 
 ## Loading, error, offline
 

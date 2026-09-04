@@ -458,46 +458,56 @@ class _PlaceRow extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final bool hasError = error != null;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(FotgRadius.md),
-          child: InputDecorator(
-            decoration: InputDecoration(
-              labelText: label,
-              errorText: error,
-              prefixIcon: Icon(icon),
-            ),
-            child: choice == null
-                ? Text(
-                    hint,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: hasError
-                          ? theme.colorScheme.error
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(choice!.title, style: theme.textTheme.bodyLarge),
-                      if (choice!.subtitle.isNotEmpty)
-                        Text(
-                          choice!.subtitle,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+    // Labelled for assistive technology. An InkWell around an InputDecorator is
+    // a tappable region with no accessible name — a screen-reader user would
+    // hear the hint text and nothing about what choosing it does, or that it is
+    // a button at all.
+    return Semantics(
+      button: true,
+      label: choice == null
+          ? '$label, $hint'
+          : '$label, ${choice!.title}${hasError ? ", $error" : ""}',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(FotgRadius.md),
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: label,
+                errorText: error,
+                prefixIcon: Icon(icon),
+              ),
+              child: choice == null
+                  ? Text(
+                      hint,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: hasError
+                            ? theme.colorScheme.error
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(choice!.title, style: theme.textTheme.bodyLarge),
+                        if (choice!.subtitle.isNotEmpty)
+                          Text(
+                            choice!.subtitle,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                    ],
-                  ),
+                      ],
+                    ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -527,31 +537,37 @@ class _MomentRow extends StatelessWidget {
     final AppStrings strings = AppStrings.of(context);
     final ThemeData theme = Theme.of(context);
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(FotgRadius.md),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          errorText: error,
-          prefixIcon: Icon(icon),
-          suffixIcon: onClear == null
-              ? null
-              : IconButton(
-                  icon: const Icon(Icons.clear_rounded),
-                  tooltip: strings.tripFormArrivalClear,
-                  onPressed: onClear,
-                ),
-        ),
-        child: Text(
-          value == null
-              ? (emptyText ?? '')
-              : JourneyTime.full(value!.toUtc(), now: DateTime.now()),
-          style: value == null
-              ? theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                )
-              : theme.textTheme.bodyLarge,
+    final String spoken = value == null
+        ? (emptyText ?? '')
+        : JourneyTime.full(value!.toUtc(), now: DateTime.now());
+
+    return Semantics(
+      button: true,
+      label: '$label, $spoken${error != null ? ", $error" : ""}',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(FotgRadius.md),
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: label,
+            errorText: error,
+            prefixIcon: Icon(icon),
+            suffixIcon: onClear == null
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.clear_rounded),
+                    tooltip: strings.tripFormArrivalClear,
+                    onPressed: onClear,
+                  ),
+          ),
+          child: Text(
+            spoken,
+            style: value == null
+                ? theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  )
+                : theme.textTheme.bodyLarge,
+          ),
         ),
       ),
     );

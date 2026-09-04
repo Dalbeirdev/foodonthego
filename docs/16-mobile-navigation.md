@@ -161,3 +161,19 @@ language is commissioned, this class becomes the interface `gen-l10n` implements
 
 `ActiveOrderSummary` carries `totalMinorUnits` (an `int`) and `currencyCode` (default `INR`). Money
 is never a `double`, and no widget assumes a symbol.
+
+
+---
+
+## Journeys (Module 05)
+
+The Trips branch gained real destinations. The planner, the journey detail and
+the edit form are **pushed over** the Trips branch rather than added to the
+shell, for the reason the profile screens already establish: the bottom bar stays
+put, and Android back returns to the list the customer came from.
+
+The home screen's "Plan a journey" call to action now pushes the planner instead
+of routing to the controlled placeholder that named this module — which is the
+placeholder convention working as intended.
+
+Routes: `/trips/plan`, `/trips/{id}`, `/trips/{id}/edit`.

@@ -5,7 +5,7 @@
 A test exists to catch a specific failure. Tests that assert a framework works are noise; tests that
 pin a decision (redaction, contrast, idempotency, error disclosure) are the ones worth having.
 
-## Backend — 296 tests
+## Backend — 391 tests
 
 Run against **real MySQL 8**, not SQLite. The schema uses MySQL types and later modules will use
 MySQL locking semantics; a SQLite run would pass against a schema production cannot create.
@@ -15,6 +15,11 @@ Redis integration itself is covered by the readiness test.
 | Suite | Covers |
 | --- | --- |
 | `HealthTest` | Liveness, readiness against real MySQL + Redis, no credential leakage |
+| `TripServiceTest` | The journey lifecycle and its time boundaries, with an injected clock |
+| `JourneyEndpointTest` | The value object both ends of a journey are built from |
+| `TripApiTest` | The journey endpoints as a client sees them; that no DELETE exists |
+| `TripOwnershipTest` | The journey IDOR matrix, including planning from another customer's address |
+| `TripLoggingTest` | That no place, time or note a customer wrote reaches the log file |
 | `ErrorContractTest` | Every error shape; that a 5xx never describes itself |
 | `RequestIdTest` | Correlation IDs; forged/oversized/injection-shaped inbound ids |
 | `SecurityHeadersTest` | Header baseline; CORS never reflects an arbitrary origin |
@@ -52,7 +57,7 @@ Redis integration itself is covered by the readiness test.
 | `admin/App.test.tsx` | Navigation architecture completeness; System Health states |
 | `restaurant/App.test.tsx` | Navigation architecture completeness |
 
-## Mobile — 224 tests
+## Mobile — 287 tests
 
 | Suite | Tests | Covers |
 | --- | --: | --- |
@@ -65,6 +70,10 @@ Redis integration itself is covered by the readiness test.
 | `auth_flow_test.dart` | 27 | The whole sign-in walk: guard redirects, local validation, every server failure code, resend countdown, registration binding |
 | `auth_session_test.dart` | 12 | Restore with and without a network, expired tokens, sign-out confirmation, sign-out with the server unreachable |
 | `api_client_test.dart` | 13 | Envelope unwrapping, unknown codes, gateway HTML, credential placement, one-401-ends-the-session |
+| `trip_models_test.dart` | 25 | Journey parsing, the draft wire shape, explicit clears, date and time formatting |
+| `trips_screen_test.dart` | 19 | Three scopes, four states, the row menu, cancelling, 320dp |
+| `trip_planner_test.dart` | 18 | The whole planner, saved-address picking, both Module 04 layout rules, every failure path |
+| `account_isolation_test.dart` | 6 | A real account switch: no frame of the previous customer's addresses or journeys |
 | `auth_models_test.dart` | 21 | Trunk-zero handling, per-country plausibility, masking parity with the server, token never printed, every backend error code mapped |
 | `profile_edit_test.dart` | 17 | The locked phone panel, what the form can and cannot send, validation, server field messages, offline, a 500 that shows no stack trace |
 | `saved_addresses_test.dart` | 27 | Empty/loaded/error, add, edit, set default, delete with confirmation, long content at 320dp, the type selector on the smallest screen |
@@ -96,6 +105,17 @@ Module 04 adds `mobile/tool/profile_addresses_smoke.dart`, which walks the whole
 Rahul edits his profile, saves Home, Work and a custom address, moves the default, edits, deletes,
 and then Ananya's address is attacked four ways and survives. 24 assertions against the running
 server and its database.
+
+Module 05 adds `mobile/tool/trip_planner_smoke.dart`: a journey planned from a saved address, that
+address then edited to prove the journey did not move with it, an arrival stated and cleared, the
+upcoming order checked, a cancellation and its refusal to happen twice, and the journey IDOR matrix
+across two real accounts — including planning a journey *from somebody else's saved address*.
+30 assertions.
+
+One of those assertions exists because of a defect the API responses hid: a partial update reported
+the right traveller count and had silently reset it in the row underneath. The run now re-reads the
+journey after an update rather than trusting the update's own answer. **Read the database back; a
+response is what the server said, not what it stored.**
 
 ## Live-view verification
 

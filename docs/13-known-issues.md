@@ -99,22 +99,20 @@ arrive with Modules 04–11.
 
 ---
 
-### KI-007 · The customer app has no backend integration for journeys and orders
+### KI-007 · The home screen still invents nothing for orders
 
-*(Numbered KI-007 in Module 03. It was written as a second "KI-005" during Module 02 — two different
-issues under one id, which is exactly the silent drift this register exists to prevent. Renumbered
-rather than quietly corrected.)*
+**Status:** narrowed by Module 05. **Owner:** Module 08.
 
-**Severity:** Medium — by design, but worth stating plainly.
+The journey half of this is **closed**: the home screen reads the customer's real
+next journey from `/customer/trips/next`, and Module 02's fixture-shaped
+`ActiveTripSummary` was removed rather than left beside it.
 
-`UnconfiguredHomeRepository` is what a production build resolves to. From Module 03 it carries the
-**real** signed-in customer's name, and still returns no journey and no order — the truthful state
-for an account with nothing in it. It never invents data.
+What remains is orders. `UnconfiguredHomeRepository` still returns no active
+order for every customer in production, because the module that creates one does
+not exist. That is the truthful answer rather than a gap: inventing an order
+would be a lie told to a real customer about food somebody is supposedly cooking.
 
-Real data arrives when the modules that own it land: journeys in Module 05, orders in Module 08.
-Only the provider changes; no widget does.
-
----
+**To clear:** Module 08 supplies an order-backed implementation.
 
 ### KI-008 · Suspending an account does not revoke its live tokens
 
@@ -154,6 +152,33 @@ needs an explicit audit trail anyway.
 
 **To clear:** the erasure feature (Module 17) deletes addresses explicitly before
 the account, inside one transaction.
+
+---
+
+## Bug register — Module 05
+
+All found during Module 05, all fixed and retested. Environment: PHP 8.4.19 /
+Laravel 12.69.1 / MySQL 8.0.46 / Flutter 3.47.2 on Ubuntu 24.04; live-view render
+in Chromium at 320–768dp.
+
+| ID | Requirement | Description | Severity | Reproduction | Expected | Actual | Root cause | Fix | Retest | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| M05-B01 | M05-007 | A journey could be created in the past | **High** | Call `TripService::create()` with a departure behind the clock | Refused | Accepted and stored | `update()` checked the departure and `create()` did not — it leaned on the form request, so any caller reaching the service another way could write a journey into the past | The service checks its own boundary, with the same configured grace the request applies | `TripServiceTest`: a past departure is refused | **Fixed** |
+| M05-B02 | M05-019 | Cancelling threw an assertion in debug and could crash the screen | **High** | Open the cancel dialog, confirm it | The dialog closes cleanly | `A TextEditingController was used after being disposed` | The controller was created beside `showDialog` and disposed as soon as the future completed — while the dialog's exit animation was still building its `TextField` | The dialog became a `StatefulWidget` that owns its controller and disposes it with itself | `trips_screen_test`: three cancel tests | **Fixed** |
+| M05-B03 | M05-014 | The Trips empty state's only action was unreachable on the smallest supported screen | **High** | Open Trips with no journeys at 320×568 | "Plan your first journey" is on screen | Measured at y=580 on a 568px display — below the fold, reachable only by scrolling | The 116px motif plus a headline, a paragraph and padding is taller than the space a short phone leaves under an app bar, a segmented control and the navigation bar | The shared `EmptyStateView` shrinks its motif and tightens its spacing below 420px of height; the action never moves | `trips_screen_test` at 320dp; `variant-320-trips.png` | **Fixed** |
+| M05-B04 | M05-011 | A partial update silently reset the traveller count | **High** | Plan a journey for three, then edit only its note | Three travellers | One | `TripDraft.travellerCount` defaulted to 1, so every partial update sent `traveller_count: 1` for a field the customer had not touched — invisible to the API assertions, which only checked the update that set it | The default removed: null means "the request said nothing" | A model test asserts the key is absent; the integration run now re-reads the row | **Fixed** |
+| M05-B05 | M05-002 | The two place rows and the two time rows were unlabelled to a screen reader | Medium | Inspect the planner's semantics | Each row names itself and what it holds | A tappable region with no accessible name at all | An `InkWell` around an `InputDecorator` produces a gesture target, not a labelled control | Both wrapped in `Semantics(button: true, label: …)` carrying the field, its value and any error | Semantics inspected in the live run; the rows are now drivable by name | **Fixed** |
+
+No Module 05 issue was left open.
+
+### Noted, not a defect
+
+Flutter web does not place the bottom `NavigationBar` in the DOM semantics tree,
+so the live-view driver reaches it by geometry. The bar is a standard Material
+`NavigationBar` with a label and a tooltip on every destination, and it is
+exposed correctly on Android and iOS; this is a Flutter web rendering
+limitation, not a gap in the app, and it is recorded here so the next module's
+driver does not spend time rediscovering it.
 
 ---
 

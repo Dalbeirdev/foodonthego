@@ -1,0 +1,228 @@
+==========================================================
+ FoodOnTheGo — Module 05 verification run
+ 2026-09-04 14:30 UTC
+ Trip Planner — Origin, Destination & Journey Creation
+==========================================================
+
+--- TOOLCHAIN ---
+PHP 8.4.19 (cli) (built: Mar 30 2026 19:28:35) (NTS)
+/usr/sbin/mysqld  Ver 8.0.46-0ubuntu0.24.04.4 for Linux on x86_64 ((Ubuntu))
+Redis server v=7.0.15 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=b30e82fcf6da7c56
+v22.22.2
+Flutter 3.47.2 • channel stable • https://github.com/flutter/flutter.git
+
+--- BACKEND: php artisan test ---
+  Tests:    391 passed (1408 assertions)
+  Duration: 7.40s
+
+  Module 05 suites:
+    TripServiceTest        29 passed (50 assertions)
+    JourneyEndpointTest    12 passed (19 assertions)
+    TripApiTest            34 passed (99 assertions)
+    TripOwnershipTest      13 passed (42 assertions)
+    TripLoggingTest         7 passed (56 assertions)
+                           -- 95 new
+
+--- BACKEND: vendor/bin/pint --test ---
+{"tool":"pint","result":"passed"}
+--- BACKEND: composer audit ---
+No security vulnerability advisories found.
+
+--- BACKEND: Module 05 routes ---
+  GET|HEAD   api/v1/customer/trips ......... api.v1.customer.trips.index
+  POST       api/v1/customer/trips ......... api.v1.customer.trips.store
+  GET|HEAD   api/v1/customer/trips/next .... api.v1.customer.trips.next
+  GET|HEAD   api/v1/customer/trips/{trip} .. api.v1.customer.trips.show
+  PATCH      api/v1/customer/trips/{trip} .. api.v1.customer.trips.update
+  POST       api/v1/customer/trips/{trip}/cancel .. api.v1.customer.trips.cancel
+
+  No route carries a customer id. There is no DELETE.
+
+--- MOBILE: flutter analyze --fatal-infos ---
+No issues found! (ran in 3.8s)
+
+--- MOBILE: dart format --set-exit-if-changed ---
+Formatted 106 files (0 changed) in 0.43 seconds.
+
+--- MOBILE: flutter test ---
+00:35 +287: All tests passed!
+
+  Module 05 suites:
+    trip_models_test        25
+    trips_screen_test       19
+    trip_planner_test       18
+    account_isolation_test   6  (3 of them new: journeys)
+                            -- 64 new (287 total, up from 222)
+
+--- MOBILE: flutter build web --release ---
+✓ Built build/web
+
+--- WEB (regression, untouched by this module) ---
+TypeScript errors: 0
+      Tests  18 passed (18)
+      Tests  7 passed (7)
+      Tests  4 passed (4)
+
+--- INTEGRATION: Flutter network layer -> Laravel -> MySQL (no mocks) ---
+$ cd mobile && dart run --define=FOTG_API_BASE_URL=http://127.0.0.1:8000 \
+      tool/trip_planner_smoke.dart
+
+FoodOnTheGo — Module 05 integration run
+Backend: http://127.0.0.1:8000
+
+  PASS  a new customer has no journeys
+  PASS  a journey is planned from a saved address
+  PASS  the saved address is snapshotted, not referenced
+  PASS  coordinates are null, not invented from the text
+  PASS  an arrival nothing computed is null, not a guess
+  PASS  the server says whether the journey can still be changed
+  PASS  editing the address later leaves the journey alone
+  PASS  a fresh read returns the planned journey
+  PASS  the journey is the next one
+  PASS  an edit persists and leaves untouched fields alone
+  PASS  an explicit clear really clears
+  PASS  a partial update leaves untouched fields alone in the database
+  PASS  the upcoming list is soonest first
+  PASS  the soonest journey is the next one
+  PASS  a departure in the past is refused
+  PASS  the same place at both ends is refused
+  PASS  an arrival before departure is refused
+  PASS  cancelling records the decision
+  PASS  a cancelled journey leaves the upcoming list
+  PASS  cancelling twice is refused rather than silently accepted
+  PASS  a cancelled journey can no longer be edited
+  PASS  Rahul cannot read Ananya's journey
+  PASS  Rahul cannot change Ananya's journey
+  PASS  Rahul cannot cancel Ananya's journey
+  PASS  Rahul cannot plan a journey from Ananya's saved address
+  PASS  Ananya's journey is untouched
+  PASS  neither customer can see the other in a list
+  PASS  Rahul's next journey is never hers
+  PASS  an unauthenticated call reaches no journeys
+  PASS  a revoked session stops reaching journeys
+
+30 passed, 0 failed
+
+--- REGRESSION: Modules 03 and 04, against the same live backend ---
+$ dart run tool/integration_smoke.dart            13 passed, 0 failed
+$ dart run tool/profile_addresses_smoke.dart      24 passed, 0 failed
+
+--- DATABASE VERIFICATION: real MySQL, after the integration run ---
+
+$ SHOW CREATE TABLE trips;   (abridged)
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT
+  `uuid` char(36) NOT NULL
+  `customer_id` bigint unsigned NOT NULL
+  `status` enum('PLANNED','CANCELLED') NOT NULL DEFAULT 'PLANNED'
+  `origin_address_id` bigint unsigned DEFAULT NULL
+  `origin_label` varchar(60) NOT NULL
+  `origin_formatted_address` varchar(400) NOT NULL
+  `origin_city` varchar(90) NOT NULL
+  `origin_country_code` char(2) NOT NULL
+  `origin_latitude` decimal(10,7) DEFAULT NULL
+  `origin_longitude` decimal(10,7) DEFAULT NULL
+  `origin_place_id` varchar(255) DEFAULT NULL
+  ... the same eight columns again for `destination_*`
+  `departure_at` datetime NOT NULL
+  `expected_arrival_at` datetime DEFAULT NULL
+  `traveller_count` tinyint unsigned NOT NULL DEFAULT '1'
+  `note` varchar(280) DEFAULT NULL
+  `cancelled_at` datetime DEFAULT NULL
+  `cancellation_reason` varchar(120) DEFAULT NULL
+  PRIMARY KEY (`id`)
+  UNIQUE KEY `trips_uuid_unique` (`uuid`)
+  KEY `trips_customer_id_status_departure_at_index` (`customer_id`,`status`,`departure_at`)
+  KEY `trips_customer_id_departure_at_index` (`customer_id`,`departure_at`)
+  CONSTRAINT `trips_customer_id_foreign`
+      FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+  CONSTRAINT `trips_origin_address_id_foreign`
+      FOREIGN KEY (`origin_address_id`) REFERENCES `customer_addresses` (`id`) ON DELETE SET NULL
+  CONSTRAINT `trips_destination_address_id_foreign`
+      FOREIGN KEY (`destination_address_id`) REFERENCES `customer_addresses` (`id`) ON DELETE SET NULL
+
+$ SELECT COUNT(*) FROM trips
+  WHERE origin_latitude IS NOT NULL OR origin_longitude IS NOT NULL
+     OR destination_latitude IS NOT NULL OR destination_longitude IS NOT NULL;
+0                   -- nothing invented a coordinate
+
+$ SELECT COUNT(*) FROM trips
+  WHERE (origin_latitude IS NULL) <> (origin_longitude IS NULL)
+     OR (destination_latitude IS NULL) <> (destination_longitude IS NULL);
+0                   -- and nothing stored half a location
+
+$ SELECT COUNT(*) FROM trips
+  WHERE LOWER(origin_formatted_address) = LOWER(destination_formatted_address);
+0                   -- no journey to the place it starts from
+
+$ SELECT ... FROM trips t JOIN users u ... WHERE u.phone_e164='+919999900301';
+uuid                                  status     origin      destination  travellers
+63009ee1-52d0-4eaf-9782-f3c2bfbd2338  PLANNED    New Delhi   Jaipur       3
+e0653a36-674d-41ab-bab1-f55ad3e62c3a  CANCELLED  New Delhi   Agra         1
+
+  The traveller count is 3 — the value the edit set, surviving a later partial
+  update that touched only the note and the arrival. That read is what caught
+  M05-B04: the count had been silently reset to 1, and the API assertions did
+  not see it because they only checked the update that set it.
+
+$ SELECT ... WHERE u.phone_e164='+919999900302';   (Ananya, after Rahul's attacks)
+uuid                                  status   origin     destination
+55bf41db-5caf-4ab0-970d-c0c338a88238  PLANNED  Gurugram   Chandigarh
+                                      -- unchanged: not cancelled, 1 traveller,
+                                         no cancellation reason
+
+--- LOG REVIEW: real application log, 5,421 lines ---
+
+Events written:
+  trip.created           209
+  trip.updated            23
+  trip.cancelled          27
+  trip.access_denied      45
+
+Occurrences of any journey city, area or address:               0
+  ("Green Park", "Jaipur", "Chandigarh", "Gurugram", "MI Road",
+   "Somewhere Else")
+Occurrences of any note or cancellation reason a customer typed: 0
+  ("Collecting my sister", "Train booked instead")
+Occurrences of any full phone number:                           0
+
+Sample lines (verbatim, abridged):
+  "message":"trip.created"    ... "actor_id":"ea4d…","trip_uuid":"0229…",
+                                  "from_saved_addresses":{...},"has_coordinates":false
+  "message":"trip.updated"    ... "actor_id":"3471…","trip_uuid":"a7f8…",
+                                  "fields":["destination","traveller_count"]
+  "message":"trip.cancelled"  ... "actor_id":"fb39…","trip_uuid":"982c…","gave_reason":true
+  "message":"trip.access_denied" ... "actor_id":"18a3…","trip_uuid":"1107…"
+
+Every line names the event, the record and the actor — and nothing about where
+anybody is going, when they leave, or what they wrote. An update logs the
+*names* of the fields that changed; the eight columns of an endpoint collapse to
+the single name "destination", so the log says the destination changed without
+saying to where.
+
+--- LIVE-VIEW: real browser, real API, real database ---
+A Flutter web release build with FOTG_ENV=production (no fixtures, no
+development harness), served at http://localhost:5173 and talking to the Laravel
+server at http://localhost:8000 against MySQL. Driven with Playwright through
+Flutter's DOM semantics tree: sign in, plan a journey from typed places, read it
+back, plan a second, edit one, cancel one with a reason, walk the three scopes,
+see the real next journey on Home, then the offline, dark, narrow and tablet
+variants.
+
+24 screenshots in docs/evidence/module-05/. Final run:
+  "All expected content present."
+
+Console errors, in full:
+  https://fonts.gstatic.com/s/roboto/...woff2          net::ERR_CONNECTION_RESET
+  https://fonts.gstatic.com/s/notocoloremoji/...woff2  net::ERR_CONNECTION_RESET
+  http://localhost:8000/api/v1/customer/trips?scope=upcoming   net::ERR_ABORTED
+  http://localhost:8000/api/v1/customer/trips?scope=cancelled  net::ERR_INTERNET_DISCONNECTED
+
+  The two font fetches are this environment's egress policy blocking Google's
+  font CDN — the same known limitation the Module 04 run recorded. The two API
+  aborts are the offline state being driven deliberately. There are no
+  application errors and no page errors.
+
+Note on the screenshots: CanvasKit's fallback font is fetched from that blocked
+CDN, so a font (LiberationSans) was bundled temporarily to make text render,
+then removed. The committed pubspec.yaml bundles no font and
+FotgTypography.fontFamily is null, as Module 01 requires.

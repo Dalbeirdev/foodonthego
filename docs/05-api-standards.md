@@ -89,6 +89,18 @@ Added in Module 04 ([19-customer-profile-and-addresses.md](19-customer-profile-a
 else. A 403 for the second case would confirm that the identifier is real, which is the whole of what
 an attacker wants; the two answers are byte-identical.
 
+Added in Module 05 ([20-trip-planner.md](20-trip-planner.md)):
+
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| `TRIP_NOT_FOUND` | 404 | No such journey, or not visible to this caller |
+| `TRIP_LIMIT_REACHED` | 422 | Too many journeys still ahead |
+| `TRIP_NOT_EDITABLE` | 422 | The journey has departed or been cancelled |
+
+`TRIP_NOT_FOUND` is a 404 for the same reason `ADDRESS_NOT_FOUND` is: not-yours
+and does-not-exist are one answer, so the endpoint cannot be walked to discover
+which identifiers are real.
+
 Two deliberate choices in that table. `OTP_RESEND_TOO_SOON` and `OTP_RATE_LIMITED` share a status so
 a caller cannot distinguish "too soon" from "too many". `ACCOUNT_DISABLED` also covers a deleted
 account: reporting deletion would confirm to whoever now holds that number that an account existed.
@@ -173,6 +185,17 @@ Conflating them turns a slow database into a restart loop.
 - Money is an integer of minor units, with the currency alongside — never a float
 - Timestamps are ISO-8601 UTC
 - Filtering `?status=pending&status=confirmed`; paging `?page=2&per_page=25`
+
+Two conventions that arrived with the self-service modules and are expected to
+hold for every resource a customer owns:
+
+- **No customer identifier in a self-service path.** The owner is the token.
+  `/customer/addresses/{uuid}` and `/customer/trips/{uuid}`, never
+  `/customers/{id}/…` — there is then no ownership check to forget and no id for
+  a caller to change.
+- **A literal segment is declared before a parameter that could swallow it.**
+  `/customer/trips/next` before `/customer/trips/{trip}`, or "next" is captured
+  as a journey id and answered 404.
 - A resource a customer owns is addressed without naming the owner: `/api/v1/customer/addresses/{uuid}`,
   never `/api/v1/customers/{customer}/addresses/{uuid}`. The actor comes from the token. Admin and
   support surfaces, when they exist, get their own routes with their own abilities rather than

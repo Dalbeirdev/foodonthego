@@ -235,7 +235,10 @@ class TripDraft {
     required this.destination,
     required this.departureAt,
     this.expectedArrivalAt,
-    this.travellerCount = 1,
+    // No default. `travellerCount` is nullable because null means "the request
+    // said nothing", and a default of 1 here would make every partial update
+    // silently reset a count the customer never touched.
+    this.travellerCount,
     this.note,
     this.clearArrival = false,
     this.clearNote = false,

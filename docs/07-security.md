@@ -109,6 +109,47 @@ the session ending disposes the state; there is no per-customer cache that can o
 Verified end-to-end: signing out of one account and into another shows no trace of the first, not
 even for a frame.
 
+## Ownership of a customer's own records
+
+Two modules now hold records a customer owns and writes — saved addresses and
+journeys — and both follow the same three rules. Any later module that adds one
+is expected to follow them too.
+
+1. **No self-service route carries a customer identifier.** The owner is read
+   from the token. There is nothing in the request to tamper with, so an
+   ownership bug would have to be introduced by *adding* a parameter rather than
+   by forgetting a comparison.
+2. **One method is the only path to a record**, and it answers the identical 404
+   for "does not exist" and "belongs to somebody else". Distinguishing them turns
+   the endpoint into an oracle for which identifiers are real.
+3. **Cross-module reads go through the owning module's own lookup.** Module 05
+   resolves a saved address named in a journey request through
+   `CustomerAddressService::ownedByOrFail()`, not through a query of its own. So
+   planning a journey from somebody else's address fails exactly the way reading
+   that address fails — and a second, parallel ownership check is not something
+   anybody has to remember to keep correct.
+
+A corollary that has bitten before: **do not validate an identifier with an
+existence rule** (`exists:customer_addresses,uuid`) on a resource the caller may
+not own. It confirms the record is real before anybody has checked who owns it.
+
+## Personal data that is not a name
+
+Addresses and journeys are location data, and a journey is worse than an address:
+it says where somebody will be, and *when their home is empty*. The rule for both
+is the same and is enforced by tests that read the log file on disk:
+
+- Never logged. Not the places, not the times, not the note the customer typed.
+- Operational lines carry the event, the record uuid and the actor uuid — enough
+  to answer "who changed what" in an incident, and nothing more.
+- An update logs the **names** of the fields that changed, never their values.
+  The eight columns of a journey endpoint collapse to the single name
+  "destination", so the log records that the destination changed without
+  recording where to.
+- Never in analytics events.
+- A denied access is logged as an attempt, without the content of what was
+  reached for.
+
 ## Logging
 
 Structured JSON, one object per line, carrying `request_id`, `actor_id` and `actor_role`.

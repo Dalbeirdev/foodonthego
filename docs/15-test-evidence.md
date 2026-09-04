@@ -587,3 +587,176 @@ registered with its `Form` and validation silently skipped it — an invalid add
 submitted. Two were found only by running the app in a browser (the primary action sitting under the
 bottom navigation bar, and the row menu's misleading tooltip), and two by running the migration
 against real MySQL rather than SQLite.
+
+---
+
+# Module 05 — test evidence
+
+Full transcript: [`evidence/module-05-verification-run.txt`](evidence/module-05-verification-run.txt).
+Screenshots: [`evidence/module-05/`](evidence/module-05/).
+
+## Automated tests — 707 total, 707 passed, 0 failed, 0 skipped
+
+| Suite | Command | Tests | Passed | Failed | Skipped |
+| --- | --- | --: | --: | --: | --: |
+| Backend — journey lifecycle | `php artisan test --filter=TripServiceTest` | 29 | 29 | 0 | 0 |
+| Backend — journey endpoint value object | `--filter=JourneyEndpointTest` | 12 | 12 | 0 | 0 |
+| Backend — journey endpoints | `--filter=TripApiTest` | 34 | 34 | 0 | 0 |
+| Backend — ownership / IDOR | `--filter=TripOwnershipTest` | 13 | 13 | 0 | 0 |
+| Backend — journey logging | `--filter=TripLoggingTest` | 7 | 7 | 0 | 0 |
+| **Backend total** | `php artisan test` | **391** | **391** | **0** | **0** |
+| Mobile — journey models and time | `flutter test test/trip_models_test.dart` | 25 | 25 | 0 | 0 |
+| Mobile — the Trips screen | `flutter test test/trips_screen_test.dart` | 19 | 19 | 0 | 0 |
+| Mobile — the planner | `flutter test test/trip_planner_test.dart` | 18 | 18 | 0 | 0 |
+| Mobile — account isolation | `flutter test test/account_isolation_test.dart` | 6 | 6 | 0 | 0 |
+| **Mobile total** | `flutter test` | **287** | **287** | **0** | **0** |
+| Web (regression) | `npm test` | 29 | 29 | 0 | 0 |
+| **Project total** | | **707** | **707** | **0** | **0** |
+
+Backend grew from 296 to 391; mobile from 224 to 287.
+
+## Integration — no mocks
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Flutter network layer → Laravel → MySQL | `dart run tool/trip_planner_smoke.dart` | **30 passed, 0 failed** |
+| Module 04 regression, same live backend | `dart run tool/profile_addresses_smoke.dart` | **24 passed, 0 failed** |
+| Module 03 regression, same live backend | `dart run tool/integration_smoke.dart` | **13 passed, 0 failed** |
+
+The 30 assertions are listed verbatim in the transcript. Nine are security
+assertions, including the four-way journey IDOR matrix, the attempt to plan a
+journey from another customer's saved address, an unauthenticated call and a
+revoked session.
+
+One assertion — "a partial update leaves untouched fields alone in the database"
+— exists because of a defect the responses hid. It re-reads the journey rather
+than trusting the update's own answer.
+
+## Static analysis
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Backend style | `vendor/bin/pint --test` | **passed** |
+| Backend advisories | `composer audit` | **none** |
+| Dart analyzer | `flutter analyze --fatal-infos` | **No issues found** |
+| Dart format | `dart format --set-exit-if-changed .` | **106 files, 0 changed** |
+| Flutter web build | `flutter build web --release` | **✓ Built** |
+| TypeScript (regression) | `npm run typecheck` | **0 errors** |
+
+## Database verification — real MySQL
+
+| Check | Query | Result |
+| --- | --- | --- |
+| No coordinate was invented | any of the four lat/lng columns not null | **0 rows** |
+| Nothing stored half a location | `(lat IS NULL) <> (lng IS NULL)` | **0 rows** |
+| No journey ends where it starts | formatted addresses compared | **0 rows** |
+| A partial update left the rest alone | `traveller_count` after a note-only edit | **3**, the value the earlier edit set |
+| The endpoint snapshot survived an address edit | `origin_city` after the address moved to Mumbai | **New Delhi** |
+| The victim's journey untouched after four attacks | full row compare | **identical** |
+| Status is a two-case ENUM | `SHOW COLUMNS` | `enum('PLANNED','CANCELLED')` |
+| Provenance links are nullable and SET NULL | `SHOW CREATE TABLE` | both `*_address_id` FKs |
+| Customer FK is explicit | `SHOW CREATE TABLE` | `ON DELETE RESTRICT` |
+
+## Log review — real application log
+
+5,421 lines, covering 209 journey creations, 23 updates, 27 cancellations and 45
+denied accesses.
+
+| Check | Occurrences |
+| --- | --: |
+| Any journey city, area or address | **0** |
+| Any note or cancellation reason a customer typed | **0** |
+| Any departure or arrival time | **0** |
+| Any full phone number | **0** |
+
+An update logs the *names* of the fields that changed. The eight columns of an
+endpoint collapse to the single name `"destination"`, so the log records that the
+destination changed without recording where to. When somebody's home will be
+empty is as sensitive as where it is, and neither is in the file.
+
+## Live-view verification
+
+A Flutter **web release build with `FOTG_ENV=production`** — no fixtures, no
+development harness — served at `http://localhost:5173`, talking to Laravel at
+`http://localhost:8000` against MySQL. Driven with Playwright through Flutter's
+DOM semantics tree.
+
+Twenty-four screenshots in [`evidence/module-05/`](evidence/module-05/):
+
+| State | File |
+| --- | --- |
+| Home, signed in, no journey planned | `state-01-home-no-journey.png` |
+| Trips — empty state | `state-02-trips-empty.png` |
+| The planner, empty | `state-03-planner-empty.png` |
+| Planner validation — both ends required | `state-04-planner-validation.png` |
+| The place picker | `state-05-place-picker.png` |
+| A place typed into the picker | `state-06-place-typed.png` |
+| The planner, filled | `state-07-planner-filled.png` |
+| Journey saved (after the server confirmed) | `state-08-journey-saved.png` |
+| Journey detail | `state-09-journey-detail.png` |
+| Two journeys, soonest first | `state-10-two-journeys.png` |
+| The row menu | `state-11-row-menu.png` |
+| Editing a journey | `state-12-edit-journey.png` |
+| Cancel confirmation, with a reason field | `state-13-cancel-confirmation.png` |
+| After cancelling | `state-14-after-cancelling.png` |
+| The Cancelled scope | `state-15-cancelled-scope.png` |
+| The Past scope, empty | `state-16-past-empty.png` |
+| Home with the real next journey | `state-17-home-next-journey.png` |
+| Offline — every API call aborted at the network layer | `state-18-trips-offline.png` |
+| Dark mode, trips and home | `variant-dark-*.png` |
+| 320dp (smallest supported), trips and planner | `variant-320-*.png` |
+| 768dp tablet | `variant-768-trips.png` |
+| A taller phone | `variant-420-tall.png` |
+
+Final run: **"All expected content present."**
+
+**Console errors, in full and unedited:** two font fetches to
+`fonts.gstatic.com` refused by this environment's egress policy — the same
+CanvasKit limitation the Module 04 run recorded — and two API requests aborted
+because the offline state was being driven deliberately. There are no
+application errors and no page errors.
+
+Every state above is the real API's answer. The success states were captured
+*after* the server returned 200, and the transcript's database section shows the
+same rows the screenshots show.
+
+## Account isolation
+
+Signed in as Rahul, planned a journey, signed out, signed in as Ananya through
+the real OTP flow: her journeys are hers, with no frame of his. Structural rather
+than a cleanup step — `TripsController` watches the auth session, so ending it
+disposes the state. Pinned by three tests in `account_isolation_test.dart` that
+drive the real sign-in flow rather than re-mounting the widget tree.
+
+## Android verification
+
+**PENDING — environment unavailable.** `dl.google.com` is denied by the network
+egress policy, so the Android SDK cannot be installed. See KI-001. Not claimed as
+passed.
+
+## iOS verification
+
+**iOS Runtime Verification = PENDING — environment unavailable.** No macOS host
+and no Xcode. See KI-002. Not claimed as passed.
+
+## Accessibility evidence
+
+| Check | Method | Result |
+| --- | --- | --- |
+| Place and time rows name themselves | `Semantics(button:, label:)` carrying field, value and error (M05-B05) | ✅ |
+| Row menu identifies its journey | Tooltip reads "Options for New Delhi → Jaipur" | ✅ |
+| Cancelled and departed are words, not colours | Renders "CANCELLED" / "Departed" | ✅ |
+| A read-only journey says why | Notice above the missing actions | ✅ |
+| Traveller stepper buttons are labelled | "One more traveller" / "One fewer traveller" | ✅ |
+| Scope labels never break mid-word at 320dp | Test at 320dp; horizontal scroll below it | ✅ |
+| The primary action is reachable at 320×568 | Pinned action; empty state shrinks its motif (M05-B03) | ✅ |
+| Destructive action is confirmed | Dialog naming what happens to the journey | ✅ |
+| Contrast, light and dark | Unchanged tokens; `tokens_test.dart` still passes | ≥ 4.5:1 |
+
+## Defects found and fixed
+
+Five, with root causes, in [13-known-issues.md](13-known-issues.md) (M05-B01 …
+M05-B05). Four were high severity. Two were found by inspection methods rather
+than by tests: the unreachable empty-state action by driving a real browser at
+320×568, and the silently reset traveller count by reading MySQL after the
+integration run — the assertions had passed.

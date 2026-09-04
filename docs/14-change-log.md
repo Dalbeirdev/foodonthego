@@ -257,3 +257,96 @@ Eight defects, all found by the tests and the live-view run written for this mod
   coordinate from typed text would put a fabricated point into the routing engine.
 - Email verification — an email is stored and displayed unverified.
 - Changing the verified phone number — that is a re-verification flow, not a profile field.
+
+## Module 05 — Trip Planner: Origin, Destination & Journey Creation
+
+### Added
+
+**Backend (Laravel 12.69.1, MySQL 8.0.46)**
+- Journeys: `GET`/`POST` on `/api/v1/customer/trips`, `GET /next`, and
+  `GET`/`PATCH`/`POST /{uuid}/cancel`. No route carries a customer id, and there
+  is no DELETE — a journey is cancelled, never removed.
+- `trips` migration — uuid route key, an eight-column **snapshot** of each end of
+  the journey plus a nullable provenance link to the saved address it came from,
+  a UTC departure, a nullable stated arrival, traveller count, note, and the
+  cancellation pair.
+- `TripService` — list by scope, the next journey, ownership-scoped read, create
+  under a row lock with a per-customer limit on journeys still ahead, partial
+  update, and cancellation that refuses to happen twice.
+- `JourneyEndpoint` — the value object both a saved address and a typed place
+  become, so the rest of the module deals with one shape.
+- `TripStatus` enum with **two** cases, `TripScope`, and three `ApiErrorCode`
+  cases: `TRIP_NOT_FOUND` (404), `TRIP_LIMIT_REACHED` (422),
+  `TRIP_NOT_EDITABLE` (422).
+- `config/foodonthego.php`: `trips.max_upcoming_per_customer`,
+  `trips.max_days_ahead`, `trips.departure_grace_minutes`, `trips.max_travellers`.
+
+**Mobile (Flutter)**
+- The Trips tab: three scopes over one list, with loading, empty, error and data
+  states, a row menu that names its own row, and cancellation with a reason.
+- A planner used for both creating and editing, with a place picker that offers
+  the customer's Module 04 saved addresses first and a short form for anywhere
+  else.
+- A journey detail screen that says why it is read-only when it is.
+- `Trip`, `JourneyPlace`, `TripDraft`, `JourneyPlaceDraft`, `ApiTripRepository`,
+  `TripsController` and `NextTripController` — both controllers watching the auth
+  session so no journey state can outlive it.
+- `JourneyTime` — the module's date and time formatting, written rather than
+  pulling in `intl` for four formats.
+- `ApiClient.getOrNull()`, for an endpoint where a null answer is ordinary.
+- `tool/trip_planner_smoke.dart` — 30 assertions against the real API and MySQL.
+
+**Documentation**
+- `20-trip-planner.md`; Module 05 traceability (46 requirements) and bug register (5).
+
+### Changed
+
+- The home screen shows the customer's **real** next journey from
+  `/customer/trips/next`, with a card that shows only where, when and how many.
+- The "Plan a journey" call to action opens the real planner instead of the
+  placeholder that named this module.
+- `EmptyStateView` shrinks its motif below 420px of height, so a primary action
+  is never pushed below the fold on the smallest supported screen.
+- `TripDraft.travellerCount` has no default, so a partial update cannot send a
+  count the customer never chose.
+
+### Removed
+
+- `ActiveTripSummary`, `RouteSummaryCard` and `HomeDashboard.activeTrip`. They
+  were Module 02 scaffolding for exactly this moment; holding a second,
+  fixture-shaped journey next to the real one is how two halves of one screen
+  come to disagree about whether somebody is travelling. Their `TripStatus` enum
+  went with them, which also removes a name that now had two meanings.
+- The greeting's `isTravelling` branch and its string. Nothing observes travel
+  yet, and a planned journey is not a journey in progress. Module 09 brings the
+  branch back with a signal behind it.
+
+### Fixed
+
+Five defects, all found by the tests, the database review or the live-view run
+written for this module, and all retested — full table in
+[13-known-issues.md](13-known-issues.md). The ones worth naming here:
+
+- **M05-B03** — the Trips empty state's only action sat 13px below a 320×568
+  screen. Reachable by scrolling, but a call to action that has to be hunted for
+  is one most people never see. Fixed in the shared empty state, so every empty
+  screen in the app benefits.
+- **M05-B04** — a partial update silently reset the traveller count, because the
+  client draft defaulted it to 1. The API assertions could not see it: the update
+  response reported the right number and the row underneath held the wrong one.
+  Found by reading the database back after the integration run.
+- **M05-B02** — the cancel dialog disposed its text controller while its own exit
+  animation was still building the field.
+- **M05-B01** — `create()` leaned on the form request for the departure check
+  while `update()` enforced it itself, so any caller reaching the service another
+  way could write a journey into the past.
+
+### Not done, and why
+
+- Android and iOS device verification — KI-001, KI-002 (environment).
+- Routing, corridors, distance, duration and restaurant discovery — Module 09.
+- Geocoding and Places autocomplete — the schema carries `place_id` at both ends
+  and nothing fills it. Coordinates stay `NULL`.
+- GPS and live tracking — and `TripStatus` has two cases rather than five because
+  of it, instead of carrying states nothing can establish.
+- The ETA engine — scheduled with Modules 08 and 09.

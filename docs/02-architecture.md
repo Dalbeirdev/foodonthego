@@ -69,8 +69,8 @@ Module 04 added the first table a customer both owns and writes: `customer_addre
 decisions in it are worth stating at the architecture level, because later modules inherit them.
 
 **Ownership is a property of the route shape, not of a check inside the handler.** No self-service
-route carries a customer identifier — the paths are `/api/v1/customer/profile` and
-`/api/v1/customer/addresses/{uuid}`, and the owner is read from the Sanctum token. There is nothing
+route carries a customer identifier — the paths are `/api/v1/customer/profile`,
+`/api/v1/customer/addresses/{uuid}` and `/api/v1/customer/trips/{uuid}`, and the owner is read from the Sanctum token. There is nothing
 in the request for a caller to tamper with, so an ownership bug cannot be introduced by forgetting a
 comparison; it would have to be introduced by adding a parameter that does not exist. Every read of
 an address goes through one method, `CustomerAddressService::ownedByOrFail()`, which answers 404 for
@@ -85,6 +85,29 @@ The same principle runs into the client. `AddressesController` in Flutter *watch
 rather than subscribing to a logout event, so ending a session rebuilds the provider from nothing —
 one customer's addresses cannot survive into another customer's session, because there is no cached
 state that outlives the session to forget to clear.
+
+## Recording what somebody said, versus what is true
+
+Modules 04 and 05 introduced a distinction the rest of the product inherits.
+
+A saved address and a journey are **records of what a customer told us**. Neither
+carries anything derived, computed or observed: coordinates are `NULL` until
+something really geocodes a place, an arrival time is `NULL` unless the traveller
+stated one, and the journey status enum has two cases because two is all this
+part of the system can honestly establish.
+
+The alternative — filling those fields with something plausible — is not a
+shortcut, it is a corruption. A fabricated coordinate is indistinguishable from a
+real one to the routing module that will consume it; an assumed travel state
+becomes an assumed cooking time in a product whose entire proposition is cooking
+at the right moment. Every nullable column in these two tables is a place where
+the schema is ready and the data is honest about not being there yet.
+
+The shape this takes in code is worth naming: **a record snapshots the values it
+was decided from** rather than pointing at somewhere they might later change.
+A journey copies each end out of the saved address it was chosen from and keeps
+the address id only as provenance, so editing that address cannot rewrite
+journeys already planned against it.
 
 ## What Module 01 deliberately did not build
 

@@ -219,6 +219,21 @@ void main() {
       expect(json['departure_at'], '2026-09-05T09:00:00.000Z');
     });
 
+    test('a traveller count nobody set is omitted, not defaulted to 1', () {
+      // The defect this test exists for: a default of 1 on the draft made every
+      // partial update send traveller_count: 1, silently resetting a party of
+      // three to one. Found by reading the database after an integration run,
+      // not by the API assertions, which only checked the update that set it.
+      final Map<String, dynamic> json = const TripDraft(
+        origin: null,
+        destination: null,
+        departureAt: null,
+        clearNote: true,
+      ).toJson();
+
+      expect(json.containsKey('traveller_count'), isFalse);
+    });
+
     test('omits what it was not given', () {
       final Map<String, dynamic> json = const TripDraft(
         origin: null,

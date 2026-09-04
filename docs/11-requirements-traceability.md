@@ -230,3 +230,70 @@ Module 01 — not by the code.
 
 **Android runtime verification = PENDING — environment unavailable.**
 **iOS runtime verification = PENDING — environment unavailable.**
+
+---
+
+## Module 05 — Trip Planner: Origin, Destination & Journey Creation
+
+Role for every row below is **Customer**. FE = Flutter UI. "PASSED (device
+pending)" carries the same meaning as in Modules 02, 03 and 04: built, integrated
+against the real API, tested and visually inspected in a rendered app, but not
+run on an Android emulator or iOS simulator (KI-001, KI-002).
+
+| ID | Feature | FE | BE | API | DB | Sec | Tests | Android | iOS | Docs | Status | Evidence |
+| --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
+| M05-001 | Plan a journey | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-07/08*.png`; 18 tests |
+| M05-002 | Choose an origin | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-05/06*.png`; place picker tests |
+| M05-003 | Choose a destination | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-07-planner-filled.png` |
+| M05-004 | Origin from a saved address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Integration run; "picking one sends its id" |
+| M05-005 | Endpoint snapshotted, not referenced | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | "editing the address later leaves the journey alone" |
+| M05-006 | Departure date and time | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | Pickers bounded to the server's own horizon |
+| M05-007 | Departure must be in the future | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Form request + service, same grace; 4 tests |
+| M05-008 | Planning horizon bounded | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `before_or_equal`; 1 test |
+| M05-009 | Optional stated arrival time | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Null by default; "an explicit clear really clears" |
+| M05-010 | Arrival must follow departure | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Service; 3 tests |
+| M05-011 | Traveller count | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Stepper bounded to the server ceiling |
+| M05-012 | Optional note | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 280 chars; blank omitted, not stored as "" |
+| M05-013 | Origin and destination must differ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Compared against the journey's final state; 4 tests |
+| M05-014 | List upcoming journeys | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-08/10*.png`; soonest first |
+| M05-015 | List past journeys | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-16-past-empty.png`; 3 tests |
+| M05-016 | List cancelled journeys | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-15-cancelled-scope.png` |
+| M05-017 | Journey detail | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-09-journey-detail.png` |
+| M05-018 | Edit a planned journey | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-12-edit-journey.png`; partial-update tests |
+| M05-019 | Cancel a journey, with a reason | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-13/14*.png`; 6 tests |
+| M05-020 | Cancelling twice is refused | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `TRIP_NOT_EDITABLE`; 3 tests |
+| M05-021 | A departed journey is read-only | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `is_editable` from the server; 5 tests |
+| M05-022 | No DELETE endpoint | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 405 asserted twice |
+| M05-023 | Next journey on the home screen | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-17-home-next-journey.png` |
+| M05-024 | Journey limit, configurable | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `TRIP_LIMIT_REACHED`, counted under a lock; 3 tests |
+| M05-025 | Ownership from authentication only | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | No customer id in any route; 4 tests |
+| M05-026 | IDOR — read another's journey | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 404, no content leaked; unit + feature + live |
+| M05-027 | IDOR — change another's journey | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 404; row unchanged |
+| M05-028 | IDOR — cancel another's journey | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 404; still PLANNED |
+| M05-029 | IDOR — plan from another's saved address | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `ADDRESS_NOT_FOUND` via Module 04's own lookup |
+| M05-030 | Ownership injection in a body | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `customer_id` never read; 1 test |
+| M05-031 | Status injection in a body | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `status`/`cancelled_at` never read; 2 tests |
+| M05-032 | Missing and not-yours are indistinguishable | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Identical code and message; 2 tests |
+| M05-033 | Coordinates never invented | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | All NULL in MySQL; 5 tests |
+| M05-034 | Half a coordinate refused | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Both or neither, both sides of the wire |
+| M05-035 | Two statuses only, honestly | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `TripStatus`; enum in MySQL |
+| M05-036 | No optimistic success anywhere | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | 4 failure-path tests; nothing claimed on refusal |
+| M05-037 | Loading, empty, error and data states | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-02/18*.png`; 6 tests |
+| M05-038 | Account cache isolation for journeys | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | 3 tests driving a real account switch |
+| M05-039 | Journeys and their times absent from logs | ➖ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `TripLoggingTest` (7); live log grep |
+| M05-040 | Duplicate-submission safety | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Submission lock; no duplicate rows in MySQL |
+| M05-041 | Android runtime verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ➖ | ✅ | **BLOCKED** | KI-001 — SDK unreachable |
+| M05-042 | iOS runtime verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ✅ | **BLOCKED** | KI-002 — no macOS host |
+| M05-043 | Live-view inspection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 24 screenshots, no application errors |
+| M05-044 | Database verification | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Direct queries in the evidence file |
+| M05-045 | Documentation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `20-*.md` + 10 updated documents |
+| M05-046 | Modules 01–04 regression | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | PASS | 391 + 287 + 29 tests; M03 and M04 integration re-run |
+
+### Summary
+
+44 of 46 Module 05 requirements COMPLETE or PASSED. Two (M05-041 Android,
+M05-042 iOS) remain **BLOCKED** by the same environment restrictions recorded in
+Module 01 — not by the code.
+
+**Android runtime verification = PENDING — environment unavailable.**
+**iOS runtime verification = PENDING — environment unavailable.**
