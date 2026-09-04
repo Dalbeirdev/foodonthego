@@ -19,11 +19,13 @@ import 'package:foodonthego/domain/models/home_dashboard.dart';
 import 'package:foodonthego/domain/models/place.dart';
 import 'package:foodonthego/domain/models/saved_address.dart';
 import 'package:foodonthego/domain/models/trip.dart';
+import 'package:foodonthego/domain/models/discovered_restaurant.dart';
 import 'package:foodonthego/domain/models/trip_route.dart';
 import 'package:foodonthego/domain/repositories/auth_repository.dart';
 import 'package:foodonthego/domain/repositories/customer_repository.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
 import 'package:foodonthego/domain/repositories/place_repository.dart';
+import 'package:foodonthego/domain/repositories/discovery_repository.dart';
 import 'package:foodonthego/domain/repositories/route_repository.dart';
 import 'package:foodonthego/domain/repositories/trip_repository.dart';
 import 'package:foodonthego/shared/state/connectivity.dart';
@@ -1307,6 +1309,98 @@ PlaceDetails samplePlace({
   countryCode: 'IN',
 );
 
+/// Restaurants along a route, without a server.
+///
+/// Positions are computed from a fraction along the sample route and a stated
+/// perpendicular offset, exactly as the backend's fixtures are — so a test that
+/// says "800 metres off the route at the halfway point" gets one, rather than a
+/// coordinate somebody hoped looked right.
+class FakeDiscoveryRepository implements DiscoveryRepository {
+  FakeDiscoveryRepository({
+    List<DiscoveredRestaurant>? restaurants,
+    this.provider = 'google',
+    this.corridorMetres = 5000,
+  }) : _restaurants = restaurants ?? <DiscoveredRestaurant>[sampleRestaurant()];
+
+  final List<DiscoveredRestaurant> _restaurants;
+  final String provider;
+  final int corridorMetres;
+
+  int discoverCalls = 0;
+
+  /// Scripted failure. Cleared after it fires, so a test can script one failure
+  /// followed by a success.
+  ApiException? nextError;
+
+  Duration delay = Duration.zero;
+
+  @override
+  Future<RestaurantDiscovery> discover(String tripId) async {
+    discoverCalls++;
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+
+    final ApiException? error = nextError;
+
+    if (error != null) {
+      nextError = null;
+      throw error;
+    }
+
+    return RestaurantDiscovery(
+      restaurants: _restaurants,
+      routeId: 'route-0',
+      provider: provider,
+      corridorMetres: corridorMetres,
+      closedOnly:
+          _restaurants.isNotEmpty &&
+          !_restaurants.any(
+            (DiscoveredRestaurant r) => r.availability.isActionable,
+          ),
+      candidatesConsidered: _restaurants.length,
+    );
+  }
+}
+
+/// One discovered restaurant, with every figure stated rather than defaulted.
+DiscoveredRestaurant sampleRestaurant({
+  String id = 'restaurant-1',
+  String name = 'Highway Spice Kitchen',
+  RestaurantAvailability availability = RestaurantAvailability.open,
+  int distanceAheadMetres = 68400,
+  int proximityMetres = 1800,
+  int? detourDurationSeconds = 240,
+  int? detourDistanceMetres = 1700,
+  int? timeAheadSeconds = 3600,
+  bool requiresBacktracking = false,
+  List<String> cuisines = const <String>['North Indian', 'Vegetarian'],
+  List<String> facilities = const <String>['Parking', 'Restroom'],
+  int? priceLevel = 2,
+  double? rating,
+  int? reviewCount,
+  bool isAcceptingOrders = true,
+  GeoPoint position = const GeoPoint(27.6916, 76.5096),
+}) => DiscoveredRestaurant(
+  id: id,
+  name: name,
+  position: position,
+  route: RouteRelation(
+    proximityMetres: proximityMetres,
+    distanceAheadMetres: distanceAheadMetres,
+    detourDistanceMetres: detourDistanceMetres,
+    detourDurationSeconds: detourDurationSeconds,
+    timeAheadSeconds: timeAheadSeconds,
+    requiresBacktracking: requiresBacktracking,
+  ),
+  availability: availability,
+  cuisines: cuisines,
+  facilities: facilities,
+  priceLevel: priceLevel,
+  rating: rating,
+  reviewCount: reviewCount,
+  isAcceptingOrders: isAcceptingOrders,
+);
+
 Widget wrapApp({
   required HomeRepository repository,
   ThemeData? theme,
@@ -1319,6 +1413,7 @@ Widget wrapApp({
   FakePlaceRepository? places,
   FakeLocationService? location,
   FakeRouteRepository? routes,
+  FakeDiscoveryRepository? discovery,
   bool signedIn = true,
 }) {
   final FakeAuthRepository authRepository = auth ?? FakeAuthRepository();
@@ -1346,6 +1441,9 @@ Widget wrapApp({
       ),
       routeRepositoryProvider.overrideWithValue(
         routes ?? FakeRouteRepository(),
+      ),
+      discoveryRepositoryProvider.overrideWithValue(
+        discovery ?? FakeDiscoveryRepository(),
       ),
       locationServiceProvider.overrideWithValue(
         location ?? FakeLocationService(),

@@ -16,6 +16,7 @@ import 'package:foodonthego/core/network/api_exception.dart';
 import 'package:foodonthego/data/repositories/api_auth_repository.dart';
 import 'package:foodonthego/data/repositories/api_customer_repository.dart';
 import 'package:foodonthego/data/repositories/api_place_repository.dart';
+import 'package:foodonthego/data/repositories/api_discovery_repository.dart';
 import 'package:foodonthego/data/repositories/api_route_repository.dart';
 import 'package:foodonthego/data/repositories/api_trip_repository.dart';
 import 'package:foodonthego/domain/models/auth_models.dart';
@@ -43,6 +44,7 @@ class Session {
   ApiTripRepository? _trips;
   ApiPlaceRepository? _places;
   ApiRouteRepository? _routes;
+  ApiDiscoveryRepository? _discovery;
 
   ApiCustomerRepository get customer =>
       _customer ??= ApiCustomerRepository(client);
@@ -52,6 +54,9 @@ class Session {
   ApiPlaceRepository get places => _places ??= ApiPlaceRepository(client);
 
   ApiRouteRepository get routes => _routes ??= ApiRouteRepository(client);
+
+  ApiDiscoveryRepository get discovery =>
+      _discovery ??= ApiDiscoveryRepository(client);
 
   void close() => client.close();
 }

@@ -368,6 +368,69 @@ place names, and the entire summary underneath — everything except the picture
 A customer whose tiles will not load still needs to know where they are going,
 how far it is and how long it takes.
 
+## Discovery: food on your route
+
+Reached from the route screen's "Find food on this route" — the only way in,
+because discovery has no meaning without a journey and a journey without a
+calculated route cannot be searched along.
+
+Header, toggle, then results. The card is the module in miniature:
+
+> **Highway Spice Kitchen**  ·  *Open*
+> North Indian, Vegetarian · ₹₹
+> **66 km ahead**   ·   4 min detour
+> 900 m off your route
+> Parking · Restroom · Seating
+
+Reading order is the argument. **How far ahead** and **what the stop costs** come
+first and largest, because those are the two facts that decide whether somebody
+stops here rather than at the next one. The name is the heading; cuisine, price
+and rating are supporting detail; how far off the road it sits is a third,
+quieter line — a useful signal, and never a substitute for the detour.
+
+Four rules the screen follows:
+
+1. **Opening it searches once.** Discovery is the most expensive endpoint in the
+   application, and a rebuild, a map pan, or a switch between map and list never
+   costs a second request.
+2. **Nothing is invented.** A restaurant with no rating shows none; one whose
+   detour could not be established says "Detour unknown" rather than showing a
+   zero.
+3. **Closed is not hidden.** A shut restaurant is still a fact about the road.
+   "There is somewhere and it is shut" is a different and more useful answer than
+   "there is nothing here", and a whole result set of them gets its own words.
+4. **A paused restaurant never reads as available.** Open by the clock and not
+   cooking is "Not accepting orders", in words, on the chip and in the spoken
+   label.
+
+### Map and list
+
+The same results, two presentations, and switching between them never re-runs the
+search. The map draws the selected route at all times — including while a
+restaurant is selected, because a discovery map that loses the route has stopped
+answering the question it exists for and become a pin on a generic map. Only the
+restaurants in the result set are marked; a nearby restaurant the server rejected
+on detour is not quietly offered anyway.
+
+Marker and card are one selection, not two. Tapping either highlights both,
+because they are the same act and giving them separate state is how the two come
+to disagree.
+
+### States
+
+| State | What it shows |
+| --- | --- |
+| Loading | Card skeletons and "Finding food stops along your route…" |
+| Results | The stops, in journey order |
+| Empty | "No stops on this route yet", naming the corridor that was searched |
+| Closed only | The stops, above a notice that none is taking orders |
+| Route not ready | "Work out your route first", and a way back to the route |
+| Rate limited | "Just a moment" |
+| Failed | A retry |
+| Offline, cached | The stops, and a banner that opening times may have changed |
+| Offline, cold | An offline state |
+| Map unavailable | Both place names and how many stops were found |
+
 ## Development harness
 
 A floating control (development builds only) that switches persona, forces offline, and forces a

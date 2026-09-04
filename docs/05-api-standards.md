@@ -125,6 +125,30 @@ Like `PLACE_LOOKUP_FAILED`, none of them carries a word of the provider's own
 message: an upstream routing error names our project, our key state and our
 quota.
 
+| `ROUTE_NOT_READY` | 409 | The journey has no usable selected route to search along |
+| `DISCOVERY_FAILED` | 500 | The restaurant search could not complete |
+| `DISCOVERY_RATE_LIMITED` | 429 | Too many discovery requests |
+| `RESTAURANT_DATA_UNAVAILABLE` | 503 | The restaurant store is unreachable |
+| `DETOUR_PROVIDER_UNAVAILABLE` | 503 | The routing provider is down |
+
+`ROUTE_NOT_READY` is deliberately distinct from `ROUTE_NOT_FOUND`. The route
+exists and the customer can see it; it is simply not in a state discovery can
+search along, and the client's answer is to send them back to the route screen
+rather than to report a missing journey.
+
+**A read may be expensive without becoming a POST.** Restaurant discovery is a
+`GET` even though it can reach a billed provider: it writes nothing, and a
+customer reopening it expects what they saw before. The spending is controlled by
+a cache, a hard evaluation budget and its own throttle — not by making the verb
+inconvenient. The rule this module follows, and the next one should: **the verb
+describes the effect, the budget controls the cost.**
+
+**A response says what it cost.** Discovery returns a `meta` block —
+candidates considered, how many survived the corridor, how many detours were
+evaluated, whether the answer came from cache. It is there so a client can say
+something useful about an empty screen instead of guessing, and so performance
+evidence is a measurement rather than an assertion.
+
 **A guest is answered 401, whatever they sent.** Laravel's default redirects an
 unauthenticated request that does not announce `Accept: application/json` to a
 `login` route. This API has none, so that path threw and the caller was told 500
@@ -237,6 +261,11 @@ hold for every resource a customer owns:
 - **A literal segment is declared before a parameter that could swallow it.**
   `/customer/trips/current` before `/customer/trips/{trip}`, or "current" is
   captured as a journey id and answered 404.
+- **A child resource is nested under the parent that gives it meaning, and
+  carries no id of its own in the path.** `/customer/trips/{trip}/routes`, and
+  `/customer/trips/{trip}/restaurants` — which names no route, because the route
+  searched is whichever one the customer selected on their own trip. There is
+  nothing to substitute for somebody else's.
 - **A filter uses the server's own vocabulary.** `/customer/trips?status=` takes
   a `TripStatus` value, not a client-side word. An unknown query parameter is
   *ignored* rather than refused, so a client sending its own dialect gets an

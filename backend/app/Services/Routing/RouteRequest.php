@@ -42,5 +42,26 @@ final readonly class RouteRequest
 
         /** When the journey starts. Now, for a route being planned now. */
         public ?CarbonImmutable $departureTime = null,
+
+        /**
+         * Points the route must pass through, in order.
+         *
+         * Added by Module 07, which asks a question Module 06 never needed: not
+         * "how do I get there" but "how much longer does it take if I stop
+         * here". That is the same route with one intermediate point, so it is a
+         * property of the request rather than a second provider method — one
+         * adapter to keep correct instead of two.
+         *
+         * Empty for every Module 06 call, which is why it is last and defaulted.
+         *
+         * @var list<array{0: float, 1: float}> latitude, longitude pairs
+         */
+        public array $waypoints = [],
     ) {}
+
+    /** Whether this asks for a route through somewhere, not merely between two points. */
+    public function hasWaypoints(): bool
+    {
+        return $this->waypoints !== [];
+    }
 }

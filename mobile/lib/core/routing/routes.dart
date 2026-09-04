@@ -54,11 +54,19 @@ class Routes {
   /// to — a route has no existence away from one.
   static const String tripRoute = 'route';
 
+  /// Restaurants along the selected route (Module 07). Nested under the route
+  /// it belongs to, because discovery has no meaning without one — and because
+  /// Android back from here lands on the route the customer came from.
+  static const String tripRestaurants = 'restaurants';
+
   static const String tripPlanPath = '/trips/plan';
 
   static String tripDetailPath(String id) => '/trips/$id';
 
   static String tripRoutePath(String id) => '/trips/$id/route';
+
+  static String tripRestaurantsPath(String id) =>
+      '/trips/$id/route/restaurants';
 
   /// The controlled destination for anything not built yet. Takes the feature
   /// name and owning module as query parameters so one screen serves them all.

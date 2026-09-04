@@ -137,6 +137,34 @@ explicitly from a validated provider response. A model whose values must never
 come from a request is clearer with an empty `$fillable` than with a `$guarded`
 list somebody has to keep in step with the migration.
 
+`restaurants` carries two indexes and no more: `(latitude, longitude)` for the
+corridor's bounding-box range, and `(status, verification_status,
+is_discoverable)` for the eligibility filter every discovery query applies.
+Latitude leads the position index because it is the selective half — a
+Delhi-Jaipur corridor is three degrees of latitude out of the thirty India spans.
+
+### Spatial types, and why not yet
+
+MySQL 8 supports `POINT` with SRID 4326 and `SPATIAL INDEX`, and that would be
+the better tool for a corridor search — **once coordinates are mandatory**. A
+spatial index requires a `NOT NULL` column, and `restaurants.latitude` is
+deliberately nullable: a restaurant whose position has never been established is
+not route-discoverable, and the only alternative to a nullable column is a
+fabricated point.
+
+So two `DECIMAL(10,7)` columns are the single source of truth and there is **no
+parallel `POINT` column to drift out of step with them**. The upgrade path is
+written down in `22-restaurant-route-discovery.md`, including the detail that
+sinks people: coordinate order inside a 4326 `POINT` is latitude, longitude —
+the opposite of GeoJSON.
+
+### Attribute tables rather than JSON columns
+
+`restaurant_cuisines`, `restaurant_facilities` and `restaurant_opening_hours` are
+tables because the next module filters on all three, and **a JSON column that has
+to be filtered is a table that has not been written yet**. The cost of
+normalising them is three extra queries per request — eager-loaded, not per row.
+
 ## Migrations
 
 - One migration per change; never edit a migration that has run anywhere but locally.

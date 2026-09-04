@@ -24,15 +24,83 @@ final class StructuredLoggingTest extends TestCase
     }
 
     /** @param array<string, mixed> $context */
-    private function format(array $context): string
+    private function format(array $context, string $message = 'api.request'): string
     {
         return (new StructuredFormatter)->format(new LogRecord(
             new \DateTimeImmutable,
             'testing',
             Level::Info,
-            'api.request',
+            $message,
             $context,
         ));
+    }
+
+    public function test_a_duplicate_key_error_never_names_the_duplicated_value(): void
+    {
+        // Found by grepping a real application log during Module 07's privacy
+        // sweep. A unique-constraint violation puts the offending value into the
+        // driver's message, and for `users_phone_e164_unique` that value is a
+        // customer's phone number — written to disk, twice, by two different
+        // reporting paths.
+        $line = $this->format([], 'SQLSTATE[23000]: Integrity constraint violation: 1062 '
+            ."Duplicate entry '+919999900101' for key 'users.users_phone_e164_unique'");
+
+        $this->assertStringNotContainsString('+919999900101', $line);
+
+        // The constraint name survives: it is the operationally useful half, and
+        // it says nothing about anybody.
+        $this->assertStringContainsString('users_phone_e164_unique', $line);
+    }
+
+    public function test_the_bound_values_laravel_appends_never_reach_the_line(): void
+    {
+        // The broader half of the same defect, and the one that made the first
+        // fix insufficient: Laravel appends the whole statement to *every*
+        // QueryException message with the bindings **inlined and unquoted**, so
+        // there is nothing narrower to match than the tail itself.
+        $line = $this->format([], 'SQLSTATE[HY000]: General error: 1364 '
+            ."Field 'uuid' doesn't have a default value "
+            .'(Connection: mysql, Host: 127.0.0.1, Database: fotg, '
+            .'SQL: insert into `users` (`phone_e164`, `name`) '
+            .'values (+919999900101, Rahul Sharma))');
+
+        $this->assertStringNotContainsString('+919999900101', $line);
+        $this->assertStringNotContainsString('Rahul Sharma', $line);
+
+        // What is left is the part an engineer can act on.
+        $this->assertStringContainsString('1364', $line);
+        $this->assertStringContainsString('uuid', $line);
+    }
+
+    public function test_a_throwable_in_context_is_reduced_to_three_facts(): void
+    {
+        // `json_encode` serialises a throwable through its **public**
+        // properties, and `PDOException::$errorInfo` is public and carries the
+        // offending value. The exception object never reaches the encoder now.
+        $line = $this->format([
+            'exception' => new \RuntimeException('a message that may carry a value'),
+        ]);
+
+        $this->assertStringContainsString('RuntimeException', $line);
+        $this->assertStringContainsString('"line"', $line);
+        $this->assertStringNotContainsString('a message that may carry a value', $line);
+    }
+
+    public function test_a_driver_value_inside_a_context_string_is_scrubbed_too(): void
+    {
+        $line = $this->format([
+            'exception_message' => "Duplicate entry 'rahul@example.test' for key 'users.users_email_unique'",
+        ]);
+
+        $this->assertStringNotContainsString('rahul@example.test', $line);
+    }
+
+    public function test_an_ordinary_message_is_left_alone(): void
+    {
+        $line = $this->format(['note' => 'Green Park to Jaipur'], 'trip.created');
+
+        $this->assertStringContainsString('trip.created', $line);
+        $this->assertStringContainsString('Green Park to Jaipur', $line);
     }
 
     public function test_a_line_is_valid_json_with_the_expected_envelope(): void

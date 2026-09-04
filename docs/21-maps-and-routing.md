@@ -35,7 +35,7 @@ the rendered app asserts its absence.
 
 | Module 06 | Later |
 | --- | --- |
-| The route between two places | Restaurants along it (07) |
+| The route between two places | Restaurants along it (**built — Module 07**) |
 | Distance and travel duration | Cooking start prediction |
 | Traffic-aware duration, when supplied | Restaurant preparation intelligence |
 | Route alternatives and which one is chosen | Live GPS progress |
@@ -317,6 +317,28 @@ customer whose tiles will not load still needs to know where they are going, how
 far it is and how long it takes.
 
 ---
+
+## What Module 07 took from here
+
+Module 07 consumes this module rather than reimplementing any of it, and the two
+seams are worth naming because they are the ones a later module will use too.
+
+**The selected route is read through `selectedRouteFor()`**, which already
+refuses a route whose trip's endpoints have moved. Module 07 does not re-check
+staleness; it depends on that guarantee, and a stale route reaches it as a
+refusal rather than as geometry.
+
+**The provider gained waypoints, not a second method.** A detour is "the same
+journey, through here", which is one intermediate point on the request already
+defined — so `RouteRequest` grew a `waypoints` field, `GoogleRouteProvider` maps
+it to `intermediates` with `optimizeWaypointOrder: false` (an optimised ordering
+answers a question nobody put), and `DevelopmentRouteProvider` bends its straight
+line through them. Every Module 06 call passes an empty list and is unaffected.
+
+The consequence of the second seam is worth being blunt about: **a detour is only
+as real as the routing provider**. With the development stand-in the road network
+is a straight line, so every stop near the road costs almost nothing to reach and
+the detour threshold cannot exclude anything. See KI-012 and M07-055.
 
 ## Privacy
 

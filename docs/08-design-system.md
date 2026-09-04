@@ -188,6 +188,34 @@ A map is a picture, so everything that matters must also exist as words.
   one-line explanation, both place names, and the full summary below it — never a
   blank grey rectangle, and never a screen that has lost the journey.
 
+## Discovery surfaces (Module 07)
+
+A card that recommends a stop has to survive being read aloud, being read at 1.6x
+text, and being read on a phone 320 logical pixels wide.
+
+- **The hierarchy is the argument.** Distance ahead and detour come first and
+  largest, because those are the two facts that decide whether somebody stops
+  here rather than at the next one. The name is the heading; cuisine, price and
+  rating are supporting detail.
+- **Every part is conditional.** No rating, no rating line. No declared price, no
+  price. No detour the server could establish, an explicit "Detour unknown" — not
+  a zero, which would be a claim that stopping is free.
+- **One string per fact, used by both the eye and the ear.** A stop that needs
+  backtracking shows "Behind you" *and* announces "Behind you"; computing the two
+  separately is how a screen reader came to be told "0 m ahead" about a
+  restaurant the screen labelled "Behind you".
+- **A symbol is never the only carrier.** "₹₹" is a visual convention that a
+  screen reader announces as nothing useful and a font without the glyph draws as
+  two empty boxes, so the price level is also spoken as a word — "Moderate".
+  Availability is likewise always a word, never only a colour.
+- **Facts wrap, they do not overflow.** The route facts sit in a `Wrap`, and each
+  one is itself flexible: at 320dp a single fact — "1.8 km off your route" — is
+  wider than the card, and measured 69 pixels past its edge before that was
+  fixed.
+- **A control too wide for the screen loses its labels, not its meaning.** The
+  map/list toggle drops to icons below 300dp and keeps a tooltip on each segment,
+  which is also its accessible name.
+
 ## Accessibility baseline
 
 - Visible `:focus-visible` ring on every interactive element

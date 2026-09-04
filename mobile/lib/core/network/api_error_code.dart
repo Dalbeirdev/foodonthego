@@ -101,6 +101,16 @@ enum ApiErrorCode {
 
   routeCalculationInProgress('ROUTE_CALCULATION_IN_PROGRESS'),
 
+  /// Module 07. The route exists and the customer can see it; it is simply not
+  /// in a state discovery can search along. Distinct from [routeNotFound],
+  /// because the answer is to send them back to the route screen rather than to
+  /// report a missing journey.
+  routeNotReady('ROUTE_NOT_READY'),
+  discoveryFailed('DISCOVERY_FAILED'),
+  discoveryRateLimited('DISCOVERY_RATE_LIMITED'),
+  restaurantDataUnavailable('RESTAURANT_DATA_UNAVAILABLE'),
+  detourProviderUnavailable('DETOUR_PROVIDER_UNAVAILABLE'),
+
   /// The request never reached the server, or never came back.
   network('NETWORK'),
 
@@ -140,7 +150,10 @@ enum ApiErrorCode {
     ApiErrorCode.routeProviderUnavailable ||
     ApiErrorCode.routeTimeout ||
     ApiErrorCode.routeProviderRateLimited ||
-    ApiErrorCode.routeResponseInvalid => true,
+    ApiErrorCode.routeResponseInvalid ||
+    ApiErrorCode.discoveryFailed ||
+    ApiErrorCode.restaurantDataUnavailable ||
+    ApiErrorCode.detourProviderUnavailable => true,
     _ => false,
   };
 }

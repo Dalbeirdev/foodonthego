@@ -66,12 +66,25 @@ final class DevelopmentRouteProvider implements RouteProvider
 
     public function calculate(RouteRequest $request): RouteResult
     {
-        $distance = (int) round($this->metresBetween(
-            $request->originLatitude,
-            $request->originLongitude,
-            $request->destinationLatitude,
-            $request->destinationLongitude,
-        ));
+        // A waypoint bends the straight line into two straight lines. That is
+        // still not a route, and the extra distance it produces is still
+        // synthetic — but it is the *shape* Module 07's detour arithmetic
+        // expects, so the arithmetic itself is exercised rather than skipped.
+        // The `provider` column says `development` either way.
+        $legs = $this->legs($request);
+
+        $distance = 0.0;
+
+        for ($i = 1, $n = count($legs); $i < $n; $i++) {
+            $distance += $this->metresBetween(
+                $legs[$i - 1][0],
+                $legs[$i - 1][1],
+                $legs[$i][0],
+                $legs[$i][1],
+            );
+        }
+
+        $distance = (int) round($distance);
 
         if ($distance <= 0) {
             // Two points in the same place. The real providers answer this with
@@ -89,10 +102,10 @@ final class DevelopmentRouteProvider implements RouteProvider
             trafficDurationSeconds: null,
             encodedPolyline: PolylineCodec::encode($this->straightLine($request)),
             bounds: new RouteBounds(
-                north: max($request->originLatitude, $request->destinationLatitude),
-                south: min($request->originLatitude, $request->destinationLatitude),
-                east: max($request->originLongitude, $request->destinationLongitude),
-                west: min($request->originLongitude, $request->destinationLongitude),
+                north: max(array_column($legs, 0)),
+                south: min(array_column($legs, 0)),
+                east: max(array_column($legs, 1)),
+                west: min(array_column($legs, 1)),
             ),
             summary: 'Development stand-in — not a real route',
         )];
@@ -104,21 +117,50 @@ final class DevelopmentRouteProvider implements RouteProvider
         return new RouteResult($options, $this->name());
     }
 
+    /**
+     * Origin, then any waypoints in order, then destination.
+     *
+     * @return list<array{0: float, 1: float}>
+     */
+    private function legs(RouteRequest $request): array
+    {
+        return [
+            [$request->originLatitude, $request->originLongitude],
+            ...array_map(
+                static fn (array $p): array => [(float) $p[0], (float) $p[1]],
+                $request->waypoints,
+            ),
+            [$request->destinationLatitude, $request->destinationLongitude],
+        ];
+    }
+
     /** @return list<array{0: float, 1: float}> */
     private function straightLine(RouteRequest $request): array
     {
+        $legs = $this->legs($request);
         $points = [];
-        $steps = 24;
 
-        for ($i = 0; $i <= $steps; $i++) {
-            $fraction = $i / $steps;
+        // 24 steps in total, spread over however many legs there are, so a
+        // route through a waypoint has roughly the same point density as one
+        // without.
+        $stepsPerLeg = max(2, (int) round(24 / (count($legs) - 1)));
 
-            $points[] = [
-                $request->originLatitude
-                    + ($request->destinationLatitude - $request->originLatitude) * $fraction,
-                $request->originLongitude
-                    + ($request->destinationLongitude - $request->originLongitude) * $fraction,
-            ];
+        for ($leg = 1, $n = count($legs); $leg < $n; $leg++) {
+            [$fromLat, $fromLon] = $legs[$leg - 1];
+            [$toLat, $toLon] = $legs[$leg];
+
+            // The first point of every leg but the first repeats the previous
+            // leg's last point, so it is skipped.
+            $start = $leg === 1 ? 0 : 1;
+
+            for ($i = $start; $i <= $stepsPerLeg; $i++) {
+                $fraction = $i / $stepsPerLeg;
+
+                $points[] = [
+                    $fromLat + ($toLat - $fromLat) * $fraction,
+                    $fromLon + ($toLon - $fromLon) * $fraction,
+                ];
+            }
         }
 
         return $points;

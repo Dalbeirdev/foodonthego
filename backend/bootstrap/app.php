@@ -87,5 +87,17 @@ return Application::configure(basePath: dirname(__DIR__))
         RateLimiter::for('auth-verify', static fn (Request $request): Limit => Limit::perMinute(
             (int) config('foodonthego.rate_limits.auth_verify'),
         )->by('ip:'.$request->ip()));
+
+        // Restaurant discovery is the most expensive endpoint in the
+        // application: a corridor query over the restaurant table plus up to a
+        // dozen billed routing calls. Keyed by customer rather than by IP,
+        // because the abuse this guards against is one client looping — a
+        // rebuilt widget, a map pan, a retry storm — and a shared corporate NAT
+        // must not throttle every traveller behind it as one.
+        RateLimiter::for('discovery', static fn (Request $request): Limit => $request->user()
+            ? Limit::perMinute((int) config('foodonthego.rate_limits.discovery'))
+                ->by('user:'.$request->user()->getAuthIdentifier())
+            : Limit::perMinute((int) config('foodonthego.rate_limits.public'))
+                ->by('ip:'.$request->ip()));
     })
     ->create();

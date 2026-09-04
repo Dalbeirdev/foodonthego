@@ -137,6 +137,25 @@ read, calculation and selection compares them first, and a mismatch deletes the
 routes before a response is built. There is no window in which a stale route is
 visible.
 
+**Discovery is two stages because one would be unaffordable.** Finding
+restaurants along a route could be a single query with a distance function in it;
+it is instead an indexed bounding-box query that deliberately over-selects,
+followed by exact geometry in PHP over the small set that survives, followed by
+billed routing calls for a capped handful of those. Each stage is cheaper per row
+than the one after it and exists to keep the next one small. See
+`22-restaurant-route-discovery.md`.
+
+**Proximity and detour are different numbers and are never conflated.** How far a
+restaurant sits from the road is geometry we compute; what stopping there costs is
+a road-network fact only a routing provider knows. A restaurant 300 m from a
+motorway can be eighteen minutes away, and a system that treats the first as the
+second recommends exactly the wrong stops.
+
+**A figure that could not be established is null, not zero.** A null detour
+renders as "Detour unknown"; a zero would be a claim that stopping is free. This
+is the same rule Module 06 applies to a traffic duration, and it is the reason
+both modules can be trusted about the figures they *do* report.
+
 ## What Module 01 deliberately did not build
 
 No authentication, no domain tables beyond `users`, no feature endpoints. Module-specific migrations

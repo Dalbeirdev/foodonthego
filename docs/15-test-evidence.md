@@ -956,3 +956,205 @@ answer.
 - **iOS runtime verification = PENDING — environment unavailable.** (KI-002.)
 
 None is a code failure, and none is reported as a pass.
+
+---
+
+# Module 07 — Restaurant Discovery Along the Selected Route
+
+Full transcript: [`evidence/module-07-verification-run.txt`](evidence/module-07-verification-run.txt).
+Screenshots: [`evidence/module-07/`](evidence/module-07/).
+
+## Automated tests — 1 120 total, 1 120 passed, 0 failed, 0 skipped
+
+| Suite | Command | Tests | Passed | Failed | Skipped |
+| --- | --- | --: | --: | --: | --: |
+| Backend | `php artisan test` | 635 | 635 | 0 | 0 |
+| Flutter | `flutter test` | 456 | 456 | 0 | 0 |
+| Web shells and `@fotg/ui` | `npm test` | 29 | 29 | 0 | 0 |
+
+Static checks: `./vendor/bin/pint --test` → passed. `flutter analyze` → no
+issues. `dart format --set-exit-if-changed` → clean.
+
+### The suites this module added
+
+| Suite | Tests | What it pins |
+| --- | --: | --- |
+| `RouteGeometryTest` | 11 | Projection against distances checkable by hand: perpendicular rather than nearest-vertex, ordering along the route, behind-origin, beyond-destination, self-crossing, and that simplification cannot move a restaurant across the corridor |
+| `RestaurantEligibilityTest` | 13 | Every rule, and **all 72 combinations** asserting the SQL scope and the service never disagree |
+| `RestaurantAvailabilityTest` | 13 | Restaurant-local timezone, overnight windows, split service days, and that a paused restaurant is never reported as open |
+| `RestaurantDiscoveryServiceTest` | 22 | The pipeline with a provider the test controls |
+| `DiscoveryRankingTest` | 11 | The score as product statements — which of two restaurants wins, and why |
+| `TripRestaurantApiTest` | 17 | The endpoint as a client sees it, including the private-column sweep |
+| `TripRestaurantOwnershipTest` | 6 | The discovery IDOR matrix |
+| `DiscoveryLoggingTest` | 5 | Reads the log file: counts present, names and coordinates absent |
+| `DiscoveryPerformanceTest` | 5 | 2 000 restaurants, and a query count that does not grow with the result count |
+| `discovery_models_test.dart` | 18 | A restaurant with no id, name, position or route relation does not construct |
+| `discovery_controller_test.dart` | 18 | Mostly counting requests: a rebuild, a view switch and a rapid double-open all cost one |
+| `discovery_screen_test.dart` | 38 | Every state, both presentations, marker/card synchronisation, 320dp, long names, 1.6× text, accessibility |
+
+## Integration — no mocks, no fakes, no stubs
+
+`dart run tool/discovery_smoke.dart` drives this app's own `ApiClient` and
+`ApiDiscoveryRepository` against a running Laravel server, real restaurant rows
+in MySQL, and the real route geometry Module 06 stored. **22 assertions, 22
+passed.**
+
+What the run actually returned, against the pilot Green Park → Jaipur route:
+
+```
+route provider    : development      corridor (metres) : 5000
+real provider     : false            candidates        : 6      returned : 5
+
+restaurant                      availability            prox m  detour m  det s   ahead m
+[TEST] Highway Spice Kitchen    OPEN                       900        19      1     66304
+[TEST] Paused Highway Grill     NOT_ACCEPTING_ORDERS      1000        21      1     85249
+[TEST] Rajasthan Highway Bites  OPEN                      2400        77      4    146830
+[TEST] Closed Route Cafe        CLOSED                    1100        25      1    165762
+[TEST] Behind You Diner         OPEN                      2897      5737    343         0
+```
+
+The proximity column is worth reading twice: 900, 1000, 2400, 1100 metres are
+**exactly** the perpendicular offsets the seeder placed those fixtures at. The
+projection recovers them from a real stored polyline, which is the strongest
+evidence in this module that the geometry is right rather than merely
+self-consistent.
+
+Absent from the list, and asserted absent: Suspended Dhaba, Pending Restaurant
+(neither is eligible) and Far Away Kitchen (60 km off the road, rejected by the
+corridor without costing a provider call).
+
+The run also records what it **cannot** establish:
+
+```
+NOTE  Detour-threshold exclusion = NOT APPLICABLE for this run — the
+      configured provider models the road network as a straight line,
+      so no in-corridor stop can exceed the detour limit.
+```
+
+### Regression, same live backend
+
+| Run | Assertions | Result |
+| --- | --: | --- |
+| `tool/integration_smoke.dart` (Module 03) | 13 | 13 passed, 0 failed |
+| `tool/profile_addresses_smoke.dart` (Module 04) | 24 | 24 passed, 0 failed |
+| `tool/trip_planner_smoke.dart` (Module 05) | 31 | 31 passed, 0 failed |
+| `tool/route_smoke.dart` (Module 06) | 21 | 21 passed, 0 failed |
+
+## Database verification
+
+| Check | Result |
+| --- | --- |
+| Restaurants stored | 8 |
+| Discoverable by the SQL scope | 6 |
+| Suspended | 1 (never returned) |
+| Unverified | 1 (never returned) |
+| Without coordinates | 0 |
+| **With an invented rating** | **0** |
+| Cuisine / facility / opening-hour rows | 11 / 11 / 56 |
+| Fixtures prefixed `[TEST]` | 8 |
+| **Fixtures NOT prefixed** | **0** |
+| Indexes on `restaurants` | `(latitude, longitude)`, `(status, verification_status, is_discoverable)` |
+
+## Performance
+
+Measured rather than asserted.
+
+| Measurement | Result |
+| --- | --- |
+| Restaurants in the table (test) | 2 008 |
+| Reduced by the bounding box to | a small fraction |
+| Reduced by the corridor to | 8 — the ones actually on the road |
+| Provider calls | ≤ 8, and never more than the configured budget |
+| Queries per discovery | fewer than 12, and **flat** as the result count triples |
+| Live API latency (pilot route, 6 candidates) | **8 ms** |
+| Live API latency (25 candidates, 12 detours) | **13 ms** |
+| Cached second call | 0 provider calls |
+
+The N+1 test is the one that matters for the shape of the code: three times as
+many restaurants on the road adds at most two queries, because cuisines,
+facilities and opening hours are eager-loaded once rather than once per row.
+
+## Log verification
+
+Three discovery events are recorded: `discovery.completed`,
+`discovery.detour_provider_failed`, `discovery.restaurant_timezone_invalid`. Each
+carries counts and uuids — candidates, corridor survivors, detours evaluated,
+duration, cache hit or miss.
+
+The privacy sweep greps the day's log for fourteen needles — every fixture name,
+route geometry, all five private restaurant columns, the key prefix, and the
+stored coordinates of a discovered restaurant — and finds **0 hits for every
+one**.
+
+That sweep is also how this module's most serious defect was found, and it was
+not in this module: see **M07-B08** below.
+
+## Live-view verification — 21 states
+
+A **release** web build served over HTTP and driven in headless Chromium through
+Flutter's DOM semantics tree, against the real API and the real database, with
+the browser's geolocation standing in for a handset's.
+
+| # | State | What it establishes |
+| --: | --- | --- |
+| 01 | Route screen | "Find food on this route" is a real control now |
+| 02 | Discovery list | Real restaurants, from the real route |
+| 03 | Route figures | "66 km ahead", "1 min detour", "900 m off your route", and price as a word |
+| 04 | Ineligible absent | Suspended, pending and far-away fixtures are nowhere on screen |
+| 05 | Availability | Open, Not accepting orders and Closed, told apart in words |
+| 06 | No invented rating | Nothing where a rating would go |
+| 07 | Provider notice | A stand-in route says so |
+| 08 | Map view | Map-unavailable state, naming both ends and the stop count |
+| 09 | Back to the list | Results intact; the toggle never re-searches |
+| 10 | Card selected | |
+| 11 | Behind you | Labelled, listed last, and never "0 m ahead" |
+| 12 | Route not ready | "Work out your route first", with a way back and **no** retry |
+| 13 | Rate limited | "Just a moment" |
+| 14 | Discovery failed | A retry, and no internal error text |
+| 15 | Empty | "No stops on this route yet", naming the 5 km corridor |
+| 16 | Offline, cached | The stops stay |
+| 17 | Offline, cold | An offline state |
+| 18–20 | 320 / 360 / 430dp | Every supported width |
+| 21 | Dark mode | |
+
+Modules 05 and 06 were re-driven against the same build as a regression.
+
+## Defects found and fixed
+
+Eight, all closed, all in [13-known-issues.md](13-known-issues.md). The three
+worth naming here could each only have been found the way they were:
+
+- **B01** — a stop *behind* the origin was offered as the traveller's **next**
+  stop, because journey order sorts by distance-along-route and a backtracking
+  restaurant projects to zero.
+- **B02** — a screen reader was told "0 m ahead" about the restaurant the screen
+  labelled "Behind you". Only visible by driving the built app through its
+  semantics tree; no screenshot could show it.
+- **B08** — **a customer's phone number was being written to the application
+  log.** Found by grepping a real log during the privacy sweep. A Module 01
+  defect, not a Module 07 one, and it had been there since Module 03.
+
+Two further defects were in the *tests* rather than the code: a fixture that
+inherited a factory default nobody had chosen, and a fixture placed so far from
+the route that the rule it existed to prove never ran. Both are recorded, because
+a test that cannot fail is worse than no test.
+
+## What is pending, and why
+
+- **Live routing-provider detour figures = PENDING — environment unavailable.**
+  With a straight-line road network every in-corridor stop costs almost nothing
+  to reach — the largest detour for a stop ahead was **4 seconds** — so the
+  detour *threshold* cannot exclude anything at runtime. The rule is covered by
+  `RestaurantDiscoveryServiceTest` against a provider the test controls. (KI-012,
+  M07-055.)
+- **Live map render with markers = PENDING — environment unavailable.** (KI-011,
+  M07-057.)
+- **Alternative-route discovery = NOT APPLICABLE for this test response.**
+  Discovery reads the selected route by construction; the provider returns one
+  route, so there is no alternative to select. (M07-056.)
+- **Marker clustering = NOT IMPLEMENTED**, deliberately, at a 25-result limit.
+  (M07-058.)
+- **Android and iOS runtime verification = PENDING — environment unavailable.**
+  (KI-001, KI-002.)
+
+None is a code failure, and none is reported as a pass.

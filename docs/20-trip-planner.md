@@ -24,7 +24,8 @@ than in a convention somebody has to remember.
 | Selecting a saved address | Route alternatives |
 | Creating a trip, and persisting both ends | Displaying a route, or validating one |
 
-**Module 06 has since been built**, and it did not change a word of the above.
+**Modules 06 and 07 have since been built**, and they did not change a word of
+the above.
 Routing lives in its own table (`trip_routes`) and its own endpoints; `trips`
 still has no distance, duration or polyline column, and a trip that has never been
 routed still reports `NOT_CALCULATED`. What Module 06 added to this module's

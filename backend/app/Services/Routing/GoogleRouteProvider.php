@@ -114,6 +114,18 @@ final class GoogleRouteProvider implements RouteProvider
             // does not exist yet.
         ];
 
+        if ($request->hasWaypoints()) {
+            $payload['intermediates'] = array_map(
+                fn (array $pair): array => $this->waypoint($pair[0], $pair[1]),
+                $request->waypoints,
+            );
+
+            // Google may reorder intermediates when asked to. It must not:
+            // Module 07 asks "what does stopping *here* cost" and an optimised
+            // ordering answers a question nobody put.
+            $payload['optimizeWaypointOrder'] = false;
+        }
+
         if ($request->trafficAware) {
             $payload['routingPreference'] = 'TRAFFIC_AWARE';
             // Anchors the traffic model. Google requires this to be now or later,

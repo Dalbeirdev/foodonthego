@@ -113,7 +113,12 @@ calculation are all present. What is *not* established here is that tiles load,
 that the camera frames the route, that the markers land in the right places, and
 that a tap on an alternative polyline selects it.
 
-**This is reported as PENDING, not as PASS.** See M06-053.
+**This is reported as PENDING, not as PASS.** See M06-053 and M07-057.
+
+Module 07 inherits it: the discovery map, its restaurant markers, marker
+selection and the camera behaviour are all unverified against real tiles, and
+every discovery screenshot shows the map-unavailable state — which still names
+both ends of the journey and how many stops were found.
 
 **To clear:** build with `--dart-define=FOTG_MAPS_API_KEY=…` on an Android
 emulator or an iOS simulator and re-run the route screen.
@@ -150,7 +155,17 @@ in this environment.** Everything around it — persistence, validation,
 invalidation, selection, ownership, cost control, the screen — is verified; the
 one live call is not.
 
-**This is reported as PENDING, not as PASS.** See M06-051.
+**This is reported as PENDING, not as PASS.** See M06-051 and M07-055.
+
+Module 07 inherits it in a specific and worth-stating way. Its *detour* figures
+are differences between two provider answers, so with a straight-line road
+network every in-corridor stop costs almost nothing to reach — the largest
+detour the live run produced for a stop ahead was **4 seconds**. The consequence
+is that the detour **threshold** cannot exclude anything at runtime here, and the
+run says so rather than passing quietly. The threshold rule itself is exercised
+by `RestaurantDiscoveryServiceTest` against a provider the test controls, where a
+restaurant 400 m from the road with an eighteen-minute detour is correctly
+excluded.
 
 **To clear:** configure `GOOGLE_ROUTES_API_KEY` with the restrictions documented
 in [21-maps-and-routing.md](21-maps-and-routing.md), set `ROUTE_PROVIDER=google`,
@@ -241,6 +256,50 @@ needs an explicit audit trail anyway.
 the account, inside one transaction.
 
 ---
+
+## Bug register — Module 07
+
+All found during Module 07, all fixed and retested. Environment: PHP 8.4.19 /
+Laravel 12.69.1 / MySQL 8.0.46 / Flutter 3.47.2 on Ubuntu 24.04; live-view render
+in Chromium at 320–430dp.
+
+| ID | Requirement | Description | Severity | Reproduction | Expected | Actual | Root Cause | Fix | Retest | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| M07-B01 | M07-018 | A stop behind the origin was offered as the traveller's *next* stop | **High** | Discover along a route with a restaurant sited before the origin | Listed last, if at all | Listed **first** | Journey order sorts by distance-along-route, and a restaurant behind the origin projects to zero — so pure journey order put "turn round and drive back" at the top of the list. The relevance score already halved it; the score decides what makes the list, not where it sits in it | Ordering is `(requiresBacktracking, alongRouteMetres)`: backtracking stops go last, still offered because the customer may be standing beside one | `RestaurantDiscoveryServiceTest`; integration run asserts it is last; `state-11` | **Fixed** |
+| M07-B02 | M07-061 | A screen reader was told "0 m ahead" about a restaurant the screen labelled "Behind you" | **High** | Inspect the semantics label of a backtracking card | The two agree | The visible chip said "Behind you", the spoken label said "0 m ahead" | The chip and the label computed the same fact separately, and only the chip knew about backtracking. Found by driving the built app through the semantics tree — no screenshot could show it | One string, used by both | `discovery_screen_test.dart`: the label matches "Behind you" and never "0 m ahead" | **Fixed** |
+| M07-B03 | M07-031 | Price level was conveyed by rupee symbols alone | Medium | Inspect a card's semantics label | The price is announced | "₹₹" only, which a screen reader announces as nothing useful — and which a font without the glyph draws as two empty boxes, as the live harness did | The card had a `priceLevelLabel` string written for exactly this and never used it | The word — "Moderate" — is in the semantics label beside the cuisines | `discovery_screen_test.dart` | **Fixed** |
+| M07-B04 | M07-059 | A single route fact overflowed the card at 320dp | Medium | Open discovery at 320×568 | Facts wrap | `RenderFlex overflowed by 69 pixels on the right` — "1.8 km off your route" is wider than a 320dp card | The fact's `Row` had an unconstrained `Text` | The text is `Flexible` and wraps; the `Wrap` above it already handled facts that would not sit side by side | `discovery_screen_test.dart` at 320dp; `state-18` | **Fixed** |
+| M07-B05 | M07-027 | The map/list toggle overflowed the header at 320dp | Medium | Open discovery at 320×568 | The toggle fits | 69px overflow: with both labels the control wants about 250dp | Two labelled segments plus the result count do not fit on a 320dp row | Below 300dp the segments drop to icons and keep a tooltip, which is also their accessible name | `discovery_screen_test.dart` asserts the tooltip is still findable at 320dp | **Fixed** |
+| M07-B06 | M07-048 | Every derived figure in the integration fixture came from a duration the fixture never set | Medium | Assert time-ahead against a fixture route's own duration | 7 000 s at the halfway point | 8 550 s | The `TripRoute` factory defaults `traffic_duration_seconds` to 17 100, and the fixture set only `duration_seconds` — so time-ahead and the detour baseline were both computed from a leftover | The fixture sets all three explicitly. **A factory default is not a neutral value**: anything derived from it is derived from a number nobody in the test chose | `RestaurantDiscoveryServiceTest` | **Fixed** |
+| M07-B07 | M07-018 | The backtracking fixture was never actually tested | Medium | Seed a fixture 30 km behind the origin and discover | It is a candidate, flagged as backtracking | It was rejected by the bounding box, so the rule it existed to prove never ran | A fixture behind the origin must still be inside the corridor to reach the geometry stage; 30 km is not | The fixture sits at fraction −0.012 — genuinely before the route, comfortably inside the corridor. **A fixture that cannot reach the code under test is worse than no fixture**: it passes | Integration run and live view both exercise it | **Fixed** |
+
+| M07-B08 | M07-051 | **A customer's phone number was being written to the application log** | **High** | Cause any unique-constraint violation on `users.users_phone_e164_unique`, then read the log | The constraint name, and nothing about anybody | `Duplicate entry '+919999900101' for key 'users.users_phone_e164_unique'` — 38 times in one day's log, by two independent reporting paths | Two mechanisms, and the first fix only caught one. A PDO driver names the offending value in its message, and Laravel **also** appends the whole statement with its bindings inlined and unquoted, to *every* `QueryException`. Separately, a throwable in log context is serialised through its **public** properties, and `PDOException::$errorInfo` is public. The redaction layer matched by key and only descended into arrays, so an object walked straight past it | Redaction happens in `StructuredFormatter`, where this project already puts it: a throwable in context is reduced to class, file and line; the `(Connection: …)` tail is dropped entirely, which is the only reliable rule because the bindings are positional and unquoted; and the driver's own "Duplicate entry '…'" is scrubbed. **The constraint name survives** — the operationally useful half, which says nothing about anybody | Two unit tests, plus a live probe that provokes a real duplicate key and greps the resulting lines | **Fixed** |
+
+No Module 07 issue was left open.
+
+**B08 is not a Module 07 defect.** It has been present since Module 03 gave
+customers a phone number, and four modules of privacy sweeps did not find it —
+because each one grepped for *that module's* test data, and this leak only
+appears when a constraint is actually violated. It was found here by sweeping a
+real application log for a value that had no business being in it, rather than by
+sweeping for values the module had put there. That is the lesson worth keeping:
+**sweep the log for what it contains, not for what you expect it to contain.**
+
+### Also found here — a verification-harness gap
+
+The live driver's `expectStatuses` for console errors was a single global list,
+so a page that deliberately provokes a 409 or a 500 could only be accommodated by
+loosening the check for **every** page — including the ones where an unexpected
+500 is exactly what the run exists to catch. It is now a per-page option: the
+default set covers what every driver provokes, and a page that provokes another
+status names it.
+
+And a second, of the same family as Module 06's: an assertion about the *last*
+restaurant in the list reported "not found" whether the app was right or wrong,
+because a `ListView.builder` never builds a card below the fold and an unbuilt
+card has no semantics node. The driver scrolls now. Module 06 recorded the same
+trap about route alternatives, which is a fair sign it is worth a helper rather
+than a comment.
 
 ## Bug register — Module 06
 

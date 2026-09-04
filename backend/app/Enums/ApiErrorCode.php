@@ -74,6 +74,18 @@ enum ApiErrorCode: string
     case RouteResponseInvalid = 'ROUTE_RESPONSE_INVALID';
     case RouteCalculationInProgress = 'ROUTE_CALCULATION_IN_PROGRESS';
 
+    // --- Module 07: restaurant discovery ---------------------------------
+    //
+    // RouteNotReady is deliberately distinct from RouteNotFound. The route
+    // exists and the customer can see it; it is simply not in a state discovery
+    // can search along, and the client's answer is to send them back to the
+    // route screen rather than to report a missing journey.
+    case RouteNotReady = 'ROUTE_NOT_READY';
+    case DiscoveryFailed = 'DISCOVERY_FAILED';
+    case DiscoveryRateLimited = 'DISCOVERY_RATE_LIMITED';
+    case RestaurantDataUnavailable = 'RESTAURANT_DATA_UNAVAILABLE';
+    case DetourProviderUnavailable = 'DETOUR_PROVIDER_UNAVAILABLE';
+
     public function httpStatus(): int
     {
         return match ($this) {
@@ -137,6 +149,12 @@ enum ApiErrorCode: string
             // Another calculation for this trip is already running. 409 so a
             // double tap is told plainly rather than starting a second one.
             self::RouteCalculationInProgress => 409,
+
+            self::RouteNotReady => 409,
+            self::DiscoveryFailed => 500,
+            self::DiscoveryRateLimited => 429,
+            self::RestaurantDataUnavailable => 503,
+            self::DetourProviderUnavailable => 503,
             self::RateLimited => 429,
             self::BusinessRuleViolated => 422,
             self::DependencyUnavailable => 503,

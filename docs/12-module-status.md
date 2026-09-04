@@ -10,7 +10,8 @@
 | 06 | Maps, Route Calculation, Distance & Travel Time | **NOT COMPLETE — live routing provider verification unavailable** | 527 backend + 382 mobile + 29 web tests; integration run (21 assertions); 20 states inspected live. See below |
 | 07r | Restaurant Availability & Capacity (roadmap numbering) | NOT STARTED | |
 | 08 | Order Lifecycle | NOT STARTED | |
-| 07 | Restaurant Discovery Along the Selected Route | NOT STARTED | Next, on approval |
+| 07 | Restaurant Discovery Along the Selected Route | **NOT COMPLETE — live routing-provider detour figures unavailable** | 693 backend + 453 mobile + 29 web tests; integration run (22 assertions); 21 states inspected live. See below |
+| 08 | Restaurant Search, Filters, Sorting & Discovery Ranking | NOT STARTED | Next, on approval |
 | 09 | Route & Corridor Management | NOT STARTED | On-route restaurant search; the planner itself moved to 05 |
 | 10 | Notifications | NOT STARTED | |
 | 11 | Payments, Refunds & Settlements | NOT STARTED | |
@@ -101,4 +102,41 @@ to an unauthenticated request without a JSON `Accept` header, and a Module 03
 disposal defect — and two more were in the verification harness itself, where
 assertions had been quietly incapable of failing for the right reason.
 
-Module 07 has **not** been started, per the one-module-at-a-time rule.
+## Module 07 detail
+
+**60 of 66 requirements COMPLETE or PASSED.** Six are not, and none of them is a
+code failure — but one of them touches the module's own Definition of Done, so
+the module is reported as **NOT COMPLETE**:
+
+| ID | Requirement | Status | Blocker |
+| --- | --- | --- | --- |
+| M07-055 | Live routing-provider detour figures | **PENDING** | KI-012 — no Routes key, so the detour is measured against a straight-line road network |
+| M07-056 | Alternative-route discovery | **NOT APPLICABLE for this test response** | Discovery reads the selected route by construction; the provider returns one route, so there is no alternative to select |
+| M07-057 | Live map render with markers | **PENDING** | KI-011 — no Maps key, no Android SDK, no macOS host |
+| M07-058 | Marker clustering | **NOT IMPLEMENTED** | A deliberate scope decision at a 25-result limit, documented in `22-*.md` |
+| M07-044/045 | Android and iOS runtime verification | **PENDING** | KI-001, KI-002 |
+
+The consequence worth stating plainly: the detour is the number this product
+turns on, and with a straight-line road network every in-corridor stop costs
+almost nothing to reach — the largest detour the live run produced for a stop
+ahead was four seconds. The *rule* is verified (`RestaurantDiscoveryServiceTest`
+excludes a restaurant 400 m from the road with an eighteen-minute detour), the
+*arithmetic* is verified, and the pipeline around it is verified against real
+route geometry. What is not verified is a real road-network detour, and calling
+that a pass would be the exact fabrication this module exists to prevent.
+
+**1 175 automated tests pass** (693 backend, 453 Flutter, 29 web), plus a
+22-assertion integration run against a live server, real restaurant rows and
+Module 06's real stored geometry, and 21 live states inspected in a rendered
+release build. Pint clean, `flutter analyze` clean, `dart format` clean. Modules
+01–06 regression: **PASS**.
+
+Seven defects were found and fixed during the module; none left open. Two could
+only have been found by driving the built app through its semantics tree — a
+screen reader was being told "0 m ahead" about a restaurant the screen labelled
+"Behind you", and price level was conveyed by rupee symbols alone. Two more were
+faults in the *tests*: a fixture that inherited a factory default nobody had
+chosen, and a fixture placed so far from the route that the rule it existed to
+prove never ran.
+
+Module 08 has **not** been started, per the one-module-at-a-time rule.

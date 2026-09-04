@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/config/maps_config.dart';
 import '../../core/format/journey_measures.dart';
 import '../../core/l10n/app_strings.dart';
+import '../../core/routing/routes.dart';
 import '../../core/theme/tokens.dart';
 import '../../domain/models/trip.dart';
 import '../../domain/models/trip_route.dart';
@@ -316,6 +318,18 @@ class _SummarySheet extends ConsumerWidget {
           ],
 
           const SizedBox(height: FotgSpacing.x5),
+
+          // The way onwards, and the primary action on this screen from Module
+          // 07: a route exists to be eaten along. Offered only where the route
+          // is genuinely usable — the discovery endpoint refuses anything else,
+          // and a button that leads straight to a refusal is not an offer.
+          PrimaryButton(
+            label: strings.routeContinueCta,
+            icon: Icons.restaurant_rounded,
+            onPressed: () => context.push(Routes.tripRestaurantsPath(trip.id)),
+          ),
+
+          const SizedBox(height: FotgSpacing.x3),
           SecondaryButton(
             label: strings.routeRecalculate,
             isLoading: state.isCalculating,

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Customer\AddressController;
 use App\Http\Controllers\Api\V1\Customer\PlaceController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController;
 use App\Http\Controllers\Api\V1\Customer\TripController;
+use App\Http\Controllers\Api\V1\Customer\TripRestaurantController;
 use App\Http\Controllers\Api\V1\Customer\TripRouteController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MetaController;
@@ -167,6 +168,19 @@ Route::prefix('v1')->group(function (): void {
 
                 Route::post('/{trip}/routes/{route}/select', [TripRouteController::class, 'select'])
                     ->name('api.v1.customer.trips.routes.select');
+
+                // Module 07. Nested under the trip for the same reason routes
+                // are: "restaurants on this journey" has no meaning away from
+                // one, and there is no route id in the path because the route is
+                // whichever one the customer selected on their own trip.
+                //
+                // Its own throttle. This is the most expensive endpoint in the
+                // application — a corridor query plus up to a dozen billed
+                // provider calls — and the general public allowance is sized for
+                // reads that cost a query.
+                Route::get('/{trip}/restaurants', [TripRestaurantController::class, 'index'])
+                    ->middleware('throttle:discovery')
+                    ->name('api.v1.customer.trips.restaurants.index');
             });
         });
 });

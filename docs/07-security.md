@@ -181,6 +181,27 @@ is a statement about where they are going, whether or not they ever create the
 trip. No query text reaches a log line, including the line written when the
 provider fails.
 
+**A discovery is denser still.** Which restaurants somebody was offered, on which
+road, at what time, is a description of where they will be *and where they intend
+to stop*. Discovery is therefore scoped to the trip's owner even though
+restaurants themselves are public information: the restaurant is not the secret,
+the journey is. A foreign trip is **not found**, indistinguishable from one that
+never existed, and the refusal names nothing.
+
+The log carries counts and uuids — candidates considered, corridor survivors,
+detours evaluated, duration — and never a restaurant name, a coordinate or route
+geometry. Restaurants are told nothing at all: a restaurant does not need to know
+that a customer is browsing it, and Module 07 does not tell it.
+
+**A customer-facing response shape is an allow-list.** `Restaurant` has owner
+contact details, a tax identifier, a bank reference, a commission rate and
+internal notes, and none of them can reach a customer because
+`toDiscoveryArray()` names the fields that may — one at a time, by hand. A
+`$hidden` deny-list would expose the column somebody adds next month until they
+remembered to hide it. Those private columns exist and are populated in tests on
+purpose: a privacy test that asserts a response contains no owner phone number
+proves nothing if there is no owner phone number to leak.
+
 **A route is location data too, and denser than either end of it.** The polyline
 is a minute-by-minute description of where a person intends to be. It is never
 logged, never sent to analytics, and never included in a list or home-card
@@ -226,6 +247,31 @@ The device's position is the most sensitive thing this app can read. Three rules
    need location at all, and "services switched off" is never reported as a
    denial. The whole operation carries a hard 25-second deadline so a pending
    permission prompt cannot leave a customer watching a spinner with no way out.
+
+### A driver error is a data leak waiting to happen
+
+Found in Module 07 by grepping a real application log rather than by grepping for
+the values a module had just written: **a customer's phone number was on disk**,
+38 times in one day, because a unique-constraint violation names the value that
+violated it.
+
+Two mechanisms, and it is worth knowing both:
+
+1. A PDO driver puts the offending value in its message, and Laravel appends the
+   whole statement to every `QueryException` **with the bindings inlined and
+   unquoted** — so there is nothing narrower to scrub than the `(Connection: …)`
+   tail itself.
+2. A throwable in log context is serialised through its **public** properties,
+   and `PDOException::$errorInfo` is public. A redaction layer that matches by
+   key and descends only into arrays never sees it.
+
+Both are handled in `StructuredFormatter`, which is where this codebase puts
+redaction precisely so that a call site cannot forget. The constraint name
+survives — it is the half an engineer can act on, and it identifies nobody.
+
+The general rule for anything added later: **never log a message produced by a
+storage layer verbatim.** It was written to help a developer debug, not to be
+safe.
 
 ## Logging
 

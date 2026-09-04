@@ -5,7 +5,7 @@
 A test exists to catch a specific failure. Tests that assert a framework works are noise; tests that
 pin a decision (redaction, contrast, idempotency, error disclosure) are the ones worth having.
 
-## Backend — 527 tests
+## Backend — 693 tests
 
 Run against **real MySQL 8**, not SQLite. The schema uses MySQL types and later modules will use
 MySQL locking semantics; a SQLite run would pass against a schema production cannot create.
@@ -25,6 +25,15 @@ Redis integration itself is covered by the readiness test.
 | `TripRouteApiTest` | The three route endpoints as a client sees them, including that `GET` never calculates |
 | `TripRouteOwnershipTest` | The route IDOR matrix, including selecting another customer's route on your own trip |
 | `RouteLoggingTest` | Reads the log file on disk: route events present, geometry and coordinates absent |
+| `RouteGeometryTest` | Point-to-polyline projection against distances checkable by hand: perpendicular rather than nearest-vertex, ordering along the route, behind-origin, beyond-destination, self-crossing, simplification safety |
+| `RestaurantEligibilityTest` | Every rule, plus **all 72 combinations** asserting the SQL scope and the service never disagree |
+| `RestaurantAvailabilityTest` | Opening hours in the restaurant's own timezone, overnight windows, split service days, and that a paused restaurant is never reported as open |
+| `RestaurantDiscoveryServiceTest` | The pipeline with a provider the test controls: corridor rejection without a provider call, high-detour exclusion, budget caps, cache reuse, suspension invalidation |
+| `DiscoveryRankingTest` | The score as product statements — which of two restaurants should win, and why |
+| `TripRestaurantApiTest` | The endpoint as a client sees it, including that no private restaurant column reaches the body |
+| `TripRestaurantOwnershipTest` | The discovery IDOR matrix |
+| `DiscoveryLoggingTest` | Reads the log file: counts present, restaurant names and coordinates absent |
+| `DiscoveryPerformanceTest` | 2 000 restaurants in the table, and the query count that does not grow with the result count |
 | `TripLoggingTest` | That no place a customer chose, no coordinate and no search query reaches the log file |
 | `PlaceApiTest` | The place endpoints: caching by query alone, session tokens, one opaque failure code |
 | `PlaceProviderTest` | All three providers — the Google adapter against a stubbed transport, the refusal, the gazetteer |
@@ -65,7 +74,7 @@ Redis integration itself is covered by the readiness test.
 | `admin/App.test.tsx` | Navigation architecture completeness; System Health states |
 | `restaurant/App.test.tsx` | Navigation architecture completeness |
 
-## Mobile — 382 tests
+## Mobile — 453 tests
 
 | Suite | Tests | Covers |
 | --- | --: | --- |
@@ -136,6 +145,21 @@ polyline point count — rather than asserting against numbers baked into the te
 Where the provider returns a single route it records
 `Alternative-route runtime test = NOT APPLICABLE` instead of inventing a second
 one to assert against.
+
+Module 07 adds `mobile/tool/discovery_smoke.dart`: the documented fixtures seeded
+through their own development-only seeder, a Green Park → Jaipur trip planned and
+routed through Modules 05 and 06, then discovery run against that real geometry —
+eligible fixtures found, suspended and unverified ones absent, the far one
+rejected, availability told apart, journey ordering, the raw body checked for
+seven private columns, cache reuse, a suspension taking effect immediately, and
+the ownership boundary. 22 assertions.
+
+It prints the figures the run actually produced rather than asserting against
+numbers baked into the test, and where the configured provider cannot exercise a
+rule it says so instead of passing quietly: with a straight-line road network no
+in-corridor stop can exceed the detour limit, so the run records
+`Detour-threshold exclusion = NOT APPLICABLE` and points at the automated test
+that covers it with a provider the test controls.
 
 One of those assertions exists because of a defect no fake could have caught: the client was sending
 `?scope=open` and the server filters on `?status=`. An unknown query parameter is *ignored*, so every

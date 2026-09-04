@@ -428,3 +428,119 @@ its requirements covered two or three distinguishable things each — the three 
 restriction contexts, the six route states, offline-with-a-route versus
 offline-without — and splitting them keeps each row independently verifiable.
 Nothing was removed.
+
+---
+
+## Module 07 — Restaurant Discovery Along the Selected Route
+
+Role for every row below is **Customer**. FE = Flutter UI. "PASSED (device
+pending)" carries the same meaning as in Modules 02–06: built, integrated against
+the real API, tested and visually inspected in a rendered app, but not run on an
+Android emulator or iOS simulator (KI-001, KI-002).
+
+Screenshot names refer to the Module 07 live-view run recorded in
+[15-test-evidence.md](15-test-evidence.md) and captured under
+`docs/evidence/module-07/`.
+
+| ID | Feature | FE | BE | API | DB | Sec | Tests | Android | iOS | Docs | Status | Evidence |
+| --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
+| M07-001 | Discovery entry: the "Find food on this route" CTA is real | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-01`; `route_screen_test.dart` |
+| M07-002 | Route validation before any search | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `TripRestaurantApiTest`; integration run |
+| M07-003 | Restaurant discovery data model | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Migration; `SHOW COLUMNS` in the evidence file |
+| M07-004 | Centralised eligibility service | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RestaurantEligibilityTest` (13), 72 scope/service combinations |
+| M07-005 | Verification check | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Same; integration run |
+| M07-006 | Status check (suspended, disabled, draft, closed) | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Same |
+| M07-007 | Coordinates required; never derived from an address | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RestaurantEligibilityTest` |
+| M07-008 | Opening hours, in the restaurant's own timezone | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `RestaurantAvailabilityTest` (13) |
+| M07-009 | Availability, including temporary pause | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-05`; integration run |
+| M07-010 | Route corridor, configurable | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `config/foodonthego.php`; `RestaurantDiscoveryServiceTest` |
+| M07-011 | Indexed geospatial candidate search | ➖ | ✅ | ➖ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `DiscoveryPerformanceTest` — 2 000 rows, candidate set far smaller |
+| M07-012 | Point-to-route proximity | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RouteGeometryTest` (11); integration run matches seeded offsets exactly |
+| M07-013 | Detour distance | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE (see M07-055) | `RestaurantDiscoveryServiceTest` |
+| M07-014 | Detour duration | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE (see M07-055) | Same |
+| M07-015 | Detour threshold excludes an awkward stop | ➖ | ✅ | ➖ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE (runtime NOT APPLICABLE) | `RestaurantDiscoveryServiceTest`: "a geometrically close restaurant with a long detour is excluded"; see M07-055 |
+| M07-016 | Distance ahead | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `RouteGeometryTest`; integration run |
+| M07-017 | Route progress fraction | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | API returns 0.28 for a fixture seeded at 0.28 |
+| M07-018 | Behind-route handling | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-11`; integration run: flagged and listed last |
+| M07-019 | Deterministic, explainable ranking | ➖ | ✅ | ➖ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `DiscoveryRankingTest` (11) |
+| M07-020 | Discovery API | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `TripRestaurantApiTest` (17) |
+| M07-021 | Result limit | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RestaurantDiscoveryServiceTest` |
+| M07-022 | Discovery cache | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Integration run: second call `from_cache = true` |
+| M07-023 | Cache invalidation on a material change | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Suspension removes a restaurant immediately, in both the unit suite and the live run |
+| M07-024 | Discovery map | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (map render pending) | `state-08`; KI-011 |
+| M07-025 | Restaurant markers, only for results | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (map render pending) | `DiscoveryMapView`; KI-011 |
+| M07-026 | Discovery list, in journey order | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-02`; integration run |
+| M07-027 | Map/list toggle preserving state | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-08/09`; a toggle never re-searches |
+| M07-028 | Marker and card synchronisation | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (map render pending) | One field drives both; `discovery_screen_test.dart` |
+| M07-029 | Restaurant preview card | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-02/03` |
+| M07-030 | Cuisine, as declared and never inferred | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `TripRestaurantApiTest` |
+| M07-031 | Price level, only where declared | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | And spoken as a word, not only as symbols |
+| M07-032 | Rating: absent rather than invented | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-06`; every real row's rating is null |
+| M07-033 | Facilities preview | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-02` |
+| M07-034 | Availability chip, in words | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-05` |
+| M07-035 | Loading state | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `discovery_screen_test.dart` |
+| M07-036 | Empty state, with the corridor named | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-15` |
+| M07-037 | Error states, told apart | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-12/13/14` |
+| M07-038 | Offline state, cached and cold | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-16/17` |
+| M07-039 | Foreign trip protection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `TripRestaurantOwnershipTest` (6); integration run |
+| M07-040 | Customer-safe response, no private column | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Raw-body assertion over 13 needles, in both suites |
+| M07-041 | Rate limiting | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `TripRestaurantApiTest`: the fourth call is 429 |
+| M07-042 | Provider cost control | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Corridor first, capped budget, closest-first, cached; asserted by call counting |
+| M07-043 | Performance | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `DiscoveryPerformanceTest`; measurements in the evidence file |
+| M07-044 | Android runtime verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ➖ | ✅ | **PENDING — environment unavailable** | KI-001 |
+| M07-045 | iOS runtime verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ✅ | **PENDING — environment unavailable** | KI-002 |
+| M07-046 | Backend unit and API tests | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 693 passing |
+| M07-047 | Flutter unit and widget tests | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 453 passing |
+| M07-048 | Integration test, no mocks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `tool/discovery_smoke.dart`, 22 assertions |
+| M07-049 | Live-view inspection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 21 states, no application errors |
+| M07-050 | Database verification | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Direct queries in the evidence file |
+| M07-051 | Privacy review | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `DiscoveryLoggingTest` (5); live log sweep |
+| M07-052 | Documentation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `22-*.md` created + 13 documents updated |
+| M07-053 | Modules 01–06 regression | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | PASS | Full suites plus four integration runs and two live-view runs |
+| M07-054 | Module 08 handoff | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Filter-ready fields stored, indexed and returned; documented |
+| M07-055 | Live routing-provider detour figures | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ✅ | **PENDING — environment unavailable** | KI-012: no Routes key, so detour is measured against a straight-line road network |
+| M07-056 | Alternative-route discovery | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | **NOT APPLICABLE for this test response** | Discovery reads the *selected* route by construction; the configured provider returns one route, so there is no alternative to select |
+| M07-057 | Live map render with markers | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ⛔ | ✅ | **PENDING — environment unavailable** | KI-011 |
+| M07-058 | Marker clustering | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ⛔ | ✅ | **NOT IMPLEMENTED — documented** | One marker per result, capped at 25. The marker layer is built so clustering can be added without changing the data; see `22-*.md` |
+| M07-059 | Responsive at 320/360/430dp, long names, large text | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-18/19/20`; three layout tests |
+| M07-060 | Dark mode | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-21` |
+| M07-061 | Accessibility | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | One sentence per card; price as a word; availability as words |
+| M07-062 | No N+1 queries | ➖ | ✅ | ➖ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `DiscoveryPerformanceTest`: the query count does not grow with the result count |
+| M07-063 | Duplicate-request prevention in the client | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `discovery_controller_test.dart`: rebuilds, view switches and rapid opens all cost one request |
+| M07-064 | No duplicate restaurants in a result | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RestaurantDiscoveryServiceTest` |
+| M07-065 | Route-crossing edge case | ➖ | ✅ | ➖ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RouteGeometryTest`: a point between two legs projects to the earlier one |
+| M07-066 | Test fixtures never masquerade as production | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `[TEST]`-prefixed, computed positions, seeder refuses production |
+
+### Summary
+
+60 of 66 Module 07 requirements are COMPLETE or PASSED. Six are not, and none of
+the six is a code failure:
+
+- **M07-055 Live routing-provider detour figures = PENDING — environment
+  unavailable.** No Routes API key here, so the detour is measured against the
+  development provider's straight-line road network. Every in-corridor stop
+  therefore has a trivially small detour, and the detour *threshold* cannot
+  exclude anything at runtime. The exclusion rule itself is covered by
+  `RestaurantDiscoveryServiceTest` with a provider the test controls, and the
+  integration run records `Detour-threshold exclusion = NOT APPLICABLE` rather
+  than passing quietly. KI-012.
+- **M07-056 Alternative-route discovery = NOT APPLICABLE for this test
+  response.** Discovery reads whichever route is *selected*, so choosing an
+  alternative changes the results by construction — but the configured provider
+  returns a single route, so there is no alternative to select. No second route
+  was fabricated to test against.
+- **M07-057 Live map render = PENDING — environment unavailable.** KI-011: no
+  Maps SDK key, no Android SDK, no macOS host, so every screenshot shows the
+  documented map-unavailable state.
+- **M07-058 Marker clustering = NOT IMPLEMENTED, and documented as such.** With a
+  result limit of 25 the map is legible without it. This is a deliberate scope
+  decision rather than an oversight, and the marker layer is built so clustering
+  can be introduced without changing the data.
+- **M07-044 / M07-045 Android and iOS runtime verification = PENDING —
+  environment unavailable.** KI-001, KI-002.
+
+The ID range grew from the specification's 54 to 66 because several of its
+requirements covered two or three distinguishable things each — the live
+provider versus the threshold rule it exercises, offline-with-results versus
+offline-without, the map render versus the marker layer — and splitting them
+keeps each row independently verifiable. Nothing was removed.

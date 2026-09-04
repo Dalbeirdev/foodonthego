@@ -414,3 +414,85 @@ live GPS progress, and any dynamic customer ETA during a journey.
 The number this module produces is a **travel duration** — the routing provider's
 estimate of the drive — and the UI says so in those words. It is not the
 FoodOnTheGo ETA, and the word "ETA" appears nowhere in the module's interface.
+
+---
+
+## Module 07 — Restaurant Discovery Along the Selected Route
+
+### Added
+
+**Backend**
+- `restaurants` migration: identity, position (nullable coordinates, and that
+  nullability is a rule), visibility (`status`, `verification_status`,
+  `is_discoverable`, `is_accepting_orders`), preview metadata, and seven columns
+  that must never reach a customer — present so the privacy tests have something
+  real to catch.
+- `restaurant_cuisines`, `restaurant_facilities`, `restaurant_opening_hours`:
+  tables rather than JSON columns, because Module 08 filters on all three.
+- `RestaurantStatus`, `RestaurantVerificationStatus`, `RestaurantAvailability`
+  enums.
+- `App\Support\Geo`: `Coordinate`, `Distance` (haversine for reported figures,
+  equirectangular for the inner loop), `RouteGeometry` (decode, simplify,
+  cumulative distance, projection, bounding box), `RouteProjection`.
+- `App\Services\Discovery`: `RestaurantDiscoveryEligibilityService`,
+  `RestaurantAvailabilityService`, `RestaurantDetourService`, `DetourEstimate`,
+  `DiscoveryRankingService`, `RestaurantDiscoveryService`,
+  `DiscoveredRestaurant`, `DiscoveryResult`.
+- `TripRestaurantController` and `GET /api/v1/customer/trips/{trip}/restaurants`,
+  with its own `throttle:discovery`.
+- `RouteRequest` gains `waypoints`; `GoogleRouteProvider` maps them to
+  `intermediates` with `optimizeWaypointOrder: false`; `DevelopmentRouteProvider`
+  bends its straight line through them so the detour arithmetic is exercised
+  rather than skipped.
+- Five routing error codes; a `discovery` rate limiter keyed by customer.
+- `config('foodonthego.discovery')`: ten settings, every threshold a pilot
+  assumption rather than a fact about the world.
+- `DiscoveryTestRestaurantSeeder` — eight `[TEST]`-prefixed fixtures at computed
+  positions, refusing to run in production.
+- 693 tests (up from 527): `RouteGeometryTest`, `RestaurantEligibilityTest`,
+  `RestaurantAvailabilityTest`, `RestaurantDiscoveryServiceTest`,
+  `DiscoveryRankingTest`, `TripRestaurantApiTest`,
+  `TripRestaurantOwnershipTest`, `DiscoveryLoggingTest`,
+  `DiscoveryPerformanceTest`.
+
+**Mobile**
+- `domain/models/discovered_restaurant.dart` — `RestaurantAvailability`,
+  `RouteRelation`, `DiscoveredRestaurant`, `RestaurantDiscovery`. A restaurant
+  with no id, no name, no position or no relation to the route does not
+  construct.
+- `data/repositories/api_discovery_repository.dart` and
+  `shared/state/discovery_controller.dart`, with eight distinct failure kinds and
+  one field driving both the map's and the list's idea of "selected".
+- `features/discovery/`: `DiscoveryScreen`, `DiscoveryMapView`,
+  `DiscoveryMapUnavailableView`, `RestaurantPreviewCard`, `AvailabilityChip`.
+- The Module 06 CTA — "Find food on this route" — is wired to a real screen.
+- 453 tests (up from 382).
+
+**Tooling**
+- `mobile/tool/discovery_smoke.dart` — 22 assertions against a running server,
+  real restaurant rows and Module 06's real stored geometry.
+
+**Documentation**
+- `22-restaurant-route-discovery.md`, and updates to 02, 05, 06, 07, 08, 09, 11,
+  12, 13, 14, 15, 17, 20 and 21.
+
+### Fixed outside this module
+
+Nothing. Modules 01–06 needed no changes; `RouteRequest` gained an optional
+field, which every existing caller ignores.
+
+### Deliberately not built
+
+The restaurant detail page, menus, cart, checkout, payments, order acceptance,
+cooking status, the ETA engine, live GPS progress and pickup scheduling.
+
+Also not built, and belonging to Module 08: customer-facing filters (cuisine,
+price, rating, availability, facilities, detour), sort options, text search, and
+marker clustering. The fields those need are stored, indexed where it matters and
+returned; the ranking is a single deterministic function whose final ordering a
+customer-chosen sort can replace without touching the pipeline.
+
+**The figure this module produces about time is still a travel figure.**
+`time_ahead_seconds` is the route's own duration scaled by how far along the stop
+is — an interpolation of a real number, shown as "About 1 hr ahead". It is not a
+pickup time, and `default_preparation_minutes` is stored but never added to it.

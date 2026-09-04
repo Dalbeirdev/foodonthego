@@ -496,6 +496,100 @@ class AppStrings {
 
   String get routeContinueCta => 'Find food on this route';
 
+  // --- Module 07: restaurants along the route -------------------------------
+  String get discoveryTitle => 'Food on your route';
+  String discoverySubtitle(String from, String to) => '$from → $to';
+
+  String get discoveryMapTab => 'Map';
+  String get discoveryListTab => 'List';
+  String get discoveryToggleHint => 'Switch between map and list';
+
+  String get discoveryLoading => 'Finding food stops along your route…';
+
+  /// Deliberately not "No results". A traveller needs to know whether the
+  /// problem is the road, the platform, or the moment.
+  String get discoveryEmptyTitle => 'No stops on this route yet';
+  String discoveryEmptyBody(String corridor) =>
+      "We couldn't find a FoodOnTheGo partner within $corridor of your route. "
+      "We're adding more, so it's worth checking again.";
+  String get discoveryEmptyChangeRoute => 'Change route';
+  String get discoveryEmptyBackToJourney => 'Back to journey';
+
+  /// There *are* restaurants. None of them can take an order.
+  String get discoveryClosedOnlyTitle => 'Nothing open right now';
+  String get discoveryClosedOnlyBody =>
+      'There are stops along your route, but none of them are taking orders at '
+      'the moment. They are listed below.';
+
+  String get discoveryErrorTitle => "We couldn't load restaurants";
+  String get discoveryErrorBody =>
+      "Something went wrong finding stops on your route. Please try again.";
+  String get discoveryRateLimitedTitle => 'Just a moment';
+  String get discoveryRateLimitedBody =>
+      "You've searched a few times in quick succession. Please wait a moment "
+      'and try again.';
+  String get discoveryRouteNotReadyTitle => 'Work out your route first';
+  String get discoveryRouteNotReadyBody =>
+      'We need a calculated route before we can find food on it.';
+  String get discoveryRouteNotReadyCta => 'Go to route';
+  String get discoveryOfflineTitle => "You're offline";
+  String get discoveryOfflineBody =>
+      'Connect to the internet to find restaurants on this route.';
+  String get discoveryOfflineCached =>
+      'Offline · showing the stops we last found. Opening times may have '
+      'changed.';
+  String get discoveryTryAgain => 'Try again';
+
+  /// Shown when the route these were found along did not come from a real
+  /// routing provider — the same honesty the route screen applies.
+  String get discoveryDevelopmentProvider =>
+      'Development data — these stops were found along a stand-in route.';
+
+  // Restaurant card.
+  String discoveryDistanceAhead(String distance) => '$distance ahead';
+  String discoveryTimeAhead(String duration) => 'About $duration ahead';
+  String discoveryDetour(String duration) => '$duration detour';
+  String discoveryOffRoute(String distance) => '$distance off your route';
+  String get discoveryDetourUnknown => 'Detour unknown';
+  String get discoveryBacktrack => 'Behind you';
+
+  String get discoveryAvailabilityOpen => 'Open';
+  String get discoveryAvailabilityClosed => 'Closed';
+  String get discoveryAvailabilityOpeningSoon => 'Opens soon';
+  String get discoveryAvailabilityClosingSoon => 'Closing soon';
+  String get discoveryAvailabilityPaused => 'Not accepting orders';
+  String get discoveryAvailabilityUnknown => 'Hours unknown';
+
+  String get discoveryViewRestaurant => 'View';
+
+  /// Price level, spelled out. The rupee symbols alone are a visual convention
+  /// a screen reader cannot convey.
+  String priceLevelLabel(int level) => switch (level) {
+    1 => 'Inexpensive',
+    2 => 'Moderate',
+    3 => 'Expensive',
+    _ => 'Very expensive',
+  };
+
+  String get discoveryNoRating => 'New';
+
+  String discoveryRestaurantSemantics({
+    required String name,
+    required String cuisines,
+    required String availability,
+    required String ahead,
+    String? detour,
+    String? offRoute,
+  }) =>
+      '$name, $cuisines, $availability, $ahead'
+      '${detour == null ? '' : ', approximately $detour'}'
+      '${offRoute == null ? '' : ', $offRoute'}';
+
+  String discoveryResultCount(int count) =>
+      count == 1 ? '1 stop on your route' : '$count stops on your route';
+
+  String get discoveryRecentre => 'Fit the whole route back into view';
+
   // --- home: the current journey -------------------------------------------
   String get homeCurrentJourney => 'Your journey';
   String get homeJourneyViewAll => 'All journeys';

@@ -11,6 +11,7 @@ import '../../features/notifications/notifications_screen.dart';
 import '../../features/orders/orders_screen.dart';
 import '../../features/placeholder/coming_soon_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/discovery/discovery_screen.dart';
 import '../../features/routes/route_screen.dart';
 import '../../features/trips/trip_detail_screen.dart';
 import '../../features/trips/trip_planner_screen.dart';
@@ -142,6 +143,17 @@ GoRouter createRouter({
                             RouteScreen(
                               tripId: state.pathParameters['tripId'] ?? '',
                             ),
+                        routes: <RouteBase>[
+                          GoRoute(
+                            path: Routes.tripRestaurants,
+                            builder:
+                                (BuildContext context, GoRouterState state) =>
+                                    DiscoveryScreen(
+                                      tripId:
+                                          state.pathParameters['tripId'] ?? '',
+                                    ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

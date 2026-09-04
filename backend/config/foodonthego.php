@@ -21,6 +21,12 @@ return [
         // requests, so anything above this is not a customer signing in.
         'auth_otp' => (int) env('RATE_LIMIT_AUTH_OTP', 10),
         'auth_verify' => (int) env('RATE_LIMIT_AUTH_VERIFY', 15),
+
+        // Discovery. Generous enough that a customer switching between map and
+        // list, or reopening the screen, never meets it; tight enough that a
+        // loop cannot spend the routing budget. The client is also expected not
+        // to ask twice for the same route — this is the backstop, not the plan.
+        'discovery' => (int) env('RATE_LIMIT_DISCOVERY', 30),
     ],
 
     'idempotency_ttl' => (int) env('IDEMPOTENCY_TTL', 86400),
@@ -122,6 +128,71 @@ return [
      | Routing (Module 06)
      |--------------------------------------------------------------------------
      */
+    /*
+    |--------------------------------------------------------------------------
+    | Restaurant route discovery (Module 07)
+    |--------------------------------------------------------------------------
+    |
+    | Every threshold here is a business assumption for the Delhi-Jaipur pilot,
+    | not a fact about the world, which is exactly why none of them is written
+    | into a service. Changing what counts as a reasonable stop should be a
+    | deployment, not a release.
+    */
+    'discovery' => [
+        // How far either side of the route a restaurant may sit and still be
+        // worth evaluating. This is the *cheap* filter: it is measured as a
+        // straight line to the route geometry, so it over-selects — a restaurant
+        // 3 km from a highway with no exit for 20 km passes this and is then
+        // rejected on its detour.
+        //
+        // 5 km for the pilot. Wide enough to catch a service road or a town just
+        // off the highway, narrow enough that the candidate set stays small.
+        'corridor_metres' => (int) env('DISCOVERY_CORRIDOR_METRES', 5_000),
+
+        // The most restaurants that will be geometrically evaluated for one
+        // request. A bound on the work, not on the answer: exceeding it means
+        // the corridor is too wide for the dataset, and that is a configuration
+        // problem worth seeing in a log rather than absorbing silently.
+        'max_candidates' => (int) env('DISCOVERY_MAX_CANDIDATES', 300),
+
+        // The most restaurants for which a real road-network detour will be
+        // requested. Each one is a billed provider call, so this is the cost
+        // ceiling of the whole module. Candidates beyond it keep their exact
+        // geometric figures and carry a null detour, which the client renders as
+        // an absent badge rather than as a zero.
+        'max_detour_evaluations' => (int) env('DISCOVERY_MAX_DETOUR_EVALUATIONS', 12),
+
+        // What makes a stop unreasonable. A restaurant that adds more than this
+        // is not shown: it is not a stop on this journey, it is a different
+        // journey.
+        'max_detour_distance_metres' => (int) env('DISCOVERY_MAX_DETOUR_DISTANCE_METRES', 15_000),
+        'max_detour_duration_seconds' => (int) env('DISCOVERY_MAX_DETOUR_DURATION_SECONDS', 900),
+
+        // How many results a customer is given. Not a page of a thousand: a
+        // traveller choosing where to eat is not reading past the first screen,
+        // and a map with 400 markers on it communicates nothing.
+        'result_limit' => (int) env('DISCOVERY_RESULT_LIMIT', 25),
+
+        // How long a computed discovery result is served again without redoing
+        // the work. Short, because availability changes on the minute and a
+        // restaurant suspended at noon must not still be visible at half past.
+        // Suspension does not wait for this to expire — the cache is versioned,
+        // and a material change bumps the version.
+        'cache_ttl_seconds' => (int) env('DISCOVERY_CACHE_TTL_SECONDS', 300),
+
+        // Route geometry is simplified before it is measured against, because a
+        // 25 000-point polyline times 300 candidates is nine million distance
+        // calculations for an answer that does not change. The tolerance is the
+        // most a simplified line may depart from the real one, and it is an
+        // order of magnitude below the corridor width so that simplification can
+        // never move a restaurant across the threshold.
+        'geometry_simplify_tolerance_metres' => (int) env('DISCOVERY_SIMPLIFY_TOLERANCE_METRES', 150),
+
+        // Used only when a restaurant's own timezone is unusable, and logged
+        // when it happens. Never a silent assumption about where a restaurant is.
+        'default_timezone' => env('DISCOVERY_DEFAULT_TIMEZONE', 'Asia/Kolkata'),
+    ],
+
     'routing' => [
         // 'google' in any real deployment. 'development' is a straight-line
         // stand-in that refuses to run in production and labels everything it
