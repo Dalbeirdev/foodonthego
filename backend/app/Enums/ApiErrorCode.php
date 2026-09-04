@@ -43,6 +43,11 @@ enum ApiErrorCode: string
     case AddressLimitReached = 'ADDRESS_LIMIT_REACHED';
     case AddressNotFound = 'ADDRESS_NOT_FOUND';
 
+    // Module 05
+    case TripNotFound = 'TRIP_NOT_FOUND';
+    case TripLimitReached = 'TRIP_LIMIT_REACHED';
+    case TripNotEditable = 'TRIP_NOT_EDITABLE';
+
     public function httpStatus(): int
     {
         return match ($this) {
@@ -58,6 +63,14 @@ enum ApiErrorCode: string
             // 404, and deliberately the same answer an address that does not
             // exist gets — see CustomerAddressService::ownedByOrFail().
             self::AddressNotFound => 404,
+            // Same reasoning again, for journeys: not-yours and does-not-exist
+            // are one answer, so the endpoint cannot be walked to discover which
+            // identifiers are real.
+            self::TripNotFound => 404,
+            self::TripLimitReached,
+            // 422 rather than 409: the request is valid, the journey is simply
+            // past the point where changing it means anything.
+            self::TripNotEditable => 422,
             self::RateLimited => 429,
             self::BusinessRuleViolated => 422,
             self::DependencyUnavailable => 503,

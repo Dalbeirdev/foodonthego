@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Auth\CustomerRegistrationController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Customer\AddressController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController;
+use App\Http\Controllers\Api\V1\Customer\TripController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MetaController;
 use App\Http\Responses\ApiResponse;
@@ -110,6 +111,35 @@ Route::prefix('v1')->group(function (): void {
                     ->name('api.v1.customer.addresses.destroy');
                 Route::post('/{address}/default', [AddressController::class, 'makeDefault'])
                     ->name('api.v1.customer.addresses.default');
+            });
+
+            /*
+             |------------------------------------------------------------------
+             | Journeys (Module 05)
+             |------------------------------------------------------------------
+             |
+             | Same shape, same reason: no customer id in any path. `/next` is
+             | declared before `/{trip}` so it is matched as a literal rather
+             | than captured as a journey id — the reverse order would send
+             | "next" to ownedByOrFail() and answer 404 for the home screen.
+             |
+             | There is no DELETE. A journey is cancelled, never removed: a
+             | traveller's record of what they planned is history, and a later
+             | module's orders point at it.
+             */
+            Route::prefix('customer/trips')->group(function (): void {
+                Route::get('/', [TripController::class, 'index'])
+                    ->name('api.v1.customer.trips.index');
+                Route::post('/', [TripController::class, 'store'])
+                    ->name('api.v1.customer.trips.store');
+                Route::get('/next', [TripController::class, 'next'])
+                    ->name('api.v1.customer.trips.next');
+                Route::get('/{trip}', [TripController::class, 'show'])
+                    ->name('api.v1.customer.trips.show');
+                Route::patch('/{trip}', [TripController::class, 'update'])
+                    ->name('api.v1.customer.trips.update');
+                Route::post('/{trip}/cancel', [TripController::class, 'cancel'])
+                    ->name('api.v1.customer.trips.cancel');
             });
         });
 });

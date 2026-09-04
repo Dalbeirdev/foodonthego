@@ -82,6 +82,33 @@ return [
         'default_country_code' => env('ADDRESS_DEFAULT_COUNTRY', 'IN'),
     ],
 
+    /*
+     |--------------------------------------------------------------------------
+     | Journeys (Module 05)
+     |--------------------------------------------------------------------------
+     */
+    'trips' => [
+        // Counts only journeys that are still ahead. Past and cancelled ones are
+        // history and never consume the allowance — a traveller who has used the
+        // app for a year must not be told they have "too many journeys".
+        'max_upcoming_per_customer' => (int) env('TRIP_MAX_UPCOMING_PER_CUSTOMER', 20),
+
+        // How far ahead a journey may be planned. A year is far beyond any real
+        // trip planning, and still bounds a field somebody could otherwise use to
+        // write the year 9999 into a sort key.
+        'max_days_ahead' => (int) env('TRIP_MAX_DAYS_AHEAD', 365),
+
+        // The grace given to a departure time so that "leaving now" works. A
+        // request takes a moment to arrive, and refusing a departure two seconds
+        // past because the handset's clock runs slightly ahead of the server's
+        // would be a validation error nobody could act on.
+        'departure_grace_minutes' => (int) env('TRIP_DEPARTURE_GRACE_MINUTES', 5),
+
+        // Nobody travels with more people than a coach holds, and the column is a
+        // tinyint. A ceiling here keeps the two in agreement.
+        'max_travellers' => (int) env('TRIP_MAX_TRAVELLERS', 20),
+    ],
+
     'auth' => [
         // Sanctum access-token lifetime. 30 days: long enough that a traveller is
         // not signed out mid-journey, short enough that a lost handset stops
