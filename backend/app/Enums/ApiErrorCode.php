@@ -56,6 +56,24 @@ enum ApiErrorCode: string
     case PlaceLookupFailed = 'PLACE_LOOKUP_FAILED';
     case PlaceNotFound = 'PLACE_NOT_FOUND';
 
+    // --- Module 06: maps, routing, distance and travel time -------------
+    //
+    // Six of these describe a *routing provider* rather than the request, and
+    // they are separate because the customer's next move differs for each: retry
+    // (unavailable, timeout), wait (rate limited), change an endpoint (no
+    // route), or nothing at all (response invalid — ours to fix).
+    case RouteInputInvalid = 'ROUTE_INPUT_INVALID';
+    case RouteNotFound = 'ROUTE_NOT_FOUND';
+    case RouteSelectionInvalid = 'ROUTE_SELECTION_INVALID';
+    case RouteStale = 'ROUTE_STALE';
+    case RouteAlreadyCurrent = 'ROUTE_ALREADY_CURRENT';
+    case RouteNoRouteFound = 'ROUTE_NO_ROUTE_FOUND';
+    case RouteProviderUnavailable = 'ROUTE_PROVIDER_UNAVAILABLE';
+    case RouteProviderRateLimited = 'ROUTE_PROVIDER_RATE_LIMITED';
+    case RouteTimeout = 'ROUTE_TIMEOUT';
+    case RouteResponseInvalid = 'ROUTE_RESPONSE_INVALID';
+    case RouteCalculationInProgress = 'ROUTE_CALCULATION_IN_PROGRESS';
+
     public function httpStatus(): int
     {
         return match ($this) {
@@ -94,6 +112,31 @@ enum ApiErrorCode: string
             // this should retry rather than change its request.
             self::PlaceLookupFailed => 503,
             self::PlaceNotFound => 404,
+
+            // The request named a trip whose endpoints cannot be routed between.
+            self::RouteInputInvalid => 422,
+            // 404, and the same answer a route belonging to somebody else gets.
+            self::RouteNotFound => 404,
+            self::RouteSelectionInvalid => 422,
+            // The stored route was calculated for endpoints that have since
+            // moved. 409 rather than 422: nothing in the request is wrong, the
+            // resource has simply moved underneath it.
+            self::RouteStale => 409,
+            self::RouteAlreadyCurrent => 409,
+            // 422 and not 503: the provider answered perfectly well. There is no
+            // driving route, and retrying will be told the same thing.
+            self::RouteNoRouteFound => 422,
+            self::RouteProviderUnavailable => 503,
+            // 429 passed through, so a client can back off the way it would for
+            // any other rate limit. It carries nothing about our quota.
+            self::RouteProviderRateLimited => 429,
+            self::RouteTimeout => 504,
+            // Ours. The provider answered and the answer was not usable, which is
+            // a bug or a contract change on our side of the adapter.
+            self::RouteResponseInvalid => 502,
+            // Another calculation for this trip is already running. 409 so a
+            // double tap is told plainly rather than starting a second one.
+            self::RouteCalculationInProgress => 409,
             self::RateLimited => 429,
             self::BusinessRuleViolated => 422,
             self::DependencyUnavailable => 503,

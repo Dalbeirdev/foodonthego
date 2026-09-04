@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Customer\AddressController;
 use App\Http\Controllers\Api\V1\Customer\PlaceController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController;
 use App\Http\Controllers\Api\V1\Customer\TripController;
+use App\Http\Controllers\Api\V1\Customer\TripRouteController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MetaController;
 use App\Http\Responses\ApiResponse;
@@ -151,6 +152,21 @@ Route::prefix('v1')->group(function (): void {
                     ->name('api.v1.customer.trips.show');
                 Route::post('/{trip}/discard', [TripController::class, 'discard'])
                     ->name('api.v1.customer.trips.discard');
+
+                // Module 06. `routes` is plural and nested under the trip
+                // because a route has no existence away from one — there is no
+                // /customer/routes/{id}, and so no id for a caller to walk.
+                Route::get('/{trip}/routes', [TripRouteController::class, 'index'])
+                    ->name('api.v1.customer.trips.routes.index');
+
+                // POST, not GET: it writes, and it may call a billed provider. A
+                // GET that can spend money is a GET that spends money on every
+                // screen rebuild.
+                Route::post('/{trip}/route/calculate', [TripRouteController::class, 'calculate'])
+                    ->name('api.v1.customer.trips.routes.calculate');
+
+                Route::post('/{trip}/routes/{route}/select', [TripRouteController::class, 'select'])
+                    ->name('api.v1.customer.trips.routes.select');
             });
         });
 });

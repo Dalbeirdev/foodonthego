@@ -9,6 +9,9 @@ use App\Services\Otp\Providers\LogOtpProvider;
 use App\Services\Places\DevelopmentGazetteerProvider;
 use App\Services\Places\PlaceProvider;
 use App\Services\Places\UnconfiguredPlaceProvider;
+use App\Services\Routing\DevelopmentRouteProvider;
+use App\Services\Routing\RouteProvider;
+use App\Services\Routing\UnconfiguredRouteProvider;
 use App\Support\ProductionConfigGuard;
 use Illuminate\Foundation\Application;
 use RuntimeException;
@@ -49,6 +52,40 @@ final class ProductionConfigGuardTest extends TestCase
         // configured at all, so any implementation that is not the unconfigured
         // stand-in satisfies it.
         $this->app->instance(PlaceProvider::class, new DevelopmentGazetteerProvider(isProduction: false));
+
+        // And for a real routing provider, for the same reason.
+        $this->app->instance(RouteProvider::class, new DevelopmentRouteProvider(isProduction: false));
+    }
+
+    public function test_it_refuses_production_without_a_routing_provider(): void
+    {
+        $this->validProductionConfig();
+        $this->app->instance(RouteProvider::class, new UnconfiguredRouteProvider);
+
+        // Worse than the Places case. With no routing provider a deployment does
+        // not merely fail — if the development stand-in were reachable there,
+        // every customer would be shown a straight line across the countryside
+        // with a distance and a travel time that were arithmetic rather than
+        // roads. That is not a degraded product, it is a confidently wrong one.
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/ROUTE_PROVIDER is not configured/');
+
+        ProductionConfigGuard::assert($this->appIn('production'));
+    }
+
+    public function test_the_development_route_provider_cannot_be_resolved_in_production(): void
+    {
+        $this->validProductionConfig();
+
+        $app = $this->appIn('production');
+        $app->bind(RouteProvider::class, fn (): RouteProvider => new DevelopmentRouteProvider(
+            isProduction: true,
+        ));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/ROUTE_PROVIDER could not be resolved/');
+
+        ProductionConfigGuard::assert($app);
     }
 
     public function test_production_refuses_to_boot_with_no_place_provider(): void

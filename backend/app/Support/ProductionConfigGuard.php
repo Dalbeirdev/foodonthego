@@ -7,6 +7,8 @@ namespace App\Support;
 use App\Services\Otp\OtpDeliveryProvider;
 use App\Services\Places\PlaceProvider;
 use App\Services\Places\UnconfiguredPlaceProvider;
+use App\Services\Routing\RouteProvider;
+use App\Services\Routing\UnconfiguredRouteProvider;
 use Illuminate\Contracts\Foundation\Application;
 use RuntimeException;
 use Throwable;
@@ -67,6 +69,7 @@ final class ProductionConfigGuard
 
         $failures = array_merge($failures, self::otpFailures($app));
         $failures = array_merge($failures, self::placeFailures($app));
+        $failures = array_merge($failures, self::routeFailures($app));
 
         if ($failures !== []) {
             throw new RuntimeException(
@@ -89,6 +92,40 @@ final class ProductionConfigGuard
      *
      * @return array<int, string>
      */
+    /**
+     * Routing provider configuration.
+     *
+     * The failure this prevents is worse than the Places one. A deployment with
+     * no routing credentials does not merely fail — if the development provider
+     * were reachable there, it would succeed, and every customer would be shown a
+     * straight line across the countryside with a distance and a travel time that
+     * were arithmetic rather than roads. That is not a degraded product, it is a
+     * confidently wrong one.
+     *
+     * The development provider refuses to be constructed in production on its own
+     * account; this catches the quieter case of a provider that resolves to
+     * "unconfigured" and would fail every calculation.
+     *
+     * @return array<int, string>
+     */
+    private static function routeFailures(Application $app): array
+    {
+        try {
+            $provider = $app->make(RouteProvider::class);
+        } catch (Throwable $e) {
+            // Includes the development provider's refusal to exist in production.
+            return ['ROUTE_PROVIDER could not be resolved: '.$e->getMessage()];
+        }
+
+        if ($provider instanceof UnconfiguredRouteProvider) {
+            return [
+                'ROUTE_PROVIDER is not configured. Set it and its credentials, or no journey can be routed.',
+            ];
+        }
+
+        return [];
+    }
+
     private static function placeFailures(Application $app): array
     {
         try {

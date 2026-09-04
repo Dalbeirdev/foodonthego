@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 /**
@@ -71,6 +73,26 @@ final class Trip extends Model
         return $this->belongsTo(User::class, 'customer_id');
     }
 
+    /** @return HasMany<TripRoute, $this> */
+    public function routes(): HasMany
+    {
+        return $this->hasMany(TripRoute::class);
+    }
+
+    /**
+     * The chosen route, if there is one.
+     *
+     * A `HasOne` over a flag the database itself keeps unique — see the
+     * `trip_routes_one_selected_per_trip` index — so "the selected route" is
+     * genuinely singular rather than "the first of however many got selected".
+     *
+     * @return HasOne<TripRoute, $this>
+     */
+    public function selectedRoute(): HasOne
+    {
+        return $this->hasOne(TripRoute::class)->where('is_selected', true);
+    }
+
     /** @param  Builder<self>  $query */
     public function scopeOwnedBy(Builder $query, User $customer): Builder
     {
@@ -112,8 +134,11 @@ final class Trip extends Model
      * key never appear. The address ids in particular would leak the existence
      * and identity of saved-address rows into a payload that has no use for them.
      *
-     * There are no distance, duration, polyline or ETA keys, because there are no
-     * such columns. A client that finds none cannot render an estimate.
+     * There are no distance, duration, polyline or ETA keys **on the trip
+     * itself**, because there are no such columns. What a client may find here
+     * from Module 06 onwards is `selected_route`: a summary of the route the
+     * customer chose, present only when one has genuinely been calculated for
+     * *these* endpoints. A client that finds null cannot render an estimate.
      *
      * @return array<string, mixed>
      */
@@ -128,7 +153,32 @@ final class Trip extends Model
             'cancelled_at' => $this->cancelled_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
+            'selected_route' => $this->selectedRouteSummary(),
         ];
+    }
+
+    /**
+     * The chosen route's headline figures, or null.
+     *
+     * Two guards, and both are necessary. `route_status` must say Ready, and the
+     * route's fingerprint must still match these endpoints — a route calculated
+     * before an endpoint moved has real geometry for the wrong journey, and
+     * putting its distance on the home screen would be the most convincing wrong
+     * number this product could show.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function selectedRouteSummary(): ?array
+    {
+        if (! $this->route_status->hasUsableRoute() || ! $this->relationLoaded('selectedRoute')) {
+            return null;
+        }
+
+        $route = $this->selectedRoute;
+
+        return $route !== null && $route->matchesEndpointsOf($this)
+            ? $route->toApiSummaryArray()
+            : null;
     }
 
     /** @return array<string, mixed> */

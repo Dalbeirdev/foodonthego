@@ -119,6 +119,65 @@ return [
 
     /*
      |--------------------------------------------------------------------------
+     | Routing (Module 06)
+     |--------------------------------------------------------------------------
+     */
+    'routing' => [
+        // 'google' in any real deployment. 'development' is a straight-line
+        // stand-in that refuses to run in production and labels everything it
+        // returns; 'unconfigured' is the default and fails loudly.
+        'provider' => env('ROUTE_PROVIDER', 'unconfigured'),
+
+        // A *server* key, separate from the Places key so the two can carry
+        // different API restrictions and be rotated independently. It never
+        // leaves the backend: the app has no routing key of any kind.
+        'google_api_key' => env('GOOGLE_ROUTES_API_KEY'),
+
+        // Road travel. Configurable because a later market might not be, but not
+        // customer-facing: FoodOnTheGo is about people driving between cities.
+        'travel_mode' => env('ROUTE_TRAVEL_MODE', 'DRIVE'),
+
+        // Whether to ask the provider for alternatives at all. Each one costs the
+        // same as the primary route, so this is a product decision with an
+        // invoice attached rather than a default worth leaving on.
+        'alternatives_enabled' => (bool) env('ROUTE_ALTERNATIVES_ENABLED', true),
+
+        // Including the recommended route. Three is a choice; ten is a list
+        // nobody reads and four times the bill.
+        'max_alternatives' => (int) env('ROUTE_MAX_ALTERNATIVES', 3),
+
+        // Traffic-aware routing costs more than traffic-unaware. On, because a
+        // travel time that ignores traffic is not much use to somebody deciding
+        // when to eat.
+        'traffic_aware' => (bool) env('ROUTE_TRAFFIC_AWARE', true),
+
+        'timeout_seconds' => (int) env('ROUTE_TIMEOUT_SECONDS', 12),
+
+        'language_code' => env('ROUTE_LANGUAGE_CODE', 'en-IN'),
+
+        // How long a calculated route is served without asking the provider
+        // again. The geometry does not change; the traffic figure does, and this
+        // is the window in which we are willing to call it current.
+        //
+        // The single most important cost control in this module: without it,
+        // every open of the route screen is a billed request.
+        'freshness_seconds' => (int) env('ROUTE_FRESHNESS_SECONDS', 900),
+
+        // Refuses a geometry larger than this before it is stored. A polyline is
+        // normally a few kilobytes; anything approaching this is a malformed or
+        // hostile response rather than a long journey.
+        'max_polyline_bytes' => (int) env('ROUTE_MAX_POLYLINE_BYTES', 512_000),
+
+        // How far a route's own start may be from the origin we asked about
+        // before we refuse it. Providers snap to the nearest road, which is
+        // metres in a city and can be a kilometre or two in open country; a
+        // route starting further away than this is answering a different
+        // question.
+        'endpoint_tolerance_metres' => (int) env('ROUTE_ENDPOINT_TOLERANCE_METRES', 5_000),
+    ],
+
+    /*
+     |--------------------------------------------------------------------------
      | Journeys (Module 05)
      |--------------------------------------------------------------------------
      */

@@ -48,7 +48,10 @@ final class TripService
     /** @return Collection<int, Trip> */
     public function listFor(User $customer, ?TripStatus $status = null, int $limit = 25): Collection
     {
-        $query = Trip::query()->ownedBy($customer)->newestFirst();
+        // Eager-loaded, not lazy: a list of twenty-five trips would otherwise be
+        // twenty-five extra queries for a headline figure, and the N+1 would be
+        // invisible until somebody with a lot of journeys opened the tab.
+        $query = Trip::query()->ownedBy($customer)->with('selectedRoute')->newestFirst();
 
         if ($status !== null) {
             $query->where('status', $status);
@@ -65,7 +68,12 @@ final class TripService
      */
     public function currentFor(User $customer): ?Trip
     {
-        return Trip::query()->ownedBy($customer)->active()->newestFirst()->first();
+        return Trip::query()
+            ->ownedBy($customer)
+            ->with('selectedRoute')
+            ->active()
+            ->newestFirst()
+            ->first();
     }
 
     /**
@@ -78,7 +86,11 @@ final class TripService
      */
     public function ownedByOrFail(User $customer, string $uuid): Trip
     {
-        $trip = Trip::query()->ownedBy($customer)->where('uuid', $uuid)->first();
+        $trip = Trip::query()
+            ->ownedBy($customer)
+            ->with('selectedRoute')
+            ->where('uuid', $uuid)
+            ->first();
 
         if ($trip === null) {
             Log::info('trip.access_denied', [
