@@ -10,10 +10,12 @@ import '../../core/config/feature_flags.dart';
 import '../../data/auth/session_store.dart';
 import '../../data/fixtures/development_personas.dart';
 import '../../data/repositories/api_auth_repository.dart';
+import '../../data/repositories/api_customer_repository.dart';
 import '../../data/repositories/fixture_home_repository.dart';
 import '../../data/repositories/unconfigured_home_repository.dart';
 import '../../domain/models/home_dashboard.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../domain/repositories/customer_repository.dart';
 import '../../domain/repositories/home_repository.dart';
 import 'auth_controller.dart';
 import 'connectivity.dart';
@@ -177,4 +179,10 @@ final apiClientProvider = Provider<ApiClient>((Ref ref) {
 /// with a fake that can produce every failure the server can.
 final authRepositoryProvider = Provider<AuthRepository>(
   (Ref ref) => ApiAuthRepository(ref.watch(apiClientProvider)),
+);
+
+/// Profile and saved addresses. Overridden in widget tests with a fake that can
+/// produce every failure the server can.
+final customerRepositoryProvider = Provider<CustomerRepository>(
+  (Ref ref) => ApiCustomerRepository(ref.watch(apiClientProvider)),
 );

@@ -8,14 +8,19 @@ import '../../core/routing/routes.dart';
 import '../../core/theme/tokens.dart';
 import '../../domain/models/customer.dart';
 import '../../shared/state/auth_controller.dart';
+import '../../domain/models/saved_address.dart';
+import '../../shared/state/addresses_controller.dart';
+import '../addresses/saved_addresses_screen.dart';
+import 'edit_profile_screen.dart';
 
-/// The customer profile shell.
+/// The customer profile.
 ///
-/// The identity block is real from Module 03: name, masked number and account
-/// status come from the signed-in session. Sign out is real too. Every other row
-/// still routes to a controlled placeholder naming its module — profile
-/// *editing* belongs to a later module, and a form that silently discards what
-/// somebody typed is worse than one that is honestly not there yet.
+/// Real from top to bottom for the rows Module 04 owns: the identity block reads
+/// the session, Personal information opens a form that saves to the API, and
+/// Saved addresses opens a list backed by the database. The remaining rows still
+/// route to a controlled placeholder naming the module that will deliver them —
+/// a screen that is honestly not built yet beats one that silently discards what
+/// somebody typed.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -30,6 +35,10 @@ class ProfileScreen extends ConsumerWidget {
 
     void open(String feature, String module) =>
         context.push(Routes.comingSoonFor(feature: feature, module: module));
+
+    void push(Widget screen) => Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute<void>(builder: (BuildContext _) => screen));
 
     return Scaffold(
       appBar: AppBar(title: Text(strings.navProfile)),
@@ -49,18 +58,15 @@ class ProfileScreen extends ConsumerWidget {
             _Row(
               icon: Icons.person_outline_rounded,
               label: strings.profilePersonalInformation,
-              onTap: () => open(
-                strings.profilePersonalInformation,
-                'Module 04 — Profile & Saved Addresses',
-              ),
+              onTap: () => push(const EditProfileScreen()),
             ),
             _Row(
               icon: Icons.bookmark_border_rounded,
               label: strings.profileSavedAddresses,
-              onTap: () => open(
-                strings.profileSavedAddresses,
-                'Module 04 — Saved Addresses',
-              ),
+              // Pushed over the Profile branch rather than routed globally, so
+              // the bottom bar stays put and Android back returns here.
+              onTap: () => push(const SavedAddressesScreen()),
+              trailingText: _addressSummary(ref, strings),
             ),
             _Row(
               icon: Icons.credit_card_outlined,
@@ -253,11 +259,20 @@ class _Section extends StatelessWidget {
 }
 
 class _Row extends StatelessWidget {
-  const _Row({required this.icon, required this.label, required this.onTap});
+  const _Row({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.trailingText,
+  });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+
+  /// A count or a summary shown before the chevron. Absent for rows that have
+  /// nothing to summarise, rather than showing a hopeful zero.
+  final String? trailingText;
 
   @override
   Widget build(BuildContext context) {
@@ -272,12 +287,38 @@ class _Row extends StatelessWidget {
         color: theme.colorScheme.onSurfaceVariant,
       ),
       title: Text(label, style: theme.textTheme.bodyMedium),
-      trailing: Icon(
-        Icons.chevron_right_rounded,
-        color: theme.colorScheme.onSurfaceVariant,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (trailingText != null)
+            Text(
+              trailingText!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ],
       ),
     );
   }
+}
+
+/// "2 saved" beside the addresses row, once they have loaded.
+///
+/// Null while loading or on failure: a row that briefly reads "0 saved" to
+/// somebody who has three is worse than one that says nothing until it knows.
+String? _addressSummary(WidgetRef ref, AppStrings strings) {
+  final List<SavedAddress>? addresses = ref
+      .watch(addressesControllerProvider)
+      .value;
+
+  if (addresses == null || addresses.isEmpty) return null;
+
+  return addresses.length == 1 ? '1 saved' : '${addresses.length} saved';
 }
 
 /// At most two initials, from the first and last name.

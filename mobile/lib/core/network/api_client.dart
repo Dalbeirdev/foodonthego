@@ -52,7 +52,53 @@ class ApiClient {
     bool authenticated = false,
   }) => _send('POST', path, body: body, authenticated: authenticated);
 
+  Future<Map<String, dynamic>> patch(
+    String path, {
+    Map<String, dynamic>? body,
+    bool authenticated = false,
+  }) => _send('PATCH', path, body: body, authenticated: authenticated);
+
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    bool authenticated = false,
+  }) => _send('DELETE', path, authenticated: authenticated);
+
+  /// For the endpoints whose `data` is a list rather than an object.
+  ///
+  /// A separate method rather than a dynamic return, so a caller cannot forget
+  /// which shape it is dealing with and index into the wrong one.
+  Future<List<dynamic>> getList(
+    String path, {
+    bool authenticated = false,
+  }) async {
+    final Object? data = await _sendRaw(
+      'GET',
+      path,
+      authenticated: authenticated,
+    );
+
+    return data is List ? data : const <dynamic>[];
+  }
+
   Future<Map<String, dynamic>> _send(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+    bool authenticated = false,
+  }) async {
+    final Object? data = await _sendRaw(
+      method,
+      path,
+      body: body,
+      authenticated: authenticated,
+    );
+
+    return data is Map<String, dynamic> ? data : <String, dynamic>{};
+  }
+
+  /// The transport. Returns whatever was under `data` — an object for most
+  /// endpoints, a list for the collection ones.
+  Future<Object?> _sendRaw(
     String method,
     String path, {
     Map<String, dynamic>? body,
@@ -95,7 +141,7 @@ class ApiClient {
     }
 
     try {
-      return _decode(response);
+      return _unwrap(response);
     } on ApiException catch (error) {
       // Only for requests that actually presented a credential: a 401 from the
       // OTP endpoints means "wrong code", not "your session ended".
@@ -104,7 +150,7 @@ class ApiClient {
     }
   }
 
-  Map<String, dynamic> _decode(http.Response response) {
+  Object? _unwrap(http.Response response) {
     Map<String, dynamic>? payload;
     try {
       final Object? decoded = jsonDecode(response.body);
@@ -115,7 +161,8 @@ class ApiClient {
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (payload == null) {
-        // 204 No Content is a legitimate empty success — logout returns one.
+        // 204 No Content is a legitimate empty success — logout and delete both
+        // return one.
         if (response.body.isEmpty) return const <String, dynamic>{};
 
         throw ApiException(
@@ -125,8 +172,7 @@ class ApiClient {
         );
       }
 
-      final Object? data = payload['data'];
-      return data is Map<String, dynamic> ? data : <String, dynamic>{};
+      return payload['data'];
     }
 
     final Object? error = payload?['error'];

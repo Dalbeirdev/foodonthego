@@ -34,6 +34,9 @@ enum ApiErrorCode {
   accountSuspended('ACCOUNT_SUSPENDED'),
   accountDisabled('ACCOUNT_DISABLED'),
 
+  addressLimitReached('ADDRESS_LIMIT_REACHED'),
+  addressNotFound('ADDRESS_NOT_FOUND'),
+
   /// The request never reached the server, or never came back.
   network('NETWORK'),
 

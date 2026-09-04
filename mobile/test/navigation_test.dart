@@ -228,7 +228,7 @@ void main() {
       expect(find.text('Where are you travelling today?'), findsOneWidget);
     });
 
-    testWidgets('every profile row leads somewhere deliberate', (
+    testWidgets('a profile row that IS built opens the real screen', (
       WidgetTester tester,
     ) async {
       await pumpApp(tester);
@@ -237,7 +237,21 @@ void main() {
       await tester.tap(find.text('Saved addresses'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Module 04'), findsOneWidget);
+      // Real from Module 04, not a placeholder.
+      expect(find.text('No saved addresses yet'), findsOneWidget);
+      expect(find.textContaining('Module'), findsNothing);
+    });
+
+    testWidgets('a profile row that is NOT built still names its module', (
+      WidgetTester tester,
+    ) async {
+      await pumpApp(tester);
+      await tapTab(tester, 'Profile');
+
+      await tester.tap(find.text('Payment methods'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Module 11'), findsOneWidget);
     });
 
     testWidgets('a quick action that IS built navigates for real', (

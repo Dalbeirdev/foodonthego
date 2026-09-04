@@ -202,6 +202,81 @@ class AppStrings {
   String get authErrorGeneric => 'Something went wrong. Please try again.';
   String authErrorReference(String requestId) => 'Reference: $requestId';
 
+  // --- profile ------------------------------------------------------------
+  String get profileManage => 'Manage profile';
+  String get profileEditTitle => 'Personal information';
+  String get profileEditSubtitle =>
+      'This is the name the kitchen sees when you collect an order.';
+  String get profileMobileLabel => 'Mobile number';
+  String get profileVerified => 'Verified';
+  String get profilePhoneLocked =>
+      'Your mobile number is how we recognise you. Contact support to change it.';
+  String get profileSave => 'Save changes';
+  String get profileSaved => 'Profile updated';
+  String get profileNoEmail => 'No email added';
+  String get profileEmailUnverified =>
+      'Used for receipts only. We do not verify email addresses yet.';
+
+  // --- saved addresses -----------------------------------------------------
+  String get addressesTitle => 'Saved addresses';
+  String get addressesEmptyTitle => 'No saved addresses yet';
+  String get addressesEmptyBody =>
+      'Save Home, Work or anywhere else you travel from — it makes planning a '
+      'journey a single tap.';
+  String get addressesAdd => 'Add address';
+  String get addressesAddFirst => 'Add your first address';
+  String get addressDefault => 'Default';
+  String get addressSetDefault => 'Set as default';
+  String get addressDefaultChanged => 'Default address updated';
+  String get addressEdit => 'Edit';
+  String get addressDelete => 'Remove';
+  String addressDeleteTitle(String label) => 'Remove "$label"?';
+  String get addressDeleteBody =>
+      'This saved address will be removed from your account.';
+  String get addressDeleted => 'Address removed';
+  String get addressSaved => 'Address saved';
+  String get addressUpdated => 'Address updated';
+  String addressCountLimit(int limit) =>
+      'You can save up to $limit addresses. Remove one to add another.';
+
+  // --- address form --------------------------------------------------------
+  String get addressFormAddTitle => 'Add address';
+  String get addressFormEditTitle => 'Edit address';
+  String get addressTypeLabel => 'What is this place?';
+  String get addressTypeHome => 'Home';
+  String get addressTypeWork => 'Work';
+  String get addressTypeOther => 'Other';
+  String get addressLabelField => 'Name this place';
+  String get addressLabelHint => 'Parents\' house, Jaipur office…';
+  String get addressLine1Field => 'Flat, house or building';
+  String get addressLine2Field => 'Street or area (optional)';
+  String get addressLandmarkField => 'Landmark (optional)';
+  String get addressCityField => 'City';
+  String get addressStateField => 'State';
+  String get addressPostalField => 'PIN code';
+  String get addressPostalFieldGeneric => 'Postal code';
+  String get addressCountryField => 'Country';
+  String get addressMakeDefault => 'Make this my default address';
+  String get addressFormSave => 'Save address';
+
+  String get addressLabelRequired => 'Give this address a name.';
+  String get addressLine1Required => 'Enter the flat, building or street.';
+  String get addressCityRequired => 'Enter the city.';
+  String get addressStateRequired => 'Enter the state.';
+  String get addressPostalRequired => 'Enter the PIN code.';
+  String addressPostalInvalid(String example) =>
+      'That does not look right — a PIN code looks like $example.';
+
+  // Error messages, keyed by the API's machine-readable code.
+  String get customerErrorOffline =>
+      'No connection. Your changes have not been saved.';
+  String get customerErrorSaveOffline =>
+      'You need a connection to save this. Nothing has been changed.';
+  String get customerErrorAddressGone =>
+      'That address is no longer saved to your account.';
+  String get customerErrorGeneric => 'Something went wrong. Please try again.';
+  String get customerRetry => 'Try again';
+
   // --- development scaffolding (never shown in production) -----------------
   String get notBuiltYet => 'Not built yet';
   String comingInModule(String module) => 'Arrives in $module.';

@@ -85,6 +85,30 @@ class AuthController extends Notifier<AuthState> {
     state = AuthAuthenticated(session.customer);
   }
 
+  /// Records a profile the customer just changed.
+  ///
+  /// The session is the app's single source of truth for who is signed in, so a
+  /// name edited on the profile screen has to land here — otherwise the home
+  /// greeting keeps the old one until the next cold start. The token is
+  /// unchanged; only the profile attached to it moves.
+  Future<void> updateProfile(Customer customer) async {
+    final AuthSession? stored = await _store.read();
+
+    if (stored != null) {
+      await _store.write(
+        AuthSession(
+          accessToken: stored.accessToken,
+          expiresAt: stored.expiresAt,
+          customer: customer,
+        ),
+      );
+    }
+
+    if (state is AuthAuthenticated) {
+      state = AuthAuthenticated(customer);
+    }
+  }
+
   /// Signs out.
   ///
   /// Local state is cleared **first and unconditionally**. If the server call

@@ -30,6 +30,18 @@ class Routes {
   static const String notifications = '/notifications';
   static const String profile = '/profile';
 
+  /// Profile and saved addresses (Module 04). Pushed over the Profile branch
+  /// rather than sitting in the shell, so the bottom bar stays put and Android
+  /// back returns to the list the customer came from.
+  static const String profileEdit = 'edit';
+  static const String savedAddresses = 'addresses';
+  static const String addressForm = 'form';
+
+  /// Absolute forms, for the places that need one.
+  static const String profileEditPath = '/profile/edit';
+  static const String savedAddressesPath = '/profile/addresses';
+  static const String addressFormPath = '/profile/addresses/form';
+
   /// The controlled destination for anything not built yet. Takes the feature
   /// name and owning module as query parameters so one screen serves them all.
   static const String comingSoon = '/coming-soon';

@@ -12,7 +12,9 @@ import 'package:foodonthego/data/auth/session_store.dart';
 import 'package:foodonthego/domain/models/auth_models.dart';
 import 'package:foodonthego/domain/models/customer.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
+import 'package:foodonthego/domain/models/saved_address.dart';
 import 'package:foodonthego/domain/repositories/auth_repository.dart';
+import 'package:foodonthego/domain/repositories/customer_repository.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
 import 'package:foodonthego/shared/state/connectivity.dart';
 import 'package:foodonthego/shared/state/providers.dart';
@@ -215,6 +217,359 @@ class FakeAuthRepository implements AuthRepository {
   }
 }
 
+/// A scriptable stand-in for the profile and address API.
+///
+/// It keeps a real list and applies the server's rules to it — the first address
+/// becomes the default, a new default clears the old one, deleting the default
+/// promotes a survivor. A fake that skipped those would let a screen pass a test
+/// while showing two defaults against the real backend.
+class FakeCustomerRepository implements CustomerRepository {
+  FakeCustomerRepository({Customer? customer, List<SavedAddress>? addresses})
+    : _customer = customer ?? FakeAuthRepository.sampleCustomer,
+      _addresses = <SavedAddress>[...?addresses] {
+    // The API returns default first; a fake that did not would let a screen pass
+    // a test while showing the wrong order against the real backend.
+    _sort();
+  }
+
+  Customer _customer;
+  final List<SavedAddress> _addresses;
+
+  /// Thrown by the next matching call and then cleared, so a test can script one
+  /// failure followed by a success.
+  ApiException? nextProfileError;
+  ApiException? nextListError;
+  ApiException? nextWriteError;
+
+  int profileReads = 0;
+  int listReads = 0;
+  int createCount = 0;
+  int deleteCount = 0;
+  int defaultChangeCount = 0;
+
+  /// What updateProfile() was called with. `phone` is deliberately impossible to
+  /// pass, so a test can assert the screen had no way to send one.
+  Map<String, String?>? lastProfileUpdate;
+
+  AddressDraft? lastDraft;
+
+  List<SavedAddress> get addressesSnapshot =>
+      List<SavedAddress>.unmodifiable(_addresses);
+
+  /// Swaps the account this repository answers for.
+  ///
+  /// Stands in for what the server does when a different token arrives: the same
+  /// endpoints, different data. Used by the account-switch test, which must go
+  /// through the real sign-in flow rather than rebuilding the widget tree — a
+  /// second pumpWidget updates the existing ProviderScope instead of recreating
+  /// it, so it would prove nothing about state being dropped.
+  void switchTo(Customer customer, List<SavedAddress> addresses) {
+    _customer = customer;
+    _addresses
+      ..clear()
+      ..addAll(addresses);
+    _sort();
+  }
+
+  ApiException? _take(ApiException? error, void Function() clear) {
+    clear();
+    return error;
+  }
+
+  @override
+  Future<Customer> profile() async {
+    profileReads++;
+    final ApiException? error = _take(
+      nextProfileError,
+      () => nextProfileError = null,
+    );
+    if (error != null) throw error;
+
+    return _customer;
+  }
+
+  @override
+  Future<Customer> updateProfile({
+    required String firstName,
+    String? lastName,
+    String? email,
+    bool clearLastName = false,
+    bool clearEmail = false,
+  }) async {
+    lastProfileUpdate = <String, String?>{
+      'first_name': firstName.trim(),
+      'last_name': _blank(lastName),
+      'email': _blank(email),
+    };
+
+    final ApiException? error = _take(
+      nextProfileError,
+      () => nextProfileError = null,
+    );
+    if (error != null) throw error;
+
+    _customer = Customer(
+      id: _customer.id,
+      firstName: firstName.trim(),
+      lastName: _blank(lastName),
+      // The verified number is identity: this fake cannot change it either,
+      // because the interface gives it nowhere to come from.
+      phone: _customer.phone,
+      email: _blank(email),
+      phoneVerified: _customer.phoneVerified,
+      status: _customer.status,
+    );
+
+    return _customer;
+  }
+
+  @override
+  Future<List<SavedAddress>> addresses() async {
+    listReads++;
+    final ApiException? error = _take(
+      nextListError,
+      () => nextListError = null,
+    );
+    if (error != null) throw error;
+
+    return List<SavedAddress>.unmodifiable(_addresses);
+  }
+
+  @override
+  Future<SavedAddress> createAddress(AddressDraft draft) async {
+    createCount++;
+    lastDraft = draft;
+
+    final ApiException? error = _take(
+      nextWriteError,
+      () => nextWriteError = null,
+    );
+    if (error != null) throw error;
+
+    final bool isDefault = draft.isDefault || _addresses.isEmpty;
+    if (isDefault) {
+      _clearDefault();
+    }
+
+    final SavedAddress created = _materialise(
+      id: 'addr-${_addresses.length + 1}',
+      draft: draft,
+      isDefault: isDefault,
+    );
+
+    _addresses.insert(0, created);
+    _sort();
+
+    return created;
+  }
+
+  @override
+  Future<SavedAddress> updateAddress(String id, AddressDraft draft) async {
+    lastDraft = draft;
+
+    final ApiException? error = _take(
+      nextWriteError,
+      () => nextWriteError = null,
+    );
+    if (error != null) throw error;
+
+    final int index = _addresses.indexWhere((SavedAddress a) => a.id == id);
+    if (index < 0) {
+      throw const ApiException(
+        code: ApiErrorCode.addressNotFound,
+        message: 'Gone.',
+        status: 404,
+      );
+    }
+
+    final bool becomesDefault = draft.isDefault || _addresses[index].isDefault;
+    if (draft.isDefault) {
+      _clearDefault();
+    }
+
+    final SavedAddress updated = _materialise(
+      id: id,
+      draft: draft,
+      isDefault: becomesDefault,
+    );
+
+    _addresses[index] = updated;
+    _sort();
+
+    return updated;
+  }
+
+  @override
+  Future<void> deleteAddress(String id) async {
+    deleteCount++;
+
+    final ApiException? error = _take(
+      nextWriteError,
+      () => nextWriteError = null,
+    );
+    if (error != null) throw error;
+
+    final int index = _addresses.indexWhere((SavedAddress a) => a.id == id);
+    if (index < 0) return;
+
+    final bool wasDefault = _addresses[index].isDefault;
+    _addresses.removeAt(index);
+
+    // Deleting the default promotes the newest survivor, exactly as the server
+    // does — a fake that left no default would hide a real bug.
+    if (wasDefault && _addresses.isNotEmpty) {
+      _addresses[0] = _copyWith(_addresses[0], isDefault: true);
+    }
+    _sort();
+  }
+
+  @override
+  Future<SavedAddress> makeDefault(String id) async {
+    defaultChangeCount++;
+
+    final ApiException? error = _take(
+      nextWriteError,
+      () => nextWriteError = null,
+    );
+    if (error != null) throw error;
+
+    final int index = _addresses.indexWhere((SavedAddress a) => a.id == id);
+    if (index < 0) {
+      throw const ApiException(
+        code: ApiErrorCode.addressNotFound,
+        message: 'Gone.',
+        status: 404,
+      );
+    }
+
+    _clearDefault();
+    _addresses[index] = _copyWith(_addresses[index], isDefault: true);
+    _sort();
+
+    return _addresses.firstWhere((SavedAddress a) => a.id == id);
+  }
+
+  void _clearDefault() {
+    for (int i = 0; i < _addresses.length; i++) {
+      if (_addresses[i].isDefault) {
+        _addresses[i] = _copyWith(_addresses[i], isDefault: false);
+      }
+    }
+  }
+
+  void _sort() {
+    _addresses.sort((SavedAddress a, SavedAddress b) {
+      if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
+      return 0;
+    });
+  }
+
+  SavedAddress _materialise({
+    required String id,
+    required AddressDraft draft,
+    required bool isDefault,
+  }) {
+    final String label = (draft.label?.trim().isNotEmpty ?? false)
+        ? draft.label!.trim()
+        : switch (draft.type) {
+            AddressType.home => 'Home',
+            AddressType.work => 'Work',
+            AddressType.other => 'Other',
+          };
+
+    final String region = <String>[
+      draft.state,
+      if (draft.postalCode != null && draft.postalCode!.isNotEmpty)
+        draft.postalCode!,
+    ].join(' ').trim();
+
+    return SavedAddress(
+      id: id,
+      type: draft.type,
+      label: label,
+      addressLine1: draft.addressLine1.trim(),
+      addressLine2: draft.addressLine2?.trim(),
+      landmark: draft.landmark?.trim(),
+      city: draft.city.trim(),
+      state: draft.state.trim(),
+      postalCode: draft.postalCode?.trim(),
+      countryCode: draft.countryCode.toUpperCase(),
+      formattedAddress: <String>[
+        draft.addressLine1.trim(),
+        if (draft.addressLine2?.trim().isNotEmpty ?? false)
+          draft.addressLine2!.trim(),
+        draft.city.trim(),
+        region,
+        draft.countryCode.toUpperCase(),
+      ].where((String p) => p.isNotEmpty).join(', '),
+      isDefault: isDefault,
+    );
+  }
+
+  static SavedAddress _copyWith(
+    SavedAddress source, {
+    required bool isDefault,
+  }) => SavedAddress(
+    id: source.id,
+    type: source.type,
+    label: source.label,
+    addressLine1: source.addressLine1,
+    addressLine2: source.addressLine2,
+    landmark: source.landmark,
+    city: source.city,
+    state: source.state,
+    postalCode: source.postalCode,
+    countryCode: source.countryCode,
+    formattedAddress: source.formattedAddress,
+    latitude: source.latitude,
+    longitude: source.longitude,
+    placeId: source.placeId,
+    isDefault: isDefault,
+  );
+
+  static String? _blank(String? value) {
+    final String trimmed = value?.trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
+  }
+}
+
+/// A saved address shaped like one the API returns.
+SavedAddress sampleAddress({
+  String id = 'addr-1',
+  AddressType type = AddressType.home,
+  String label = 'Home',
+  String addressLine1 = '12 Green Park Road',
+  String? addressLine2 = 'Green Park',
+  String? landmark,
+  String city = 'New Delhi',
+  String state = 'Delhi',
+  String? postalCode = '110016',
+  bool isDefault = false,
+}) {
+  final String region = <String>[state, ?postalCode].join(' ').trim();
+
+  return SavedAddress(
+    id: id,
+    type: type,
+    label: label,
+    addressLine1: addressLine1,
+    addressLine2: addressLine2,
+    landmark: landmark,
+    city: city,
+    state: state,
+    postalCode: postalCode,
+    countryCode: 'IN',
+    formattedAddress: <String>[
+      addressLine1,
+      ?addressLine2,
+      city,
+      region,
+      'IN',
+    ].join(', '),
+    isDefault: isDefault,
+  );
+}
+
 /// Wraps a single widget in the theme and localizations it needs.
 ///
 /// The helpers take concrete dependencies rather than a list of overrides
@@ -245,10 +600,13 @@ Widget wrapApp({
   ConnectivityService? connectivity,
   String initialLocation = '/',
   FakeAuthRepository? auth,
+  FakeCustomerRepository? customer,
   SessionStore? sessionStore,
   bool signedIn = true,
 }) {
   final FakeAuthRepository authRepository = auth ?? FakeAuthRepository();
+  final FakeCustomerRepository customerRepository =
+      customer ?? FakeCustomerRepository();
   final SessionStore store = sessionStore ?? InMemorySessionStore();
 
   if (signedIn) {
@@ -264,6 +622,7 @@ Widget wrapApp({
     overrides: [
       homeRepositoryProvider.overrideWithValue(repository),
       authRepositoryProvider.overrideWithValue(authRepository),
+      customerRepositoryProvider.overrideWithValue(customerRepository),
       sessionStoreProvider.overrideWithValue(store),
       if (connectivity != null)
         connectivityServiceProvider.overrideWithValue(connectivity),
