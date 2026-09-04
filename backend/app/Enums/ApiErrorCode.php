@@ -39,6 +39,10 @@ enum ApiErrorCode: string
     case AccountSuspended = 'ACCOUNT_SUSPENDED';
     case AccountDisabled = 'ACCOUNT_DISABLED';
 
+    // --- Module 04: profile and saved addresses -------------------------
+    case AddressLimitReached = 'ADDRESS_LIMIT_REACHED';
+    case AddressNotFound = 'ADDRESS_NOT_FOUND';
+
     public function httpStatus(): int
     {
         return match ($this) {
@@ -48,6 +52,12 @@ enum ApiErrorCode: string
             self::NotFound => 404,
             self::MethodNotAllowed => 405,
             self::Conflict, self::IdempotencyKeyReused => 409,
+            // 422, not 409: the request is well formed and the conflict is with a
+            // limit rather than with another version of the same resource.
+            self::AddressLimitReached => 422,
+            // 404, and deliberately the same answer an address that does not
+            // exist gets — see CustomerAddressService::ownedByOrFail().
+            self::AddressNotFound => 404,
             self::RateLimited => 429,
             self::BusinessRuleViolated => 422,
             self::DependencyUnavailable => 503,

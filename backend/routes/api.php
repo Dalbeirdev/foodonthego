@@ -6,6 +6,8 @@ use App\Enums\ApiErrorCode;
 use App\Http\Controllers\Api\V1\Auth\CustomerOtpController;
 use App\Http\Controllers\Api\V1\Auth\CustomerRegistrationController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
+use App\Http\Controllers\Api\V1\Customer\AddressController;
+use App\Http\Controllers\Api\V1\Customer\ProfileController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MetaController;
 use App\Http\Responses\ApiResponse;
@@ -79,6 +81,36 @@ Route::prefix('v1')->group(function (): void {
         ->group(function (): void {
             Route::get('/customer/me', [SessionController::class, 'me'])->name('api.v1.customer.me');
             Route::post('/auth/logout', [SessionController::class, 'logout'])->name('api.v1.auth.logout');
+
+            /*
+             |------------------------------------------------------------------
+             | Profile and saved addresses (Module 04)
+             |------------------------------------------------------------------
+             |
+             | No route here carries a customer id. The actor is the token, so
+             | there is no ownership check to forget and no id for a caller to
+             | change. Addresses are addressed by their own uuid and resolved
+             | through a query already scoped to the authenticated customer.
+             */
+            Route::get('/customer/profile', [ProfileController::class, 'show'])
+                ->name('api.v1.customer.profile.show');
+            Route::patch('/customer/profile', [ProfileController::class, 'update'])
+                ->name('api.v1.customer.profile.update');
+
+            Route::prefix('customer/addresses')->group(function (): void {
+                Route::get('/', [AddressController::class, 'index'])
+                    ->name('api.v1.customer.addresses.index');
+                Route::post('/', [AddressController::class, 'store'])
+                    ->name('api.v1.customer.addresses.store');
+                Route::get('/{address}', [AddressController::class, 'show'])
+                    ->name('api.v1.customer.addresses.show');
+                Route::patch('/{address}', [AddressController::class, 'update'])
+                    ->name('api.v1.customer.addresses.update');
+                Route::delete('/{address}', [AddressController::class, 'destroy'])
+                    ->name('api.v1.customer.addresses.destroy');
+                Route::post('/{address}/default', [AddressController::class, 'makeDefault'])
+                    ->name('api.v1.customer.addresses.default');
+            });
         });
 });
 

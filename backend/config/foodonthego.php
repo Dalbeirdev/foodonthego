@@ -65,6 +65,23 @@ return [
         'simulate_provider_failure' => (bool) env('OTP_SIMULATE_PROVIDER_FAILURE', false),
     ],
 
+    /*
+     |--------------------------------------------------------------------------
+     | Saved addresses (Module 04)
+     |--------------------------------------------------------------------------
+     */
+    'addresses' => [
+        // An anti-abuse ceiling, not a product limit. Generous enough that no
+        // real customer meets it — a traveller with home, work, two sets of
+        // parents and a few regular stops is nowhere near — and low enough that
+        // an account cannot be used as free storage.
+        'max_per_customer' => (int) env('ADDRESS_MAX_PER_CUSTOMER', 25),
+
+        // The launch market. Used as the form default only; the schema and the
+        // validator both accept any ISO 3166-1 alpha-2 code.
+        'default_country_code' => env('ADDRESS_DEFAULT_COUNTRY', 'IN'),
+    ],
+
     'auth' => [
         // Sanctum access-token lifetime. 30 days: long enough that a traveller is
         // not signed out mid-journey, short enough that a lost handset stops

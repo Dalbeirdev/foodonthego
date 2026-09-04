@@ -19,6 +19,7 @@
 // It is deliberately NOT a `flutter test`: flutter_test replaces HttpClient with
 // a mock, so a "test" there could never make a real request.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:foodonthego/core/config/api_config.dart';
@@ -266,7 +267,13 @@ Future<String> _readCodeAfter(int offset) async {
     );
   }
 
-  final String fresh = (await file.readAsString()).substring(offset);
+  // Sliced as bytes and decoded afterwards, not the other way round. The mask
+  // characters in this log are three bytes each in UTF-8 but one UTF-16 code
+  // unit in a Dart string, so a byte offset used as a string index drifts
+  // further out with every masked number written — and eventually throws.
+  final List<int> bytes = await file.readAsBytes();
+  final int from = offset.clamp(0, bytes.length);
+  final String fresh = utf8.decode(bytes.sublist(from), allowMalformed: true);
 
   // Laravel's single-file format is "[time] channel.LEVEL: message {json}".
   final Match? match = RegExp(r'\{.*"code":"(\d+)".*\}').firstMatch(fresh);
