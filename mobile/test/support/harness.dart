@@ -6,17 +6,20 @@ import 'package:foodonthego/app.dart';
 import 'package:foodonthego/core/l10n/app_strings.dart';
 import 'package:foodonthego/core/network/api_error_code.dart';
 import 'package:foodonthego/core/network/api_exception.dart';
+import 'package:foodonthego/core/location/location_service.dart';
 import 'package:foodonthego/core/routing/app_router.dart';
 import 'package:foodonthego/core/theme/app_theme.dart';
 import 'package:foodonthego/data/auth/session_store.dart';
 import 'package:foodonthego/domain/models/auth_models.dart';
 import 'package:foodonthego/domain/models/customer.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
+import 'package:foodonthego/domain/models/place.dart';
 import 'package:foodonthego/domain/models/saved_address.dart';
 import 'package:foodonthego/domain/models/trip.dart';
 import 'package:foodonthego/domain/repositories/auth_repository.dart';
 import 'package:foodonthego/domain/repositories/customer_repository.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
+import 'package:foodonthego/domain/repositories/place_repository.dart';
 import 'package:foodonthego/domain/repositories/trip_repository.dart';
 import 'package:foodonthego/shared/state/connectivity.dart';
 import 'package:foodonthego/shared/state/providers.dart';
@@ -596,19 +599,31 @@ Widget wrapWidget(Widget child, {ThemeData? theme}) {
 /// [signedIn] seeds the session store, which is what a returning customer's
 /// device looks like on launch. Left false, the app starts where a new install
 /// starts: the welcome screen.
-/// A journey repository that applies the *server's* rules.
+/// A trip repository that applies the *server's* rules.
 ///
 /// The point of the exercise: a fake that accepted anything would let a screen
 /// pass its tests while doing something the real backend refuses. So this one
-/// refuses a departure in the past, refuses an origin and destination that name
-/// the same place, enforces the upcoming limit, and keeps a cancelled journey
-/// out of the upcoming list — exactly as `TripService` does.
+/// resolves a saved address **through the addresses it was given** and refuses
+/// an id it does not hold — which is how the cross-customer case is exercised
+/// without a network — refuses two ends that are the same place, refuses a
+/// coordinate outside the possible range, enforces the open limit, and keeps a
+/// discarded trip out of the open list, exactly as `TripService` does.
 class FakeTripRepository implements TripRepository {
-  FakeTripRepository({List<Trip>? trips, this.upcomingLimit = 20})
-    : _trips = <Trip>[...?trips];
+  FakeTripRepository({
+    List<Trip>? trips,
+    List<SavedAddress>? addresses,
+    this.openLimit = 20,
+  }) : _trips = <Trip>[...?trips],
+       _addresses = <SavedAddress>[...?addresses];
 
   final List<Trip> _trips;
-  final int upcomingLimit;
+
+  /// The addresses this customer owns. An id outside this list is refused the
+  /// way the server refuses one belonging to somebody else: as though it does
+  /// not exist, with nothing about it in the answer.
+  final List<SavedAddress> _addresses;
+
+  final int openLimit;
 
   /// Thrown by the next matching call and then cleared, so a test can script one
   /// failure followed by a success.
@@ -616,24 +631,33 @@ class FakeTripRepository implements TripRepository {
   ApiException? nextWriteError;
 
   int listReads = 0;
-  int planCount = 0;
-  int cancelCount = 0;
+  int createCount = 0;
+  int discardCount = 0;
 
   TripDraft? lastDraft;
-  String? lastCancelReason;
+
+  /// The exact JSON the screen would have put on the wire. Tests assert on this
+  /// to prove that no customer id, status or route field is ever sent.
+  Map<String, dynamic>? lastPayload;
 
   List<Trip> get snapshot => List<Trip>.unmodifiable(_trips);
 
   /// Stands in for what the server does when a different token arrives: the same
   /// endpoints, different data.
-  void switchTo(List<Trip> trips) {
+  void switchTo(List<Trip> trips, {List<SavedAddress>? addresses}) {
     _trips
       ..clear()
       ..addAll(trips);
+
+    if (addresses != null) {
+      _addresses
+        ..clear()
+        ..addAll(addresses);
+    }
   }
 
   @override
-  Future<List<Trip>> trips({TripScope scope = TripScope.upcoming}) async {
+  Future<List<Trip>> trips({TripScope scope = TripScope.open}) async {
     listReads++;
 
     final ApiException? error = nextListError;
@@ -643,23 +667,18 @@ class FakeTripRepository implements TripRepository {
     }
 
     final List<Trip> matching = switch (scope) {
-      TripScope.upcoming =>
-        _trips.where((Trip t) => t.isUpcoming).toList()
-          ..sort((Trip a, Trip b) => a.departureAt.compareTo(b.departureAt)),
-      TripScope.past =>
-        _trips.where((Trip t) => t.hasDeparted).toList()
-          ..sort((Trip a, Trip b) => b.departureAt.compareTo(a.departureAt)),
+      TripScope.open => _trips.where((Trip t) => !t.isCancelled).toList(),
       TripScope.cancelled => _trips.where((Trip t) => t.isCancelled).toList(),
       TripScope.all => <Trip>[..._trips],
     };
 
-    return List<Trip>.unmodifiable(matching);
+    return List<Trip>.unmodifiable(matching.reversed);
   }
 
   @override
-  Future<Trip?> nextTrip() async {
-    final List<Trip> upcoming = await trips();
-    return upcoming.isEmpty ? null : upcoming.first;
+  Future<Trip?> currentTrip() async {
+    final List<Trip> open = await trips();
+    return open.isEmpty ? null : open.first;
   }
 
   @override
@@ -675,22 +694,40 @@ class FakeTripRepository implements TripRepository {
   }
 
   @override
-  Future<Trip> planTrip(TripDraft draft) async {
-    planCount++;
+  Future<Trip> createTrip(TripDraft draft) async {
+    createCount++;
     lastDraft = draft;
+    lastPayload = draft.toJson();
     _throwScriptedWriteError();
 
-    if (_trips.where((Trip t) => t.isUpcoming).length >= upcomingLimit) {
+    if (_trips.where((Trip t) => !t.isCancelled).length >= openLimit) {
       throw const ApiException(
         code: ApiErrorCode.tripLimitReached,
-        message: 'Too many upcoming journeys.',
+        message: 'Too many planned journeys.',
         status: 422,
       );
     }
 
-    final Trip created = _materialise(
+    final TripEndpoint origin = _resolve(draft.origin);
+    final TripEndpoint destination = _resolve(draft.destination);
+
+    if (_isSamePlace(origin, destination)) {
+      throw const ApiException(
+        code: ApiErrorCode.sameLocation,
+        message: 'Your starting point and destination are the same place.',
+        status: 422,
+      );
+    }
+
+    final Trip created = Trip(
       id: 'trip-${_trips.length + 1}',
-      draft: draft,
+      status: TripStatus.routePending,
+      // Always. Module 05 never calculates a route, and a fake that returned
+      // READY would let a screen render a distance in a test and nowhere else.
+      routeStatus: RouteStatus.notCalculated,
+      origin: origin,
+      destination: destination,
+      createdAt: DateTime.now().toUtc(),
     );
 
     _trips.add(created);
@@ -698,59 +735,32 @@ class FakeTripRepository implements TripRepository {
   }
 
   @override
-  Future<Trip> updateTrip(String id, TripDraft draft) async {
-    lastDraft = draft;
+  Future<Trip> discardTrip(String id) async {
+    discardCount++;
     _throwScriptedWriteError();
 
     final Trip existing = await trip(id);
 
-    if (!existing.isEditable) {
+    if (existing.isCancelled) {
       throw const ApiException(
         code: ApiErrorCode.tripNotEditable,
-        message: 'That journey can no longer be changed.',
+        message: 'That journey has already been discarded.',
         status: 422,
       );
     }
 
-    final Trip updated = _materialise(id: id, draft: draft, existing: existing);
-    _trips[_trips.indexOf(existing)] = updated;
-
-    return updated;
-  }
-
-  @override
-  Future<Trip> cancelTrip(String id, {String? reason}) async {
-    cancelCount++;
-    lastCancelReason = reason;
-    _throwScriptedWriteError();
-
-    final Trip existing = await trip(id);
-
-    if (existing.isCancelled || existing.hasDeparted) {
-      throw const ApiException(
-        code: ApiErrorCode.tripNotEditable,
-        message: 'That journey can no longer be cancelled.',
-        status: 422,
-      );
-    }
-
-    final Trip cancelled = Trip(
+    final Trip discarded = Trip(
       id: existing.id,
       status: TripStatus.cancelled,
+      routeStatus: existing.routeStatus,
       origin: existing.origin,
       destination: existing.destination,
-      departureAt: existing.departureAt,
-      expectedArrivalAt: existing.expectedArrivalAt,
-      travellerCount: existing.travellerCount,
-      note: existing.note,
       cancelledAt: DateTime.now().toUtc(),
-      cancellationReason: reason,
-      isEditable: false,
-      hasDeparted: existing.hasDeparted,
+      createdAt: existing.createdAt,
     );
 
-    _trips[_trips.indexOf(existing)] = cancelled;
-    return cancelled;
+    _trips[_trips.indexOf(existing)] = discarded;
+    return discarded;
   }
 
   void _throwScriptedWriteError() {
@@ -761,152 +771,331 @@ class FakeTripRepository implements TripRepository {
     }
   }
 
-  /// Turns a draft into the journey the server would have stored.
-  Trip _materialise({
-    required String id,
-    required TripDraft draft,
-    Trip? existing,
-  }) {
-    final DateTime departure =
-        draft.departureAt?.toUtc() ??
-        existing?.departureAt ??
-        DateTime.now().toUtc();
+  /// What the server does with one end of the request.
+  ///
+  /// A saved address is looked up in *this customer's* list and copied out of
+  /// it; the client's own values for that end are ignored entirely, which is the
+  /// property that makes the id the only thing worth sending.
+  TripEndpoint _resolve(TripLocation location) {
+    if (location.isSavedAddress) {
+      for (final SavedAddress address in _addresses) {
+        if (address.id != location.savedAddressId) continue;
 
-    if (departure.isBefore(
-      DateTime.now().toUtc().subtract(const Duration(minutes: 5)),
-    )) {
+        if (!address.hasCoordinates) {
+          throw const ApiException(
+            code: ApiErrorCode.savedAddressNotLocated,
+            message: 'That saved address has no location.',
+            status: 422,
+          );
+        }
+
+        return TripEndpoint(
+          sourceType: LocationSourceType.savedAddress,
+          displayName: address.label,
+          formattedAddress: address.formattedAddress,
+          latitude: address.latitude!,
+          longitude: address.longitude!,
+          city: address.city,
+          countryCode: address.countryCode,
+        );
+      }
+
+      // Not this customer's. Indistinguishable from an id that never existed —
+      // no hint that somebody else's address is real.
       throw const ApiException(
-        code: ApiErrorCode.validationFailed,
-        message: 'Choose a departure time in the future.',
-        status: 422,
-        details: <String, dynamic>{
-          'fields': <String, dynamic>{
-            'departure_at': <String>['Choose a departure time in the future.'],
-          },
-        },
+        code: ApiErrorCode.addressNotFound,
+        message: 'That address is no longer on your account.',
+        status: 404,
       );
     }
 
-    final JourneyPlace origin = _placeFrom(draft.origin, existing?.origin);
-    final JourneyPlace destination = _placeFrom(
-      draft.destination,
-      existing?.destination,
-    );
+    final double? latitude = location.latitude;
+    final double? longitude = location.longitude;
 
-    if (origin.formattedAddress.toLowerCase() ==
-            destination.formattedAddress.toLowerCase() &&
-        origin.city.toLowerCase() == destination.city.toLowerCase()) {
+    if (latitude == null ||
+        longitude == null ||
+        latitude.abs() > 90 ||
+        longitude.abs() > 180 ||
+        (latitude == 0 && longitude == 0)) {
       throw const ApiException(
-        code: ApiErrorCode.validationFailed,
-        message: 'Your starting point and destination are the same place.',
+        code: ApiErrorCode.invalidCoordinates,
+        message: 'That place has no location we can use.',
         status: 422,
-        details: <String, dynamic>{
-          'fields': <String, dynamic>{
-            'destination': <String>[
-              'Choose a destination different from your starting point.',
-            ],
-          },
-        },
       );
     }
 
-    return Trip(
-      id: id,
-      status: TripStatus.planned,
-      origin: origin,
-      destination: destination,
-      departureAt: departure,
-      expectedArrivalAt: draft.clearArrival
-          ? null
-          : (draft.expectedArrivalAt?.toUtc() ?? existing?.expectedArrivalAt),
-      travellerCount: draft.travellerCount ?? existing?.travellerCount ?? 1,
-      note: draft.clearNote
-          ? null
-          : ((draft.note?.trim().isEmpty ?? true)
-                ? existing?.note
-                : draft.note!.trim()),
-      isEditable: true,
-      hasDeparted: false,
+    return TripEndpoint(
+      sourceType: location.sourceType,
+      displayName: location.displayName,
+      formattedAddress: location.formattedAddress,
+      latitude: latitude,
+      longitude: longitude,
+      placeId: location.placeId,
+      city: location.city,
+      region: location.region,
+      countryCode: location.countryCode,
+      postalCode: location.postalCode,
     );
   }
 
-  JourneyPlace _placeFrom(JourneyPlaceDraft? draft, JourneyPlace? existing) {
-    if (draft == null) {
-      return existing ??
-          const JourneyPlace(
-            label: '',
-            formattedAddress: '',
-            city: '',
-            countryCode: 'IN',
-          );
-    }
+  bool _isSamePlace(TripEndpoint a, TripEndpoint b) {
+    if (a.placeId != null && a.placeId == b.placeId) return true;
 
-    if (draft.isSavedAddress) {
-      // The server snapshots the saved address; the fake resolves it to a stable
-      // stand-in, because what matters to a widget test is that the id travelled.
-      return JourneyPlace(
-        label: 'Saved place',
-        formattedAddress: 'Saved address ${draft.savedAddressId}',
-        city: 'New Delhi',
-        countryCode: 'IN',
-      );
-    }
-
-    final Map<String, dynamic> json = draft.toJson();
-
-    return JourneyPlace(
-      label: (json['label'] as String?) ?? (json['city'] as String? ?? ''),
-      formattedAddress: <String>[
-        json['address_line'] as String? ?? '',
-        json['city'] as String? ?? '',
-        json['state'] as String? ?? '',
-      ].where((String part) => part.isNotEmpty).join(', '),
-      city: json['city'] as String? ?? '',
-      countryCode: json['country_code'] as String? ?? 'IN',
-      latitude: (json['latitude'] as num?)?.toDouble(),
-      longitude: (json['longitude'] as num?)?.toDouble(),
-      placeId: json['place_id'] as String?,
-    );
+    // The server's 75 m rule, in the crude form a test needs: four decimal
+    // places is roughly 11 m.
+    return (a.latitude - b.latitude).abs() < 0.0007 &&
+        (a.longitude - b.longitude).abs() < 0.0007;
   }
 }
 
-/// A journey for a test to work with. Departs tomorrow, no coordinates.
+/// A place repository that answers from a fixed list.
+///
+/// Records what it was asked, and can be made slow, so the debounce and the
+/// stale-result guard can be tested at all: the race this module has to rule out
+/// only appears when an older query answers *after* a newer one.
+class FakePlaceRepository implements PlaceRepository {
+  FakePlaceRepository({Map<String, List<PlaceSuggestion>>? results})
+    : _results = results ?? _defaultResults();
+
+  final Map<String, List<PlaceSuggestion>> _results;
+
+  /// Per-query delay. A query with no entry answers immediately.
+  final Map<String, Duration> delays = <String, Duration>{};
+
+  final List<String> queries = <String>[];
+  final List<String?> sessionTokens = <String?>[];
+
+  int detailsCount = 0;
+  int reverseCount = 0;
+
+  ApiException? nextSearchError;
+  ApiException? nextDetailsError;
+
+  /// Failures scripted per query, applied after that query's delay. Needed
+  /// wherever two queries are in flight at once: a single scripted error is
+  /// claimed by whichever call reaches it first, which is not necessarily the
+  /// one the test meant.
+  final Map<String, ApiException> searchErrors = <String, ApiException>{};
+
+  /// What reverse geocoding answers. Null means "this point has no name", which
+  /// is a success.
+  PlaceDetails? reverseResult = const PlaceDetails(
+    placeId: 'dev:green-park',
+    displayName: 'Green Park',
+    formattedAddress: 'Green Park, New Delhi, Delhi 110016',
+    latitude: 28.5590,
+    longitude: 77.2070,
+    city: 'New Delhi',
+    region: 'Delhi',
+    countryCode: 'IN',
+  );
+
+  static Map<String, List<PlaceSuggestion>> _defaultResults() =>
+      <String, List<PlaceSuggestion>>{
+        'jaipur': const <PlaceSuggestion>[
+          PlaceSuggestion(
+            placeId: 'dev:jaipur-airport',
+            primaryText: 'Jaipur International Airport',
+            secondaryText: 'Sanganer, Jaipur, Rajasthan',
+          ),
+        ],
+        'jai': const <PlaceSuggestion>[
+          PlaceSuggestion(
+            placeId: 'dev:jaipur-airport',
+            primaryText: 'Jaipur International Airport',
+            secondaryText: 'Sanganer, Jaipur, Rajasthan',
+          ),
+          PlaceSuggestion(
+            placeId: 'dev:hawa-mahal',
+            primaryText: 'Hawa Mahal',
+            secondaryText: 'Badi Choupad, Jaipur, Rajasthan',
+          ),
+        ],
+        'delhi': const <PlaceSuggestion>[
+          PlaceSuggestion(
+            placeId: 'dev:connaught-place',
+            primaryText: 'Connaught Place',
+            secondaryText: 'New Delhi, Delhi',
+          ),
+        ],
+      };
+
+  @override
+  Future<List<PlaceSuggestion>> search(
+    String query, {
+    String? sessionToken,
+  }) async {
+    queries.add(query);
+    sessionTokens.add(sessionToken);
+
+    final Duration? delay = delays[query.toLowerCase()];
+    if (delay != null) await Future<void>.delayed(delay);
+
+    final ApiException? scripted = searchErrors[query.toLowerCase()];
+    if (scripted != null) throw scripted;
+
+    final ApiException? error = nextSearchError;
+    if (error != null) {
+      nextSearchError = null;
+      throw error;
+    }
+
+    return _results[query.toLowerCase()] ?? const <PlaceSuggestion>[];
+  }
+
+  @override
+  Future<PlaceDetails> details(String placeId, {String? sessionToken}) async {
+    detailsCount++;
+    sessionTokens.add(sessionToken);
+
+    final ApiException? error = nextDetailsError;
+    if (error != null) {
+      nextDetailsError = null;
+      throw error;
+    }
+
+    return switch (placeId) {
+      'dev:jaipur-airport' => const PlaceDetails(
+        placeId: 'dev:jaipur-airport',
+        displayName: 'Jaipur International Airport',
+        formattedAddress: 'Airport Road, Sanganer, Jaipur, Rajasthan 302029',
+        latitude: 26.8242,
+        longitude: 75.8122,
+        city: 'Jaipur',
+        region: 'Rajasthan',
+        countryCode: 'IN',
+        postalCode: '302029',
+      ),
+      'dev:hawa-mahal' => const PlaceDetails(
+        placeId: 'dev:hawa-mahal',
+        displayName: 'Hawa Mahal',
+        formattedAddress: 'Hawa Mahal Road, Badi Choupad, Jaipur, Rajasthan',
+        latitude: 26.9239,
+        longitude: 75.8267,
+        city: 'Jaipur',
+        region: 'Rajasthan',
+        countryCode: 'IN',
+      ),
+      _ => const PlaceDetails(
+        placeId: 'dev:connaught-place',
+        displayName: 'Connaught Place',
+        formattedAddress: 'Connaught Place, New Delhi, Delhi 110001',
+        latitude: 28.6315,
+        longitude: 77.2167,
+        city: 'New Delhi',
+        region: 'Delhi',
+        countryCode: 'IN',
+      ),
+    };
+  }
+
+  @override
+  Future<PlaceDetails?> reverseGeocode({
+    required double latitude,
+    required double longitude,
+  }) async {
+    reverseCount++;
+    return reverseResult;
+  }
+}
+
+/// A location service that can produce every outcome on demand.
+///
+/// The six failure branches cannot otherwise be exercised: reaching them for
+/// real needs six differently-configured handsets, and the one that matters most
+/// — location switched off at the device while permission is granted — needs a
+/// state a simulator will not enter on request.
+class FakeLocationService implements LocationService {
+  FakeLocationService({this.result = const LocationFix(_delhi)});
+
+  static const DeviceLocation _delhi = DeviceLocation(
+    latitude: 28.5590,
+    longitude: 77.2070,
+    accuracyMetres: 12,
+  );
+
+  LocationResult result;
+
+  /// How long the device takes to answer. Lets a test see the "Finding you…"
+  /// state, which is otherwise gone within a frame.
+  Duration delay = Duration.zero;
+
+  int calls = 0;
+  int settingsOpened = 0;
+  bool settingsCanOpen = true;
+
+  @override
+  Future<LocationResult> currentLocation({
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
+    calls++;
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    return result;
+  }
+
+  @override
+  Future<bool> openPermissionSettings() async {
+    settingsOpened++;
+    return settingsCanOpen;
+  }
+}
+
+/// A trip for a test to work with: Hauz Khas to Jaipur Airport, real
+/// coordinates, no route calculated — because no trip in this module has one.
 Trip sampleTrip({
   String id = 'trip-1',
-  String originCity = 'New Delhi',
-  String destinationCity = 'Jaipur',
-  DateTime? departureAt,
-  DateTime? expectedArrivalAt,
-  int travellerCount = 1,
-  String? note,
-  TripStatus status = TripStatus.planned,
-  bool isEditable = true,
-  bool hasDeparted = false,
+  String originName = 'Hauz Khas Village',
+  String destinationName = 'Jaipur International Airport',
+  TripStatus status = TripStatus.routePending,
+  RouteStatus routeStatus = RouteStatus.notCalculated,
+  LocationSourceType originSource = LocationSourceType.currentLocation,
+  DateTime? createdAt,
 }) {
   return Trip(
     id: id,
     status: status,
-    origin: JourneyPlace(
-      label: originCity,
-      formattedAddress: 'Hauz Khas, $originCity, Delhi',
-      city: originCity,
+    routeStatus: routeStatus,
+    origin: TripEndpoint(
+      sourceType: originSource,
+      displayName: originName,
+      formattedAddress: 'Hauz Khas, New Delhi, Delhi 110016',
+      latitude: 28.5494,
+      longitude: 77.2001,
+      city: 'New Delhi',
+      region: 'Delhi',
       countryCode: 'IN',
     ),
-    destination: JourneyPlace(
-      label: destinationCity,
-      formattedAddress: 'MI Road, $destinationCity, Rajasthan',
-      city: destinationCity,
+    destination: TripEndpoint(
+      sourceType: LocationSourceType.placeSearch,
+      displayName: destinationName,
+      formattedAddress: 'Airport Road, Sanganer, Jaipur, Rajasthan 302029',
+      latitude: 26.8242,
+      longitude: 75.8122,
+      placeId: 'dev:jaipur-airport',
+      city: 'Jaipur',
+      region: 'Rajasthan',
       countryCode: 'IN',
     ),
-    departureAt:
-        departureAt ?? DateTime.now().toUtc().add(const Duration(days: 1)),
-    expectedArrivalAt: expectedArrivalAt,
-    travellerCount: travellerCount,
-    note: note,
-    isEditable: isEditable,
-    hasDeparted: hasDeparted,
+    createdAt: createdAt ?? DateTime.now().toUtc(),
   );
 }
+
+/// A resolved place, for tests that build a [TripLocation] directly.
+PlaceDetails samplePlace({
+  String placeId = 'dev:jaipur-airport',
+  String displayName = 'Jaipur International Airport',
+  double latitude = 26.8242,
+  double longitude = 75.8122,
+}) => PlaceDetails(
+  placeId: placeId,
+  displayName: displayName,
+  formattedAddress: 'Airport Road, Sanganer, Jaipur, Rajasthan 302029',
+  latitude: latitude,
+  longitude: longitude,
+  city: 'Jaipur',
+  region: 'Rajasthan',
+  countryCode: 'IN',
+);
 
 Widget wrapApp({
   required HomeRepository repository,
@@ -917,6 +1106,8 @@ Widget wrapApp({
   FakeCustomerRepository? customer,
   SessionStore? sessionStore,
   FakeTripRepository? trips,
+  FakePlaceRepository? places,
+  FakeLocationService? location,
   bool signedIn = true,
 }) {
   final FakeAuthRepository authRepository = auth ?? FakeAuthRepository();
@@ -939,6 +1130,12 @@ Widget wrapApp({
       authRepositoryProvider.overrideWithValue(authRepository),
       customerRepositoryProvider.overrideWithValue(customerRepository),
       tripRepositoryProvider.overrideWithValue(trips ?? FakeTripRepository()),
+      placeRepositoryProvider.overrideWithValue(
+        places ?? FakePlaceRepository(),
+      ),
+      locationServiceProvider.overrideWithValue(
+        location ?? FakeLocationService(),
+      ),
       sessionStoreProvider.overrideWithValue(store),
       if (connectivity != null)
         connectivityServiceProvider.overrideWithValue(connectivity),

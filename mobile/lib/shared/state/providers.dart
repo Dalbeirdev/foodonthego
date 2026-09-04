@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/analytics/analytics.dart';
+import '../../core/location/location_service.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_error_code.dart';
 import '../../core/config/app_environment.dart';
@@ -11,6 +12,7 @@ import '../../data/auth/session_store.dart';
 import '../../data/fixtures/development_personas.dart';
 import '../../data/repositories/api_auth_repository.dart';
 import '../../data/repositories/api_customer_repository.dart';
+import '../../data/repositories/api_place_repository.dart';
 import '../../data/repositories/api_trip_repository.dart';
 import '../../data/repositories/fixture_home_repository.dart';
 import '../../data/repositories/unconfigured_home_repository.dart';
@@ -18,6 +20,7 @@ import '../../domain/models/home_dashboard.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/customer_repository.dart';
 import '../../domain/repositories/home_repository.dart';
+import '../../domain/repositories/place_repository.dart';
 import '../../domain/repositories/trip_repository.dart';
 import 'auth_controller.dart';
 import 'connectivity.dart';
@@ -189,8 +192,27 @@ final customerRepositoryProvider = Provider<CustomerRepository>(
   (Ref ref) => ApiCustomerRepository(ref.watch(apiClientProvider)),
 );
 
-/// Journeys. Overridden in widget tests with a fake that applies the server's
-/// own rules, so a test cannot pass against behaviour the server would refuse.
+/// Trips. Overridden in widget tests with a fake that applies the server's own
+/// rules, so a test cannot pass against behaviour the server would refuse.
 final tripRepositoryProvider = Provider<TripRepository>(
   (Ref ref) => ApiTripRepository(ref.watch(apiClientProvider)),
+);
+
+/// Place search, details and reverse geocoding — all through our own server.
+///
+/// There is no provider SDK in this app and no provider key in this bundle. A
+/// key shipped to a device is a key anybody can pull back out of it, and the
+/// bill for what they then do with it arrives here.
+final placeRepositoryProvider = Provider<PlaceRepository>(
+  (Ref ref) => ApiPlaceRepository(ref.watch(apiClientProvider)),
+);
+
+/// The device's position.
+///
+/// Overridden in widget tests with a fake that can produce every outcome —
+/// granted, denied, denied permanently, services off, timed out, platform
+/// failure — because those six screens cannot otherwise be exercised without six
+/// differently-configured handsets.
+final locationServiceProvider = Provider<LocationService>(
+  (Ref ref) => const GeolocatorLocationService(),
 );

@@ -1,25 +1,45 @@
 import '../models/trip.dart';
 
-/// Everything the app can do with a customer's journeys.
+/// Which slice of a customer's trips to ask for.
 ///
-/// Note what is absent: there is no `delete`. A journey is cancelled, never
-/// removed — the record of what somebody planned is history, and a later
-/// module's orders point at it. A client method that could delete one would be a
-/// method with no endpoint behind it.
-abstract interface class TripRepository {
-  Future<List<Trip>> trips({TripScope scope = TripScope.upcoming});
+/// Three, matching the server's filter exactly. There is no "past": nothing in
+/// Module 05 observes a journey happening, so a trip is either open or called
+/// off, and inventing a third bucket the server cannot fill would put an empty
+/// tab in front of somebody with no way to ever fill it.
+enum TripScope {
+  open('open'),
+  cancelled('cancelled'),
+  all('all');
 
-  /// The soonest journey still ahead, or null.
+  const TripScope(this.wire);
+
+  final String wire;
+}
+
+/// Everything the app can do with a customer's trips.
+///
+/// Note the absences. There is no `delete` — a trip is discarded, never erased,
+/// and later modules' orders point at it. There is no `update`: Module 05 creates
+/// a trip from two chosen places and stops, and an edit method with no endpoint
+/// behind it is a method somebody will call.
+///
+/// No method takes a customer id. Ownership is the shape of the API, not a
+/// parameter of it: the signed-in session decides whose trips these are, and
+/// there is nothing here a modified client could point at somebody else.
+abstract interface class TripRepository {
+  Future<List<Trip>> trips({TripScope scope = TripScope.open});
+
+  /// The most recent open trip, or null.
   ///
-  /// Null is an ordinary answer — a customer with nothing planned — and the home
-  /// screen renders nothing for journeys when it gets one.
-  Future<Trip?> nextTrip();
+  /// Null is an ordinary answer — a customer who has not planned anything — and
+  /// the home screen renders its invitation rather than an error when it gets
+  /// one.
+  Future<Trip?> currentTrip();
 
   Future<Trip> trip(String id);
 
-  Future<Trip> planTrip(TripDraft draft);
+  Future<Trip> createTrip(TripDraft draft);
 
-  Future<Trip> updateTrip(String id, TripDraft draft);
-
-  Future<Trip> cancelTrip(String id, {String? reason});
+  /// Called off. The record stays; only its status changes.
+  Future<Trip> discardTrip(String id);
 }

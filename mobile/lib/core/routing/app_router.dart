@@ -11,6 +11,8 @@ import '../../features/notifications/notifications_screen.dart';
 import '../../features/orders/orders_screen.dart';
 import '../../features/placeholder/coming_soon_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/trips/trip_detail_screen.dart';
+import '../../features/trips/trip_planner_screen.dart';
 import '../../features/trips/trips_screen.dart';
 import '../../shared/state/auth_controller.dart';
 import '../../shared/state/auth_state.dart';
@@ -117,6 +119,23 @@ GoRouter createRouter({
                 path: Routes.trips,
                 builder: (BuildContext context, GoRouterState state) =>
                     const TripsScreen(),
+                routes: <RouteBase>[
+                  // Declared first. Otherwise "/trips/plan" matches `:tripId`
+                  // and the planner becomes a detail screen for a journey
+                  // called "plan".
+                  GoRoute(
+                    path: Routes.tripPlan,
+                    builder: (BuildContext context, GoRouterState state) =>
+                        const TripPlannerScreen(),
+                  ),
+                  GoRoute(
+                    path: Routes.tripDetail,
+                    builder: (BuildContext context, GoRouterState state) =>
+                        TripDetailScreen(
+                          tripId: state.pathParameters['tripId'] ?? '',
+                        ),
+                  ),
+                ],
               ),
             ],
           ),

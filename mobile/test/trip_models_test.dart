@@ -1,326 +1,317 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodonthego/core/time/journey_time.dart';
+import 'package:foodonthego/domain/models/place.dart';
 import 'package:foodonthego/domain/models/saved_address.dart';
 import 'package:foodonthego/domain/models/trip.dart';
 
-import 'support/harness.dart';
-
+/// The wire contract, from the client's side.
+///
+/// These are the tests that stop a screen inventing data. Two things are being
+/// established: that nothing the server sends is embellished on the way in, and
+/// that nothing the server did not ask for is sent on the way out.
 void main() {
   group('Trip.fromJson', () {
-    Map<String, dynamic> payload({Map<String, dynamic> overrides = const {}}) =>
-        <String, dynamic>{
-          'id': 'a1b2',
-          'status': 'PLANNED',
-          'origin': <String, dynamic>{
-            'label': 'Home',
-            'formatted_address': 'Hauz Khas, New Delhi, Delhi',
-            'city': 'New Delhi',
-            'country_code': 'IN',
-            'latitude': null,
-            'longitude': null,
-            'place_id': null,
-          },
-          'destination': <String, dynamic>{
-            'label': 'Jaipur',
-            'formatted_address': 'MI Road, Jaipur, Rajasthan',
-            'city': 'Jaipur',
-            'country_code': 'IN',
-          },
-          'departure_at': '2026-09-05T09:00:00+00:00',
-          'expected_arrival_at': null,
-          'traveller_count': 2,
-          'note': 'Collecting my sister',
-          'is_editable': true,
-          'has_departed': false,
-          ...overrides,
-        };
+    Map<String, dynamic> payload() => <String, dynamic>{
+      'id': 'trip-uuid',
+      'status': 'ROUTE_PENDING',
+      'route_status': 'NOT_CALCULATED',
+      'origin': <String, dynamic>{
+        'source_type': 'CURRENT_LOCATION',
+        'display_name': 'Current location',
+        'formatted_address': 'Green Park, New Delhi, Delhi 110016',
+        // Strings, as the server sends them: a coordinate that round-trips
+        // through a float loses its last place, and the last place is metres.
+        'latitude': '28.5590000',
+        'longitude': '77.2070000',
+        'place_id': null,
+        'city': 'New Delhi',
+        'region': 'Delhi',
+        'country_code': 'IN',
+        'postal_code': null,
+      },
+      'destination': <String, dynamic>{
+        'source_type': 'PLACE_SEARCH',
+        'display_name': 'Jaipur International Airport',
+        'formatted_address': 'Airport Road, Sanganer, Jaipur, Rajasthan 302029',
+        'latitude': '26.8242000',
+        'longitude': '75.8122000',
+        'place_id': 'dev:jaipur-airport',
+        'city': 'Jaipur',
+        'region': 'Rajasthan',
+        'country_code': 'IN',
+        'postal_code': '302029',
+      },
+      'cancelled_at': null,
+      'created_at': '2026-09-04T09:15:00+00:00',
+      'updated_at': '2026-09-04T09:15:00+00:00',
+    };
 
-    test('reads the journey the server sent', () {
+    test('reads both ends, their sources and their coordinates', () {
       final Trip trip = Trip.fromJson(payload());
 
-      expect(trip.id, 'a1b2');
-      expect(trip.status, TripStatus.planned);
-      expect(trip.origin.city, 'New Delhi');
-      expect(trip.destination.city, 'Jaipur');
-      expect(trip.travellerCount, 2);
-      expect(trip.note, 'Collecting my sister');
+      expect(trip.id, 'trip-uuid');
+      expect(trip.status, TripStatus.routePending);
+      expect(trip.routeStatus, RouteStatus.notCalculated);
+      expect(trip.origin.sourceType, LocationSourceType.currentLocation);
+      expect(trip.destination.sourceType, LocationSourceType.placeSearch);
+      expect(trip.origin.latitude, closeTo(28.559, 0.0001));
+      expect(trip.destination.longitude, closeTo(75.8122, 0.0001));
+      expect(trip.destination.placeId, 'dev:jaipur-airport');
     });
 
-    test('keeps times in UTC', () {
+    test('has no route to report, and says so through routeStatus', () {
       final Trip trip = Trip.fromJson(payload());
 
-      expect(trip.departureAt.isUtc, isTrue);
+      // The whole of Module 05's honesty in one assertion: nothing has been
+      // calculated, and the model has no field in which a distance or an ETA
+      // could hide.
+      expect(trip.hasRoute, isFalse);
+      expect(trip.routeStatus, RouteStatus.notCalculated);
     });
 
-    test('a null arrival stays null rather than becoming a guess', () {
-      expect(Trip.fromJson(payload()).expectedArrivalAt, isNull);
+    test('times are UTC, whatever the offset on the wire', () {
+      final Trip trip = Trip.fromJson(payload());
+
+      expect(trip.createdAt!.isUtc, isTrue);
     });
 
     test(
-      'coordinates come through as null when nothing geocoded the place',
+      'an unknown status from a newer server does not crash an older app',
       () {
-        final Trip trip = Trip.fromJson(payload());
+        final Trip trip = Trip.fromJson(payload()..['status'] = 'IN_TRANSIT');
 
-        expect(trip.origin.latitude, isNull);
-        expect(trip.origin.hasCoordinates, isFalse);
+        // Degrades to the readable state rather than throwing. An app that
+        // crashes on a value it has not been taught cannot be rolled out ahead
+        // of its server, or behind it.
+        expect(trip.status, TripStatus.routePending);
       },
     );
 
-    test('a real coordinate string parses to a number', () {
-      final Trip trip = Trip.fromJson(
-        payload(
-          overrides: <String, dynamic>{
-            'origin': <String, dynamic>{
-              'label': 'Home',
-              'formatted_address': 'Hauz Khas, New Delhi, Delhi',
-              'city': 'New Delhi',
-              'country_code': 'IN',
-              // The API sends decimals as strings so precision survives.
-              'latitude': '28.5602000',
-              'longitude': '77.2100000',
-            },
-          },
-        ),
-      );
+    test(
+      'a route status a newer server introduced reads as not calculated',
+      () {
+        final Trip trip = Trip.fromJson(
+          payload()..['route_status'] = 'PARTIAL',
+        );
 
-      expect(trip.origin.latitude, closeTo(28.5602, 0.0000001));
-      expect(trip.origin.hasCoordinates, isTrue);
+        expect(trip.routeStatus, RouteStatus.notCalculated);
+        expect(trip.hasRoute, isFalse);
+      },
+    );
+
+    test('the summary is the two ends, in order', () {
+      final Trip trip = Trip.fromJson(payload());
+
+      expect(
+        trip.routeSummary,
+        'Current location → Jaipur International Airport',
+      );
     });
 
-    test('is_editable is taken from the server, not recomputed', () {
-      // A handset with a slow clock must not decide this for itself, or it will
-      // offer an edit the server then refuses.
+    test('a discarded trip is not discardable again', () {
       final Trip trip = Trip.fromJson(
-        payload(
-          overrides: <String, dynamic>{
-            'is_editable': false,
-            'has_departed': true,
-          },
-        ),
-      );
-
-      expect(trip.isEditable, isFalse);
-      expect(trip.hasDeparted, isTrue);
-    });
-
-    test('an unknown status degrades instead of crashing an older build', () {
-      final Trip trip = Trip.fromJson(
-        payload(overrides: <String, dynamic>{'status': 'ON_THE_ROAD'}),
-      );
-
-      expect(trip.status, TripStatus.planned);
-    });
-
-    test('a cancelled journey is neither upcoming nor editable', () {
-      final Trip trip = Trip.fromJson(
-        payload(
-          overrides: <String, dynamic>{
-            'status': 'CANCELLED',
-            'is_editable': false,
-            'cancellation_reason': 'Train booked instead',
-          },
-        ),
+        payload()
+          ..['status'] = 'CANCELLED'
+          ..['cancelled_at'] = '2026-09-04T10:00:00+00:00',
       );
 
       expect(trip.isCancelled, isTrue);
-      expect(trip.isUpcoming, isFalse);
-      expect(trip.cancellationReason, 'Train booked instead');
+      expect(trip.isDiscardable, isFalse);
+      expect(trip.cancelledAt!.isUtc, isTrue);
+    });
+  });
+
+  group('PlaceSuggestion and PlaceDetails', () {
+    test('a suggestion carries no position, because it has none', () {
+      final PlaceSuggestion suggestion = PlaceSuggestion.fromJson(
+        <String, dynamic>{
+          'place_id': 'dev:jaipur-airport',
+          'primary_text': 'Jaipur International Airport',
+          'secondary_text': 'Sanganer, Jaipur, Rajasthan',
+        },
+      );
+
+      expect(suggestion.isUsable, isTrue);
+      // There is nowhere on this class to put a latitude, which is the point:
+      // a screen cannot route to the centroid of a search term.
+      expect(suggestion.placeId, 'dev:jaipur-airport');
     });
 
-    test('the route summary is the two ends', () {
-      expect(Trip.fromJson(payload()).routeSummary, 'Home → Jaipur');
+    test('a suggestion with no id is not usable', () {
+      final PlaceSuggestion suggestion = PlaceSuggestion.fromJson(
+        <String, dynamic>{'primary_text': 'Somewhere'},
+      );
+
+      expect(suggestion.isUsable, isFalse);
     });
 
-    test('a place with no label falls back to its city', () {
-      final JourneyPlace place = JourneyPlace.fromJson(<String, dynamic>{
-        'label': '   ',
-        'city': 'Agra',
+    test('details without a position are null, never zeroed', () {
+      final PlaceDetails? details = PlaceDetails.fromJson(<String, dynamic>{
+        'place_id': 'x',
+        'display_name': 'Somewhere',
+        'formatted_address': 'Somewhere',
       });
 
-      expect(place.shortName, 'Agra');
+      // (0, 0) is a real point in the Gulf of Guinea. A journey drawn to it
+      // crosses an ocean while looking entirely ordinary in a list.
+      expect(details, isNull);
+    });
+
+    test('a reverse geocode that names nothing is null, not an error', () {
+      expect(PlaceDetails.fromJson(null), isNull);
     });
   });
 
-  group('JourneyPlaceDraft', () {
+  group('TripLocation — what actually goes on the wire', () {
+    TripLocation searched() => TripLocation.fromPlace(
+      const PlaceDetails(
+        placeId: 'dev:jaipur-airport',
+        displayName: 'Jaipur International Airport',
+        formattedAddress: 'Airport Road, Sanganer, Jaipur, Rajasthan 302029',
+        latitude: 26.8242,
+        longitude: 75.8122,
+        city: 'Jaipur',
+        region: 'Rajasthan',
+        countryCode: 'IN',
+        postalCode: '302029',
+      ),
+    );
+
+    SavedAddress home({double? latitude, double? longitude}) => SavedAddress(
+      id: 'addr-1',
+      type: AddressType.home,
+      label: 'Home',
+      addressLine1: '12 Hauz Khas',
+      city: 'New Delhi',
+      state: 'Delhi',
+      countryCode: 'IN',
+      formattedAddress: '12 Hauz Khas, New Delhi, Delhi',
+      latitude: latitude,
+      longitude: longitude,
+      isDefault: true,
+    );
+
+    test('a searched place sends its position and its provider id', () {
+      final Map<String, dynamic> json = searched().toJson();
+
+      expect(json['source_type'], 'PLACE_SEARCH');
+      expect(json['latitude'], 26.8242);
+      expect(json['place_id'], 'dev:jaipur-airport');
+    });
+
     test('a saved address sends its id and nothing else', () {
-      final Map<String, dynamic> json = const JourneyPlaceDraft.saved('addr-1')
-          .toJson();
-
-      // Sending typed fields alongside would create a request in which the two
-      // could disagree about where the customer meant.
-      expect(json, <String, dynamic>{'address_id': 'addr-1'});
-    });
-
-    test('a saved address can be built straight from the model', () {
-      final SavedAddress address = sampleAddress(id: 'addr-9');
-
-      expect(
-        JourneyPlaceDraft.fromSavedAddress(address).savedAddressId,
-        'addr-9',
+      final TripLocation? location = TripLocation.fromSavedAddress(
+        home(latitude: 28.5494, longitude: 77.2001),
       );
+
+      final Map<String, dynamic> json = location!.toJson();
+
+      // Deliberately not the coordinates it happens to know. Sending them would
+      // create a request in which the id and the position could disagree, and
+      // the server would then be choosing between a value it can verify and one
+      // it cannot.
+      expect(
+        json.keys,
+        unorderedEquals(<String>['source_type', 'saved_address_id']),
+      );
+      expect(json['saved_address_id'], 'addr-1');
     });
 
-    test('a typed place sends the city and an upper-cased country', () {
-      final Map<String, dynamic> json = const JourneyPlaceDraft.typed(
-        city: ' Jaipur ',
-        countryCode: 'in',
-      ).toJson();
-
-      expect(json['city'], 'Jaipur');
-      expect(json['country_code'], 'IN');
+    test('a saved address with no position cannot become an endpoint', () {
+      // Null rather than an endpoint with an invented coordinate. The customer
+      // is asked to locate it; nothing guesses on their behalf.
+      expect(TripLocation.fromSavedAddress(home()), isNull);
     });
 
-    test('a blank optional field is absent rather than an empty string', () {
-      final Map<String, dynamic> json = const JourneyPlaceDraft.typed(
-        city: 'Jaipur',
-        countryCode: 'IN',
-        label: '   ',
-        addressLine: '',
-      ).toJson();
+    test('the current location keeps the device fix even when unnamed', () {
+      final TripLocation location = TripLocation.fromCurrentLocation(
+        latitude: 28.5590,
+        longitude: 77.2070,
+        fallbackLabel: 'Current location',
+      );
 
-      expect(json.containsKey('label'), isFalse);
-      expect(json.containsKey('address_line'), isFalse);
+      final Map<String, dynamic> json = location.toJson();
+
+      expect(json['source_type'], 'CURRENT_LOCATION');
+      expect(json['latitude'], 28.5590);
+      expect(json['display_name'], 'Current location');
+      // Nothing was invented to fill the gap the reverse geocode left.
+      expect(json.containsKey('formatted_address'), isFalse);
+      expect(json.containsKey('city'), isFalse);
     });
 
-    test('coordinates travel only as a complete pair', () {
-      final Map<String, dynamic> half = const JourneyPlaceDraft.typed(
-        city: 'Jaipur',
-        countryCode: 'IN',
-        latitude: 26.9124,
-      ).toJson();
-
-      // The server refuses half a coordinate, and no field on the form could
-      // have produced it — so sending it would be an error nobody could act on.
-      expect(half.containsKey('latitude'), isFalse);
-
-      final Map<String, dynamic> both = const JourneyPlaceDraft.typed(
-        city: 'Jaipur',
-        countryCode: 'IN',
-        latitude: 26.9124,
-        longitude: 75.7873,
-      ).toJson();
-
-      expect(both['latitude'], 26.9124);
-      expect(both['longitude'], 75.7873);
-    });
-  });
-
-  group('TripDraft', () {
-    test('sends departure as an ISO-8601 UTC instant', () {
-      final Map<String, dynamic> json = TripDraft(
-        origin: const JourneyPlaceDraft.typed(city: 'A', countryCode: 'IN'),
-        destination: const JourneyPlaceDraft.typed(
-          city: 'B',
-          countryCode: 'IN',
+    test('no payload carries a customer id, a status or a route field', () {
+      final TripDraft draft = TripDraft(
+        origin: TripLocation.fromCurrentLocation(
+          latitude: 28.5590,
+          longitude: 77.2070,
+          fallbackLabel: 'Current location',
         ),
-        departureAt: DateTime.utc(2026, 9, 5, 9),
-      ).toJson();
+        destination: searched(),
+      );
 
-      expect(json['departure_at'], '2026-09-05T09:00:00.000Z');
-    });
+      final String encoded = draft.toJson().toString();
 
-    test('a traveller count nobody set is omitted, not defaulted to 1', () {
-      // The defect this test exists for: a default of 1 on the draft made every
-      // partial update send traveller_count: 1, silently resetting a party of
-      // three to one. Found by reading the database after an integration run,
-      // not by the API assertions, which only checked the update that set it.
-      final Map<String, dynamic> json = const TripDraft(
-        origin: null,
-        destination: null,
-        departureAt: null,
-        clearNote: true,
-      ).toJson();
-
-      expect(json.containsKey('traveller_count'), isFalse);
-    });
-
-    test('omits what it was not given', () {
-      final Map<String, dynamic> json = const TripDraft(
-        origin: null,
-        destination: null,
-        departureAt: null,
-        travellerCount: 3,
-      ).toJson();
-
-      expect(json.keys, <String>['traveller_count']);
-    });
-
-    test('an explicit clear is different from an omission', () {
-      final Map<String, dynamic> cleared = const TripDraft(
-        origin: null,
-        destination: null,
-        departureAt: null,
-        clearArrival: true,
-        clearNote: true,
-      ).toJson();
-
-      // Null means "clear it"; absent means "leave it". A client that could not
-      // say the first would make removing an arrival time impossible.
-      expect(cleared.containsKey('expected_arrival_at'), isTrue);
-      expect(cleared['expected_arrival_at'], isNull);
-      expect(cleared.containsKey('note'), isTrue);
-      expect(cleared['note'], isNull);
-    });
-
-    test('a blank note is omitted rather than sent as an empty string', () {
-      final Map<String, dynamic> json = const TripDraft(
-        origin: null,
-        destination: null,
-        departureAt: null,
-        note: '   ',
-      ).toJson();
-
-      expect(json.containsKey('note'), isFalse);
+      // The mass-assignment case, from the side that would have to send it.
+      // There is no field on TripDraft for any of these, so this test would
+      // fail the moment somebody added one.
+      for (final String forbidden in <String>[
+        'customer_id',
+        'status',
+        'route_status',
+        'distance',
+        'duration',
+        'eta',
+        'polyline',
+      ]) {
+        expect(encoded.contains(forbidden), isFalse, reason: forbidden);
+      }
     });
   });
 
-  group('JourneyTime', () {
-    final DateTime now = DateTime(2026, 9, 4, 10);
+  group('the same-place rule', () {
+    TripLocation at(double latitude, double longitude, {String? placeId}) =>
+        TripLocation.fromPlace(
+          PlaceDetails(
+            placeId: placeId ?? '',
+            displayName: 'Somewhere',
+            formattedAddress: 'Somewhere',
+            latitude: latitude,
+            longitude: longitude,
+          ),
+        );
 
-    test('names today, tomorrow and yesterday', () {
+    test('the same provider id is the same place', () {
       expect(
-        JourneyTime.relativeDay(DateTime(2026, 9, 4, 18), now: now),
-        'Today',
-      );
-      expect(
-        JourneyTime.relativeDay(DateTime(2026, 9, 5, 6), now: now),
-        'Tomorrow',
-      );
-      expect(
-        JourneyTime.relativeDay(DateTime(2026, 9, 3, 22), now: now),
-        'Yesterday',
+        at(
+          28.6315,
+          77.2167,
+          placeId: 'p1',
+        ).isSamePlaceAs(at(28.7000, 77.3000, placeId: 'p1')),
+        isTrue,
       );
     });
 
-    test('falls back to a dated form further out', () {
-      expect(
-        JourneyTime.relativeDay(DateTime(2026, 9, 12, 9), now: now),
-        'Sat 12 Sep',
-      );
+    test('within the threshold is the same place', () {
+      // About 22 m apart. Nobody drives that.
+      expect(at(28.6315, 77.2167).isSamePlaceAs(at(28.6317, 77.2167)), isTrue);
     });
 
-    test('keeps the year when it is not the current one', () {
-      expect(
-        JourneyTime.date(DateTime(2027, 1, 2, 9), now: now),
-        contains('2027'),
-      );
+    test('Delhi and Jaipur are not the same place', () {
+      expect(at(28.5494, 77.2001).isSamePlaceAs(at(26.8242, 75.8122)), isFalse);
     });
 
-    test('renders twelve-hour times, midnight and noon included', () {
-      expect(JourneyTime.time(DateTime(2026, 9, 4, 6, 30)), '6:30 am');
-      expect(JourneyTime.time(DateTime(2026, 9, 4, 18, 5)), '6:05 pm');
-      expect(JourneyTime.time(DateTime(2026, 9, 4, 0, 0)), '12:00 am');
-      expect(JourneyTime.time(DateTime(2026, 9, 4, 12, 0)), '12:00 pm');
-    });
+    test(
+      'the distance between two known points is right to within a percent',
+      () {
+        // Hauz Khas to Jaipur airport: ~235 km great-circle.
+        final double? metres = at(
+          28.5494,
+          77.2001,
+        ).distanceInMetresTo(at(26.8242, 75.8122));
 
-    test('combines a picked day and time into one instant', () {
-      final DateTime combined = JourneyTime.combine(
-        DateTime(2026, 9, 12),
-        18,
-        45,
-      );
-
-      expect(combined, DateTime(2026, 9, 12, 18, 45));
-    });
+        expect(metres, isNotNull);
+        expect(metres! / 1000, closeTo(235, 5));
+      },
+    );
   });
 }

@@ -6,22 +6,18 @@ import 'package:foodonthego/domain/models/customer_summary.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
 import 'package:foodonthego/domain/models/trip.dart';
 import 'package:foodonthego/features/trips/trip_detail_screen.dart';
-import 'package:foodonthego/features/trips/trip_form_screen.dart';
-import 'package:foodonthego/features/trips/widgets/trip_card.dart';
+import 'package:foodonthego/features/trips/trip_planner_screen.dart';
 
 import 'support/harness.dart';
 
+/// The journeys list, the detail screen, and what neither of them claims.
 void main() {
-  Future<FakeTripRepository> pumpTrips(
+  Future<void> openTrips(
     WidgetTester tester, {
-    List<Trip> trips = const <Trip>[],
-    FakeTripRepository? repository,
-    Size size = const Size(390, 844),
+    FakeTripRepository? trips,
   }) async {
-    final FakeTripRepository trip =
-        repository ?? FakeTripRepository(trips: trips);
+    usePhoneSurface(tester);
 
-    usePhoneSurface(tester, size: size);
     await tester.pumpWidget(
       wrapApp(
         repository: StubHomeRepository.value(
@@ -29,67 +25,237 @@ void main() {
             customer: CustomerSummary(fullName: 'Rahul Sharma'),
           ),
         ),
-        trips: trip,
+        trips: trips,
         initialLocation: '/trips',
       ),
     );
     await tester.pumpAndSettle();
-
-    return trip;
   }
 
   group('the list', () {
-    testWidgets('an empty account is invited to plan, not told it is empty', (
+    testWidgets('shows each journey as its two ends', (
       WidgetTester tester,
     ) async {
-      await pumpTrips(tester);
+      await openTrips(
+        tester,
+        trips: FakeTripRepository(trips: <Trip>[sampleTrip()]),
+      );
+
+      expect(
+        find.text('Hauz Khas Village → Jaipur International Airport'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('never shows a distance, a duration or an arrival time', (
+      WidgetTester tester,
+    ) async {
+      await openTrips(
+        tester,
+        trips: FakeTripRepository(
+          trips: <Trip>[
+            sampleTrip(id: 'a'),
+            sampleTrip(id: 'b'),
+          ],
+        ),
+      );
+
+      // Two journeys, both across 235 km of Rajasthan, and the app says only
+      // that it has not worked the route out. This is the assertion that fails
+      // the day somebody adds a placeholder that looks like a real answer.
+      expect(find.text('Route not calculated yet'), findsNWidgets(2));
+      expect(find.textContaining('km'), findsNothing);
+      expect(find.textContaining('min'), findsNothing);
+      expect(find.textContaining('Arrives'), findsNothing);
+    });
+
+    testWidgets('an empty list invites a first journey', (
+      WidgetTester tester,
+    ) async {
+      await openTrips(tester, trips: FakeTripRepository());
 
       expect(find.text('No journeys yet'), findsOneWidget);
       expect(find.text('Plan your first journey'), findsOneWidget);
     });
 
-    testWidgets('journeys are listed with their route and departure', (
+    testWidgets('a failure offers a retry rather than an empty list', (
       WidgetTester tester,
     ) async {
-      await pumpTrips(tester, trips: <Trip>[sampleTrip()]);
+      final FakeTripRepository trips = FakeTripRepository()
+        ..nextListError = const ApiException(
+          code: ApiErrorCode.network,
+          message: 'offline',
+          status: 0,
+        );
 
-      expect(find.text('New Delhi → Jaipur'), findsOneWidget);
-      expect(find.textContaining('Tomorrow'), findsOneWidget);
+      await openTrips(tester, trips: trips);
+
+      // "No journeys yet" over a failed request is a lie about somebody's data.
+      expect(find.text('No journeys yet'), findsNothing);
+      expect(find.text('Try again'), findsOneWidget);
+
+      await tester.tap(find.text('Try again'));
+      await tester.pumpAndSettle();
+
+      expect(trips.listReads, greaterThan(1));
     });
+  });
 
-    testWidgets('the soonest journey is listed first', (
+  group('scopes', () {
+    testWidgets('planned and discarded, and nothing that cannot be filled', (
       WidgetTester tester,
     ) async {
-      final DateTime now = DateTime.now().toUtc();
-
-      await pumpTrips(
+      await openTrips(
         tester,
-        trips: <Trip>[
-          sampleTrip(
-            id: 'later',
-            destinationCity: 'Agra',
-            departureAt: now.add(const Duration(days: 6)),
-          ),
-          sampleTrip(
-            id: 'sooner',
-            destinationCity: 'Jaipur',
-            departureAt: now.add(const Duration(days: 1)),
-          ),
-        ],
+        trips: FakeTripRepository(trips: <Trip>[sampleTrip()]),
       );
 
-      final List<Element> rows = find
-          .byType(TripListItem)
-          .evaluate()
-          .toList(growable: false);
-
-      expect((rows.first.widget as TripListItem).trip.id, 'sooner');
+      expect(find.text('Planned'), findsOneWidget);
+      expect(find.text('Discarded'), findsOneWidget);
+      // Nothing in this module observes a journey happening, so a "Past" tab
+      // would be a tab that never fills.
+      expect(find.text('Past'), findsNothing);
     });
 
-    testWidgets('a loading list shows a skeleton, not a bare spinner', (
+    testWidgets('discarded shows only discarded journeys', (
+      WidgetTester tester,
+    ) async {
+      await openTrips(
+        tester,
+        trips: FakeTripRepository(
+          trips: <Trip>[
+            sampleTrip(id: 'open-1'),
+            sampleTrip(id: 'gone-1', status: TripStatus.cancelled),
+          ],
+        ),
+      );
+
+      expect(find.text('DISCARDED'), findsNothing);
+
+      await tester.tap(find.text('Discarded'));
+      await tester.pumpAndSettle();
+
+      // Spelled out as a word, not signalled by a grey. Somebody who cannot
+      // distinguish the two greys still reads it.
+      expect(find.text('DISCARDED'), findsOneWidget);
+    });
+  });
+
+  group('discarding', () {
+    testWidgets('asks first, and a refusal changes nothing', (
+      WidgetTester tester,
+    ) async {
+      final FakeTripRepository trips = FakeTripRepository(
+        trips: <Trip>[sampleTrip()],
+      );
+      await openTrips(tester, trips: trips);
+
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard journey').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Discard this journey?'), findsOneWidget);
+
+      await tester.tap(find.text('Keep it'));
+      await tester.pumpAndSettle();
+
+      expect(trips.discardCount, 0);
+    });
+
+    testWidgets('confirming discards it and leaves the planned list', (
+      WidgetTester tester,
+    ) async {
+      final FakeTripRepository trips = FakeTripRepository(
+        trips: <Trip>[sampleTrip()],
+      );
+      await openTrips(tester, trips: trips);
+
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard journey').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
+
+      expect(trips.discardCount, 1);
+      expect(find.text('Journey discarded'), findsOneWidget);
+      // Filtered by the server's rules on a re-read, not locally.
+      expect(find.text('No journeys yet'), findsOneWidget);
+    });
+
+    testWidgets('a discarded journey offers no further action', (
+      WidgetTester tester,
+    ) async {
+      await openTrips(
+        tester,
+        trips: FakeTripRepository(
+          trips: <Trip>[sampleTrip(status: TripStatus.cancelled)],
+        ),
+      );
+
+      await tester.tap(find.text('Discarded'));
+      await tester.pumpAndSettle();
+
+      // A menu offering an action the server will refuse teaches people not to
+      // trust the menu.
+      expect(find.byIcon(Icons.more_vert_rounded), findsNothing);
+    });
+  });
+
+  group('navigation', () {
+    testWidgets('the FAB opens the planner', (WidgetTester tester) async {
+      await openTrips(
+        tester,
+        trips: FakeTripRepository(trips: <Trip>[sampleTrip()]),
+      );
+
+      await tester.tap(
+        find.widgetWithText(FloatingActionButton, 'Plan a journey'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TripPlannerScreen), findsOneWidget);
+    });
+
+    testWidgets('a row opens the journey', (WidgetTester tester) async {
+      await openTrips(
+        tester,
+        trips: FakeTripRepository(trips: <Trip>[sampleTrip()]),
+      );
+
+      await tester.tap(
+        find.text('Hauz Khas Village → Jaipur International Airport'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TripDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('the detail screen shows both ends and no route', (
+      WidgetTester tester,
+    ) async {
+      await openTrips(
+        tester,
+        trips: FakeTripRepository(trips: <Trip>[sampleTrip()]),
+      );
+
+      await tester.tap(
+        find.text('Hauz Khas Village → Jaipur International Airport'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Setting off from'), findsOneWidget);
+      expect(find.text('Going to'), findsOneWidget);
+      expect(find.text('Route not calculated yet'), findsOneWidget);
+      expect(find.textContaining('km'), findsNothing);
+    });
+
+    testWidgets('a journey that is not on the account reads as gone', (
       WidgetTester tester,
     ) async {
       usePhoneSurface(tester);
+
       await tester.pumpWidget(
         wrapApp(
           repository: StubHomeRepository.value(
@@ -97,322 +263,18 @@ void main() {
               customer: CustomerSummary(fullName: 'Rahul Sharma'),
             ),
           ),
-          trips: FakeTripRepository(trips: <Trip>[sampleTrip()]),
-          initialLocation: '/trips',
+          trips: FakeTripRepository(),
+          // Somebody else's journey id, or one that has been discarded on
+          // another device. The two are indistinguishable, deliberately.
+          initialLocation: '/trips/ananya-trip-uuid',
         ),
       );
-
-      // One frame only: the data has not arrived.
-      await tester.pump();
-
-      expect(find.byType(CircularProgressIndicator), findsNothing);
-
       await tester.pumpAndSettle();
-    });
-
-    testWidgets('a failed load offers a retry that really re-asks', (
-      WidgetTester tester,
-    ) async {
-      final FakeTripRepository repository = FakeTripRepository();
-      repository.nextListError = const ApiException(
-        code: ApiErrorCode.serverError,
-        message: 'boom',
-        status: 500,
-      );
-
-      await pumpTrips(tester, repository: repository);
-
-      expect(find.text('Try again'), findsOneWidget);
-
-      final int before = repository.listReads;
-      await tester.tap(find.text('Try again'));
-      await tester.pumpAndSettle();
-
-      expect(repository.listReads, greaterThan(before));
-    });
-
-    testWidgets('losing the network says so instead of showing a stack trace', (
-      WidgetTester tester,
-    ) async {
-      final FakeTripRepository repository = FakeTripRepository();
-      repository.nextListError = const ApiException.network();
-
-      await pumpTrips(tester, repository: repository);
-
-      expect(find.textContaining('No connection'), findsOneWidget);
-      expect(find.textContaining('Exception'), findsNothing);
-    });
-  });
-
-  group('the scopes', () {
-    testWidgets('past and cancelled have their own empty wording', (
-      WidgetTester tester,
-    ) async {
-      await pumpTrips(tester, trips: <Trip>[sampleTrip()]);
-
-      await tester.tap(find.text('Past'));
-      await tester.pumpAndSettle();
-      expect(find.text('No past journeys'), findsOneWidget);
-
-      await tester.tap(find.text('Cancelled'));
-      await tester.pumpAndSettle();
-      expect(find.text('No cancelled journeys'), findsOneWidget);
-    });
-
-    testWidgets('past shows departed journeys and upcoming does not', (
-      WidgetTester tester,
-    ) async {
-      await pumpTrips(
-        tester,
-        trips: <Trip>[
-          sampleTrip(
-            id: 'gone',
-            destinationCity: 'Agra',
-            departureAt: DateTime.now().toUtc().subtract(
-              const Duration(days: 3),
-            ),
-            hasDeparted: true,
-            isEditable: false,
-          ),
-        ],
-      );
-
-      expect(find.text('No journeys yet'), findsOneWidget);
-
-      await tester.tap(find.text('Past'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('New Delhi → Agra'), findsOneWidget);
-      expect(find.text('Departed'), findsOneWidget);
-    });
-
-    testWidgets('a cancelled journey is labelled in words, not by colour', (
-      WidgetTester tester,
-    ) async {
-      await pumpTrips(
-        tester,
-        trips: <Trip>[
-          sampleTrip(status: TripStatus.cancelled, isEditable: false),
-        ],
-      );
-
-      await tester.tap(find.text('Cancelled'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('CANCELLED'), findsOneWidget);
-    });
-  });
-
-  group('the row menu', () {
-    testWidgets('names its own row rather than saying "Options"', (
-      WidgetTester tester,
-    ) async {
-      await pumpTrips(tester, trips: <Trip>[sampleTrip()]);
-
-      final Finder menu = find.descendant(
-        of: find.byType(TripListItem),
-        matching: find.byType(PopupMenuButton<int>),
-      );
 
       expect(
-        tester.widget<PopupMenuButton<int>>(menu).tooltip,
-        'Options for New Delhi → Jaipur',
+        find.text('That journey is no longer on your account.'),
+        findsOneWidget,
       );
-    });
-
-    testWidgets('a departed journey offers no actions at all', (
-      WidgetTester tester,
-    ) async {
-      await pumpTrips(
-        tester,
-        trips: <Trip>[
-          sampleTrip(
-            departureAt: DateTime.now().toUtc().subtract(
-              const Duration(days: 2),
-            ),
-            hasDeparted: true,
-            isEditable: false,
-          ),
-        ],
-      );
-
-      await tester.tap(find.text('Past'));
-      await tester.pumpAndSettle();
-
-      // A menu offering an edit the server would refuse teaches people not to
-      // trust the menu.
-      expect(
-        find.descendant(
-          of: find.byType(TripListItem),
-          matching: find.byType(PopupMenuButton<int>),
-        ),
-        findsNothing,
-      );
-    });
-  });
-
-  group('cancelling', () {
-    testWidgets('asks first, and keeping it changes nothing', (
-      WidgetTester tester,
-    ) async {
-      final FakeTripRepository repository = await pumpTrips(
-        tester,
-        trips: <Trip>[sampleTrip()],
-      );
-
-      await tester.tap(
-        find.descendant(
-          of: find.byType(TripListItem),
-          matching: find.byType(PopupMenuButton<int>),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Cancel journey').last);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Cancel this journey?'), findsOneWidget);
-
-      await tester.tap(find.text('Keep it'));
-      await tester.pumpAndSettle();
-
-      expect(repository.cancelCount, 0);
-    });
-
-    testWidgets('confirming cancels through the server and reports it', (
-      WidgetTester tester,
-    ) async {
-      final FakeTripRepository repository = await pumpTrips(
-        tester,
-        trips: <Trip>[sampleTrip()],
-      );
-
-      await tester.tap(
-        find.descendant(
-          of: find.byType(TripListItem),
-          matching: find.byType(PopupMenuButton<int>),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Cancel journey').last);
-      await tester.pumpAndSettle();
-
-      await tester.enterText(find.byType(TextField), 'Train booked instead');
-      await tester.tap(find.widgetWithText(TextButton, 'Cancel journey'));
-      await tester.pumpAndSettle();
-
-      expect(repository.cancelCount, 1);
-      expect(repository.lastCancelReason, 'Train booked instead');
-      expect(find.text('Journey cancelled'), findsOneWidget);
-    });
-
-    testWidgets('a cancelled journey leaves the upcoming list', (
-      WidgetTester tester,
-    ) async {
-      await pumpTrips(tester, trips: <Trip>[sampleTrip()]);
-
-      await tester.tap(
-        find.descendant(
-          of: find.byType(TripListItem),
-          matching: find.byType(PopupMenuButton<int>),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Cancel journey').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Cancel journey'));
-      await tester.pumpAndSettle();
-
-      // The list is re-read from the server rather than filtered locally, so
-      // this asserts the server's rule and not a second copy of it.
-      expect(find.text('No journeys yet'), findsOneWidget);
-    });
-
-    testWidgets('a refused cancellation is reported and nothing is claimed', (
-      WidgetTester tester,
-    ) async {
-      final FakeTripRepository repository = await pumpTrips(
-        tester,
-        trips: <Trip>[sampleTrip()],
-      );
-
-      repository.nextWriteError = const ApiException(
-        code: ApiErrorCode.tripNotEditable,
-        message: 'server wording the app never shows',
-        status: 422,
-      );
-
-      await tester.tap(
-        find.descendant(
-          of: find.byType(TripListItem),
-          matching: find.byType(PopupMenuButton<int>),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Cancel journey').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Cancel journey'));
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining('can no longer be changed'), findsOneWidget);
-      expect(find.text('Journey cancelled'), findsNothing);
-      // Still there. Nothing was removed on the strength of a failed request.
-      expect(find.text('New Delhi → Jaipur'), findsOneWidget);
-    });
-  });
-
-  group('navigation', () {
-    testWidgets('a row opens the journey', (WidgetTester tester) async {
-      await pumpTrips(tester, trips: <Trip>[sampleTrip()]);
-
-      await tester.tap(find.text('New Delhi → Jaipur'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(TripDetailScreen), findsOneWidget);
-    });
-
-    testWidgets('the empty state opens the planner', (
-      WidgetTester tester,
-    ) async {
-      await pumpTrips(tester);
-
-      await tester.tap(find.text('Plan your first journey'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(TripFormScreen), findsOneWidget);
-    });
-
-    testWidgets('the action button opens the planner once there is a list', (
-      WidgetTester tester,
-    ) async {
-      await pumpTrips(tester, trips: <Trip>[sampleTrip()]);
-
-      await tester.tap(
-        find.widgetWithText(FloatingActionButton, 'Plan a journey'),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.byType(TripFormScreen), findsOneWidget);
-    });
-  });
-
-  group('narrow screens', () {
-    testWidgets('the scope labels never break mid-word at 320dp', (
-      WidgetTester tester,
-    ) async {
-      await pumpTrips(
-        tester,
-        trips: <Trip>[sampleTrip()],
-        size: const Size(320, 720),
-      );
-
-      // Whole words, and no RenderFlex overflow. The Module 04 type selector
-      // rendered "Othe r" before this rule was learned.
-      expect(find.text('Upcoming'), findsOneWidget);
-      expect(find.text('Past'), findsOneWidget);
-      expect(find.text('Cancelled'), findsOneWidget);
-      expect(tester.takeException(), isNull);
     });
   });
 }

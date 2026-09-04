@@ -8,9 +8,12 @@ import '../../core/network/api_exception.dart';
 import '../../core/phone/supported_country.dart';
 import '../../core/theme/tokens.dart';
 import '../../domain/models/saved_address.dart';
+import '../../domain/models/trip.dart';
 import '../../shared/state/addresses_controller.dart';
+import '../../shared/state/trip_planner_controller.dart';
 import '../../shared/widgets/buttons.dart';
 import '../auth/auth_error_messages.dart';
+import '../trips/widgets/location_picker_sheet.dart';
 import 'widgets/address_type_selector.dart';
 import 'widgets/postal_code_rules.dart';
 
@@ -48,6 +51,18 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
   bool _submitting = false;
   String? _error;
 
+  /// Where this address is, once the customer has found it.
+  ///
+  /// Kept separately from the text fields on purpose: an address is a
+  /// description a person writes, and a coordinate is a claim about a point on
+  /// the earth. Deriving the second from the first — geocoding the typed lines
+  /// silently on save — is how somebody's journey starts in the wrong city
+  /// while the screen looks entirely correct.
+  double? _latitude;
+  double? _longitude;
+  String? _placeId;
+  String? _locatedLabel;
+
   bool get _isEditing => widget.existing != null;
 
   @override
@@ -69,6 +84,40 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
     // Editing does not offer to un-default: the server ignores that anyway, so a
     // switch that appeared to do it would be a lie.
     _makeDefault = existing?.isDefault ?? false;
+
+    _latitude = existing?.latitude;
+    _longitude = existing?.longitude;
+    _placeId = existing?.placeId;
+    _locatedLabel = existing?.hasCoordinates == true
+        ? existing!.formattedAddress
+        : null;
+  }
+
+  bool get _isLocated => _latitude != null && _longitude != null;
+
+  Future<void> _locate() async {
+    final AppStrings strings = AppStrings.of(context);
+
+    // Search only. Offering the saved addresses here would be circular, and
+    // offering the device's position would pin an address the customer is
+    // describing from memory to wherever they happen to be standing.
+    final TripLocation? found = await showLocationPicker(
+      context,
+      slot: TripEndpointSlot.origin,
+      searchOnly: true,
+      title: strings.addressLocateSheetTitle,
+    );
+
+    if (found == null || !mounted) return;
+
+    setState(() {
+      _latitude = found.latitude;
+      _longitude = found.longitude;
+      _placeId = found.placeId;
+      _locatedLabel = found.formattedAddress.isNotEmpty
+          ? found.formattedAddress
+          : found.displayName;
+    });
   }
 
   @override
@@ -98,6 +147,9 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
     postalCode: _postal.text,
     countryCode: _countryCode,
     isDefault: _makeDefault,
+    latitude: _latitude,
+    longitude: _longitude,
+    placeId: _placeId,
   );
 
   Future<void> _save() async {
@@ -311,6 +363,20 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                       const SizedBox(height: FotgSpacing.x2),
                       _CountryRow(countryCode: _countryCode),
 
+                      const SizedBox(height: FotgSpacing.x5),
+                      _LocationRow(
+                        heading: strings.addressLocationHeading,
+                        value: _isLocated
+                            ? (_locatedLabel ?? '')
+                            : strings.addressNotLocated,
+                        help: strings.addressLocateHelp,
+                        isLocated: _isLocated,
+                        actionLabel: _isLocated
+                            ? strings.addressChangeLocation
+                            : strings.addressLocateCta,
+                        onPressed: _submitting ? null : _locate,
+                      ),
+
                       const SizedBox(height: FotgSpacing.x2),
                       SwitchListTile.adaptive(
                         value: _makeDefault,
@@ -480,6 +546,103 @@ class _CountryRow extends StatelessWidget {
         ),
         Text(country.name, style: theme.textTheme.bodyMedium),
       ],
+    );
+  }
+}
+
+/// Whether this address has a position, and how to give it one.
+///
+/// Optional, and said so: an address with no coordinates is perfectly good for
+/// a delivery and simply cannot be one end of a journey. The planner explains
+/// that when it comes up; this row is where somebody fixes it in advance.
+class _LocationRow extends StatelessWidget {
+  const _LocationRow({
+    required this.heading,
+    required this.value,
+    required this.help,
+    required this.isLocated,
+    required this.actionLabel,
+    required this.onPressed,
+  });
+
+  final String heading;
+  final String value;
+  final String help;
+  final bool isLocated;
+  final String actionLabel;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(FotgSpacing.x4),
+      decoration: BoxDecoration(
+        borderRadius: FotgRadius.card,
+        border: Border.all(color: theme.colorScheme.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(
+                isLocated
+                    ? Icons.where_to_vote_rounded
+                    : Icons.location_searching_rounded,
+                size: FotgSizing.iconSm,
+                color: isLocated
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: FotgSpacing.x2),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      heading,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      value,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: isLocated
+                            ? theme.colorScheme.onSurface
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (!isLocated) ...<Widget>[
+            const SizedBox(height: FotgSpacing.x2),
+            Text(
+              help,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+          const SizedBox(height: FotgSpacing.x1),
+          // On its own line rather than beside the text. At 320dp a button
+          // reading "Find this address" and a two-line address cannot share a
+          // row without one of them being squeezed off the edge.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(onPressed: onPressed, child: Text(actionLabel)),
+          ),
+        ],
+      ),
     );
   }
 }

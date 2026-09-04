@@ -11,7 +11,6 @@ import '../../shared/state/trips_controller.dart';
 import '../../shared/widgets/app_skeleton.dart';
 import '../../shared/widgets/buttons.dart';
 import 'trip_error_messages.dart';
-import 'trip_form_screen.dart';
 
 /// One journey, in full.
 ///
@@ -29,7 +28,7 @@ class TripDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
-  bool _cancelling = false;
+  bool _discarding = false;
 
   Trip? _fromList() {
     final List<Trip>? list = ref.watch(tripsControllerProvider).value;
@@ -54,35 +53,23 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
       );
   }
 
-  Future<void> _edit(Trip trip) async {
-    final bool? saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (BuildContext context) => TripFormScreen(existing: trip),
-      ),
-    );
-
-    if (saved == true && mounted) _toast(AppStrings.of(context).tripUpdated);
-  }
-
-  Future<void> _cancel(Trip trip) async {
+  Future<void> _discard(Trip trip) async {
     final AppStrings strings = AppStrings.of(context);
 
-    final String? reason = await showTripCancelDialog(context);
-    if (reason == null || !mounted || _cancelling) return;
+    final bool confirmed = await showTripDiscardDialog(context);
+    if (!confirmed || !mounted || _discarding) return;
 
-    setState(() => _cancelling = true);
+    setState(() => _discarding = true);
 
     try {
-      await ref
-          .read(tripsControllerProvider.notifier)
-          .cancel(trip.id, reason: reason.isEmpty ? null : reason);
+      await ref.read(tripsControllerProvider.notifier).discard(trip.id);
       if (!mounted) return;
-      _toast(strings.tripCancelled);
+      _toast(strings.tripDiscarded);
     } on ApiException catch (error) {
       if (!mounted) return;
       _toast(tripErrorMessage(strings, error), isError: true);
     } finally {
-      if (mounted) setState(() => _cancelling = false);
+      if (mounted) setState(() => _discarding = false);
     }
   }
 
@@ -97,15 +84,13 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
         child: fromList != null
             ? _Body(
                 trip: fromList,
-                cancelling: _cancelling,
-                onEdit: () => _edit(fromList),
-                onCancel: () => _cancel(fromList),
+                discarding: _discarding,
+                onDiscard: () => _discard(fromList),
               )
             : _FetchedBody(
                 tripId: widget.tripId,
-                cancelling: _cancelling,
-                onEdit: _edit,
-                onCancel: _cancel,
+                discarding: _discarding,
+                onDiscard: _discard,
               ),
       ),
     );
@@ -116,15 +101,13 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
 class _FetchedBody extends ConsumerWidget {
   const _FetchedBody({
     required this.tripId,
-    required this.cancelling,
-    required this.onEdit,
-    required this.onCancel,
+    required this.discarding,
+    required this.onDiscard,
   });
 
   final String tripId;
-  final bool cancelling;
-  final Future<void> Function(Trip) onEdit;
-  final Future<void> Function(Trip) onCancel;
+  final bool discarding;
+  final Future<void> Function(Trip) onDiscard;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -156,9 +139,8 @@ class _FetchedBody extends ConsumerWidget {
 
         return _Body(
           trip: trip,
-          cancelling: cancelling,
-          onEdit: () => onEdit(trip),
-          onCancel: () => onCancel(trip),
+          discarding: discarding,
+          onDiscard: () => onDiscard(trip),
         );
       },
     );
@@ -168,15 +150,13 @@ class _FetchedBody extends ConsumerWidget {
 class _Body extends StatelessWidget {
   const _Body({
     required this.trip,
-    required this.cancelling,
-    required this.onEdit,
-    required this.onCancel,
+    required this.discarding,
+    required this.onDiscard,
   });
 
   final Trip trip;
-  final bool cancelling;
-  final VoidCallback onEdit;
-  final VoidCallback onCancel;
+  final bool discarding;
+  final VoidCallback onDiscard;
 
   @override
   Widget build(BuildContext context) {
@@ -194,76 +174,44 @@ class _Body extends StatelessWidget {
         Text(trip.routeSummary, style: theme.textTheme.headlineSmall),
         const SizedBox(height: FotgSpacing.x2),
         Text(
-          JourneyTime.full(trip.departureAt),
+          // The one honest thing this screen can say about the route. Not a
+          // distance, not a duration, not "calculating…" — nothing is
+          // calculating. Module 06 is what makes this line say something else.
+          strings.tripRouteNotCalculated,
           style: theme.textTheme.bodyLarge?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
-        if (!trip.isEditable) ...<Widget>[
+        if (trip.isCancelled) ...<Widget>[
           const SizedBox(height: FotgSpacing.x4),
-          _Notice(
-            // Says why the actions are absent. A screen that silently omits the
-            // buttons makes people think the app is broken.
-            message: trip.isCancelled
-                ? strings.tripReadOnlyCancelled
-                : strings.tripReadOnlyDeparted,
-          ),
+          // Says why the action is absent. A screen that silently omits the
+          // button makes people think the app is broken.
+          _Notice(message: strings.tripReadOnlyCancelled),
         ],
         const SizedBox(height: FotgSpacing.x6),
         _PlaceBlock(
           icon: Icons.trip_origin_rounded,
-          label: strings.tripFormFrom,
+          label: strings.tripPlannerFrom,
           place: trip.origin,
         ),
         const SizedBox(height: FotgSpacing.x5),
         _PlaceBlock(
           icon: Icons.place_rounded,
-          label: strings.tripFormTo,
+          label: strings.tripPlannerTo,
           place: trip.destination,
         ),
         const SizedBox(height: FotgSpacing.x6),
-        _Detail(
-          label: strings.tripDeparts,
-          value: JourneyTime.full(trip.departureAt),
-        ),
-        _Detail(
-          label: strings.tripArrives,
-          value: trip.expectedArrivalAt == null
-              ? strings.tripArrivalUnknown
-              : JourneyTime.full(trip.expectedArrivalAt!),
-        ),
-        _Detail(
-          label: strings.tripFormTravellers,
-          value: strings.tripTravellers(trip.travellerCount),
-        ),
-        if ((trip.note ?? '').isNotEmpty) ...<Widget>[
-          const SizedBox(height: FotgSpacing.x5),
-          Text(strings.tripNoteHeading, style: theme.textTheme.titleSmall),
-          const SizedBox(height: FotgSpacing.x1),
-          Text(trip.note!, style: theme.textTheme.bodyMedium),
-        ],
-        if (trip.isCancelled &&
-            (trip.cancellationReason ?? '').isNotEmpty) ...<Widget>[
-          const SizedBox(height: FotgSpacing.x5),
-          Text(
-            strings.tripCancellationHeading,
-            style: theme.textTheme.titleSmall,
+        if (trip.createdAt != null)
+          _Detail(
+            label: strings.tripCreatedAtLabel,
+            value: JourneyTime.full(trip.createdAt!),
           ),
-          const SizedBox(height: FotgSpacing.x1),
-          Text(trip.cancellationReason!, style: theme.textTheme.bodyMedium),
-        ],
-        if (trip.isEditable) ...<Widget>[
+        if (trip.isDiscardable) ...<Widget>[
           const SizedBox(height: FotgSpacing.x8),
-          PrimaryButton(
-            label: strings.tripDetailEdit,
-            icon: Icons.edit_rounded,
-            onPressed: onEdit,
-          ),
-          const SizedBox(height: FotgSpacing.x3),
           SecondaryButton(
-            label: strings.tripDetailCancel,
-            isLoading: cancelling,
-            onPressed: onCancel,
+            label: strings.tripDetailDiscard,
+            isLoading: discarding,
+            onPressed: onDiscard,
           ),
         ],
       ],
@@ -280,7 +228,7 @@ class _PlaceBlock extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final JourneyPlace place;
+  final TripEndpoint place;
 
   @override
   Widget build(BuildContext context) {
@@ -403,78 +351,36 @@ class _DetailSkeleton extends StatelessWidget {
   }
 }
 
-/// Confirms a cancellation, and takes an optional reason.
+/// Confirms discarding a journey.
 ///
-/// Returns the reason (possibly empty) if the customer confirmed, and **null**
-/// if they did not — so a caller can tell "cancelled with no reason" from
-/// "changed their mind", which a plain bool could not.
-Future<String?> showTripCancelDialog(BuildContext context) {
-  return showDialog<String>(
+/// A plain confirmation and nothing else. The previous version collected an
+/// optional reason; there is no field on the server to put one in, and a form
+/// that discards what somebody typed is worse than not asking.
+Future<bool> showTripDiscardDialog(BuildContext context) async {
+  final bool? confirmed = await showDialog<bool>(
     context: context,
-    builder: (BuildContext dialogContext) => const _CancelTripDialog(),
-  );
-}
+    builder: (BuildContext dialogContext) {
+      final AppStrings strings = AppStrings.of(dialogContext);
 
-/// A `StatefulWidget` purely so the text controller has an owner with a
-/// lifecycle.
-///
-/// Creating the controller in `showTripCancelDialog` and disposing it after the
-/// future completes looks equivalent and is not: the dialog's exit animation is
-/// still running at that point, and the `TextField` rebuilds against a disposed
-/// controller. This is the fix for that, and it is why the dialog is a widget
-/// rather than four lines in a function.
-class _CancelTripDialog extends StatefulWidget {
-  const _CancelTripDialog();
-
-  @override
-  State<_CancelTripDialog> createState() => _CancelTripDialogState();
-}
-
-class _CancelTripDialogState extends State<_CancelTripDialog> {
-  final TextEditingController _reason = TextEditingController();
-
-  @override
-  void dispose() {
-    _reason.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final AppStrings strings = AppStrings.of(context);
-
-    return AlertDialog(
-      title: Text(strings.tripCancelTitle),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(strings.tripCancelBody),
-          const SizedBox(height: FotgSpacing.x4),
-          TextField(
-            controller: _reason,
-            maxLength: 120,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: InputDecoration(
-              labelText: strings.tripCancelReason,
-              counterText: '',
+      return AlertDialog(
+        title: Text(strings.tripDiscardTitle),
+        content: Text(strings.tripDiscardBody),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(strings.tripDiscardKeep),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(dialogContext).colorScheme.error,
             ),
+            child: Text(strings.tripDiscardConfirm),
           ),
         ],
-      ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(strings.tripCancelKeep),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(_reason.text.trim()),
-          style: TextButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.error,
-          ),
-          child: Text(strings.tripCancelConfirm),
-        ),
-      ],
-    );
-  }
+      );
+    },
+  );
+
+  return confirmed ?? false;
 }

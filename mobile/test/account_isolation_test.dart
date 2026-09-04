@@ -247,7 +247,12 @@ void main() {
     // One repository across both accounts, exactly like one app talking to one
     // server: same endpoints, different data once a different token arrives.
     final FakeTripRepository trips = FakeTripRepository(
-      trips: <Trip>[sampleTrip(id: 'rahul-1', destinationCity: 'Jaipur')],
+      trips: <Trip>[
+        sampleTrip(
+          id: 'rahul-1',
+          destinationName: 'Jaipur International Airport',
+        ),
+      ],
     );
 
     await pumpAsRahul(
@@ -266,7 +271,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('New Delhi → Jaipur'), findsOneWidget);
+    expect(
+      find.text('Hauz Khas Village → Jaipur International Airport'),
+      findsOneWidget,
+    );
 
     await tester.tap(
       find.descendant(
@@ -283,8 +291,8 @@ void main() {
     trips.switchTo(<Trip>[
       sampleTrip(
         id: 'ananya-1',
-        originCity: 'Gurugram',
-        destinationCity: 'Chandigarh',
+        originName: 'DLF Cyber City',
+        destinationName: 'Sector 17 Plaza',
       ),
     ]);
 
@@ -310,8 +318,11 @@ void main() {
 
     // Hers, and not one frame of his — where he was going is as sensitive as
     // where he lives.
-    expect(find.text('Gurugram → Chandigarh'), findsOneWidget);
-    expect(find.text('New Delhi → Jaipur'), findsNothing);
+    expect(find.text('DLF Cyber City → Sector 17 Plaza'), findsOneWidget);
+    expect(
+      find.text('Hauz Khas Village → Jaipur International Airport'),
+      findsNothing,
+    );
     expect(find.textContaining('Jaipur'), findsNothing);
   });
 
@@ -338,7 +349,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('New Delhi → Jaipur'), findsOneWidget);
+    expect(
+      find.text('Hauz Khas Village → Jaipur International Airport'),
+      findsOneWidget,
+    );
 
     await tester.tap(
       find.descendant(

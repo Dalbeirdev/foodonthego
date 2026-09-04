@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
 
-import 'package:foodonthego/features/trips/trip_form_screen.dart';
+import 'package:foodonthego/features/trips/trip_planner_screen.dart';
 
 import 'support/harness.dart';
 
@@ -214,7 +214,7 @@ void main() {
       // Real from Module 05. It was a placeholder naming this module until the
       // module arrived, which is the point of the placeholder convention.
       expect(find.text('Not built yet'.toUpperCase()), findsNothing);
-      expect(find.byType(TripFormScreen), findsOneWidget);
+      expect(find.byType(TripPlannerScreen), findsOneWidget);
     });
 
     testWidgets('the placeholder can be dismissed back to where it came from', (

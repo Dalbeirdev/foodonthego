@@ -20,9 +20,7 @@ import 'widgets/how_it_works.dart';
 import 'widgets/journey_planner_card.dart';
 import 'widgets/quick_actions.dart';
 import '../../shared/state/trips_controller.dart';
-import '../trips/trip_detail_screen.dart';
-import '../trips/trip_form_screen.dart';
-import 'widgets/next_journey_card.dart';
+import 'widgets/current_journey_card.dart';
 
 /// The customer home screen.
 ///
@@ -89,7 +87,7 @@ class _HomeContent extends ConsumerWidget {
     // dashboard, because it comes from a different endpoint. It renders nothing
     // while loading and nothing on failure: home is not the place to report that
     // one card could not be fetched, and the Trips tab says so properly.
-    final Trip? nextTrip = ref.watch(nextTripControllerProvider).value;
+    final Trip? currentTrip = ref.watch(currentTripControllerProvider).value;
 
     return RefreshIndicator(
       // A real refresh: it invalidates the provider and waits for the next value,
@@ -123,15 +121,16 @@ class _HomeContent extends ConsumerWidget {
           const SizedBox(height: FotgSpacing.x6),
 
           JourneyPlannerCard(
+            // The two rows show whichever ends the customer's current journey
+            // has, so the card reflects reality rather than always inviting a
+            // journey they have already planned.
+            originLabel: currentTrip?.origin.shortName,
+            destinationLabel: currentTrip?.destination.shortName,
             onPlanJourney: () {
               analytics.log(AnalyticsEvents.planJourneyTapped);
               // Real from Module 05 onwards. The planner is a screen now, not a
               // placeholder naming the module that will build it.
-              Navigator.of(context).push<bool>(
-                MaterialPageRoute<bool>(
-                  builder: (BuildContext context) => const TripFormScreen(),
-                ),
-              );
+              context.push(Routes.tripPlanPath);
             },
             isEnabled: true,
           ),
@@ -139,10 +138,10 @@ class _HomeContent extends ConsumerWidget {
           // The customer's real next journey, from the API. Rendered only when
           // there is one — an empty "Your next journey" card is worse than no
           // card, which is why this is a null check rather than an empty state.
-          if (nextTrip != null) ...<Widget>[
+          if (currentTrip != null) ...<Widget>[
             const SizedBox(height: FotgSpacing.x8),
             SectionHeader(
-              title: strings.homeNextJourney,
+              title: strings.homeCurrentJourney,
               action: TextButton(
                 onPressed: () {
                   analytics.log(AnalyticsEvents.tripsTabOpened);
@@ -151,16 +150,11 @@ class _HomeContent extends ConsumerWidget {
                 child: Text(strings.homeJourneyViewAll),
               ),
             ),
-            NextJourneyCard(
-              trip: nextTrip,
+            CurrentJourneyCard(
+              trip: currentTrip,
               onTap: () {
                 analytics.log(AnalyticsEvents.journeyCardTapped);
-                Navigator.of(context).push<void>(
-                  MaterialPageRoute<void>(
-                    builder: (BuildContext context) =>
-                        TripDetailScreen(tripId: nextTrip.id),
-                  ),
-                );
+                context.push(Routes.tripDetailPath(currentTrip.id));
               },
             ),
           ],
@@ -183,7 +177,7 @@ class _HomeContent extends ConsumerWidget {
 
           // For a customer with nothing on, the screen explains the product
           // instead of showing blank space where cards would be.
-          if (nextTrip == null && !dashboard.hasActiveOrder) ...<Widget>[
+          if (currentTrip == null && !dashboard.hasActiveOrder) ...<Widget>[
             const SizedBox(height: FotgSpacing.x8),
             SectionHeader(title: strings.howItWorksTitle),
             const HowItWorks(),

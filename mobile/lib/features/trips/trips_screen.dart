@@ -1,25 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/routing/routes.dart';
 import '../../core/theme/tokens.dart';
 import '../../domain/models/trip.dart';
+import '../../domain/repositories/trip_repository.dart';
 import '../../shared/state/trips_controller.dart';
 import '../../shared/widgets/app_skeleton.dart';
 import '../../shared/widgets/buttons.dart';
 import '../../shared/widgets/empty_state_view.dart';
 import 'trip_detail_screen.dart';
 import 'trip_error_messages.dart';
-import 'trip_form_screen.dart';
 import 'widgets/trip_card.dart';
 
 /// The customer's journeys.
 ///
-/// Three scopes behind one list, and the same four states as every other list in
+/// Two scopes behind one list, and the same four states as every other list in
 /// this app: loading, empty, error, data. The scope lives in a provider rather
 /// than in this widget, because the list provider watches it — a `setState` here
 /// would leave the segment and the data one rebuild out of step.
+///
+/// No row shows a distance, a duration or an arrival time, because no trip has
+/// one: Module 05 creates journeys whose `route_status` is always
+/// `NOT_CALCULATED`. What each row says instead is exactly that.
 class TripsScreen extends ConsumerStatefulWidget {
   const TripsScreen({super.key});
 
@@ -44,45 +50,23 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
       );
   }
 
-  Future<void> _openPlanner({Trip? existing}) async {
-    final bool? saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (BuildContext context) => TripFormScreen(existing: existing),
-      ),
-    );
+  void _openPlanner() => context.push(Routes.tripPlanPath);
 
-    if (saved == true && mounted) {
-      _toast(
-        existing == null
-            ? AppStrings.of(context).tripPlanned
-            : AppStrings.of(context).tripUpdated,
-      );
-    }
-  }
+  void _openDetail(Trip trip) => context.push(Routes.tripDetailPath(trip.id));
 
-  Future<void> _openDetail(Trip trip) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (BuildContext context) => TripDetailScreen(tripId: trip.id),
-      ),
-    );
-  }
-
-  Future<void> _confirmCancel(Trip trip) async {
+  Future<void> _confirmDiscard(Trip trip) async {
     final AppStrings strings = AppStrings.of(context);
 
-    final String? reason = await showTripCancelDialog(context);
-    if (reason == null || !mounted) return;
+    final bool confirmed = await showTripDiscardDialog(context);
+    if (!confirmed || !mounted) return;
 
     if (_busyId != null) return;
     setState(() => _busyId = trip.id);
 
     try {
-      await ref
-          .read(tripsControllerProvider.notifier)
-          .cancel(trip.id, reason: reason.isEmpty ? null : reason);
+      await ref.read(tripsControllerProvider.notifier).discard(trip.id);
       if (!mounted) return;
-      _toast(strings.tripCancelled);
+      _toast(strings.tripDiscarded);
     } on ApiException catch (error) {
       if (!mounted) return;
       _toast(tripErrorMessage(strings, error), isError: true);
@@ -103,7 +87,7 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
       appBar: AppBar(title: Text(strings.tripsTitle)),
       floatingActionButton: hasJourneys
           ? FloatingActionButton.extended(
-              onPressed: () => _openPlanner(),
+              onPressed: _openPlanner,
               icon: const Icon(Icons.add_road_rounded),
               label: Text(strings.tripsPlan),
             )
@@ -128,7 +112,7 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                       ref.read(tripsControllerProvider.notifier).reload(),
                 ),
                 data: (List<Trip> list) => list.isEmpty
-                    ? _EmptyTrips(scope: scope, onPlan: () => _openPlanner())
+                    ? _EmptyTrips(scope: scope, onPlan: _openPlanner)
                     : RefreshIndicator(
                         onRefresh: () =>
                             ref.read(tripsControllerProvider.notifier).reload(),
@@ -150,15 +134,11 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                               trip: trip,
                               busy: _busyId == trip.id,
                               onOpen: () => _openDetail(trip),
-                              // Offered only while the server says the journey
-                              // is editable. A menu that offers an edit the
-                              // server will refuse teaches people not to trust
-                              // the menu.
-                              onEdit: trip.isEditable
-                                  ? () => _openPlanner(existing: trip)
-                                  : null,
-                              onCancel: trip.isEditable
-                                  ? () => _confirmCancel(trip)
+                              // Offered only while the server would still accept
+                              // it. A menu that offers an action the server will
+                              // refuse teaches people not to trust the menu.
+                              onDiscard: trip.isDiscardable
+                                  ? () => _confirmDiscard(trip)
                                   : null,
                             );
                           },
@@ -173,7 +153,10 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
   }
 }
 
-/// Upcoming / Past / Cancelled.
+/// Planned / Discarded.
+///
+/// Two, because the server has two. A "Past" tab would be a tab nothing can ever
+/// fill: nothing in Module 05 observes a journey happening.
 class _ScopeSelector extends StatelessWidget {
   const _ScopeSelector({required this.scope, required this.onChanged});
 
@@ -196,12 +179,8 @@ class _ScopeSelector extends StatelessWidget {
           final Widget segments = SegmentedButton<TripScope>(
             segments: <ButtonSegment<TripScope>>[
               ButtonSegment<TripScope>(
-                value: TripScope.upcoming,
-                label: Text(strings.tripsScopeUpcoming),
-              ),
-              ButtonSegment<TripScope>(
-                value: TripScope.past,
-                label: Text(strings.tripsScopePast),
+                value: TripScope.open,
+                label: Text(strings.tripsScopeOpen),
               ),
               ButtonSegment<TripScope>(
                 value: TripScope.cancelled,
@@ -214,10 +193,10 @@ class _ScopeSelector extends StatelessWidget {
                 onChanged(selection.first),
           );
 
-          // Below this width the three labels cannot sit side by side without
-          // breaking mid-word — the defect the Module 04 type selector had.
-          // Scrolling keeps every option reachable and every word whole.
-          if (constraints.maxWidth >= 320) return segments;
+          // Below this width the labels cannot sit side by side without breaking
+          // mid-word — the defect the Module 04 type selector had. Scrolling
+          // keeps every option reachable and every word whole.
+          if (constraints.maxWidth >= 280) return segments;
 
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -231,8 +210,8 @@ class _ScopeSelector extends StatelessWidget {
 
 /// The empty state, worded for the scope being shown.
 ///
-/// "No journeys" under Past means something different from "No journeys" under
-/// Upcoming, and only one of the three is worth offering a button for.
+/// "Nothing discarded" means something different from "no journeys yet", and
+/// only one of the two is worth offering a button for.
 class _EmptyTrips extends StatelessWidget {
   const _EmptyTrips({required this.scope, required this.onPlan});
 
@@ -244,11 +223,6 @@ class _EmptyTrips extends StatelessWidget {
     final AppStrings strings = AppStrings.of(context);
 
     return switch (scope) {
-      TripScope.past => EmptyStateView(
-        icon: Icons.history_rounded,
-        title: strings.tripsPastEmptyTitle,
-        body: strings.tripsPastEmptyBody,
-      ),
       TripScope.cancelled => EmptyStateView(
         icon: Icons.block_rounded,
         title: strings.tripsCancelledEmptyTitle,

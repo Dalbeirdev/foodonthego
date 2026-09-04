@@ -1,14 +1,42 @@
+import 'dart:math' as math;
+
+import 'place.dart';
 import 'saved_address.dart';
 
-/// The states a journey can be in.
+/// Where the customer got a location from.
 ///
-/// Two, matching the server exactly. On the road, arrived and completed are
-/// claims about the physical world that nothing in the product can observe yet;
-/// Module 09 adds them when there is movement to watch. A journey that is behind
-/// the traveller is not a status — it is [Trip.hasDeparted], a fact about the
-/// clock.
+/// Recorded per endpoint because the three sources have genuinely different
+/// trust: a device fix is authoritative about where somebody is, a saved address
+/// is something they wrote down once, and a searched place is the provider's
+/// answer to a question. Module 06 will care about the difference, and so does
+/// the operational log today.
+enum LocationSourceType {
+  currentLocation('CURRENT_LOCATION'),
+  savedAddress('SAVED_ADDRESS'),
+  placeSearch('PLACE_SEARCH');
+
+  const LocationSourceType(this.wire);
+
+  final String wire;
+
+  static LocationSourceType fromWire(String? value) {
+    for (final LocationSourceType type in LocationSourceType.values) {
+      if (type.wire == value) return type;
+    }
+    // A source a newer server introduced. Reading it as a searched place keeps
+    // the trip visible and correct in every way that matters to this screen.
+    return LocationSourceType.placeSearch;
+  }
+}
+
+/// What has happened to the trip itself.
+///
+/// Two states, matching the server exactly. There is no "active", "on the road"
+/// or "completed": those are claims about the physical world that nothing in the
+/// product can observe yet, and a status the app can display but never reach is
+/// a status somebody will eventually write a screen for.
 enum TripStatus {
-  planned('PLANNED'),
+  routePending('ROUTE_PENDING'),
   cancelled('CANCELLED');
 
   const TripStatus(this.wire);
@@ -19,56 +47,95 @@ enum TripStatus {
     for (final TripStatus status in TripStatus.values) {
       if (status.wire == value) return status;
     }
-    // A state a newer server introduced. An older build treats it as planned
-    // rather than crashing, which is the reading that keeps the journey visible
-    // and read-only — `is_editable` comes from the server anyway.
-    return TripStatus.planned;
+    return TripStatus.routePending;
   }
 }
 
-/// One end of a journey, as the server stored it.
+/// Whether a route has been calculated for this trip.
 ///
-/// A *snapshot*, not a reference to a saved address: it is what the place was
-/// when the journey was planned. Editing the saved address it came from does
-/// not change this, which is deliberate on both sides of the wire.
-class JourneyPlace {
-  const JourneyPlace({
-    required this.label,
+/// Separate from [TripStatus] because they answer different questions, and in
+/// Module 05 this is **always** [RouteStatus.notCalculated]. It exists here so
+/// the app reads the server's answer rather than assuming one; Module 06 is what
+/// moves it, and until then no screen may render a distance or a travel time,
+/// because there is none to render.
+enum RouteStatus {
+  notCalculated('NOT_CALCULATED'),
+  calculating('CALCULATING'),
+  ready('READY'),
+  failed('FAILED');
+
+  const RouteStatus(this.wire);
+
+  final String wire;
+
+  static RouteStatus fromWire(String? value) {
+    for (final RouteStatus status in RouteStatus.values) {
+      if (status.wire == value) return status;
+    }
+    return RouteStatus.notCalculated;
+  }
+}
+
+/// One end of a trip, as the server stored it.
+///
+/// A **snapshot**, not a reference. It is what the place was when the trip was
+/// created: editing or deleting the saved address it came from does not move the
+/// journey, which is deliberate on both sides of the wire.
+class TripEndpoint {
+  const TripEndpoint({
+    required this.sourceType,
+    required this.displayName,
     required this.formattedAddress,
-    required this.city,
-    required this.countryCode,
-    this.latitude,
-    this.longitude,
+    required this.latitude,
+    required this.longitude,
     this.placeId,
+    this.city,
+    this.region,
+    this.countryCode,
+    this.postalCode,
   });
 
-  factory JourneyPlace.fromJson(Map<String, dynamic> json) => JourneyPlace(
-    label: json['label'] as String? ?? '',
-    formattedAddress: json['formatted_address'] as String? ?? '',
-    city: json['city'] as String? ?? '',
-    countryCode: json['country_code'] as String? ?? '',
-    latitude: _decimal(json['latitude']),
-    longitude: _decimal(json['longitude']),
-    placeId: json['place_id'] as String?,
+  factory TripEndpoint.fromJson(Map<String, dynamic> json) => TripEndpoint(
+    sourceType: LocationSourceType.fromWire(json['source_type'] as String?),
+    displayName: (json['display_name'] as String?)?.trim() ?? '',
+    formattedAddress: (json['formatted_address'] as String?)?.trim() ?? '',
+    // The server sends coordinates as strings so the last decimal place — which
+    // is metres — survives the trip through JSON intact.
+    latitude: _decimal(json['latitude']) ?? 0,
+    longitude: _decimal(json['longitude']) ?? 0,
+    placeId: _text(json['place_id']),
+    city: _text(json['city']),
+    region: _text(json['region']),
+    countryCode: _text(json['country_code']),
+    postalCode: _text(json['postal_code']),
   );
 
-  final String label;
+  final LocationSourceType sourceType;
+  final String displayName;
   final String formattedAddress;
-  final String city;
-  final String countryCode;
 
-  /// Null until something actually geocodes this place. Never substitute 0 —
-  /// that is a real point in the Gulf of Guinea, and a corridor drawn to it
-  /// crosses an ocean.
-  final double? latitude;
-  final double? longitude;
+  /// Never null. The server refuses to create a trip without a usable pair, so
+  /// an endpoint that reached this app has one.
+  final double latitude;
+  final double longitude;
+
   final String? placeId;
+  final String? city;
+  final String? region;
+  final String? countryCode;
+  final String? postalCode;
 
-  bool get hasCoordinates => latitude != null && longitude != null;
+  /// What a compact row shows.
+  String get shortName {
+    if (displayName.isNotEmpty) return displayName;
+    if ((city ?? '').isNotEmpty) return city!;
+    return formattedAddress;
+  }
 
-  /// What a compact row shows: the customer's name for the place if they gave
-  /// one meaningfully different from the city, otherwise the city.
-  String get shortName => label.trim().isEmpty ? city : label.trim();
+  static String? _text(Object? value) {
+    final String trimmed = (value as String?)?.trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
+  }
 
   static double? _decimal(Object? value) {
     if (value == null) return null;
@@ -77,71 +144,57 @@ class JourneyPlace {
   }
 }
 
-/// A journey a customer has planned.
+/// A trip a customer has created.
+///
+/// Read the absences. There is no distance, no travel time, no arrival estimate
+/// and no polyline, because the server has no such columns and Module 06 is what
+/// adds them. A field here that no endpoint fills is a field a screen would
+/// eventually render as "0 km".
 class Trip {
   const Trip({
     required this.id,
     required this.status,
+    required this.routeStatus,
     required this.origin,
     required this.destination,
-    required this.departureAt,
-    required this.isEditable,
-    required this.hasDeparted,
-    this.expectedArrivalAt,
-    this.travellerCount = 1,
-    this.note,
     this.cancelledAt,
-    this.cancellationReason,
+    this.createdAt,
   });
 
   factory Trip.fromJson(Map<String, dynamic> json) => Trip(
     id: json['id'] as String? ?? '',
     status: TripStatus.fromWire(json['status'] as String?),
-    origin: JourneyPlace.fromJson(
+    routeStatus: RouteStatus.fromWire(json['route_status'] as String?),
+    origin: TripEndpoint.fromJson(
       (json['origin'] as Map<String, dynamic>?) ?? const <String, dynamic>{},
     ),
-    destination: JourneyPlace.fromJson(
+    destination: TripEndpoint.fromJson(
       (json['destination'] as Map<String, dynamic>?) ??
           const <String, dynamic>{},
     ),
-    departureAt: _time(json['departure_at']) ?? DateTime.now().toUtc(),
-    expectedArrivalAt: _time(json['expected_arrival_at']),
-    travellerCount: (json['traveller_count'] as num?)?.toInt() ?? 1,
-    note: json['note'] as String?,
     cancelledAt: _time(json['cancelled_at']),
-    cancellationReason: json['cancellation_reason'] as String?,
-    // Read from the server rather than recomputed here. A handset with a slow
-    // clock would otherwise offer an edit the server then refuses.
-    isEditable: json['is_editable'] as bool? ?? false,
-    hasDeparted: json['has_departed'] as bool? ?? false,
+    createdAt: _time(json['created_at']),
   );
 
   final String id;
   final TripStatus status;
-  final JourneyPlace origin;
-  final JourneyPlace destination;
+  final RouteStatus routeStatus;
+  final TripEndpoint origin;
+  final TripEndpoint destination;
 
   /// Always UTC. Rendered in the device's zone at the edge, never stored local.
-  final DateTime departureAt;
-
-  /// Null in the normal case: nothing computes an arrival time yet, and a
-  /// traveller who states one is telling us something they know.
-  final DateTime? expectedArrivalAt;
-
-  final int travellerCount;
-  final String? note;
   final DateTime? cancelledAt;
-  final String? cancellationReason;
-
-  final bool isEditable;
-  final bool hasDeparted;
+  final DateTime? createdAt;
 
   bool get isCancelled => status == TripStatus.cancelled;
 
-  /// Still ahead of the traveller and not called off.
-  bool get isUpcoming => !isCancelled && !hasDeparted;
+  bool get isDiscardable => !isCancelled;
 
-  /// "New Delhi → Jaipur", the one line that identifies a journey in a list.
+  /// Whether a route exists yet. False for every trip Module 05 can create, and
+  /// the reason no screen shows a distance.
+  bool get hasRoute => routeStatus == RouteStatus.ready;
+
+  /// "New Delhi → Jaipur", the one line that identifies a trip in a list.
   String get routeSummary => '${origin.shortName} → ${destination.shortName}';
 
   static DateTime? _time(Object? value) {
@@ -150,154 +203,215 @@ class Trip {
   }
 }
 
-/// One end of a journey as the *client* sends it.
+/// One end of a trip as the *client* sends it.
 ///
-/// Either a saved address — by id, with the server doing the ownership check and
-/// the snapshotting — or a typed place. Never both: [savedAddressId] wins, and
-/// the typed fields are not sent alongside it, so there is no request in which
-/// the two could disagree.
-class JourneyPlaceDraft {
-  const JourneyPlaceDraft.saved(this.savedAddressId)
-    : label = null,
-      addressLine = null,
-      city = null,
-      state = null,
-      countryCode = null,
-      latitude = null,
-      longitude = null,
-      placeId = null;
-
-  const JourneyPlaceDraft.typed({
-    required this.city,
-    required this.countryCode,
-    this.label,
-    this.addressLine,
-    this.state,
+/// Three constructors, one per source, and no way to build a fourth kind. A
+/// single constructor with everything nullable would let a screen send a saved
+/// address id *and* a contradicting coordinate pair, and the server would have
+/// to decide which of the two the customer meant.
+class TripLocation {
+  const TripLocation._({
+    required this.sourceType,
+    required this.displayName,
+    required this.formattedAddress,
+    this.savedAddressId,
+    this.placeId,
     this.latitude,
     this.longitude,
-    this.placeId,
-  }) : savedAddressId = null;
+    this.city,
+    this.region,
+    this.countryCode,
+    this.postalCode,
+  });
 
-  /// Builds a draft from a saved address the customer picked.
-  factory JourneyPlaceDraft.fromSavedAddress(SavedAddress address) =>
-      JourneyPlaceDraft.saved(address.id);
+  /// A place the customer searched for and the server then resolved.
+  ///
+  /// Built from [PlaceDetails] and never from a [PlaceSuggestion], because a
+  /// suggestion has no position and the only way to give it one would be to
+  /// invent it.
+  factory TripLocation.fromPlace(PlaceDetails place) => TripLocation._(
+    sourceType: LocationSourceType.placeSearch,
+    displayName: place.displayName,
+    formattedAddress: place.formattedAddress,
+    // Normalised to null when blank. An empty id is the absence of an id, and
+    // keeping it as "" would make every unidentified place equal to every
+    // other one under [isSamePlaceAs].
+    placeId: place.placeId.trim().isEmpty ? null : place.placeId,
+    latitude: place.latitude,
+    longitude: place.longitude,
+    city: place.city,
+    region: place.region,
+    countryCode: place.countryCode,
+    postalCode: place.postalCode,
+  );
 
+  /// The device's own fix.
+  ///
+  /// [named] is the reverse-geocoded description when the server could produce
+  /// one. When it could not, the coordinates still stand — they came from the
+  /// hardware and are authoritative — and the endpoint is simply labelled
+  /// "Current location", which is true of any coordinate.
+  factory TripLocation.fromCurrentLocation({
+    required double latitude,
+    required double longitude,
+    required String fallbackLabel,
+    PlaceDetails? named,
+  }) => TripLocation._(
+    sourceType: LocationSourceType.currentLocation,
+    displayName: fallbackLabel,
+    formattedAddress: named?.formattedAddress ?? '',
+    placeId: named?.placeId,
+    latitude: latitude,
+    longitude: longitude,
+    city: named?.city,
+    region: named?.region,
+    countryCode: named?.countryCode,
+    postalCode: named?.postalCode,
+  );
+
+  /// One of the customer's saved addresses.
+  ///
+  /// Only the id crosses the wire. The server looks the address up **through the
+  /// signed-in customer's own scope** and copies the values out of the database,
+  /// so a client cannot substitute somebody else's row and cannot dictate what a
+  /// row it does own contains.
+  ///
+  /// Returns null for an address with no coordinates: it cannot be used as a
+  /// trip endpoint, and the caller must ask the customer to locate it rather
+  /// than sending it and hoping.
+  static TripLocation? fromSavedAddress(SavedAddress address) {
+    if (!address.hasCoordinates) return null;
+
+    return TripLocation._(
+      sourceType: LocationSourceType.savedAddress,
+      savedAddressId: address.id,
+      displayName: address.label,
+      formattedAddress: address.formattedAddress,
+      // Kept for the row the customer is looking at, never sent: see [toJson].
+      latitude: address.latitude,
+      longitude: address.longitude,
+      city: address.city,
+    );
+  }
+
+  final LocationSourceType sourceType;
   final String? savedAddressId;
-  final String? label;
-  final String? addressLine;
-  final String? city;
-  final String? state;
-  final String? countryCode;
+  final String displayName;
+  final String formattedAddress;
+  final String? placeId;
   final double? latitude;
   final double? longitude;
-  final String? placeId;
+  final String? city;
+  final String? region;
+  final String? countryCode;
+  final String? postalCode;
 
-  bool get isSavedAddress => savedAddressId != null;
+  bool get isSavedAddress => sourceType == LocationSourceType.savedAddress;
 
-  /// The wire form. A blank optional field is **absent**, not an empty string:
-  /// the server treats absent as "not supplied" and would store "" as a value.
+  bool get hasCoordinates => latitude != null && longitude != null;
+
+  /// What the picker row shows under the name.
+  String get secondaryLine {
+    if (formattedAddress.isNotEmpty) return formattedAddress;
+    if ((city ?? '').isNotEmpty) return city!;
+    return '';
+  }
+
+  /// Straight-line metres to another endpoint, for the client-side "these are
+  /// the same place" check.
+  ///
+  /// Advisory only — the server runs the same rule and its answer is the one
+  /// that decides. Doing it here as well is what turns a round trip and an error
+  /// banner into an inline message before the customer taps anything.
+  double? distanceInMetresTo(TripLocation other) {
+    if (!hasCoordinates || !other.hasCoordinates) return null;
+
+    const double earthRadius = 6371000;
+
+    final double phi1 = latitude! * math.pi / 180;
+    final double phi2 = other.latitude! * math.pi / 180;
+    final double deltaPhi = phi2 - phi1;
+    final double deltaLambda = (other.longitude! - longitude!) * math.pi / 180;
+
+    final double a =
+        math.pow(math.sin(deltaPhi / 2), 2) +
+        math.cos(phi1) *
+            math.cos(phi2) *
+            math.pow(math.sin(deltaLambda / 2), 2);
+
+    return earthRadius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  }
+
+  /// Whether these two ends are, for practical purposes, the same place.
+  ///
+  /// Same provider place id, or the same saved address, or close enough that
+  /// nobody would drive it. The threshold matches the server's default; the
+  /// server is still the authority.
+  bool isSamePlaceAs(TripLocation other, {double thresholdMetres = 75}) {
+    // Both identity checks require a non-empty value on this side. An absent id
+    // is not evidence of sameness, and treating "" == "" as a match would make
+    // two unrelated unidentified places the same place.
+    if ((placeId ?? '').isNotEmpty && placeId == other.placeId) return true;
+    if ((savedAddressId ?? '').isNotEmpty &&
+        savedAddressId == other.savedAddressId) {
+      return true;
+    }
+
+    final double? metres = distanceInMetresTo(other);
+
+    return metres != null && metres <= thresholdMetres;
+  }
+
+  /// The wire form.
+  ///
+  /// A saved address sends its id and **nothing else**. Sending the coordinates
+  /// alongside would create a request in which the two could disagree, and the
+  /// server would then be choosing between a value it can verify and one it
+  /// cannot.
   Map<String, dynamic> toJson() {
-    if (savedAddressId != null) {
-      return <String, dynamic>{'address_id': savedAddressId};
+    if (isSavedAddress) {
+      return <String, dynamic>{
+        'source_type': sourceType.wire,
+        'saved_address_id': savedAddressId,
+      };
     }
 
     final Map<String, dynamic> json = <String, dynamic>{
-      'city': city?.trim(),
-      'country_code': countryCode?.trim().toUpperCase(),
+      'source_type': sourceType.wire,
+      'latitude': latitude,
+      'longitude': longitude,
     };
 
     void put(String key, String? value) {
-      final String? trimmed = value?.trim();
-      if (trimmed != null && trimmed.isNotEmpty) json[key] = trimmed;
+      final String trimmed = value?.trim() ?? '';
+      if (trimmed.isNotEmpty) json[key] = trimmed;
     }
 
-    put('label', label);
-    put('address_line', addressLine);
-    put('state', state);
     put('place_id', placeId);
-
-    // Both or neither. Half a coordinate is not half a location, and the server
-    // refuses it — sending it would be a validation error the customer cannot
-    // act on, because no field on the form produced it.
-    if (latitude != null && longitude != null) {
-      json['latitude'] = latitude;
-      json['longitude'] = longitude;
-    }
+    put('display_name', displayName);
+    put('formatted_address', formattedAddress);
+    put('city', city);
+    put('region', region);
+    put('country_code', countryCode);
+    put('postal_code', postalCode);
 
     return json;
   }
 }
 
-/// A journey as the client sends it.
+/// A trip as the client sends it.
+///
+/// Two fields, because a trip is two places. Everything a caller might hope to
+/// seed — the customer id, the status, the route status, a distance, an ETA — is
+/// absent here *and* rejected there; this class simply has nowhere to put them.
 class TripDraft {
-  const TripDraft({
-    required this.origin,
-    required this.destination,
-    required this.departureAt,
-    this.expectedArrivalAt,
-    // No default. `travellerCount` is nullable because null means "the request
-    // said nothing", and a default of 1 here would make every partial update
-    // silently reset a count the customer never touched.
-    this.travellerCount,
-    this.note,
-    this.clearArrival = false,
-    this.clearNote = false,
-  });
+  const TripDraft({required this.origin, required this.destination});
 
-  final JourneyPlaceDraft? origin;
-  final JourneyPlaceDraft? destination;
+  final TripLocation origin;
+  final TripLocation destination;
 
-  /// Null on a partial update means "leave the departure alone".
-  final DateTime? departureAt;
-  final DateTime? expectedArrivalAt;
-  final int? travellerCount;
-  final String? note;
-
-  /// Explicit clears, distinguished from "not supplied" the same way the profile
-  /// form distinguishes them. Sending null for a field the customer did not
-  /// touch would erase it.
-  final bool clearArrival;
-  final bool clearNote;
-
-  Map<String, dynamic> toJson() {
-    final Map<String, dynamic> json = <String, dynamic>{};
-
-    if (origin != null) json['origin'] = origin!.toJson();
-    if (destination != null) json['destination'] = destination!.toJson();
-
-    if (departureAt != null) {
-      json['departure_at'] = departureAt!.toUtc().toIso8601String();
-    }
-
-    if (clearArrival) {
-      json['expected_arrival_at'] = null;
-    } else if (expectedArrivalAt != null) {
-      json['expected_arrival_at'] = expectedArrivalAt!
-          .toUtc()
-          .toIso8601String();
-    }
-
-    if (travellerCount != null) json['traveller_count'] = travellerCount;
-
-    if (clearNote) {
-      json['note'] = null;
-    } else {
-      final String? trimmed = note?.trim();
-      if (trimmed != null && trimmed.isNotEmpty) json['note'] = trimmed;
-    }
-
-    return json;
-  }
-}
-
-/// Which slice of a customer's journeys to ask for.
-enum TripScope {
-  upcoming('upcoming'),
-  past('past'),
-  cancelled('cancelled'),
-  all('all');
-
-  const TripScope(this.wire);
-
-  final String wire;
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'origin': origin.toJson(),
+    'destination': destination.toJson(),
+  };
 }

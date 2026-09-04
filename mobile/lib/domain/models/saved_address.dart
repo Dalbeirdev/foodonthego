@@ -141,6 +141,9 @@ class AddressDraft {
     this.landmark,
     this.postalCode,
     this.isDefault = false,
+    this.latitude,
+    this.longitude,
+    this.placeId,
   });
 
   final AddressType type;
@@ -153,6 +156,20 @@ class AddressDraft {
   final String? postalCode;
   final String countryCode;
   final bool isDefault;
+
+  /// Where the address actually is, when the customer has located it.
+  ///
+  /// Null until they do, and **never** derived from the lines above. An address
+  /// is a description of a place; a coordinate is a claim about a point on the
+  /// earth, and guessing one from the other is how a journey ends up starting
+  /// in the wrong city. An address with no position simply cannot be one end of
+  /// a trip, and the planner says so rather than working around it.
+  final double? latitude;
+  final double? longitude;
+
+  /// The provider id of the place the customer picked, kept so a later module
+  /// can re-resolve the address without asking them again.
+  final String? placeId;
 
   /// Blank optional fields are sent as absent, not as "". An empty string is not
   /// a landmark, and storing one makes every later null check wrong.
@@ -167,6 +184,14 @@ class AddressDraft {
     'postal_code': _orNull(postalCode),
     'country_code': countryCode.trim().toUpperCase(),
     'is_default': isDefault,
+    // Both or neither. Half a coordinate is not half a location, and the server
+    // refuses it — which would be a validation error no field on the form could
+    // explain.
+    if (latitude != null && longitude != null) ...<String, dynamic>{
+      'latitude': latitude,
+      'longitude': longitude,
+    },
+    if (placeId != null && placeId!.trim().isNotEmpty) 'place_id': placeId,
   };
 
   static String? _orNull(String? value) {

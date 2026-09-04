@@ -15,8 +15,7 @@ const CustomerSummary _rahul = CustomerSummary(fullName: 'Rahul Sharma');
 /// The journey the home screen renders now comes from the real trips API, so a
 /// test supplies it through the trip repository rather than through the
 /// dashboard.
-Trip _delhiToJaipur() =>
-    sampleTrip(originCity: 'Delhi', destinationCity: 'Jaipur');
+Trip _delhiToJaipur() => sampleTrip();
 
 ActiveOrderSummary _cookingOrder(DateTime now) => ActiveOrderSummary(
   reference: 'FOTG-1024',
@@ -69,7 +68,7 @@ void main() {
 
       // The rule: no empty containers. If there is no journey, there is no
       // journey heading either.
-      expect(find.text('Your next journey'), findsNothing);
+      expect(find.text('Your journey'), findsNothing);
       expect(find.text('Your order'), findsNothing);
     });
 
@@ -95,9 +94,12 @@ void main() {
     ) async {
       await pumpHome(tester, dashboard, trips: <Trip>[_delhiToJaipur()]);
 
-      expect(find.text('Your next journey'), findsOneWidget);
-      expect(find.textContaining('Delhi'), findsWidgets);
+      expect(find.text('Your journey'), findsOneWidget);
+      expect(find.textContaining('Hauz Khas'), findsWidgets);
       expect(find.textContaining('Jaipur'), findsWidgets);
+      // The card says what is known and nothing more. No distance, no travel
+      // time, no arrival — Module 06 is what puts those here.
+      expect(find.text('Route not calculated yet'), findsOneWidget);
     });
 
     testWidgets('shows no progress bar for a journey nothing is tracking', (
@@ -134,12 +136,10 @@ void main() {
       await pumpHome(
         tester,
         dashboard,
-        trips: <Trip>[
-          sampleTrip(status: TripStatus.cancelled, isEditable: false),
-        ],
+        trips: <Trip>[sampleTrip(status: TripStatus.cancelled)],
       );
 
-      expect(find.text('Your next journey'), findsNothing);
+      expect(find.text('Your journey'), findsNothing);
     });
   });
 
@@ -156,7 +156,7 @@ void main() {
         trips: <Trip>[_delhiToJaipur()],
       );
 
-      expect(find.text('Your next journey'), findsOneWidget);
+      expect(find.text('Your journey'), findsOneWidget);
       await tester.scrollUntilVisible(find.text('Your order'), 300);
       expect(find.text('Highway Spice Kitchen'), findsOneWidget);
       expect(find.textContaining('FOTG-1024'), findsOneWidget);
@@ -207,10 +207,8 @@ void main() {
           trips: FakeTripRepository(
             trips: <Trip>[
               sampleTrip(
-                originCity: 'Indira Gandhi International Airport, New Delhi',
-                destinationCity: 'Jaipur International Airport, Rajasthan',
-                travellerCount: 12,
-                note: 'Collecting three colleagues on the way out of the city',
+                originName: 'Indira Gandhi International Airport, Terminal 3',
+                destinationName: 'Jaipur International Airport, Rajasthan',
               ),
             ],
           ),
@@ -305,7 +303,7 @@ void main() {
       );
 
       expect(find.textContaining('Rahul'), findsWidgets);
-      expect(find.text('Your next journey'), findsOneWidget);
+      expect(find.text('Your journey'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

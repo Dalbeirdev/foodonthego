@@ -6,16 +6,22 @@ import '../../../core/time/journey_time.dart';
 import '../../../domain/models/trip.dart';
 import '../../../shared/widgets/fotg_card.dart';
 
-/// The customer's next journey, on the home screen.
+/// The customer's current journey, on the home screen.
 ///
 /// Deliberately not the Module 02 `RouteSummaryCard`: that one renders an
 /// `ActiveTripSummary` with progress, remaining time and a next pickup, none of
 /// which exists yet. Showing a progress bar at zero would imply the app is
 /// tracking a journey it cannot see.
 ///
-/// This card shows only what is real: where, when, and how many people.
-class NextJourneyCard extends StatelessWidget {
-  const NextJourneyCard({required this.trip, required this.onTap, super.key});
+/// This card shows only what is real: the two ends, when it was planned, and —
+/// stated rather than implied — that the route has not been worked out. Module
+/// 06 is what puts a distance and a travel time here.
+class CurrentJourneyCard extends StatelessWidget {
+  const CurrentJourneyCard({
+    required this.trip,
+    required this.onTap,
+    super.key,
+  });
 
   final Trip trip;
   final VoidCallback onTap;
@@ -63,26 +69,16 @@ class NextJourneyCard extends StatelessWidget {
             ),
             const SizedBox(height: FotgSpacing.x4),
             _Line(
-              icon: Icons.schedule_rounded,
-              label: strings.tripDeparts,
-              value: JourneyTime.full(trip.departureAt),
+              icon: Icons.alt_route_rounded,
+              label: strings.tripDetailTitle,
+              value: strings.tripRouteNotCalculated,
             ),
-            // Rendered only when the traveller stated one. A row reading "Arrives:
-            // not set" on the home screen is a blank the customer has to interpret.
-            if (trip.expectedArrivalAt != null) ...<Widget>[
+            if (trip.createdAt != null) ...<Widget>[
               const SizedBox(height: FotgSpacing.x2),
               _Line(
-                icon: Icons.flag_rounded,
-                label: strings.tripArrives,
-                value: JourneyTime.full(trip.expectedArrivalAt!),
-              ),
-            ],
-            if (trip.travellerCount > 1) ...<Widget>[
-              const SizedBox(height: FotgSpacing.x2),
-              _Line(
-                icon: Icons.group_rounded,
-                label: strings.tripFormTravellers,
-                value: strings.tripTravellers(trip.travellerCount),
+                icon: Icons.schedule_rounded,
+                label: strings.tripCreatedAtLabel,
+                value: JourneyTime.full(trip.createdAt!),
               ),
             ],
           ],

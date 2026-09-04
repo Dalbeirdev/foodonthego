@@ -281,80 +281,121 @@ class AppStrings {
   String get tripsTitle => 'Your journeys';
   String get tripsPlan => 'Plan a journey';
   String get tripsPlanFirst => 'Plan your first journey';
-  String get tripsScopeUpcoming => 'Upcoming';
-  String get tripsScopePast => 'Past';
-  String get tripsScopeCancelled => 'Cancelled';
-  String get tripsPastEmptyTitle => 'No past journeys';
-  String get tripsPastEmptyBody =>
-      'Journeys you have travelled will be listed here.';
-  String get tripsCancelledEmptyTitle => 'No cancelled journeys';
+  String get tripsScopeOpen => 'Planned';
+  String get tripsScopeCancelled => 'Discarded';
+  String get tripsCancelledEmptyTitle => 'Nothing discarded';
   String get tripsCancelledEmptyBody =>
       'Journeys you call off will be listed here.';
   String get tripsLoadFailed => "We couldn't load your journeys.";
   String tripOptionsFor(String route) => 'Options for $route';
-  String get tripDeparts => 'Departs';
-  String get tripArrives => 'Arrives';
-  String get tripArrivalUnknown => 'Not set';
-  String get tripCancelledLabel => 'CANCELLED';
-  String get tripDepartedLabel => 'Departed';
-  String tripTravellers(int count) =>
-      count == 1 ? '1 traveller' : '$count travellers';
+  String get tripCancelledLabel => 'DISCARDED';
 
-  // --- trips: the planner form ---------------------------------------------
-  String get tripFormPlanTitle => 'Plan a journey';
-  String get tripFormEditTitle => 'Edit journey';
-  String get tripFormFrom => 'Setting off from';
-  String get tripFormTo => 'Going to';
-  String get tripFormFromHint => 'Choose your starting point';
-  String get tripFormToHint => 'Choose your destination';
-  String get tripFormDeparture => 'Departure';
-  String get tripFormDepartureDate => 'Date';
-  String get tripFormDepartureTime => 'Time';
-  String get tripFormArrival => 'Expected arrival (optional)';
-  String get tripFormArrivalHelp =>
-      'Only if you know it. FoodOnTheGo will work it out for you once route planning arrives.';
-  String get tripFormArrivalClear => 'Clear';
-  String get tripFormTravellers => 'Travellers';
-  String get tripTravellersFewer => 'One fewer traveller';
-  String get tripTravellersMore => 'One more traveller';
-  String get tripFormNote => 'Note (optional)';
-  String get tripFormNoteHint => 'Anything the kitchen should know';
-  String get tripFormSave => 'Save journey';
-  String get tripFormUpdate => 'Save changes';
-  String get tripPlanned => 'Journey saved';
-  String get tripUpdated => 'Journey updated';
+  /// What the app can honestly say about a journey before Module 06 exists.
+  ///
+  /// Not "0 km", not "about 5 hours", not a progress bar. There is no route
+  /// yet — no distance, no travel time, no corridor — and a placeholder number
+  /// is read as a real one by everybody who sees it.
+  String get tripRouteNotCalculated => 'Route not calculated yet';
+  String get tripCreatedAtLabel => 'Planned';
+
+  // --- trips: the planner ---------------------------------------------------
+  String get tripPlannerTitle => 'Plan a journey';
+  String get tripPlannerFrom => 'Setting off from';
+  String get tripPlannerTo => 'Going to';
+  String get tripPlannerFromHint => 'Choose your starting point';
+  String get tripPlannerToHint => 'Choose your destination';
+  String get tripPlannerSwap => 'Swap starting point and destination';
+  String get tripPlannerClear => 'Clear';
+  String tripPlannerClearFor(String label) => 'Clear $label';
+  String get tripPlannerCreate => 'Create journey';
+  String get tripPlannerCreating => 'Creating your journey…';
+  String get tripCreated => 'Journey created';
+
+  /// Said on the planner, plainly, so nobody waits for a map that is not coming.
+  String get tripPlannerRouteLater =>
+      'Route and travel time arrive with the next release. This saves where you '
+      'are going.';
 
   // --- trips: choosing a place ---------------------------------------------
-  String get placePickerTitle => 'Choose a place';
-  String get placePickerSaved => 'Your saved addresses';
-  String get placePickerTypeOne => 'Enter a different place';
-  String get placePickerNoSaved =>
-      'You have no saved addresses yet. Enter a place below.';
-  String get placeFormCity => 'City';
-  String get placeFormCityHint => 'New Delhi';
-  String get placeFormArea => 'Area or street (optional)';
-  String get placeFormState => 'State (optional)';
-  String get placeFormLabel => 'Name this place (optional)';
-  String get placeFormCountry => 'Country';
-  String get placeUse => 'Use this place';
+  String get placePickerOriginTitle => 'Where are you setting off from?';
+  String get placePickerDestinationTitle => 'Where are you going?';
+  String get placePickerCurrentLocation => 'Use my current location';
+  String get placePickerCurrentLocationHint => 'We ask your device just once';
+  String get placePickerLocating => 'Finding you…';
+  String get placePickerSaved => 'Saved addresses';
+  String get placePickerSavedEmpty =>
+      'You have no saved addresses yet. Search for a place instead.';
+  String get placePickerSearchLabel => 'Search for a place';
+  String get placePickerSearchHint => 'Airport, station, hotel, area…';
+  String get placePickerSearchClear => 'Clear the search';
+  String get placePickerTypeMore => 'Keep typing to search.';
+  String get placePickerNoResults =>
+      'No places matched that. Try a different spelling or a nearby landmark.';
+  String get placePickerSearchFailed =>
+      "We couldn't search for places just now.";
+  String get placePickerResolveFailed =>
+      "We couldn't pin down that place. Choose another result.";
+  String get placePickerManageAddresses => 'Manage saved addresses';
 
-  // --- trips: detail and cancelling ----------------------------------------
+  /// A saved address that was never located. Offering it anyway would mean
+  /// inventing a position for it.
+  String get placeSavedNotLocated => 'No location saved';
+  String get placeSavedNotLocatedHelp =>
+      'This address has no location saved, so it cannot be one end of a '
+      'journey. Search for it instead.';
+
+  // --- addresses: locating one ---------------------------------------------
+  String get addressLocationHeading => 'Location';
+  String get addressNotLocated => 'Not located yet';
+  String get addressLocateCta => 'Find this address';
+  String get addressChangeLocation => 'Change';
+  String get addressLocateHelp =>
+      'Locate an address and you can set off from it, or travel to it, without '
+      'typing it again.';
+  String get addressLocateSheetTitle => 'Find this address';
+
+  // --- trips: location permission ------------------------------------------
+  String get locationDeniedTitle => 'Location not shared';
+  String get locationDeniedBody =>
+      'No problem — search for your starting point instead, or allow location '
+      'and try again.';
+  String get locationDeniedForeverTitle => 'Location is blocked';
+  String get locationDeniedForeverBody =>
+      'Location is turned off for FoodOnTheGo in your device settings. You can '
+      'turn it back on there, or just search for your starting point.';
+  String get locationOpenSettings => 'Open settings';
+  String get locationSettingsUnavailable =>
+      'We could not open settings. You will find FoodOnTheGo under your '
+      "device's app permissions.";
+  String get locationServicesOffTitle => 'Location is switched off';
+  String get locationServicesOffBody =>
+      'Location services are off on this device. Turn them on, or search for '
+      'your starting point instead.';
+  String get locationTimeoutTitle => 'We could not find you';
+  String get locationTimeoutBody =>
+      'Your device did not report a location in time. This is common indoors. '
+      'Try again, or search for your starting point.';
+  String get locationUnavailableTitle => 'Location unavailable';
+  String get locationUnavailableBody =>
+      'Your device could not provide a location. Search for your starting '
+      'point instead.';
+  String get locationRetry => 'Try again';
+  String get locationSearchInstead => 'Search instead';
+  String get locationCoarseWarning =>
+      'This location is approximate. Check it is where you are setting off '
+      'from.';
+
+  // --- trips: detail and discarding ----------------------------------------
   String get tripDetailTitle => 'Journey';
-  String get tripDetailEdit => 'Edit journey';
-  String get tripDetailCancel => 'Cancel journey';
-  String get tripCancelTitle => 'Cancel this journey?';
-  String get tripCancelBody =>
-      'The journey stays in your history, marked as cancelled.';
-  String get tripCancelReason => 'Reason (optional)';
-  String get tripCancelConfirm => 'Cancel journey';
-  String get tripCancelKeep => 'Keep it';
-  String get tripCancelled => 'Journey cancelled';
-  String get tripNoteHeading => 'Your note';
-  String get tripCancellationHeading => 'Why it was cancelled';
-  String get tripReadOnlyDeparted =>
-      'This journey has departed, so it can no longer be changed.';
+  String get tripDetailDiscard => 'Discard journey';
+  String get tripDiscardTitle => 'Discard this journey?';
+  String get tripDiscardBody =>
+      'The journey stays in your history, marked as discarded.';
+  String get tripDiscardConfirm => 'Discard';
+  String get tripDiscardKeep => 'Keep it';
+  String get tripDiscarded => 'Journey discarded';
   String get tripReadOnlyCancelled =>
-      'This journey is cancelled, so it can no longer be changed.';
+      'This journey is discarded, so it can no longer be changed.';
 
   // --- trips: validation and failure ---------------------------------------
   String get tripErrorOriginRequired =>
@@ -362,20 +403,20 @@ class AppStrings {
   String get tripErrorDestinationRequired => 'Choose where you are going.';
   String get tripErrorSamePlace =>
       'Choose a destination different from your starting point.';
-  String get tripErrorDepartureRequired => 'Choose when you are setting off.';
-  String get tripErrorDeparturePast => 'Choose a departure time in the future.';
-  String get tripErrorArrivalBeforeDeparture =>
-      'Arrival has to be after departure.';
-  String get tripErrorCityRequired => 'Enter the city.';
-  String get tripErrorCountry => 'Country must be a two-letter code, like IN.';
+  String get tripErrorInvalidCoordinates =>
+      "That place has no location we can use. Choose another.";
+  String get tripErrorSavedAddressNotLocated =>
+      'That saved address has no location saved. Search for it instead.';
   String get tripErrorNotEditable =>
       'This journey can no longer be changed. Pull to refresh.';
   String get tripErrorGone => 'That journey is no longer on your account.';
+  String get tripErrorCreateFailed =>
+      "We couldn't create that journey. Please try again.";
   String tripErrorLimit(int limit) =>
-      'You can have up to $limit upcoming journeys. Cancel one to plan another.';
+      'You can have up to $limit planned journeys. Discard one to plan another.';
 
-  // --- home: the next journey ----------------------------------------------
-  String get homeNextJourney => 'Your next journey';
+  // --- home: the current journey -------------------------------------------
+  String get homeCurrentJourney => 'Your journey';
   String get homeJourneyViewAll => 'All journeys';
 
   // --- development scaffolding (never shown in production) -----------------

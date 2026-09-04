@@ -8,22 +8,22 @@ import '../../../domain/models/trip.dart';
 /// One journey in the list.
 ///
 /// The row leads with the route, because "New Delhi → Jaipur" is how somebody
-/// identifies their own journey; the departure is the second line, because it is
-/// how they tell two journeys on the same route apart.
+/// identifies their own journey. The second line says what the app actually
+/// knows — that no route has been calculated — rather than a distance or a
+/// travel time it would have to invent. Module 06 replaces that line with the
+/// real thing; until then a placeholder number would be read as a real one.
 class TripListItem extends StatelessWidget {
   const TripListItem({
     required this.trip,
     required this.onOpen,
-    this.onEdit,
-    this.onCancel,
+    this.onDiscard,
     this.busy = false,
     super.key,
   });
 
   final Trip trip;
   final VoidCallback onOpen;
-  final VoidCallback? onEdit;
-  final VoidCallback? onCancel;
+  final VoidCallback? onDiscard;
 
   /// True while one of this row's actions is in flight. The row disables itself
   /// rather than the screen freezing, so the rest of the list stays usable.
@@ -60,30 +60,33 @@ class TripListItem extends StatelessWidget {
                     ),
                     const SizedBox(height: FotgSpacing.x1),
                     Text(
-                      JourneyTime.compact(trip.departureAt),
+                      // Not a distance and not an ETA. There is no route yet,
+                      // and this line says so in as many words. `hasRoute` is
+                      // read from the server rather than assumed, so the day
+                      // Module 06 starts filling it this line is the one place
+                      // that changes.
+                      strings.tripRouteNotCalculated,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    if (trip.travellerCount > 1) ...<Widget>[
+                    if (trip.createdAt != null) ...<Widget>[
                       const SizedBox(height: FotgSpacing.x1),
                       Text(
-                        strings.tripTravellers(trip.travellerCount),
+                        '${strings.tripCreatedAtLabel} ${JourneyTime.compact(trip.createdAt!)}',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
-                    if (trip.isCancelled || trip.hasDeparted) ...<Widget>[
+                    if (trip.isCancelled) ...<Widget>[
                       const SizedBox(height: FotgSpacing.x2),
                       _StateBadge(
                         // Spelled out as words, never signalled by colour alone:
-                        // a cancelled journey has to read as cancelled to
+                        // a discarded journey has to read as discarded to
                         // somebody who cannot distinguish the two greys.
-                        label: trip.isCancelled
-                            ? strings.tripCancelledLabel
-                            : strings.tripDepartedLabel,
-                        emphasis: trip.isCancelled,
+                        label: strings.tripCancelledLabel,
+                        emphasis: true,
                       ),
                     ],
                   ],
@@ -98,8 +101,8 @@ class TripListItem extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 )
-              else if (onEdit != null || onCancel != null)
-                _RowActions(trip: trip, onEdit: onEdit, onCancel: onCancel),
+              else if (onDiscard != null)
+                _RowActions(trip: trip, onDiscard: onDiscard),
             ],
           ),
         ),
@@ -116,7 +119,7 @@ class _RouteIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final bool dimmed = trip.isCancelled || trip.hasDeparted;
+    final bool dimmed = trip.isCancelled;
 
     final Color background = dimmed
         ? theme.colorScheme.surfaceContainerHighest
@@ -181,11 +184,10 @@ class _StateBadge extends StatelessWidget {
 /// tells somebody nothing about which journey they are on. The Module 04 row
 /// menu learned this the hard way.
 class _RowActions extends StatelessWidget {
-  const _RowActions({required this.trip, this.onEdit, this.onCancel});
+  const _RowActions({required this.trip, this.onDiscard});
 
   final Trip trip;
-  final VoidCallback? onEdit;
-  final VoidCallback? onCancel;
+  final VoidCallback? onDiscard;
 
   @override
   Widget build(BuildContext context) {
@@ -195,17 +197,14 @@ class _RowActions extends StatelessWidget {
       tooltip: strings.tripOptionsFor(trip.routeSummary),
       icon: const Icon(Icons.more_vert_rounded),
       onSelected: (int value) {
-        if (value == 0) onEdit?.call();
-        if (value == 1) onCancel?.call();
+        if (value == 0) onDiscard?.call();
       },
       itemBuilder: (BuildContext context) => <PopupMenuEntry<int>>[
-        if (onEdit != null)
-          PopupMenuItem<int>(value: 0, child: Text(strings.tripDetailEdit)),
-        if (onCancel != null)
+        if (onDiscard != null)
           PopupMenuItem<int>(
-            value: 1,
+            value: 0,
             child: Text(
-              strings.tripDetailCancel,
+              strings.tripDetailDiscard,
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),

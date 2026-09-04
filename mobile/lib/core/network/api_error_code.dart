@@ -40,9 +40,34 @@ enum ApiErrorCode {
   tripNotFound('TRIP_NOT_FOUND'),
   tripLimitReached('TRIP_LIMIT_REACHED'),
 
-  /// The journey has departed or been cancelled, so there is nothing left to
-  /// change. Almost always means the screen in front of the customer is stale.
+  /// The trip has already been discarded, so there is nothing left to change.
+  /// Almost always means the screen in front of the customer is stale.
   tripNotEditable('TRIP_NOT_EDITABLE'),
+
+  /// The trip could not be written. Distinct from a validation failure: nothing
+  /// the customer typed is wrong, so the screen offers a retry rather than
+  /// pointing at a field.
+  tripCreateFailed('TRIP_CREATE_FAILED'),
+
+  originRequired('ORIGIN_REQUIRED'),
+  destinationRequired('DESTINATION_REQUIRED'),
+
+  /// Both ends resolve to the same place.
+  sameLocation('SAME_LOCATION'),
+
+  /// A coordinate outside the possible range, or the (0, 0) sentinel that means
+  /// "nothing ever set this".
+  invalidCoordinates('INVALID_COORDINATES'),
+
+  /// A saved address the customer chose has never been located, so it cannot be
+  /// one end of a journey. The answer is to locate it — never to invent a
+  /// position for it.
+  savedAddressNotLocated('SAVED_ADDRESS_NOT_LOCATED'),
+
+  /// The place provider failed. Ours, not the customer's.
+  placeLookupFailed('PLACE_LOOKUP_FAILED'),
+
+  placeNotFound('PLACE_NOT_FOUND'),
 
   /// The request never reached the server, or never came back.
   network('NETWORK'),
@@ -73,7 +98,11 @@ enum ApiErrorCode {
     ApiErrorCode.network ||
     ApiErrorCode.serverError ||
     ApiErrorCode.dependencyUnavailable ||
-    ApiErrorCode.otpSendFailed => true,
+    ApiErrorCode.otpSendFailed ||
+    // Ours failing, not the customer's request being wrong. The same query a
+    // moment later may well work, so "Try again" is the honest control.
+    ApiErrorCode.placeLookupFailed ||
+    ApiErrorCode.tripCreateFailed => true,
     _ => false,
   };
 }

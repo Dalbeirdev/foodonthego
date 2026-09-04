@@ -5,451 +5,439 @@ import 'package:foodonthego/core/network/api_exception.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
 import 'package:foodonthego/domain/models/saved_address.dart';
-import 'package:foodonthego/domain/models/trip.dart';
-import 'package:foodonthego/features/trips/trip_form_screen.dart';
-import 'package:foodonthego/features/trips/trips_screen.dart';
+import 'package:foodonthego/features/trips/trip_planner_screen.dart';
+import 'package:foodonthego/features/trips/widgets/location_picker_sheet.dart';
 
 import 'support/harness.dart';
 
+/// The planner: choose two places, create a journey, stop.
+///
+/// A recurring assertion throughout: no screen in this module renders a
+/// distance, a duration or an arrival time, because no journey has one. Several
+/// of these tests exist purely to fail if somebody adds a plausible-looking
+/// placeholder.
 void main() {
-  const HomeDashboard dashboard = HomeDashboard(
-    customer: CustomerSummary(fullName: 'Rahul Sharma'),
+  SavedAddress home({
+    double? latitude = 28.5494,
+    double? longitude = 77.2001,
+  }) => SavedAddress(
+    id: 'addr-home',
+    type: AddressType.home,
+    label: 'Home',
+    addressLine1: '12 Hauz Khas',
+    city: 'New Delhi',
+    state: 'Delhi',
+    countryCode: 'IN',
+    formattedAddress: '12 Hauz Khas, New Delhi, Delhi 110016',
+    latitude: latitude,
+    longitude: longitude,
+    isDefault: true,
   );
 
-  /// Opens the planner from the Trips tab, the way a customer reaches it.
-  Future<FakeTripRepository> openPlanner(
+  Future<void> openPlanner(
     WidgetTester tester, {
-    FakeTripRepository? repository,
-    List<SavedAddress> addresses = const <SavedAddress>[],
-    Size size = const Size(390, 844),
+    FakeTripRepository? trips,
+    FakePlaceRepository? places,
+    FakeLocationService? location,
+    FakeCustomerRepository? customer,
   }) async {
-    final FakeTripRepository trips = repository ?? FakeTripRepository();
+    usePhoneSurface(tester);
 
-    usePhoneSurface(tester, size: size);
     await tester.pumpWidget(
       wrapApp(
-        repository: StubHomeRepository.value(dashboard),
+        repository: StubHomeRepository.value(
+          const HomeDashboard(
+            customer: CustomerSummary(fullName: 'Rahul Sharma'),
+          ),
+        ),
         trips: trips,
-        customer: FakeCustomerRepository(addresses: addresses),
-        initialLocation: '/trips',
+        places: places,
+        location: location,
+        customer: customer,
+        initialLocation: '/trips/plan',
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Plan your first journey'));
-    await tester.pumpAndSettle();
-
-    return trips;
+    expect(find.byType(TripPlannerScreen), findsOneWidget);
   }
 
-  /// Fills one end of the journey through the picker's typed branch.
-  Future<void> choosePlace(
-    WidgetTester tester, {
-    required String field,
-    required String city,
-    String? label,
+  /// Inside the picker sheet only.
+  ///
+  /// Scoped because the bottom navigation bar behind the sheet has a tab called
+  /// "Home", and a saved address called Home is exactly the case this module
+  /// has to get right.
+  Finder inSheet(String text) => find.descendant(
+    of: find.byType(LocationPickerSheet),
+    matching: find.text(text),
+  );
+
+  /// Picks a saved address for whichever end the label names.
+  Future<void> chooseSaved(
+    WidgetTester tester,
+    String slotLabel,
+    String addressLabel,
+  ) async {
+    await tester.tap(find.text(slotLabel));
+    await tester.pumpAndSettle();
+    await tester.tap(inSheet(addressLabel));
+    await tester.pumpAndSettle();
+  }
+
+  /// Picks the Jaipur airport suggestion for whichever end the label names.
+  Future<void> searchAndChoose(
+    WidgetTester tester,
+    String slotLabel, {
+    String query = 'jaipur',
+    String expect_ = 'Jaipur International Airport',
   }) async {
-    await tester.tap(find.text(field));
+    await tester.tap(find.text(slotLabel));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.widgetWithText(TextFormField, 'City'), city);
+    await tester.enterText(find.byType(TextField).first, query);
+    // Past the debounce, then let the answer land.
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
 
-    if (label != null) {
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Name this place (optional)'),
-        label,
-      );
-    }
-
-    await tester.tap(find.text('Use this place'));
+    await tester.tap(find.text(expect_).last);
     await tester.pumpAndSettle();
   }
 
-  group('the form', () {
-    testWidgets('opens with both ends empty and a departure suggested', (
+  group('choosing the two ends', () {
+    testWidgets('opens with both ends empty and nothing invented', (
       WidgetTester tester,
     ) async {
       await openPlanner(tester);
 
       expect(find.text('Choose your starting point'), findsOneWidget);
       expect(find.text('Choose your destination'), findsOneWidget);
-      // A departure is pre-filled to the next quarter hour: most journeys are
-      // planned for soon, and an empty field is one more thing to fill in.
-      expect(
-        find.text('Not set'),
-        findsOneWidget,
-      ); // the arrival, not departure
+      // Nothing has been assumed about where the customer is.
+      expect(find.textContaining('km'), findsNothing);
     });
 
-    testWidgets('says plainly that arrival is not computed yet', (
+    testWidgets('a searched place becomes the destination', (
+      WidgetTester tester,
+    ) async {
+      final FakePlaceRepository places = FakePlaceRepository();
+      await openPlanner(tester, places: places);
+
+      await searchAndChoose(tester, 'Going to');
+
+      expect(find.text('Jaipur International Airport'), findsOneWidget);
+      expect(find.text('Choose your destination'), findsNothing);
+      // The suggestion had no position; the details call is what gave it one.
+      expect(places.detailsCount, 1);
+    });
+
+    testWidgets('the details call carries the search session token', (
+      WidgetTester tester,
+    ) async {
+      final FakePlaceRepository places = FakePlaceRepository();
+      await openPlanner(tester, places: places);
+
+      await searchAndChoose(tester, 'Going to');
+
+      final Set<String?> tokens = places.sessionTokens.toSet();
+      expect(tokens.length, 1);
+      expect(tokens.single, isNotNull);
+    });
+
+    testWidgets('the current location becomes the origin', (
       WidgetTester tester,
     ) async {
       await openPlanner(tester);
 
-      expect(
-        find.textContaining('FoodOnTheGo will work it out for you'),
-        findsOneWidget,
-      );
+      await chooseSaved(tester, 'Setting off from', 'Use my current location');
+
+      expect(find.text('Choose your starting point'), findsNothing);
     });
 
-    testWidgets('refuses to save without a starting point or destination', (
-      WidgetTester tester,
-    ) async {
-      final FakeTripRepository trips = await openPlanner(tester);
-
-      await tester.tap(find.text('Save journey'));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text('Choose where you are setting off from.'),
-        findsOneWidget,
+    testWidgets('a saved address becomes an end', (WidgetTester tester) async {
+      await openPlanner(
+        tester,
+        customer: FakeCustomerRepository(addresses: <SavedAddress>[home()]),
       );
-      expect(find.text('Choose where you are going.'), findsOneWidget);
-      // Nothing was sent. A form that fires a request it knows will fail wastes
-      // a round trip and a traveller's data.
-      expect(trips.planCount, 0);
+
+      await chooseSaved(tester, 'Setting off from', 'Home');
+
+      expect(find.bySemanticsLabel('Setting off from, Home'), findsOneWidget);
     });
 
     testWidgets(
-      'refuses the same place at both ends before asking the server',
+      'a saved address with no location is explained, not silently placed',
       (WidgetTester tester) async {
-        final FakeTripRepository trips = await openPlanner(tester);
+        await openPlanner(
+          tester,
+          customer: FakeCustomerRepository(
+            addresses: <SavedAddress>[home(latitude: null, longitude: null)],
+          ),
+        );
 
-        await choosePlace(tester, field: 'Setting off from', city: 'Jaipur');
-        await choosePlace(tester, field: 'Going to', city: 'Jaipur');
-
-        await tester.tap(find.text('Save journey'));
+        await tester.tap(find.text('Setting off from'));
         await tester.pumpAndSettle();
 
-        expect(
-          find.text('Choose a destination different from your starting point.'),
-          findsOneWidget,
-        );
-        expect(trips.planCount, 0);
+        expect(inSheet('No location saved'), findsOneWidget);
+
+        await tester.tap(inSheet('Home'));
+        await tester.pumpAndSettle();
+
+        // Not chosen, and not given a plausible coordinate. The sheet stays
+        // open, says why, and points at the search box.
+        expect(find.textContaining('Search for it instead'), findsOneWidget);
+        expect(find.byType(LocationPickerSheet), findsOneWidget);
+        expect(find.text('Choose your starting point'), findsOneWidget);
       },
     );
-
-    testWidgets('a complete journey is saved and reported once', (
-      WidgetTester tester,
-    ) async {
-      final FakeTripRepository trips = await openPlanner(tester);
-
-      await choosePlace(
-        tester,
-        field: 'Setting off from',
-        city: 'New Delhi',
-        label: 'Home',
-      );
-      await choosePlace(tester, field: 'Going to', city: 'Jaipur');
-
-      await tester.tap(find.text('Save journey'));
-      await tester.pumpAndSettle();
-
-      expect(trips.planCount, 1);
-      // Back on the list, with the confirmation — and only after the server said
-      // so, which is what the fake's own rules enforce.
-      expect(find.byType(TripsScreen), findsOneWidget);
-      expect(find.text('Journey saved'), findsOneWidget);
-    });
-
-    testWidgets('the draft carries what the customer chose', (
-      WidgetTester tester,
-    ) async {
-      final FakeTripRepository trips = await openPlanner(tester);
-
-      await choosePlace(
-        tester,
-        field: 'Setting off from',
-        city: 'New Delhi',
-        label: 'Home',
-      );
-      await choosePlace(tester, field: 'Going to', city: 'Jaipur');
-
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Note (optional)'),
-        'Collecting my sister',
-      );
-      await tester.tap(find.byTooltip('One more traveller'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Save journey'));
-      await tester.pumpAndSettle();
-
-      final Map<String, dynamic> json = trips.lastDraft!.toJson();
-
-      expect(json['traveller_count'], 2);
-      expect(json['note'], 'Collecting my sister');
-      expect((json['origin'] as Map<String, dynamic>)['city'], 'New Delhi');
-    });
-
-    testWidgets('no coordinates are invented for a typed place', (
-      WidgetTester tester,
-    ) async {
-      final FakeTripRepository trips = await openPlanner(tester);
-
-      await choosePlace(tester, field: 'Setting off from', city: 'New Delhi');
-      await choosePlace(tester, field: 'Going to', city: 'Jaipur');
-
-      await tester.tap(find.text('Save journey'));
-      await tester.pumpAndSettle();
-
-      final Map<String, dynamic> origin =
-          trips.lastDraft!.toJson()['origin'] as Map<String, dynamic>;
-
-      // Nothing on this screen geocoded anything, so nothing pretends to have.
-      expect(origin.containsKey('latitude'), isFalse);
-      expect(origin.containsKey('longitude'), isFalse);
-      expect(origin.containsKey('place_id'), isFalse);
-    });
-
-    testWidgets('a second tap cannot plan the journey twice', (
-      WidgetTester tester,
-    ) async {
-      final FakeTripRepository trips = await openPlanner(tester);
-
-      await choosePlace(tester, field: 'Setting off from', city: 'New Delhi');
-      await choosePlace(tester, field: 'Going to', city: 'Jaipur');
-
-      await tester.tap(find.text('Save journey'));
-      // Deliberately not settled: the save is still in flight.
-      await tester.pump();
-      await tester.tap(find.text('Save journey'), warnIfMissed: false);
-      await tester.pumpAndSettle();
-
-      expect(trips.planCount, 1);
-    });
   });
 
-  group('the two layout rules Module 04 learned', () {
-    testWidgets('every field validates even on a screen too short to show it', (
-      WidgetTester tester,
-    ) async {
-      // The Module 04 defect: a ListView builds lazily, so a field scrolled out
-      // of view is never registered with the Form and validate() skips it in
-      // silence. On a 320x568 surface most of this form is off screen.
-      final FakeTripRepository trips = await openPlanner(
+  group('swap and clear', () {
+    testWidgets('swap turns the journey round', (WidgetTester tester) async {
+      await openPlanner(
         tester,
-        size: const Size(320, 568),
+        customer: FakeCustomerRepository(addresses: <SavedAddress>[home()]),
       );
 
-      await tester.tap(find.text('Save journey'));
+      await chooseSaved(tester, 'Setting off from', 'Home');
+      await searchAndChoose(tester, 'Going to');
+
+      await tester.tap(find.byIcon(Icons.swap_vert_rounded));
       await tester.pumpAndSettle();
 
+      // Both are still chosen; they have changed places. Asserted through the
+      // rows' own semantics so this cannot pass on text that happens to appear
+      // twice.
       expect(
-        find.text('Choose where you are setting off from.'),
+        find.bySemanticsLabel('Setting off from, Jaipur International Airport'),
         findsOneWidget,
       );
-      expect(trips.planCount, 0);
+      expect(find.bySemanticsLabel('Going to, Home'), findsOneWidget);
     });
 
-    testWidgets('the action is reachable on the shortest supported screen', (
-      WidgetTester tester,
-    ) async {
-      await openPlanner(tester, size: const Size(320, 568));
+    testWidgets('swap works with one end chosen', (WidgetTester tester) async {
+      await openPlanner(tester);
 
-      // Pinned above the keyboard rather than placed after the last field,
-      // where it sat under the bottom navigation bar and the tap went to the
-      // wrong widget.
-      expect(find.text('Save journey'), findsOneWidget);
-      expect(tester.getSize(find.text('Save journey')).height, greaterThan(0));
-      expect(tester.takeException(), isNull);
+      await searchAndChoose(tester, 'Setting off from');
+      await tester.tap(find.byIcon(Icons.swap_vert_rounded));
+      await tester.pumpAndSettle();
+
+      // Somebody who typed their destination into the wrong box gets what they
+      // expect rather than nothing.
+      expect(
+        find.bySemanticsLabel('Going to, Jaipur International Airport'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel('Setting off from, Choose your starting point'),
+        findsOneWidget,
+      );
     });
-  });
 
-  group('saved addresses in the picker', () {
-    testWidgets("a customer's saved places are offered first", (
+    testWidgets('clear empties one end and leaves the other', (
       WidgetTester tester,
     ) async {
       await openPlanner(
         tester,
-        addresses: <SavedAddress>[
-          sampleAddress(id: 'a1', label: 'Home'),
-          sampleAddress(id: 'a2', label: 'Work', type: AddressType.work),
-        ],
+        customer: FakeCustomerRepository(addresses: <SavedAddress>[home()]),
       );
 
-      await tester.tap(find.text('Setting off from'));
+      await chooseSaved(tester, 'Setting off from', 'Home');
+      await searchAndChoose(tester, 'Going to');
+
+      await tester.tap(find.byTooltip('Clear Setting off from'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Your saved addresses'), findsOneWidget);
-      // Scoped to the sheet's rows: the bottom navigation bar also says "Home".
-      expect(
-        find.descendant(of: find.byType(ListTile), matching: find.text('Home')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: find.byType(ListTile), matching: find.text('Work')),
-        findsOneWidget,
-      );
+      expect(find.text('Choose your starting point'), findsOneWidget);
+      expect(find.text('Jaipur International Airport'), findsOneWidget);
     });
+  });
 
-    testWidgets('picking one sends its id, not a copy of its text', (
+  group('validation', () {
+    testWidgets('creating with nothing chosen names the missing end', (
       WidgetTester tester,
     ) async {
-      final FakeTripRepository trips = await openPlanner(
-        tester,
-        addresses: <SavedAddress>[sampleAddress(id: 'a1', label: 'Home')],
+      final FakeTripRepository trips = FakeTripRepository();
+      await openPlanner(tester, trips: trips);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create journey'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Choose where you are setting off from.'),
+        findsOneWidget,
       );
-
-      await tester.tap(find.text('Setting off from'));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.descendant(of: find.byType(ListTile), matching: find.text('Home')),
-      );
-      await tester.pumpAndSettle();
-
-      await choosePlace(tester, field: 'Going to', city: 'Jaipur');
-
-      await tester.tap(find.text('Save journey'));
-      await tester.pumpAndSettle();
-
-      final Map<String, dynamic> origin =
-          trips.lastDraft!.toJson()['origin'] as Map<String, dynamic>;
-
-      // The id alone. The server resolves it through its own ownership check and
-      // snapshots it — a client-side copy would skip that check entirely.
-      expect(origin, <String, dynamic>{'address_id': 'a1'});
+      // Nothing was sent. A round trip to be told what the screen already knew
+      // is a round trip a traveller in a dead zone does not get.
+      expect(trips.createCount, 0);
     });
 
-    testWidgets('an account with none is told so, not shown an empty list', (
+    testWidgets('with only an origin, it names the destination', (
+      WidgetTester tester,
+    ) async {
+      final FakeTripRepository trips = FakeTripRepository();
+      await openPlanner(tester, trips: trips);
+
+      await searchAndChoose(tester, 'Setting off from');
+      await tester.tap(find.widgetWithText(FilledButton, 'Create journey'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Choose where you are going.'), findsOneWidget);
+      expect(trips.createCount, 0);
+    });
+
+    testWidgets('the same place at both ends is refused before sending', (
+      WidgetTester tester,
+    ) async {
+      final FakeTripRepository trips = FakeTripRepository();
+      await openPlanner(tester, trips: trips);
+
+      await searchAndChoose(tester, 'Setting off from');
+      await searchAndChoose(tester, 'Going to');
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create journey'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Choose a destination different from your starting point.'),
+        findsOneWidget,
+      );
+      expect(trips.createCount, 0);
+    });
+
+    testWidgets('the screen says nothing until an attempt is made', (
       WidgetTester tester,
     ) async {
       await openPlanner(tester);
 
-      await tester.tap(find.text('Setting off from'));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.textContaining('You have no saved addresses yet'),
-        findsOneWidget,
-      );
+      // Somebody who has just arrived is not scolded for not having filled in
+      // a form they have not touched.
+      expect(find.text('Choose where you are setting off from.'), findsNothing);
     });
   });
 
-  group('when the server refuses', () {
-    testWidgets('a field error lands on its field, not in a snackbar', (
+  group('creating', () {
+    testWidgets('sends two places and nothing else', (
       WidgetTester tester,
     ) async {
-      final FakeTripRepository trips = await openPlanner(tester);
-
-      trips.nextWriteError = const ApiException(
-        code: ApiErrorCode.validationFailed,
-        message: 'server prose the app never shows',
-        status: 422,
-        details: <String, dynamic>{
-          'fields': <String, dynamic>{
-            'departure_at': <String>['Choose a departure time in the future.'],
-          },
-        },
-      );
-
-      await choosePlace(tester, field: 'Setting off from', city: 'New Delhi');
-      await choosePlace(tester, field: 'Going to', city: 'Jaipur');
-
-      await tester.tap(find.text('Save journey'));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text('Choose a departure time in the future.'),
-        findsOneWidget,
-      );
-      // Still on the form, with what the customer typed intact.
-      expect(find.byType(TripFormScreen), findsOneWidget);
-      expect(find.text('server prose the app never shows'), findsNothing);
-    });
-
-    testWidgets('the journey limit is reported in the app\'s own words', (
-      WidgetTester tester,
-    ) async {
-      final FakeTripRepository trips = await openPlanner(tester);
-
-      trips.nextWriteError = const ApiException(
-        code: ApiErrorCode.tripLimitReached,
-        message: 'server wording',
-        status: 422,
-      );
-
-      await choosePlace(tester, field: 'Setting off from', city: 'New Delhi');
-      await choosePlace(tester, field: 'Going to', city: 'Jaipur');
-
-      await tester.tap(find.text('Save journey'));
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining('upcoming journeys'), findsOneWidget);
-      expect(find.byType(TripFormScreen), findsOneWidget);
-    });
-
-    testWidgets('losing the network never claims the journey was saved', (
-      WidgetTester tester,
-    ) async {
-      final FakeTripRepository trips = await openPlanner(tester);
-
-      trips.nextWriteError = const ApiException.network();
-
-      await choosePlace(tester, field: 'Setting off from', city: 'New Delhi');
-      await choosePlace(tester, field: 'Going to', city: 'Jaipur');
-
-      await tester.tap(find.text('Save journey'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Journey saved'), findsNothing);
-      expect(find.byType(TripFormScreen), findsOneWidget);
-      expect(trips.snapshot, isEmpty);
-    });
-  });
-
-  group('editing', () {
-    Future<FakeTripRepository> openEditor(WidgetTester tester) async {
       final FakeTripRepository trips = FakeTripRepository(
-        trips: <Trip>[sampleTrip(note: 'Collecting my sister')],
+        addresses: <SavedAddress>[home()],
+      );
+      await openPlanner(
+        tester,
+        trips: trips,
+        customer: FakeCustomerRepository(addresses: <SavedAddress>[home()]),
       );
 
-      usePhoneSurface(tester);
-      await tester.pumpWidget(
-        wrapApp(
-          repository: StubHomeRepository.value(dashboard),
-          trips: trips,
-          initialLocation: '/trips',
-        ),
-      );
+      await chooseSaved(tester, 'Setting off from', 'Home');
+      await searchAndChoose(tester, 'Going to');
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create journey'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.more_vert_rounded));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Edit journey').last);
-      await tester.pumpAndSettle();
+      final Map<String, dynamic> payload = trips.lastPayload!;
 
-      return trips;
-    }
+      expect(payload.keys, unorderedEquals(<String>['origin', 'destination']));
 
-    testWidgets('opens with the journey already in it', (
-      WidgetTester tester,
-    ) async {
-      await openEditor(tester);
+      final Map<String, dynamic> origin =
+          payload['origin'] as Map<String, dynamic>;
+      // A saved address travels as an id. The server resolves it inside this
+      // customer's own scope; the client's opinion of where it is never enters
+      // into it.
+      expect(origin['saved_address_id'], 'addr-home');
+      expect(origin.containsKey('latitude'), isFalse);
 
-      expect(find.text('Edit journey'), findsOneWidget);
-      expect(find.text('Collecting my sister'), findsOneWidget);
-      expect(find.text('Save changes'), findsOneWidget);
+      // Nothing about the customer, the lifecycle or the route.
+      expect(payload.toString().contains('customer_id'), isFalse);
+      expect(payload.toString().contains('route_status'), isFalse);
     });
 
-    testWidgets('clearing the note sends an explicit null, not an omission', (
+    testWidgets('lands on the journey, which shows no route', (
       WidgetTester tester,
     ) async {
-      final FakeTripRepository trips = await openEditor(tester);
-
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Note (optional)'),
-        '',
+      final FakeTripRepository trips = FakeTripRepository(
+        addresses: <SavedAddress>[home()],
       );
-      await tester.tap(find.text('Save changes'));
+      await openPlanner(tester, trips: trips);
+
+      await chooseSaved(tester, 'Setting off from', 'Use my current location');
+
+      await searchAndChoose(tester, 'Going to');
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create journey'));
       await tester.pumpAndSettle();
 
-      final Map<String, dynamic> json = trips.lastDraft!.toJson();
+      expect(trips.createCount, 1);
+      expect(find.text('Route not calculated yet'), findsWidgets);
 
-      // An omitted key means "leave it", so a client that could not send null
-      // would make removing a note impossible.
-      expect(json.containsKey('note'), isTrue);
-      expect(json['note'], isNull);
+      // The assertions this module exists to make. Not "0 km", not "about 5
+      // hours", not a progress bar at zero.
+      expect(find.textContaining('km'), findsNothing);
+      expect(find.textContaining('hr'), findsNothing);
+      expect(find.textContaining('ETA'), findsNothing);
+    });
+
+    testWidgets('a refusal keeps both chosen places on screen', (
+      WidgetTester tester,
+    ) async {
+      final FakeTripRepository trips = FakeTripRepository()
+        ..nextWriteError = const ApiException(
+          code: ApiErrorCode.tripLimitReached,
+          message: 'too many',
+          status: 422,
+        );
+
+      await openPlanner(tester, trips: trips);
+
+      await chooseSaved(tester, 'Setting off from', 'Use my current location');
+
+      await searchAndChoose(tester, 'Going to');
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create journey'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('Discard one to plan another'),
+        findsOneWidget,
+      );
+      // Losing what somebody chose because the server said no is how a form
+      // gets abandoned.
+      expect(find.text('Jaipur International Airport'), findsOneWidget);
+    });
+
+    testWidgets('being offline says so, and keeps the plan', (
+      WidgetTester tester,
+    ) async {
+      final FakeTripRepository trips = FakeTripRepository()
+        ..nextWriteError = const ApiException(
+          code: ApiErrorCode.network,
+          message: 'offline',
+          status: 0,
+        );
+
+      await openPlanner(tester, trips: trips);
+
+      await chooseSaved(tester, 'Setting off from', 'Use my current location');
+
+      await searchAndChoose(tester, 'Going to');
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create journey'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TripPlannerScreen), findsOneWidget);
+      expect(find.text('Jaipur International Airport'), findsOneWidget);
+    });
+  });
+
+  group('what the planner promises', () {
+    testWidgets('says plainly that the route comes later', (
+      WidgetTester tester,
+    ) async {
+      await openPlanner(tester);
+
+      // Better than a map placeholder that looks like it is loading something.
+      expect(
+        find.textContaining('Route and travel time arrive with'),
+        findsOneWidget,
+      );
     });
   });
 }
