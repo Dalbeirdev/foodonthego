@@ -422,6 +422,80 @@ class AppStrings {
   String tripErrorLimit(int limit) =>
       'You can have up to $limit planned journeys. Discard one to plan another.';
 
+  // --- routes and maps (Module 06) -----------------------------------------
+  String get routeTitle => 'Your route';
+  String get routeCalculating => 'Finding the best route…';
+  String get routeMapLoading => 'Loading the map…';
+  String get routeCalculate => 'Calculate route';
+  String get routeRecalculate => 'Calculate again';
+  String get routeRetry => 'Try again';
+  String get routeRecenter => 'Recentre';
+  String get routeRecenterHint => 'Fit the route back into view';
+  String get routeDistanceLabel => 'Distance';
+  String get routeDurationLabel => 'Travel time';
+  String get routeTrafficLabel => 'Current traffic';
+  String get routeAlternativesTitle => 'Alternative routes';
+  String get routeRecommended => 'Recommended';
+  String get routeAlternative => 'Alternative';
+  String get routeSelected => 'Selected';
+  String routeSelectAction(String summary) => 'Choose the route $summary';
+  String get routeOriginMarker => 'Starting point';
+  String get routeDestinationMarker => 'Destination';
+
+  /// Said next to a traffic figure, because nothing is refreshing it.
+  String get routeTrafficNotLive =>
+      'Traffic as it was when this route was worked out.';
+
+  /// The one honest thing to say about travel time in this module.
+  ///
+  /// Module 06 knows how long the *driving* takes. It does not know when
+  /// somebody will reach a restaurant, which is a different question involving
+  /// where they are now and how long a kitchen takes.
+  String get routeTravelTimeOnly =>
+      'Driving time from the route. Pickup timing arrives with restaurants.';
+
+  // --- routes: the states that are not a route ------------------------------
+  String get routeNotCalculatedTitle => 'No route yet';
+  String get routeNotCalculatedBody =>
+      'Work out the driving route between your two places.';
+  String get routeNoRouteTitle => "We couldn't find a driving route";
+  String get routeNoRouteBody =>
+      'There is no road route between those two places. Try changing one of '
+      'them.';
+  String get routeChangeOrigin => 'Change starting point';
+  String get routeChangeDestination => 'Change destination';
+  String get routeFailedTitle => "We couldn't work out your route";
+  String get routeFailedBody =>
+      'Something went wrong at our end. Please try again.';
+  String get routeTimeoutTitle => 'That took too long';
+  String get routeTimeoutBody =>
+      'Working out your route timed out. Please try again.';
+  String get routeRateLimitedTitle => 'Route planning is busy';
+  String get routeRateLimitedBody =>
+      'Too many routes are being worked out right now. Please try again in a '
+      'moment.';
+  String get routeStaleTitle => 'This journey has changed';
+  String get routeStaleBody =>
+      'Your starting point or destination moved since this route was worked '
+      'out. Calculate it again.';
+  String get routeOfflineTitle => "You're offline";
+  String get routeOfflineBody =>
+      'Connect to the internet to work out this route.';
+  String get routeOfflineCached =>
+      'Offline · showing your last calculated route';
+
+  /// Shown when the map itself cannot draw but the route data is fine.
+  String get routeMapUnavailableTitle => 'Map unavailable';
+  String get routeMapUnavailableBody =>
+      'The map cannot be shown on this device, but your route details are '
+      'below.';
+
+  /// Shown over any route that did not come from a real routing provider.
+  String get routeDevelopmentProvider =>
+      'Development data — this is not a real road route.';
+
+  String get routeContinueCta => 'Find food on this route';
+
   // --- home: the current journey -------------------------------------------
   String get homeCurrentJourney => 'Your journey';
   String get homeJourneyViewAll => 'All journeys';

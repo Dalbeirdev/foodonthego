@@ -50,9 +50,15 @@ class Routes {
   static const String tripPlan = 'plan';
   static const String tripDetail = ':tripId';
 
+  /// The route review screen (Module 06), nested under the journey it belongs
+  /// to — a route has no existence away from one.
+  static const String tripRoute = 'route';
+
   static const String tripPlanPath = '/trips/plan';
 
   static String tripDetailPath(String id) => '/trips/$id';
+
+  static String tripRoutePath(String id) => '/trips/$id/route';
 
   /// The controlled destination for anything not built yet. Takes the feature
   /// name and owning module as query parameters so one screen serves them all.

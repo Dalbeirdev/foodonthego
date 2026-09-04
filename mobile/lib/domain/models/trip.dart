@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'place.dart';
 import 'saved_address.dart';
+import 'trip_route.dart';
 
 /// Where the customer got a location from.
 ///
@@ -53,16 +54,23 @@ enum TripStatus {
 
 /// Whether a route has been calculated for this trip.
 ///
-/// Separate from [TripStatus] because they answer different questions, and in
-/// Module 05 this is **always** [RouteStatus.notCalculated]. It exists here so
-/// the app reads the server's answer rather than assuming one; Module 06 is what
-/// moves it, and until then no screen may render a distance or a travel time,
-/// because there is none to render.
+/// Separate from [TripStatus] because they answer different questions: one is
+/// about the customer's intent, the other about a job the server runs.
+///
+/// The three unhappy cases are distinct because a customer can do something
+/// different about each. [failed] is ours — the provider was unreachable, slow
+/// or wrong — and the answer is to try again. [noRoute] is the provider
+/// succeeding and saying there is no driving route between these two places, and
+/// retrying will be told the same thing; the answer is to change an endpoint.
+/// [stale] means the trip's endpoints have moved, so the stored geometry
+/// describes a journey nobody is taking.
 enum RouteStatus {
   notCalculated('NOT_CALCULATED'),
   calculating('CALCULATING'),
   ready('READY'),
-  failed('FAILED');
+  failed('FAILED'),
+  noRoute('NO_ROUTE'),
+  stale('STALE');
 
   const RouteStatus(this.wire);
 
@@ -74,6 +82,22 @@ enum RouteStatus {
     }
     return RouteStatus.notCalculated;
   }
+
+  /// Whether there is a route worth drawing.
+  bool get hasUsableRoute => this == RouteStatus.ready;
+
+  /// Whether asking again could plausibly change the answer.
+  ///
+  /// False for [noRoute]: that is the provider's considered answer, and
+  /// offering "Try again" would spend a request to be told the same thing.
+  bool get isRetryable => switch (this) {
+    RouteStatus.failed ||
+    RouteStatus.notCalculated ||
+    RouteStatus.stale => true,
+    RouteStatus.noRoute ||
+    RouteStatus.ready ||
+    RouteStatus.calculating => false,
+  };
 }
 
 /// One end of a trip, as the server stored it.
@@ -159,6 +183,7 @@ class Trip {
     required this.destination,
     this.cancelledAt,
     this.createdAt,
+    this.selectedRoute,
   });
 
   factory Trip.fromJson(Map<String, dynamic> json) => Trip(
@@ -174,6 +199,9 @@ class Trip {
     ),
     cancelledAt: _time(json['cancelled_at']),
     createdAt: _time(json['created_at']),
+    selectedRoute: RouteSummary.fromJson(
+      json['selected_route'] as Map<String, dynamic>?,
+    ),
   );
 
   final String id;
@@ -186,13 +214,24 @@ class Trip {
   final DateTime? cancelledAt;
   final DateTime? createdAt;
 
+  /// The chosen route's headline figures, when one has been calculated for
+  /// *these* endpoints.
+  ///
+  /// Null is the normal state until Module 06 has run, and it stays null the
+  /// moment an endpoint moves — the server withholds it rather than sending a
+  /// real distance for a journey nobody is taking.
+  final RouteSummary? selectedRoute;
+
   bool get isCancelled => status == TripStatus.cancelled;
 
   bool get isDiscardable => !isCancelled;
 
-  /// Whether a route exists yet. False for every trip Module 05 can create, and
-  /// the reason no screen shows a distance.
-  bool get hasRoute => routeStatus == RouteStatus.ready;
+  /// Whether there is a route to show.
+  ///
+  /// Both halves matter. A trip can say READY and still have no summary — if its
+  /// endpoints moved since — and a screen that trusted the status alone would
+  /// render an empty distance.
+  bool get hasRoute => routeStatus.hasUsableRoute && selectedRoute != null;
 
   /// "New Delhi → Jaipur", the one line that identifies a trip in a list.
   String get routeSummary => '${origin.shortName} → ${destination.shortName}';

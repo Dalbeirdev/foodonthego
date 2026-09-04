@@ -69,6 +69,38 @@ enum ApiErrorCode {
 
   placeNotFound('PLACE_NOT_FOUND'),
 
+  // --- Module 06: maps, routing, distance and travel time ------------------
+  //
+  // Six of these describe a routing *provider* rather than the request, and
+  // they are separate because the customer's next move differs for each: retry,
+  // wait, change an endpoint, or nothing at all.
+
+  /// The journey's endpoints cannot be routed between.
+  routeInputInvalid('ROUTE_INPUT_INVALID'),
+
+  /// No such route on this journey — or it was never this customer's.
+  routeNotFound('ROUTE_NOT_FOUND'),
+
+  routeSelectionInvalid('ROUTE_SELECTION_INVALID'),
+
+  /// The stored route was worked out for endpoints that have since moved.
+  routeStale('ROUTE_STALE'),
+
+  routeAlreadyCurrent('ROUTE_ALREADY_CURRENT'),
+
+  /// The provider looked and there is no driving route. Retrying will be told
+  /// the same thing.
+  routeNoRouteFound('ROUTE_NO_ROUTE_FOUND'),
+
+  routeProviderUnavailable('ROUTE_PROVIDER_UNAVAILABLE'),
+  routeProviderRateLimited('ROUTE_PROVIDER_RATE_LIMITED'),
+  routeTimeout('ROUTE_TIMEOUT'),
+
+  /// The provider answered and the server could not use the answer. Ours.
+  routeResponseInvalid('ROUTE_RESPONSE_INVALID'),
+
+  routeCalculationInProgress('ROUTE_CALCULATION_IN_PROGRESS'),
+
   /// The request never reached the server, or never came back.
   network('NETWORK'),
 
@@ -102,7 +134,13 @@ enum ApiErrorCode {
     // Ours failing, not the customer's request being wrong. The same query a
     // moment later may well work, so "Try again" is the honest control.
     ApiErrorCode.placeLookupFailed ||
-    ApiErrorCode.tripCreateFailed => true,
+    ApiErrorCode.tripCreateFailed ||
+    // Ours or the provider's, not the customer's request. The same call a
+    // moment later may well work.
+    ApiErrorCode.routeProviderUnavailable ||
+    ApiErrorCode.routeTimeout ||
+    ApiErrorCode.routeProviderRateLimited ||
+    ApiErrorCode.routeResponseInvalid => true,
     _ => false,
   };
 }

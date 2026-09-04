@@ -13,6 +13,7 @@ import '../../data/fixtures/development_personas.dart';
 import '../../data/repositories/api_auth_repository.dart';
 import '../../data/repositories/api_customer_repository.dart';
 import '../../data/repositories/api_place_repository.dart';
+import '../../data/repositories/api_route_repository.dart';
 import '../../data/repositories/api_trip_repository.dart';
 import '../../data/repositories/fixture_home_repository.dart';
 import '../../data/repositories/unconfigured_home_repository.dart';
@@ -21,6 +22,7 @@ import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/customer_repository.dart';
 import '../../domain/repositories/home_repository.dart';
 import '../../domain/repositories/place_repository.dart';
+import '../../domain/repositories/route_repository.dart';
 import '../../domain/repositories/trip_repository.dart';
 import 'auth_controller.dart';
 import 'connectivity.dart';
@@ -205,6 +207,16 @@ final tripRepositoryProvider = Provider<TripRepository>(
 /// bill for what they then do with it arrives here.
 final placeRepositoryProvider = Provider<PlaceRepository>(
   (Ref ref) => ApiPlaceRepository(ref.watch(apiClientProvider)),
+);
+
+/// Route calculation and selection — all through our own server.
+///
+/// There is no routing SDK in this app and no routing key in this bundle. The
+/// Maps SDK key the app *does* carry draws tiles and nothing else; it cannot
+/// calculate a route, which is why the two are separate keys with separate
+/// restrictions.
+final routeRepositoryProvider = Provider<RouteRepository>(
+  (Ref ref) => ApiRouteRepository(ref.watch(apiClientProvider)),
 );
 
 /// The device's position.

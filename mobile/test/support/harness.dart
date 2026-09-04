@@ -8,6 +8,7 @@ import 'package:foodonthego/app.dart';
 import 'package:foodonthego/core/l10n/app_strings.dart';
 import 'package:foodonthego/core/network/api_error_code.dart';
 import 'package:foodonthego/core/network/api_exception.dart';
+import 'package:foodonthego/core/geo/polyline_codec.dart';
 import 'package:foodonthego/core/location/location_service.dart';
 import 'package:foodonthego/core/routing/app_router.dart';
 import 'package:foodonthego/core/theme/app_theme.dart';
@@ -18,10 +19,12 @@ import 'package:foodonthego/domain/models/home_dashboard.dart';
 import 'package:foodonthego/domain/models/place.dart';
 import 'package:foodonthego/domain/models/saved_address.dart';
 import 'package:foodonthego/domain/models/trip.dart';
+import 'package:foodonthego/domain/models/trip_route.dart';
 import 'package:foodonthego/domain/repositories/auth_repository.dart';
 import 'package:foodonthego/domain/repositories/customer_repository.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
 import 'package:foodonthego/domain/repositories/place_repository.dart';
+import 'package:foodonthego/domain/repositories/route_repository.dart';
 import 'package:foodonthego/domain/repositories/trip_repository.dart';
 import 'package:foodonthego/shared/state/connectivity.dart';
 import 'package:foodonthego/shared/state/providers.dart';
@@ -1087,6 +1090,206 @@ Trip sampleTrip({
   );
 }
 
+/// A route repository that behaves like the server.
+///
+/// It counts calls, because the property this module is judged on is **not
+/// calling the provider**: a screen that recalculates on every rebuild is a bill,
+/// and the only way to catch that is to count.
+///
+/// Like its siblings it applies the server's rules rather than accepting
+/// anything: selection replaces the whole set, exactly one route is ever
+/// selected, and a failure leaves what was already stored alone.
+class FakeRouteRepository implements RouteRepository {
+  FakeRouteRepository({
+    Trip? trip,
+    this.alternatives = 1,
+    bool calculated = false,
+  }) : _trip = trip ?? sampleTrip() {
+    if (calculated) _materialise();
+  }
+
+  final int alternatives;
+
+  Trip _trip;
+  List<TripRoute> _routes = const <TripRoute>[];
+
+  int readCalls = 0;
+  int calculateCalls = 0;
+  int selectCalls = 0;
+
+  /// Scripted failures. Cleared after they fire, so a test can script one
+  /// failure followed by a success.
+  ApiException? nextReadError;
+  ApiException? nextCalculateError;
+  ApiException? nextSelectError;
+
+  /// Per-call delay, so a test can see a loading state or race two selections.
+  Duration calculateDelay = Duration.zero;
+  Duration selectDelay = Duration.zero;
+
+  /// What the provider is pretending to be. Anything but a real name makes the
+  /// screen show its development notice.
+  String provider = 'google';
+
+  TripRoutes get _snapshot => TripRoutes(trip: _trip, routes: _routes);
+
+  void _materialise() {
+    _routes = <TripRoute>[
+      for (int index = 0; index < alternatives; index++)
+        TripRoute(
+          id: 'route-$index',
+          provider: provider,
+          providerRouteIndex: index,
+          summary: index == 0 ? 'via NH 48' : 'via NH 148N',
+          distanceMeters: 278000 - (index * 13000),
+          durationSeconds: 16200 + (index * 840),
+          trafficDurationSeconds: index == 0 ? 17100 : null,
+          trafficDelaySeconds: index == 0 ? 900 : null,
+          encodedPolyline: sampleRouteGeometry(),
+          bounds: const RouteBounds(
+            north: 28.5494,
+            south: 26.8242,
+            east: 77.2001,
+            west: 75.8122,
+          ),
+          isRecommended: index == 0,
+          isSelected: index == 0,
+          calculatedAt: DateTime.now().toUtc(),
+        ),
+    ];
+
+    _trip = _withStatus(RouteStatus.ready, _routes.first);
+  }
+
+  Trip _withStatus(RouteStatus status, TripRoute? selected) => Trip(
+    id: _trip.id,
+    status: _trip.status,
+    routeStatus: status,
+    origin: _trip.origin,
+    destination: _trip.destination,
+    cancelledAt: _trip.cancelledAt,
+    createdAt: _trip.createdAt,
+    selectedRoute: selected == null
+        ? null
+        : RouteSummary(
+            routeId: selected.id,
+            distanceMeters: selected.distanceMeters,
+            durationSeconds: selected.durationSeconds,
+            trafficDurationSeconds: selected.trafficDurationSeconds,
+            trafficDelaySeconds: selected.trafficDelaySeconds,
+            summary: selected.summary,
+            calculatedAt: selected.calculatedAt,
+          ),
+  );
+
+  @override
+  Future<TripRoutes> routes(String tripId) async {
+    readCalls++;
+
+    final ApiException? error = nextReadError;
+    if (error != null) {
+      nextReadError = null;
+      throw error;
+    }
+
+    return _snapshot;
+  }
+
+  @override
+  Future<TripRoutes> calculate(String tripId, {bool refresh = false}) async {
+    calculateCalls++;
+
+    if (calculateDelay > Duration.zero) {
+      await Future<void>.delayed(calculateDelay);
+    }
+
+    final ApiException? error = nextCalculateError;
+    if (error != null) {
+      nextCalculateError = null;
+
+      // A failure leaves what was already stored alone — the server does the
+      // same, because losing a working route to a failed refresh punishes the
+      // customer for an outage.
+      if (_routes.isEmpty) {
+        _trip = _withStatus(
+          error.code == ApiErrorCode.routeNoRouteFound
+              ? RouteStatus.noRoute
+              : RouteStatus.failed,
+          null,
+        );
+      }
+
+      throw error;
+    }
+
+    _materialise();
+
+    return _snapshot;
+  }
+
+  @override
+  Future<TripRoutes> select(String tripId, String routeId) async {
+    selectCalls++;
+
+    if (selectDelay > Duration.zero) {
+      await Future<void>.delayed(selectDelay);
+    }
+
+    final ApiException? error = nextSelectError;
+    if (error != null) {
+      nextSelectError = null;
+      throw error;
+    }
+
+    TripRoute? chosen;
+
+    _routes = _routes
+        .map((TripRoute route) {
+          final bool isSelected = route.id == routeId;
+          final TripRoute updated = TripRoute(
+            id: route.id,
+            provider: route.provider,
+            providerRouteIndex: route.providerRouteIndex,
+            summary: route.summary,
+            distanceMeters: route.distanceMeters,
+            durationSeconds: route.durationSeconds,
+            trafficDurationSeconds: route.trafficDurationSeconds,
+            trafficDelaySeconds: route.trafficDelaySeconds,
+            encodedPolyline: route.encodedPolyline,
+            bounds: route.bounds,
+            isRecommended: route.isRecommended,
+            isSelected: isSelected,
+            calculatedAt: route.calculatedAt,
+          );
+
+          if (isSelected) chosen = updated;
+
+          return updated;
+        })
+        .toList(growable: false);
+
+    _trip = _withStatus(RouteStatus.ready, chosen);
+
+    return _snapshot;
+  }
+}
+
+/// A decodable line from Hauz Khas to Jaipur airport.
+///
+/// Real endpoints, synthetic geometry: it exists so a widget test can decode
+/// something and draw it, not to stand in for a road.
+String sampleRouteGeometry() {
+  final List<GeoPoint> points = <GeoPoint>[
+    for (int i = 0; i <= 20; i++)
+      GeoPoint(
+        28.5494 + (26.8242 - 28.5494) * (i / 20),
+        77.2001 + (75.8122 - 77.2001) * (i / 20),
+      ),
+  ];
+
+  return PolylineCodec.encode(points);
+}
+
 /// A resolved place, for tests that build a [TripLocation] directly.
 PlaceDetails samplePlace({
   String placeId = 'dev:jaipur-airport',
@@ -1115,6 +1318,7 @@ Widget wrapApp({
   FakeTripRepository? trips,
   FakePlaceRepository? places,
   FakeLocationService? location,
+  FakeRouteRepository? routes,
   bool signedIn = true,
 }) {
   final FakeAuthRepository authRepository = auth ?? FakeAuthRepository();
@@ -1139,6 +1343,9 @@ Widget wrapApp({
       tripRepositoryProvider.overrideWithValue(trips ?? FakeTripRepository()),
       placeRepositoryProvider.overrideWithValue(
         places ?? FakePlaceRepository(),
+      ),
+      routeRepositoryProvider.overrideWithValue(
+        routes ?? FakeRouteRepository(),
       ),
       locationServiceProvider.overrideWithValue(
         location ?? FakeLocationService(),

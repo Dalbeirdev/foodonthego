@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/l10n/app_strings.dart';
+import '../../../core/format/journey_measures.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/time/journey_time.dart';
 import '../../../domain/models/trip.dart';
@@ -68,11 +69,28 @@ class CurrentJourneyCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: FotgSpacing.x4),
-            _Line(
-              icon: Icons.alt_route_rounded,
-              label: strings.tripDetailTitle,
-              value: strings.tripRouteNotCalculated,
-            ),
+            if (trip.hasRoute) ...<Widget>[
+              _Line(
+                icon: Icons.schedule_rounded,
+                label: strings.routeDurationLabel,
+                value: JourneyMeasures.duration(
+                  trip.selectedRoute!.effectiveDurationSeconds,
+                ),
+              ),
+              const SizedBox(height: FotgSpacing.x2),
+              _Line(
+                icon: Icons.straighten_rounded,
+                label: strings.routeDistanceLabel,
+                value: JourneyMeasures.distance(
+                  trip.selectedRoute!.distanceMeters,
+                ),
+              ),
+            ] else
+              _Line(
+                icon: Icons.alt_route_rounded,
+                label: strings.tripDetailTitle,
+                value: strings.tripRouteNotCalculated,
+              ),
             if (trip.createdAt != null) ...<Widget>[
               const SizedBox(height: FotgSpacing.x2),
               _Line(

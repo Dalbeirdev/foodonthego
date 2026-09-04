@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/l10n/app_strings.dart';
+import '../../../core/format/journey_measures.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/time/journey_time.dart';
 import '../../../domain/models/trip.dart';
@@ -60,12 +61,15 @@ class TripListItem extends StatelessWidget {
                     ),
                     const SizedBox(height: FotgSpacing.x1),
                     Text(
-                      // Not a distance and not an ETA. There is no route yet,
-                      // and this line says so in as many words. `hasRoute` is
-                      // read from the server rather than assumed, so the day
-                      // Module 06 starts filling it this line is the one place
-                      // that changes.
-                      strings.tripRouteNotCalculated,
+                      // The real figures once a route exists, and an honest
+                      // absence until then. `hasRoute` requires both a READY
+                      // status *and* a summary the server was willing to send,
+                      // so a journey whose endpoints moved falls back to the
+                      // second line rather than showing a stale distance.
+                      trip.hasRoute
+                          ? '${JourneyMeasures.duration(trip.selectedRoute!.effectiveDurationSeconds)}'
+                                ' · ${JourneyMeasures.distance(trip.selectedRoute!.distanceMeters)}'
+                          : strings.tripRouteNotCalculated,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),

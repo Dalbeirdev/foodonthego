@@ -51,6 +51,7 @@ dependencies:
   # once. Module 05 does not track anybody: there is no position stream, no
   # background permission and no "always" authorisation anywhere in this app.
   geolocator: ^14.0.3
+  google_maps_flutter: ^2.18.0
 
 dev_dependencies:
   flutter_test:

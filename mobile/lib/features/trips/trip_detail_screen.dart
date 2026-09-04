@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/format/journey_measures.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/routing/routes.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/time/journey_time.dart';
 import '../../domain/models/trip.dart';
@@ -174,14 +177,32 @@ class _Body extends StatelessWidget {
         Text(trip.routeSummary, style: theme.textTheme.headlineSmall),
         const SizedBox(height: FotgSpacing.x2),
         Text(
-          // The one honest thing this screen can say about the route. Not a
-          // distance, not a duration, not "calculating…" — nothing is
-          // calculating. Module 06 is what makes this line say something else.
-          strings.tripRouteNotCalculated,
+          // Module 06 is what made this line say something. Both halves of
+          // `hasRoute` matter: a READY status with no summary means the
+          // endpoints moved, and showing the old distance would be the most
+          // convincing wrong number in the app.
+          trip.hasRoute
+              ? '${JourneyMeasures.duration(trip.selectedRoute!.effectiveDurationSeconds)}'
+                    ' · ${JourneyMeasures.distance(trip.selectedRoute!.distanceMeters)}'
+              : strings.tripRouteNotCalculated,
           style: theme.textTheme.bodyLarge?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
+        if (trip.hasRoute &&
+            JourneyMeasures.trafficDelay(
+                  trip.selectedRoute!.trafficDelaySeconds,
+                ) !=
+                null) ...<Widget>[
+          const SizedBox(height: FotgSpacing.x1),
+          Text(
+            '${strings.routeTrafficLabel} '
+            '${JourneyMeasures.trafficDelay(trip.selectedRoute!.trafficDelaySeconds)}',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
         if (trip.isCancelled) ...<Widget>[
           const SizedBox(height: FotgSpacing.x4),
           // Says why the action is absent. A screen that silently omits the
@@ -206,8 +227,17 @@ class _Body extends StatelessWidget {
             label: strings.tripCreatedAtLabel,
             value: JourneyTime.full(trip.createdAt!),
           ),
+        const SizedBox(height: FotgSpacing.x6),
+        // The way to the map. Named for what it does now rather than for what
+        // it will do: a journey with no route needs one worked out, and one
+        // that has a route is worth looking at.
+        PrimaryButton(
+          label: trip.hasRoute ? strings.routeTitle : strings.routeCalculate,
+          icon: Icons.alt_route_rounded,
+          onPressed: () => context.push(Routes.tripRoutePath(trip.id)),
+        ),
         if (trip.isDiscardable) ...<Widget>[
-          const SizedBox(height: FotgSpacing.x8),
+          const SizedBox(height: FotgSpacing.x3),
           SecondaryButton(
             label: strings.tripDetailDiscard,
             isLoading: discarding,

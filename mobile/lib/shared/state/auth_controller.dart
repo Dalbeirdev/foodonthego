@@ -19,13 +19,30 @@ import 'providers.dart';
 /// verifying codes belong to the screens driving them, because a half-finished
 /// OTP is not app-wide state — abandoning it should leave nothing behind.
 class AuthController extends Notifier<AuthState> {
+  /// Whether this notifier is still alive.
+  ///
+  /// [restore] writes `state` after two awaits — reading storage, then asking
+  /// the server — and a provider disposed in between makes both of those writes
+  /// throw. It survives in the app because this provider is long-lived, but the
+  /// restore is kicked off from `build()` and any scope that is torn down while
+  /// it is in flight hits it. Checking is cheaper than the alternative.
+  bool _disposed = false;
+
   @override
   AuthState build() {
+    ref.onDispose(() => _disposed = true);
+
     // Restoration is kicked off here rather than in main() so that the very
     // first frame already has a state to render and the router has something to
     // wait on.
     Future<void>.microtask(restore);
     return const AuthRestoring();
+  }
+
+  /// Writes state unless this notifier has gone.
+  void _set(AuthState next) {
+    if (_disposed) return;
+    state = next;
   }
 
   SessionStore get _store => ref.read(sessionStoreProvider);
@@ -39,12 +56,14 @@ class AuthController extends Notifier<AuthState> {
   /// the first real request. Requiring the network would lock a customer out in
   /// a tunnel, so a session that fails to *reach* the server is kept.
   Future<void> restore() async {
-    state = const AuthRestoring();
+    _set(const AuthRestoring());
 
     final AuthSession? stored = await _store.read();
 
+    if (_disposed) return;
+
     if (stored == null) {
-      state = const AuthSignedOut();
+      _set(const AuthSignedOut());
       return;
     }
 
@@ -52,12 +71,12 @@ class AuthController extends Notifier<AuthState> {
       // The server told us when this would stop working, so there is no need to
       // ask it.
       await _store.clear();
-      state = const AuthSignedOut(reason: SignedOutReason.sessionExpired);
+      _set(const AuthSignedOut(reason: SignedOutReason.sessionExpired));
       return;
     }
 
     // Optimistic: show the stored profile immediately, then correct it.
-    state = AuthAuthenticated(stored.customer);
+    _set(AuthAuthenticated(stored.customer));
 
     try {
       final Customer fresh = await _auth.currentCustomer();
@@ -68,11 +87,11 @@ class AuthController extends Notifier<AuthState> {
           customer: fresh,
         ),
       );
-      state = AuthAuthenticated(fresh);
+      _set(AuthAuthenticated(fresh));
     } on ApiException catch (error) {
       if (_endsSession(error.code)) {
         await _store.clear();
-        state = const AuthSignedOut(reason: SignedOutReason.sessionExpired);
+        _set(const AuthSignedOut(reason: SignedOutReason.sessionExpired));
       }
       // Any other failure — no network, a 500, a timeout — leaves the restored
       // session in place. A backend outage must not sign everybody out.
