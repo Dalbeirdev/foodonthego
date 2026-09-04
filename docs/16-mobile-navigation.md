@@ -167,13 +167,25 @@ is never a `double`, and no widget assumes a symbol.
 
 ## Journeys (Module 05)
 
-The Trips branch gained real destinations. The planner, the journey detail and
-the edit form are **pushed over** the Trips branch rather than added to the
-shell, for the reason the profile screens already establish: the bottom bar stays
-put, and Android back returns to the list the customer came from.
+The Trips branch gained real destinations. The planner and the journey detail are
+**pushed over** the Trips branch rather than added to the shell, for the reason
+the profile screens already establish: the bottom bar stays put, and Android back
+returns to the list the customer came from.
 
 The home screen's "Plan a journey" call to action now pushes the planner instead
 of routing to the controlled placeholder that named this module — which is the
 placeholder convention working as intended.
 
-Routes: `/trips/plan`, `/trips/{id}`, `/trips/{id}/edit`.
+Routes: `/trips/plan` and `/trips/{id}`. There is no edit route: Module 05
+creates a trip from two chosen places and stops.
+
+**`plan` is declared before `:tripId`.** Otherwise "/trips/plan" matches the
+parameter and the planner becomes a detail screen for a journey called "plan" —
+the same rule `/customer/trips/current` follows on the server.
+
+Choosing a place is a **modal bottom sheet**, not a route. It is a transient
+choice that returns a value to the screen underneath, and giving it a URL would
+put a half-made decision in the back stack. Its state lives on `autoDispose`
+providers, so closing it disposes the query, the results and the provider session
+token — nothing about a search outlives the sheet, and nothing survives into the
+next customer's session.

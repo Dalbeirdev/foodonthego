@@ -115,9 +115,13 @@ void main() {
       await openPlanner(tester, location: location);
       await tapCurrentLocation(tester);
 
-      // Named by the reverse geocode the fake server performs. The coordinates
-      // are the device's own throughout; nothing snapped them to a landmark.
-      expect(find.text('Use my current location'), findsOneWidget);
+      // Named by the reverse geocode, not by the button that was pressed. The
+      // coordinates are the device's own throughout; nothing snapped them to a
+      // landmark.
+      expect(
+        find.bySemanticsLabel('Setting off from, Green Park'),
+        findsOneWidget,
+      );
       expect(find.textContaining('Green Park'), findsWidgets);
     });
 
@@ -265,6 +269,32 @@ void main() {
         find.byType(TextField).first,
       );
       expect(field.focusNode?.hasFocus, isTrue);
+    });
+  });
+
+  group('a device that never answers', () {
+    testWidgets('resolves anyway rather than spinning forever', (
+      WidgetTester tester,
+    ) async {
+      final FakeLocationService location = FakeLocationService()..hangs = true;
+      await openPlanner(tester, location: location);
+      await tester.tap(find.text('Setting off from'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Use my current location'));
+      await tester.pump();
+
+      expect(find.text('Finding you…'), findsOneWidget);
+
+      // Found by driving the built app in a browser: with the permission prompt
+      // left unanswered, `geolocator`'s own `timeLimit` never fires and the
+      // sheet sat on "Finding you…" indefinitely. A spinner with no end is the
+      // one outcome worse than any refusal.
+      await tester.pump(kLocationDeadline + const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Finding you…'), findsNothing);
+      expect(find.text('We could not find you'), findsOneWidget);
+      expect(find.text('Search instead'), findsOneWidget);
     });
   });
 

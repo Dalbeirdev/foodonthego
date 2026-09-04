@@ -49,6 +49,9 @@ class _QuickActionTile extends StatelessWidget {
     return Semantics(
       button: true,
       label: action.label,
+      // Same reason as the planner rows: without this the tile is announced as
+      // a button and cannot be activated by assistive technology.
+      onTap: action.onTap,
       excludeSemantics: true,
       child: Material(
         color: theme.colorScheme.surface,

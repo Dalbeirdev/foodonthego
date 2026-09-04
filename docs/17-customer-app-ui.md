@@ -13,7 +13,7 @@ FoodOnTheGoApp                     theme · localization · router · text-scale
     ├── HomeScreen                 loading | error | data
     │   ├── GreetingHeader
     │   ├── JourneyPlannerCard     ← the primary action
-    │   ├── RouteSummaryCard       ← only when a journey exists
+    │   ├── CurrentJourneyCard     ← only when a journey exists
     │   ├── ActiveOrderCard        ← only when an order exists
     │   ├── HowItWorks             ← only when neither exists
     │   └── QuickActions
@@ -21,8 +21,9 @@ FoodOnTheGoApp                     theme · localization · router · text-scale
     ├── OrdersScreen               EmptyStateView
     ├── NotificationsScreen        EmptyStateView
     └── ProfileScreen              header + three grouped sections
-TripsScreen                        three scopes | loading | empty | error | list
-TripFormScreen                     plan and edit, one screen
+TripsScreen                        two scopes | loading | empty | error | list
+TripPlannerScreen                  two rows and a button
+LocationPickerSheet                current location · saved addresses · search
 TripDetailScreen                   one journey, in full
 EditProfileScreen                  three editable fields; the phone is read-only
 SavedAddressesScreen               loading | empty | error | list
@@ -60,44 +61,93 @@ Every failure is a sentence the customer can act on, chosen by the API's machine
 
 ## Journeys
 
-The Trips tab is a list with a three-way segmented control above it — Upcoming,
-Past, Cancelled — and the same four states as every other list in this app.
-A row leads with the route, because "New Delhi → Jaipur" is how somebody
-identifies their own journey; the departure is the second line, because it is how
-they tell two journeys on the same route apart.
+The Trips tab is a list with a two-way segmented control above it — Planned and
+Discarded — and the same four states as every other list in this app. A row leads
+with the two ends, because "New Delhi → Jaipur" is how somebody identifies their
+own journey.
 
-Cancelled and departed are spelled out as words in a badge, never signalled by
-colour alone. The row's overflow menu names its own journey ("Options for New
-Delhi → Jaipur"), and it is offered only while the server says the journey can
-still be changed — a menu that offers an edit the server will refuse teaches
-people not to trust the menu.
+The second line says **"Route not calculated yet"**. Not a distance, not a travel
+time, not a progress bar: there is no route, and Module 06 is what adds one. A
+placeholder number would be read as a real one by everybody who saw it, which is
+why several tests exist purely to fail if one appears.
 
-Each scope has its own empty wording, because "no journeys" under Past means
-something different from "no journeys" under Upcoming, and only one of the three
-is worth offering a button for.
+Discarded is spelled out as a word in a badge, never signalled by colour alone.
+The row's overflow menu names its own journey ("Options for New Delhi → Jaipur"),
+and it is offered only while the server would still accept the action — a menu
+that offers something the server will refuse teaches people not to trust the
+menu.
+
+There is no "Past" scope, because nothing in this module observes a journey
+happening and a tab that never fills is worse than no tab.
 
 ### The planner
 
-One screen for planning and editing. A place is *chosen*, not typed into the
-form: a sheet offers the customer's saved addresses first — this is what Module
-04 was for — and a short form for anywhere else. There is no map and no
-autocomplete, and the typed branch produces no coordinates; a suggestion here
-would be a guess presented as a fact.
+Two rows and a button. Tapping either row opens the picker; the button creates
+the journey; a swap control between them turns it round, and works with one end
+chosen as well as two, because somebody who typed their destination into the
+wrong box expects it to move rather than nothing to happen.
 
-The arrival field says plainly that nothing computes it yet, rather than leaving
-a blank that looks like a failure.
+The button stays **enabled while the plan is incomplete**, so tapping it says
+what is missing. A disabled button that will not explain itself is the most
+common dead end in a form.
 
-Both Module 04 layout rules apply, in the planner and in the picker sheet: a
-non-lazy scrolling `Column` so validation cannot skip an off-screen field, and a
-pinned primary action so it is never under the keyboard or the navigation bar.
+Under it, in as many words:
+
+> Route and travel time arrive with the next release. This saves where you are
+> going.
+
+That is there instead of a map placeholder, which would look like something
+loading.
+
+### Choosing a place
+
+One sheet, three ways in, in the order people reach for them: the device's own
+position, a saved address, a search. All three produce the same value, so nothing
+downstream needs to know which was used.
+
+**Current location** is where the app asks for permission — the only place it
+does, and never before. Every outcome has its own words and its own way onwards,
+and every one of them offers the search box, because a permission wall with no
+alternative is how an app traps somebody. "Location is switched off" is never
+reported as a refusal: the customer refused nothing.
+
+**Saved addresses** are listed with the default first. One that has never been
+located is shown rather than hidden, and tapping it explains why it cannot be
+used and points at the search box — the alternative is inventing a position for
+it.
+
+**Search** waits 350 ms after typing stops, so a whole word costs one request
+rather than six, and discards any answer that is no longer for the current query.
+A suggestion carries no coordinates: choosing one resolves it, and the position
+comes back from the server with the place.
+
+### Locating a saved address
+
+The address form gained a **Find this address** row, because Module 04 let a
+customer write an address down but never gave it a position — so no saved address
+could be one end of a journey. It opens search alone: offering the device's
+position would pin an address somebody is describing from memory to wherever they
+happen to be standing, and offering the saved addresses would be circular.
+
+Leaving it unlocated is fine. The address still works as an address; it simply
+cannot be an end of a journey yet, and both screens say so.
+
+Both Module 04 layout rules apply throughout: a non-lazy scrolling `Column` so
+validation cannot skip an off-screen field, and a primary action that is never
+under the keyboard or the navigation bar.
 
 ### On home
 
-Home shows the customer's real next journey when there is one, and nothing at all
-when there is not. The card shows where, when and how many — no progress bar, no
+Home shows the customer's current journey when there is one, and nothing at all
+when there is not. The card shows the two ends, when it was planned, and — stated
+rather than implied — that the route has not been worked out. No progress bar, no
 remaining time, no next pickup. Module 02's card drew all three from fixture
 data; a progress bar at zero would imply the app is tracking a journey it cannot
 see.
+
+The planner card's two rows show whichever ends that journey has, so the card
+reflects reality rather than always inviting a journey the customer has already
+planned.
 
 ## The three home states
 

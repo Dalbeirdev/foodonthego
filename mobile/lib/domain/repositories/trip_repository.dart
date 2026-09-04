@@ -7,13 +7,24 @@ import '../models/trip.dart';
 /// off, and inventing a third bucket the server cannot fill would put an empty
 /// tab in front of somebody with no way to ever fill it.
 enum TripScope {
-  open('open'),
-  cancelled('cancelled'),
-  all('all');
+  /// Still open — the server's `ROUTE_PENDING`.
+  open('ROUTE_PENDING'),
+  cancelled('CANCELLED'),
 
-  const TripScope(this.wire);
+  /// No filter at all.
+  all(null);
 
-  final String wire;
+  const TripScope(this.status);
+
+  /// The `status` query value, or null to ask for everything.
+  ///
+  /// Deliberately the server's own status strings rather than words of this
+  /// app's own. A client vocabulary that has to be translated at the edge is a
+  /// translation somebody eventually gets wrong in one direction only — which
+  /// is exactly what happened here: an earlier version sent `scope=open`, the
+  /// server filters on `status`, and the unknown parameter was ignored, so
+  /// every list came back unfiltered and discarded trips sat in the open list.
+  final String? status;
 }
 
 /// Everything the app can do with a customer's trips.

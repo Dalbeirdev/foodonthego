@@ -320,6 +320,13 @@ class AppStrings {
   String get placePickerOriginTitle => 'Where are you setting off from?';
   String get placePickerDestinationTitle => 'Where are you going?';
   String get placePickerCurrentLocation => 'Use my current location';
+
+  /// What an unnamed device fix is called once it is one end of a journey.
+  ///
+  /// Not the row's own label: "Use my current location" is an instruction, and a
+  /// journey listed as "Use my current location → Jaipur" reads as a button
+  /// somebody pressed rather than a place they set off from.
+  String get placeCurrentLocationName => 'Current location';
   String get placePickerCurrentLocationHint => 'We ask your device just once';
   String get placePickerLocating => 'Finding you…';
   String get placePickerSaved => 'Saved addresses';

@@ -93,9 +93,23 @@ Added in Module 05 ([20-trip-planner.md](20-trip-planner.md)):
 
 | Code | HTTP | Meaning |
 | --- | --- | --- |
+| `ORIGIN_REQUIRED` / `DESTINATION_REQUIRED` | 422 | An end of the journey was not supplied |
+| `SAME_LOCATION` | 422 | Both ends resolve to the same place |
+| `INVALID_COORDINATES` | 422 | Out of range, or the (0, 0) sentinel |
+| `SAVED_ADDRESS_NOT_LOCATED` | 422 | That address has never been located |
 | `TRIP_NOT_FOUND` | 404 | No such journey, or not visible to this caller |
-| `TRIP_LIMIT_REACHED` | 422 | Too many journeys still ahead |
-| `TRIP_NOT_EDITABLE` | 422 | The journey has departed or been cancelled |
+| `TRIP_LIMIT_REACHED` | 422 | Too many journeys still open |
+| `TRIP_NOT_EDITABLE` | 422 | The journey has already been discarded |
+| `TRIP_CREATE_FAILED` | 500 | Ours — offer a retry, not a field |
+| `PLACE_NOT_FOUND` | 404 | The place provider does not know that id |
+| `PLACE_LOOKUP_FAILED` | 503 | The place provider is unavailable |
+
+`SAVED_ADDRESS_NOT_LOCATED` earns its own code rather than folding into
+`VALIDATION_FAILED` because the client's answer is specific and different:
+locate the address, do not retry the request.
+
+`PLACE_LOOKUP_FAILED` carries nothing from the provider's own message. An
+upstream error names our project, our key state and our quota.
 
 `TRIP_NOT_FOUND` is a 404 for the same reason `ADDRESS_NOT_FOUND` is: not-yours
 and does-not-exist are one answer, so the endpoint cannot be walked to discover
@@ -194,8 +208,13 @@ hold for every resource a customer owns:
   `/customers/{id}/…` — there is then no ownership check to forget and no id for
   a caller to change.
 - **A literal segment is declared before a parameter that could swallow it.**
-  `/customer/trips/next` before `/customer/trips/{trip}`, or "next" is captured
-  as a journey id and answered 404.
+  `/customer/trips/current` before `/customer/trips/{trip}`, or "current" is
+  captured as a journey id and answered 404.
+- **A filter uses the server's own vocabulary.** `/customer/trips?status=` takes
+  a `TripStatus` value, not a client-side word. An unknown query parameter is
+  *ignored* rather than refused, so a client sending its own dialect gets an
+  unfiltered list and looks entirely healthy — a defect that reached a running
+  server in Module 05 and is now pinned by a test.
 - A resource a customer owns is addressed without naming the owner: `/api/v1/customer/addresses/{uuid}`,
   never `/api/v1/customers/{customer}/addresses/{uuid}`. The actor comes from the token. Admin and
   support surfaces, when they exist, get their own routes with their own abilities rather than

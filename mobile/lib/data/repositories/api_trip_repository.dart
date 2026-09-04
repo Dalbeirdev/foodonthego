@@ -18,8 +18,10 @@ class ApiTripRepository implements TripRepository {
 
   @override
   Future<List<Trip>> trips({TripScope scope = TripScope.open}) async {
+    final String? status = scope.status;
+
     final List<dynamic> data = await _client.getList(
-      '$_path?scope=${scope.wire}',
+      status == null ? _path : '$_path?status=$status',
       authenticated: true,
     );
 

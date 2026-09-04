@@ -114,7 +114,7 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
 
     final TripLocation? location = await ref
         .read(currentLocationControllerProvider.notifier)
-        .resolve(fallbackLabel: strings.placePickerCurrentLocation);
+        .resolve(fallbackLabel: strings.placeCurrentLocationName);
 
     if (!mounted || location == null) return;
 
@@ -611,6 +611,10 @@ class _PlaceRow extends StatelessWidget {
     return Semantics(
       button: onTap != null,
       label: secondary.isEmpty ? primary : '$primary, $secondary',
+      // Declared here as well as on the InkWell: `excludeSemantics` removes the
+      // child's action, and a labelled button with no action is a row assistive
+      // technology can read but not press.
+      onTap: isBusy ? null : onTap,
       excludeSemantics: true,
       child: InkWell(
         onTap: isBusy ? null : onTap,

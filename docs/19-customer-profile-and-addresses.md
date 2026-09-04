@@ -222,23 +222,35 @@ New error codes: `ADDRESS_NOT_FOUND` (404) and `ADDRESS_LIMIT_REACHED` (422).
 
 ---
 
-## Google Places, and what is deliberately deferred
+## Locating an address — connected in Module 05
 
 The schema carries `latitude`, `longitude`, `place_id` and `formatted_address`
-because the trip planner will need to route between saved addresses. All of them
-accept values from a client that has them.
+because the trip planner needs to route between saved addresses.
 
-**They stay NULL until something actually geocodes.** Inventing coordinates from
-a typed address would produce a route to a place the customer never chose, and
-`0, 0` is a real place in the Gulf of Guinea — a route to it is a route into the
-Atlantic. `SavedAddress.hasCoordinates` exists so a caller must decide what to do
-when they are absent rather than substituting a number.
+**They stay NULL until the customer locates the address.** Inventing coordinates
+from a typed address would produce a route to a place the customer never chose,
+and `0, 0` is a real place in the Gulf of Guinea — a route to it is a route into
+the Atlantic. `SavedAddress.hasCoordinates` exists so a caller must decide what
+to do when they are absent rather than substituting a number.
 
-**Google Places enrichment will be connected during the mapping and location
-implementation.** When it is, a Places-backed picker fills these four fields at
-save time and `formatted_address` becomes Google's rather than the composed one.
-Nothing else changes: the columns, the validation ranges and the API shape are
-already in place.
+Module 04 accepted these four fields on the wire and the app never sent any, so
+in practice no saved address ever had a position — and Module 05 could not use
+one as an end of a journey. That gap is now closed.
+
+The address form has a **Find this address** row. It opens the same
+server-mediated place search the trip planner uses, in a search-only mode: the
+device's current location is not offered, because an address somebody is
+describing from memory should not be pinned to wherever they happen to be
+standing, and the saved addresses are not offered because that would be circular.
+Choosing a result fills all four fields from the provider's answer, alongside the
+lines the customer typed.
+
+Leaving an address unlocated is a perfectly good outcome. It still works as an
+address; it simply cannot be one end of a journey yet, and both the form and the
+trip planner's picker say so rather than working around it.
+
+See [20-trip-planner.md](20-trip-planner.md) for how the place provider is
+configured and why its key never reaches a device.
 
 ---
 

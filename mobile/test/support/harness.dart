@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1020,6 +1022,10 @@ class FakeLocationService implements LocationService {
   /// state, which is otherwise gone within a frame.
   Duration delay = Duration.zero;
 
+  /// Never answers at all — a browser with an unanswered permission prompt, or
+  /// a platform channel that has gone quiet. The screen has to survive it.
+  bool hangs = false;
+
   int calls = 0;
   int settingsOpened = 0;
   bool settingsCanOpen = true;
@@ -1029,6 +1035,7 @@ class FakeLocationService implements LocationService {
     Duration timeout = const Duration(seconds: 12),
   }) async {
     calls++;
+    if (hangs) return Completer<LocationResult>().future;
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     return result;
   }

@@ -67,14 +67,25 @@ around the service and asserts error 1062.
 
 A row that describes a decision — a journey, an order, an invoice line — stores
 the values it was decided from, not a foreign key to somewhere they might later
-change. Module 05's `trips` copies each end of a journey out of the saved address
-it was chosen from, and keeps `origin_address_id` alongside as provenance with
+change. Module 05's `trips` copies each end of a journey out of whatever produced it, and
+keeps `origin_saved_address_id` alongside as provenance with
 `ON DELETE SET NULL`.
 
 Holding only the key is the tempting version and is wrong three ways: editing the
 address silently rewrites history, deleting it either orphans the row or blocks
 the delete, and any source that has no id at all (a typed place, an imported one)
 needs a second representation of the same concept.
+
+### A column nothing fills yet is a column not to add
+
+`trips` has `route_status`, and no `distance`, `duration`, `polyline` or `eta`.
+Those belong to Module 06. Adding them early costs nothing at the schema level
+and a great deal at the screen level: a nullable numeric column is an invitation
+to render "0 km" for a route nobody has calculated, and by the time somebody
+notices, the placeholder has been read as a real answer.
+
+The state that *is* recorded is the absence itself — `route_status` starts at
+`NOT_CALCULATED` — so a client reads the answer rather than assuming it.
 
 The rule of thumb: if a human would say "but that is what it *was* at the time",
 snapshot it.

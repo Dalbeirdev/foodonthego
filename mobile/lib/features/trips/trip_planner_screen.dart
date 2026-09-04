@@ -199,6 +199,11 @@ class _EndpointRow extends StatelessWidget {
             child: Semantics(
               button: true,
               label: '$label, ${isChosen ? primary : hint}',
+              // The tap action has to be declared on the node that carries the
+              // label. `excludeSemantics` drops the InkWell's own action, so
+              // without this the row announces itself as a button and then
+              // cannot be activated by anything but a finger on the glass.
+              onTap: onTap,
               excludeSemantics: true,
               child: InkWell(
                 onTap: onTap,

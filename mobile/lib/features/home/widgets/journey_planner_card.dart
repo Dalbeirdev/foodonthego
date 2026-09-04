@@ -104,6 +104,9 @@ class _RouteField extends StatelessWidget {
     return Semantics(
       button: onTap != null,
       label: '$label, $value',
+      // See the trip planner's own row: `excludeSemantics` drops the InkWell's
+      // action, so the node needs its own.
+      onTap: onTap,
       excludeSemantics: true,
       child: InkWell(
         onTap: onTap,

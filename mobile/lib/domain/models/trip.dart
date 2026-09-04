@@ -248,9 +248,12 @@ class TripLocation {
   /// The device's own fix.
   ///
   /// [named] is the reverse-geocoded description when the server could produce
-  /// one. When it could not, the coordinates still stand — they came from the
-  /// hardware and are authoritative — and the endpoint is simply labelled
-  /// "Current location", which is true of any coordinate.
+  /// one, and it supplies the name: a trip listed as "New Delhi → Jaipur" reads
+  /// as a journey, and one listed as "Use my current location → Jaipur" reads as
+  /// a button somebody pressed. When the point cannot be named, the coordinates
+  /// still stand — they came from the hardware and are authoritative — and
+  /// [fallbackLabel] carries a neutral description, which is true of any
+  /// coordinate.
   factory TripLocation.fromCurrentLocation({
     required double latitude,
     required double longitude,
@@ -258,7 +261,9 @@ class TripLocation {
     PlaceDetails? named,
   }) => TripLocation._(
     sourceType: LocationSourceType.currentLocation,
-    displayName: fallbackLabel,
+    displayName: (named?.displayName.trim().isNotEmpty ?? false)
+        ? named!.displayName
+        : fallbackLabel,
     formattedAddress: named?.formattedAddress ?? '',
     placeId: named?.placeId,
     latitude: latitude,

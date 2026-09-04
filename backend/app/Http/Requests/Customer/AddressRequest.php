@@ -57,8 +57,12 @@ abstract class AddressRequest extends FormRequest
 
             'country_code' => [...$presence, 'string', 'size:2', 'alpha'],
 
-            // Reserved for the mapping module. Accepted so a future Places-backed
-            // client can supply them; never invented server-side.
+            // Supplied by the client when the customer *locates* the address —
+            // Module 05's "find this address" flow, which resolves a real place
+            // through this server's own place provider. Never invented here, and
+            // never derived from the lines above: an address is a description a
+            // person wrote, and a coordinate is a claim about a point on the
+            // earth.
             'latitude' => [...$optional, 'numeric', 'between:-90,90'],
             'longitude' => [...$optional, 'numeric', 'between:-180,180'],
             'place_id' => [...$optional, 'string', 'max:255'],

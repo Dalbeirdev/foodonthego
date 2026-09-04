@@ -90,6 +90,10 @@ abstract interface class LocationService {
   /// the moment they tap "Use my current location", and nothing more: there is
   /// no stream, no background permission, and no reason for this app to watch
   /// anybody move.
+  ///
+  /// Must always complete. An implementation that can hang leaves the customer
+  /// watching a spinner with no way out, which is the one outcome worse than
+  /// any of the refusals above — see [kLocationDeadline].
   Future<LocationResult> currentLocation({Duration timeout});
 
   /// Opens the OS settings page where a permanent denial can be undone.
@@ -99,6 +103,19 @@ abstract interface class LocationService {
   /// nothing.
   Future<bool> openPermissionSettings();
 }
+
+/// The longest the whole operation may take before it answers anyway.
+///
+/// A backstop, not the normal path. `LocationSettings.timeLimit` is advisory —
+/// on the web it is not honoured at all, and a permission prompt left unanswered
+/// keeps the underlying future pending forever. Found exactly that way: the
+/// picker sat on "Finding you…" indefinitely in a browser that never resolved
+/// the prompt.
+///
+/// Generous, because on a phone this window is mostly spent with a system
+/// dialog over the app and a person deciding. If it does expire the screen says
+/// so and offers another go, which is recoverable; a spinner with no end is not.
+const Duration kLocationDeadline = Duration(seconds: 25);
 
 /// The real one, on top of `geolocator`.
 class GeolocatorLocationService implements LocationService {
@@ -140,7 +157,9 @@ class GeolocatorLocationService implements LocationService {
           accuracy: LocationAccuracy.high,
           timeLimit: timeout,
         ),
-      );
+        // Dart-side as well as platform-side. `timeLimit` is honoured by some
+        // platform implementations and ignored by others; this one always is.
+      ).timeout(timeout);
 
       return LocationFix(
         DeviceLocation(

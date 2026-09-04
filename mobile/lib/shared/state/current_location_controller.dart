@@ -82,7 +82,13 @@ class CurrentLocationController extends Notifier<CurrentLocationStatus> {
   Future<TripLocation?> resolve({required String fallbackLabel}) async {
     state = const CurrentLocationLocating();
 
-    final LocationResult result = await _location.currentLocation();
+    // The backstop. Whatever the platform does — and a browser with an
+    // unanswered permission prompt does nothing at all, forever — this future
+    // completes, so the sheet can never be left spinning with no way out.
+    final LocationResult result = await _location.currentLocation().timeout(
+      kLocationDeadline,
+      onTimeout: () => const LocationTimedOut(),
+    );
 
     if (_disposed) return null;
 

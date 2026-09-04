@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodonthego/domain/models/place.dart';
 import 'package:foodonthego/domain/models/saved_address.dart';
 import 'package:foodonthego/domain/models/trip.dart';
+import 'package:foodonthego/domain/repositories/trip_repository.dart';
 
 /// The wire contract, from the client's side.
 ///
@@ -120,6 +121,19 @@ void main() {
     });
   });
 
+  group('the list filter', () {
+    test('every scope names a status the server actually has', () {
+      // The one thing a fake repository cannot catch. An unknown query
+      // parameter is ignored rather than refused, so a client sending
+      // `scope=open` against a server filtering on `status` gets an unfiltered
+      // list back and every test against a fake still passes.
+      expect(TripScope.open.status, TripStatus.routePending.wire);
+      expect(TripScope.cancelled.status, TripStatus.cancelled.wire);
+      // No filter at all, rather than a word the server would ignore.
+      expect(TripScope.all.status, isNull);
+    });
+  });
+
   group('PlaceSuggestion and PlaceDetails', () {
     test('a suggestion carries no position, because it has none', () {
       final PlaceSuggestion suggestion = PlaceSuggestion.fromJson(
@@ -220,6 +234,28 @@ void main() {
       // Null rather than an endpoint with an invented coordinate. The customer
       // is asked to locate it; nothing guesses on their behalf.
       expect(TripLocation.fromSavedAddress(home()), isNull);
+    });
+
+    test('a named device fix is called by its name, not by the button', () {
+      final TripLocation location = TripLocation.fromCurrentLocation(
+        latitude: 28.5590,
+        longitude: 77.2070,
+        fallbackLabel: 'Current location',
+        named: const PlaceDetails(
+          placeId: 'dev:green-park',
+          displayName: 'New Delhi',
+          formattedAddress: 'Green Park, New Delhi, Delhi 110016',
+          latitude: 28.5590,
+          longitude: 77.2070,
+          city: 'New Delhi',
+        ),
+      );
+
+      // Found by reading the database after a live run: every journey started
+      // from a place called "Use my current location", which is an instruction
+      // rather than anywhere.
+      expect(location.displayName, 'New Delhi');
+      expect(location.latitude, 28.5590);
     });
 
     test('the current location keeps the device fix even when unnamed', () {

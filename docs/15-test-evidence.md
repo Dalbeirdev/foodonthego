@@ -595,168 +595,177 @@ against real MySQL rather than SQLite.
 Full transcript: [`evidence/module-05-verification-run.txt`](evidence/module-05-verification-run.txt).
 Screenshots: [`evidence/module-05/`](evidence/module-05/).
 
-## Automated tests — 707 total, 707 passed, 0 failed, 0 skipped
+This module was **reworked**: a first pass built a journey planner from the
+project roadmap rather than from the specification, and was replaced. Everything
+below describes the module as it now stands, and every number was re-measured
+after the rework.
+
+## Automated tests — 724 total, 724 passed, 0 failed, 0 skipped
 
 | Suite | Command | Tests | Passed | Failed | Skipped |
 | --- | --- | --: | --: | --: | --: |
-| Backend — journey lifecycle | `php artisan test --filter=TripServiceTest` | 29 | 29 | 0 | 0 |
-| Backend — journey endpoint value object | `--filter=JourneyEndpointTest` | 12 | 12 | 0 | 0 |
-| Backend — journey endpoints | `--filter=TripApiTest` | 34 | 34 | 0 | 0 |
-| Backend — ownership / IDOR | `--filter=TripOwnershipTest` | 13 | 13 | 0 | 0 |
-| Backend — journey logging | `--filter=TripLoggingTest` | 7 | 7 | 0 | 0 |
-| **Backend total** | `php artisan test` | **391** | **391** | **0** | **0** |
-| Mobile — journey models and time | `flutter test test/trip_models_test.dart` | 25 | 25 | 0 | 0 |
-| Mobile — the Trips screen | `flutter test test/trips_screen_test.dart` | 19 | 19 | 0 | 0 |
-| Mobile — the planner | `flutter test test/trip_planner_test.dart` | 18 | 18 | 0 | 0 |
-| Mobile — account isolation | `flutter test test/account_isolation_test.dart` | 6 | 6 | 0 | 0 |
-| **Mobile total** | `flutter test` | **287** | **287** | **0** | **0** |
-| Web (regression) | `npm test` | 29 | 29 | 0 | 0 |
-| **Project total** | | **707** | **707** | **0** | **0** |
+| Backend | `php artisan test` | 408 | 408 | 0 | 0 |
+| Flutter | `flutter test` | 312 | 312 | 0 | 0 |
+| Web shells | `npm test` | 4 | 4 | 0 | 0 |
 
-Backend grew from 296 to 391; mobile from 224 to 287.
+Static checks: `./vendor/bin/pint --test` → passed. `flutter analyze` → no
+issues. `dart format` → clean.
 
-## Integration — no mocks
+### The suites this module added or rewrote
 
-| Check | Command | Result |
-| --- | --- | --- |
-| Flutter network layer → Laravel → MySQL | `dart run tool/trip_planner_smoke.dart` | **30 passed, 0 failed** |
-| Module 04 regression, same live backend | `dart run tool/profile_addresses_smoke.dart` | **24 passed, 0 failed** |
-| Module 03 regression, same live backend | `dart run tool/integration_smoke.dart` | **13 passed, 0 failed** |
+| Suite | Tests | What it establishes |
+| --- | --: | --- |
+| `TripServiceTest` | 26 | Endpoint resolution, coordinate validation, the (0, 0) sentinel, the same-place rule, the open limit |
+| `TripApiTest` | 30 | The endpoints as a client sees them; that no DELETE exists and no route field is ever returned |
+| `TripOwnershipTest` | 14 | The IDOR matrix, including creating a trip from another customer's saved address |
+| `TripLoggingTest` | 8 | That no place, coordinate or search query reaches the log file on disk |
+| `PlaceApiTest` | 14 | Caching by query alone, session tokens, one opaque failure code, authentication |
+| `PlaceProviderTest` | 18 | All three providers; the Google adapter against a stubbed transport |
+| `ProductionConfigGuardTest` | 15 | Including: an unconfigured place provider blocks a production boot |
+| `trip_models_test.dart` | 22 | Parsing, the wire shape, the same-place rule, and that no payload carries a customer id or a route field |
+| `trip_planner_test.dart` | 20 | The whole planner, plus the accessibility of every labelled row |
+| `trips_screen_test.dart` | 13 | Two scopes, four states, discarding, and that no row shows a distance |
+| `place_search_test.dart` | 13 | Debounce, the session-token lifecycle, and the stale-answer race |
+| `location_permission_test.dart` | 15 | Every permission outcome, contextual asking, and a device that never answers |
+| `address_location_test.dart` | 4 | Locating a saved address; an unlocated one sends no coordinates |
 
-The 30 assertions are listed verbatim in the transcript. Nine are security
-assertions, including the four-way journey IDOR matrix, the attempt to plan a
-journey from another customer's saved address, an unauthenticated call and a
-revoked session.
+## Integration — no mocks, no fakes, no stubs
 
-One assertion — "a partial update leaves untouched fields alone in the database"
-— exists because of a defect the responses hid. It re-reads the journey rather
-than trusting the update's own answer.
+`dart run tool/trip_planner_smoke.dart` drives this app's own `ApiClient` and
+repositories against a running Laravel server, real MySQL and real Redis.
 
-## Static analysis
+**31 assertions, 31 passed, 0 failed.**
 
-| Check | Command | Result |
-| --- | --- | --- |
-| Backend style | `vendor/bin/pint --test` | **passed** |
-| Backend advisories | `composer audit` | **none** |
-| Dart analyzer | `flutter analyze --fatal-infos` | **No issues found** |
-| Dart format | `dart format --set-exit-if-changed .` | **106 files, 0 changed** |
-| Flutter web build | `flutter build web --release` | **✓ Built** |
-| TypeScript (regression) | `npm run typecheck` | **0 errors** |
+It walks: an empty account · place search, one-letter refusal, details resolving
+to a real position, reverse geocoding keeping the caller's coordinates, an
+impossible coordinate refused, unauthenticated lookup refused · a trip created
+from a saved address and a searched place · that no route is calculated and none
+is claimed · that the saved address is snapshotted (edited **and** deleted, the
+trip unmoved) · that the payload contains no distance, duration, polyline, ETA,
+customer id or address id · same-place, out-of-range and (0, 0) refusals · a
+mass-assignment payload carrying `customer_id`, `id`, `uuid`, `status`,
+`route_status`, `distance`, `duration`, `eta`, `polyline` and `cancelled_at`,
+all ignored · four attacks on Ananya from Rahul's session, including creating a
+trip from her saved address · that no refusal leaks a word of her data · that
+missing and forbidden are indistinguishable · that the list filter the client
+sends is one the server actually reads · discarding, and its refusal to happen
+twice · an unauthenticated call · a revoked session.
 
-## Database verification — real MySQL
+## Database verification
 
-| Check | Query | Result |
-| --- | --- | --- |
-| No coordinate was invented | any of the four lat/lng columns not null | **0 rows** |
-| Nothing stored half a location | `(lat IS NULL) <> (lng IS NULL)` | **0 rows** |
-| No journey ends where it starts | formatted addresses compared | **0 rows** |
-| A partial update left the rest alone | `traveller_count` after a note-only edit | **3**, the value the earlier edit set |
-| The endpoint snapshot survived an address edit | `origin_city` after the address moved to Mumbai | **New Delhi** |
-| The victim's journey untouched after four attacks | full row compare | **identical** |
-| Status is a two-case ENUM | `SHOW COLUMNS` | `enum('PLANNED','CANCELLED')` |
-| Provenance links are nullable and SET NULL | `SHOW CREATE TABLE` | both `*_address_id` FKs |
-| Customer FK is explicit | `SHOW CREATE TABLE` | `ON DELETE RESTRICT` |
+Read directly with `mysql`, not through the API.
 
-## Log review — real application log
+```
+status  route_status    origin_source_type  origin_name  origin_latitude  destination_name
+CANCELLED  NOT_CALCULATED  CURRENT_LOCATION  New Delhi   28.5590000       Jaipur International Airport
+ROUTE_PENDING  NOT_CALCULATED  SAVED_ADDRESS  Office     28.4949000       Sector 17 Plaza
+```
 
-5,421 lines, covering 209 journey creations, 23 updates, 27 cancellations and 45
-denied accesses.
+- `route_status` is `NOT_CALCULATED` on **every** row. No trip claims a route.
+- `SHOW COLUMNS FROM trips` lists 30 columns and **none** of them is a distance,
+  a duration, a polyline or an ETA.
+- Coordinates are real published positions, stored at seven decimal places, with
+  no zeros and no (0, 0).
+- `origin_saved_address_id` is `NULL` on the trip whose address was deleted — the
+  `ON DELETE SET NULL` provenance rule — and the trip's own copy of the address
+  is unchanged.
 
-| Check | Occurrences |
-| --- | --: |
-| Any journey city, area or address | **0** |
-| Any note or cancellation reason a customer typed | **0** |
-| Any departure or arrival time | **0** |
-| Any full phone number | **0** |
+## Log verification
 
-An update logs the *names* of the fields that changed. The eight columns of an
-endpoint collapse to the single name `"destination"`, so the log records that the
-destination changed without recording where to. When somebody's home will be
-empty is as sensitive as where it is, and neither is in the file.
+Read from `storage/logs/foodonthego-2026-09-04.log` after a full round of
+operations.
 
-## Live-view verification
+Present: `trip.created`, `trip.discarded`, `trip.access_denied`,
+`places.lookup_failed`, each with a request id, the actor's uuid, the trip's
+uuid, the source kinds and `route_status`.
 
-A Flutter **web release build with `FOTG_ENV=production`** — no fixtures, no
-development harness — served at `http://localhost:5173`, talking to Laravel at
-`http://localhost:8000` against MySQL. Driven with Playwright through Flutter's
-DOM semantics tree.
+Absent — eleven needles grepped, **zero hits**: `Jaipur`, `Green Park`,
+`Hawa Mahal`, `Sector 17`, `Gurugram`, `Cyber City`, `28.5590`, `77.2070`,
+`26.8242`, `AIza`, and the test phone numbers.
 
-Twenty-four screenshots in [`evidence/module-05/`](evidence/module-05/):
+## Live-view verification — 28 states
 
-| State | File |
-| --- | --- |
-| Home, signed in, no journey planned | `state-01-home-no-journey.png` |
-| Trips — empty state | `state-02-trips-empty.png` |
-| The planner, empty | `state-03-planner-empty.png` |
-| Planner validation — both ends required | `state-04-planner-validation.png` |
-| The place picker | `state-05-place-picker.png` |
-| A place typed into the picker | `state-06-place-typed.png` |
-| The planner, filled | `state-07-planner-filled.png` |
-| Journey saved (after the server confirmed) | `state-08-journey-saved.png` |
-| Journey detail | `state-09-journey-detail.png` |
-| Two journeys, soonest first | `state-10-two-journeys.png` |
-| The row menu | `state-11-row-menu.png` |
-| Editing a journey | `state-12-edit-journey.png` |
-| Cancel confirmation, with a reason field | `state-13-cancel-confirmation.png` |
-| After cancelling | `state-14-after-cancelling.png` |
-| The Cancelled scope | `state-15-cancelled-scope.png` |
-| The Past scope, empty | `state-16-past-empty.png` |
-| Home with the real next journey | `state-17-home-next-journey.png` |
-| Offline — every API call aborted at the network layer | `state-18-trips-offline.png` |
-| Dark mode, trips and home | `variant-dark-*.png` |
-| 320dp (smallest supported), trips and planner | `variant-320-*.png` |
-| 768dp tablet | `variant-768-trips.png` |
-| A taller phone | `variant-420-tall.png` |
+A `production` Flutter web build (no fixtures, no development harness) against
+the running API and database, driven in headless Chromium through the DOM
+semantics tree, with the browser's own geolocation standing in for a handset's.
 
-Final run: **"All expected content present."**
+| # | State | File |
+| --: | --- | --- |
+| 01 | Home, with the planner call to action | `state-01-home.png` |
+| 02 | The planner, both ends empty | `state-02-planner-empty.png` |
+| 03 | The picker: current location, saved addresses, search | `state-03-picker-origin.png` |
+| 04 | Origin filled from a real device fix | `state-04-origin-current-location.png` |
+| 05 | Search results, typed a letter at a time | `state-05-search-results.png` |
+| 06 | A search that matches nothing | `state-06-search-no-results.png` |
+| 07 | Both ends chosen | `state-07-both-ends-chosen.png` |
+| 08 | Swapped | `state-08-swapped.png` |
+| 09 | The created journey — "Route not calculated yet" | `state-09-journey-created.png` |
+| 10 | The journeys list | `state-10-trips-list.png` |
+| 11 | The same place at both ends, refused before sending | `state-11-same-place-refused.png` |
+| 12 | One end cleared | `state-12-cleared-origin.png` |
+| 13 | Nothing chosen: the missing end is named | `state-13-origin-required.png` |
+| 14 | The row menu | `state-14-row-menu.png` |
+| 15 | The discard confirmation | `state-15-discard-dialog.png` |
+| 16 | After discarding | `state-16-after-discard.png` |
+| 17 | The discarded scope | `state-17-discarded-scope.png` |
+| 18 | An address with no location | `state-18-address-not-located.png` |
+| 19 | The address locator — search only | `state-19-address-locator.png` |
+| 20 | The address located | `state-20-address-located.png` |
+| 21a | Asking the device | `state-21a-locating.png` |
+| 21b | The device never answered — and the screen said so | `state-21b-location-timed-out.png` |
+| 22 | The place provider down | `state-22-search-failure.png` |
+| 23 | Offline | `state-23-offline-search.png` |
+| 24 | 320dp | `state-24-320-planner.png` |
+| 25 | 360dp | `state-25-360-planner.png` |
+| 26 | 430dp | `state-26-430-planner.png` |
+| 27 | Dark mode | `state-27-dark-picker.png` |
 
-**Console errors, in full and unedited:** two font fetches to
-`fonts.gstatic.com` refused by this environment's egress policy — the same
-CanvasKit limitation the Module 04 run recorded — and two API requests aborted
-because the offline state was being driven deliberately. There are no
-application errors and no page errors.
+The run asserts on every state: no console errors, no page errors, and **no
+"km", no "min", no "ETA" anywhere**. It finished with *No problems found*.
 
-Every state above is the real API's answer. The success states were captured
-*after* the server returned 200, and the transcript's database section shows the
-same rows the screenshots show.
+### Permission outcomes, and where each was exercised
 
-## Account isolation
+| Outcome | Browser | Widget test |
+| --- | :-: | :-: |
+| Granted | ✅ real geolocation | ✅ |
+| Granted but coarse | ➖ | ✅ |
+| Denied | ➖ | ✅ |
+| Denied permanently | ➖ | ✅ |
+| Services switched off | ➖ | ✅ |
+| Timed out | ✅ pending prompt | ✅ |
+| Platform failure | ➖ | ✅ |
+| Never answers at all | ✅ | ✅ |
 
-Signed in as Rahul, planned a journey, signed out, signed in as Ananya through
-the real OTP flow: her journeys are hers, with no frame of his. Structural rather
-than a cleanup step — `TripsController` watches the auth session, so ending it
-disposes the state. Pinned by three tests in `account_isolation_test.dart` that
-drive the real sign-in flow rather than re-mounting the widget tree.
-
-## Android verification
-
-**PENDING — environment unavailable.** `dl.google.com` is denied by the network
-egress policy, so the Android SDK cannot be installed. See KI-001. Not claimed as
-passed.
-
-## iOS verification
-
-**iOS Runtime Verification = PENDING — environment unavailable.** No macOS host
-and no Xcode. See KI-002. Not claimed as passed.
-
-## Accessibility evidence
-
-| Check | Method | Result |
-| --- | --- | --- |
-| Place and time rows name themselves | `Semantics(button:, label:)` carrying field, value and error (M05-B05) | ✅ |
-| Row menu identifies its journey | Tooltip reads "Options for New Delhi → Jaipur" | ✅ |
-| Cancelled and departed are words, not colours | Renders "CANCELLED" / "Departed" | ✅ |
-| A read-only journey says why | Notice above the missing actions | ✅ |
-| Traveller stepper buttons are labelled | "One more traveller" / "One fewer traveller" | ✅ |
-| Scope labels never break mid-word at 320dp | Test at 320dp; horizontal scroll below it | ✅ |
-| The primary action is reachable at 320×568 | Pinned action; empty state shrinks its motif (M05-B03) | ✅ |
-| Destructive action is confirmed | Dialog naming what happens to the journey | ✅ |
-| Contrast, light and dark | Unchanged tokens; `tokens_test.dart` still passes | ≥ 4.5:1 |
+A browser can produce two of these honestly; the rest need a state a browser will
+not enter on request, so they are driven through a fake `LocationService` that
+returns each outcome in turn. That is stated here rather than implied by a tick.
 
 ## Defects found and fixed
 
-Five, with root causes, in [13-known-issues.md](13-known-issues.md) (M05-B01 …
-M05-B05). Four were high severity. Two were found by inspection methods rather
-than by tests: the unreachable empty-state action by driving a real browser at
-320×568, and the silently reset traveller count by reading MySQL after the
-integration run — the assertions had passed.
+Eleven, with root causes, in [13-known-issues.md](13-known-issues.md)
+(M05-B01 … M05-B11). Six were high severity.
+
+Four were found by inspection methods rather than by tests, and could not have
+been found any other way:
+
+- **B08** — the picker's labelled rows could not be activated by assistive
+  technology. Only visible when driving the built app through the semantics tree;
+  every widget test tapped by widget, which works regardless.
+- **B09** — "Finding you…" never resolved when a browser left the permission
+  prompt pending. `geolocator`'s own `timeLimit` does not fire there.
+- **B10** — every list filter was ignored, because the client sent `?scope=` and
+  the server reads `?status=`. An unknown query parameter is *ignored*, so the
+  request looked healthy and every fake-backed test still passed.
+- **B11** — every journey started from a place called "Use my current location".
+  Found by reading the `trips` rows, which no API assertion would have
+  questioned.
+
+## What is pending, and why
+
+- **Live Google Places verification = PENDING — environment unavailable.** No API
+  key here, and the provider answers 403 without one. The adapter is verified
+  against a stubbed HTTP transport. (KI-010, M05-037.)
+- **Android runtime verification = PENDING — environment unavailable.** (KI-001.)
+- **iOS runtime verification = PENDING — environment unavailable.** (KI-002.)
+
+None of the three is a code failure, and none is reported as a pass.

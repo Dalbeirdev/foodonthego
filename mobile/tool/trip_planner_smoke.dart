@@ -217,6 +217,7 @@ void main(List<String> args) async {
           addressLine1: 'Somewhere else entirely',
           city: 'Mumbai',
           state: 'Maharashtra',
+          postalCode: '400001',
           countryCode: 'IN',
           latitude: 18.9401,
           longitude: 72.8352,
@@ -516,6 +517,17 @@ void main(List<String> args) async {
     _expect(his.any((Trip t) => t.id == herTrip.id), false);
   });
 
+  await _checkAsync('the list filter the client sends is one the server reads', () async {
+    // Pinned against a real server because it cannot be pinned against a fake:
+    // an unknown query parameter is *ignored*, so a client sending the wrong one
+    // gets a complete list and looks entirely healthy.
+    final List<Trip> everything = await rahul.trips.trips(scope: TripScope.all);
+    final List<Trip> open = await rahul.trips.trips();
+
+    _expect(everything.length >= open.length, true);
+    _expect(open.every((Trip t) => !t.isCancelled), true);
+  });
+
   // --- 8. the lifecycle ---------------------------------------------------
   await _checkAsync('a trip can be discarded, and stays in history', () async {
     final Trip discarded = await rahul.trips.discardTrip(created.id);
@@ -716,7 +728,10 @@ void _check(String description, void Function() body) {
     stdout.writeln('  PASS  $description');
   } catch (error) {
     _failed++;
-    stdout.writeln('  FAIL  $description\n        $error');
+    final String detail = error is ApiException
+        ? '$error ${error.details}'
+        : '$error';
+    stdout.writeln('  FAIL  $description\n        $detail');
   }
 }
 
@@ -730,6 +745,9 @@ Future<void> _checkAsync(
     stdout.writeln('  PASS  $description');
   } catch (error) {
     _failed++;
-    stdout.writeln('  FAIL  $description\n        $error');
+    final String detail = error is ApiException
+        ? '$error ${error.details}'
+        : '$error';
+    stdout.writeln('  FAIL  $description\n        $detail');
   }
 }

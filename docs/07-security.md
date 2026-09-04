@@ -98,9 +98,11 @@ a log. Operational logs for this module carry record ids and actor ids and nothi
 against the real 1,634-line application log, which contains zero address lines, zero email addresses
 and zero complete phone numbers.
 
-**Coordinates are never invented.** If geocoding has not run, `latitude` and `longitude` are `NULL`.
-A plausible-looking coordinate derived from a text address is worse than no coordinate, because the
-routing module in Module 05 would trust it.
+**Coordinates are never invented.** If the customer has not located an address, `latitude` and
+`longitude` are `NULL`. A plausible-looking coordinate derived from a text address is worse than no
+coordinate, because the routing module in Module 06 would trust it. Module 05 makes the consequence
+visible rather than papering over it: an unlocated address cannot be one end of a journey, the picker
+says so, and the address form offers to find the real place instead.
 
 ### Cache isolation between accounts
 
@@ -142,13 +144,52 @@ is the same and is enforced by tests that read the log file on disk:
 - Never logged. Not the places, not the times, not the note the customer typed.
 - Operational lines carry the event, the record uuid and the actor uuid — enough
   to answer "who changed what" in an incident, and nothing more.
-- An update logs the **names** of the fields that changed, never their values.
-  The eight columns of a journey endpoint collapse to the single name
-  "destination", so the log records that the destination changed without
-  recording where to.
+- A creation logs which *kind* of source each end used — current location, saved
+  address, place search — because how people choose places is an operational
+  question and the answer says nothing about where.
 - Never in analytics events.
 - A denied access is logged as an attempt, without the content of what was
   reached for.
+
+**A search query is location data too.** What somebody types into a place search
+is a statement about where they are going, whether or not they ever create the
+trip. No query text reaches a log line, including the line written when the
+provider fails.
+
+### Third-party credentials never reach a device
+
+The app holds no place-provider key and makes no provider call. Every lookup goes
+through `/customer/places/*` on our own server, which is authenticated — an open
+endpoint on a server holding a metered key is somebody else's free geocoder.
+
+The key is sent to the provider in an `X-Goog-Api-Key` header and never in a
+query string: a key in a URL ends up in access logs, proxy logs and referrer
+headers. Because it never ships to a device, the restrictions that apply are the
+server-side ones — IP restriction to the backend's egress addresses, and API
+restriction to Places (New) and Geocoding. Android package/signing and iOS
+bundle-id restrictions do not apply, because the app never calls the provider;
+the guidance sits in `.env.example` next to the key itself.
+
+If no key is configured, the provider resolves to `UnconfiguredPlaceProvider`,
+which refuses every call and **blocks a production boot** through
+`ProductionConfigGuard`. The development gazetteer refuses to be constructed
+outside development at all.
+
+### Location, and asking for it
+
+The device's position is the most sensitive thing this app can read. Three rules:
+
+1. **Requested contextually.** Permission is asked for from exactly one place —
+   the "Use my current location" row — and never at launch. An app that asks
+   before the customer has any reason to say yes is an app most people say no to.
+2. **Read once, never watched.** One fix on demand, discarded once the trip is
+   created. No position stream, no background permission, no "always"
+   authorisation anywhere in the app.
+3. **Never a trap.** Every refusal — denied, denied permanently, services
+   switched off, timed out, platform failure — offers a search box that does not
+   need location at all, and "services switched off" is never reported as a
+   denial. The whole operation carries a hard 25-second deadline so a pending
+   permission prompt cannot leave a customer watching a spinner with no way out.
 
 ## Logging
 

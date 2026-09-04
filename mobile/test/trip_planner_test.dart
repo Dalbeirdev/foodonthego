@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodonthego/core/network/api_error_code.dart';
 import 'package:foodonthego/core/network/api_exception.dart';
@@ -424,6 +425,55 @@ void main() {
 
       expect(find.byType(TripPlannerScreen), findsOneWidget);
       expect(find.text('Jaipur International Airport'), findsOneWidget);
+    });
+  });
+
+  group('assistive technology', () {
+    testWidgets('every labelled row can actually be activated', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await openPlanner(tester);
+
+      // Found by driving the built app: the rows wrap their contents in
+      // `Semantics(excludeSemantics: true)` to give the whole row one sensible
+      // label, and that also removes the InkWell's tap action. A screen reader
+      // announced "Setting off from, Choose your starting point, button" and
+      // then had no way to press it.
+      for (final String label in <String>[
+        'Setting off from, Choose your starting point',
+        'Going to, Choose your destination',
+      ]) {
+        final SemanticsNode node = tester.getSemantics(
+          find.bySemanticsLabel(label),
+        );
+        expect(
+          node.getSemanticsData().hasAction(SemanticsAction.tap),
+          isTrue,
+          reason: label,
+        );
+      }
+
+      handle.dispose();
+    });
+
+    testWidgets('the picker rows can be activated too', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await openPlanner(tester);
+
+      await tester.tap(find.text('Setting off from'));
+      await tester.pumpAndSettle();
+
+      final SemanticsNode node = tester.getSemantics(
+        find.bySemanticsLabel(
+          'Use my current location, We ask your device just once',
+        ),
+      );
+      expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+
+      handle.dispose();
     });
   });
 

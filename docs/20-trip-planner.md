@@ -1,126 +1,276 @@
 # 20 — Trip planner
 
-A journey is an origin, a destination and a departure time. That is the whole of
-Module 05, and the restraint is the point: the product's centre of gravity is
-the *timing* — food ready when a traveller arrives — and everything that decides
-timing depends on a route, which nothing in the system can compute yet.
+A trip is an origin and a destination. That is the whole of Module 05, and the
+restraint is the point: the product's centre of gravity is the *timing* — food
+ready when a traveller arrives — and everything that decides timing depends on a
+route, which nothing in the system can compute yet.
+
+So this module answers one question well ("where are you going, and where from")
+and refuses to answer the next one at all.
 
 ---
 
-## What a journey is, and what it deliberately is not
+## The boundary
 
-A journey records **what the traveller said**. It does not record, imply or
-compute anything about the physical world:
+Module 05 ends where Module 06 begins, and the line is drawn in the schema rather
+than in a convention somebody has to remember.
 
-| Recorded | Not recorded, and why |
+| In Module 05 | Explicitly Module 06's |
 | --- | --- |
-| Where they are setting off from | The route between the two — Module 09 owns corridors |
-| Where they are going | The distance, the duration, the detour to any restaurant |
-| When they are setting off | Where they are *now* — there is no GPS, and there will not be one here |
-| When they expect to arrive, **if they say so** | An arrival time nobody computed |
-| How many are travelling | Anything about who they are beyond the account |
-| A short note, if they write one | Anything derived from that note |
+| Choosing an origin | Route calculation |
+| Choosing a destination | Route polyline and geometry |
+| Place search, and resolving a place to a position | Distance |
+| The device's current location | Travel duration, traffic-aware or otherwise |
+| Selecting a saved address | Route alternatives |
+| Creating a trip, and persisting both ends | Displaying a route, or validating one |
 
-The pattern repeats Module 04's, and for the same reason. A saved address stores
-`latitude` and `longitude` as `NULL` until something really geocodes it; a
-journey stores them the same way, at both ends. A fabricated coordinate is
-indistinguishable from a real one to the module that will draw a corridor from
-it, and a corridor drawn from a guess produces a restaurant list that is wrong in
-a way nobody can see.
+There is **no** `distance`, `duration`, `polyline` or `eta` column on `trips`,
+and no such key in any API response. A column is an invitation to fill it, and a
+nullable one is an invitation to render "0 km" while it is still null.
+
+The one thing this module *does* record about routing is that none has happened:
+`route_status` is `NOT_CALCULATED` on every row Module 05 can create. The app
+reads that value rather than assuming it, so the day Module 06 starts moving it
+there is exactly one line of UI to change.
 
 ---
 
 ## Two statuses, not five
 
-`TripStatus` has `PLANNED` and `CANCELLED`. That is all this module can honestly
-observe.
+`TripStatus` has `ROUTE_PENDING` and `CANCELLED`. That is all this module can
+honestly observe.
 
 "On the road", "arrived" and "completed" are claims about a traveller's physical
-position. Module 05 has no way to establish any of them: no GPS, no route, no
-arrival signal. It could ask the customer to tap a button — but a self-reported
-travel state is a claim the platform cannot verify, and the restaurant queue is
-eventually sorted by **expected arrival**. An invented travel state becomes an
-invented cooking time, which is the one failure this product cannot absorb.
+position. Module 05 has no way to establish any of them: no route, no arrival
+signal, and — deliberately — no ongoing knowledge of where anybody is. It could
+ask the customer to tap a button, but a self-reported travel state is a claim the
+platform cannot verify, and the restaurant queue is eventually sorted by
+**expected arrival**. An invented travel state becomes an invented cooking time,
+which is the one failure this product cannot absorb.
 
-Module 09 adds the states it can actually establish, when there is movement to
-watch.
+There is no "past" scope either, for the same reason: nothing here observes a
+journey happening, so a tab for finished journeys is a tab that never fills.
 
-**"Past" is not a status.** A journey is behind the traveller when
-`departure_at` is behind the clock — a fact about time rather than a claim about
-a person. It needs no column, and it cannot go stale.
+---
 
-One consequence worth stating: a cancelled journey whose departure is still
-ahead is in *neither* the upcoming list nor the past list. It is not upcoming —
-nobody is going — and calling it past would be a lie about a date. It lives in
-its own scope and remains reachable by its id.
+## Places come through this server, never from the device
+
+The app holds no provider key and makes no provider call. Every lookup goes to
+`/api/v1/customer/places/*`, which is authenticated — an open endpoint on a
+server holding a metered key is somebody else's free geocoder, and the bill
+arrives here.
+
+Three providers sit behind one `PlaceProvider` interface, following the pattern
+Module 03 established for OTP delivery:
+
+| Provider | Role |
+| --- | --- |
+| `GooglePlacesProvider` | The real one. Places API (New) autocomplete and details, plus Geocoding for reverse lookup. |
+| `UnconfiguredPlaceProvider` | Refuses every call, loudly, and blocks a production boot through `ProductionConfigGuard`. |
+| `DevelopmentGazetteerProvider` | A dozen real places with their real published coordinates, for development and automated verification. Refuses to be constructed in production. |
+
+The gazetteer's identifiers are namespaced `dev:` so a row in the database or a
+line in a log can never be mistaken for a provider place id, and so a query for
+real place ids finds none of them. Its coordinates are the **real published
+positions of real places**, because a fabricated coordinate is indistinguishable
+from a true one to the routing it will feed; what is limited is the *size* of the
+gazetteer, which is a limitation anybody can see rather than one hiding inside
+plausible-looking data.
+
+### API key handling
+
+The key lives in the backend's environment (`GOOGLE_PLACES_API_KEY`) and is sent
+in the `X-Goog-Api-Key` **header**, never in a query string — a key in a URL ends
+up in access logs, proxy logs and referrer headers. A `X-Goog-FieldMask` header
+accompanies every Details call, because Google bills by the fields requested and
+the default is everything.
+
+Because no key ever reaches a device, the restrictions that apply are the
+server-side ones:
+
+| Restriction | Value |
+| --- | --- |
+| Application restriction | **IP addresses** — the backend's egress addresses only |
+| API restriction | Places API (New) and Geocoding API, nothing else |
+| Android package/signing restriction | Not applicable — the app never calls the provider |
+| iOS bundle-id restriction | Not applicable — same reason |
+
+`.env.example` carries this guidance next to the key itself, so whoever
+configures it reads it at the moment it matters. Unrestricted keys are what turn
+a quota into a bill.
+
+### Session tokens
+
+One token spans a whole search: minted when the search sheet opens, sent with
+every autocomplete request, sent once more with the Details call that resolves
+the chosen place, then discarded. A token per keystroke bills exactly like no
+token at all; a token that lives forever is a session that never closes.
+
+### Debounce and the stale-answer guard
+
+Autocomplete waits **350 ms** after typing stops before dispatching, and every
+dispatch carries a generation number. An answer whose generation is no longer
+current is discarded rather than rendered.
+
+Both are necessary and neither is sufficient. Without the debounce, a six-letter
+word costs six metered requests. Without the generation guard, a slow answer for
+`jai` arriving after a fast one for `jaipur airport` overwrites the correct list,
+and the customer reads results for a word they finished typing seconds ago. The
+race is exercised directly in `test/place_search_test.dart`.
 
 ---
 
 ## Each end is a snapshot, not a foreign key
 
-The single most important decision in the schema. A journey stores the place as
-it was **when the journey was planned**:
+A trip copies the values out of whatever produced them. The saved-address id is
+kept only as provenance, with `ON DELETE SET NULL`.
 
-```
-origin_label, origin_formatted_address, origin_city, origin_country_code,
-origin_latitude, origin_longitude, origin_place_id, origin_address_id
-```
+Editing the address a journey was planned from does not move the journey, and
+deleting it does not take the journey with it. Both are verified against a real
+database in the integration run. The alternative — a foreign key read at display
+time — means somebody correcting a typo in their home address silently rewrites
+where a journey started.
 
-…and the same eight again for the destination.
-
-Holding only `origin_address_id` would look tidier and would be wrong three ways:
-
-1. **Editing a saved address would rewrite history.** A customer who renames
-   "Home" after moving would silently change every journey they had already
-   planned from the old one.
-2. **Deleting one would orphan or block.** Module 04 deletes addresses for real,
-   so a `RESTRICT` would stop a customer removing an address they no longer use,
-   and a `CASCADE` would delete their journeys with it.
-3. **A typed place has no id at all.** Half the journeys in the product would
-   need a second representation, and two representations of one concept is how
-   two screens come to disagree.
-
-`origin_address_id` is kept alongside the snapshot as **provenance only**, with
-`ON DELETE SET NULL`. Losing the link loses nothing.
-
-This is asserted end to end: the integration run plans a journey from a saved
-address, edits that address to a different city, re-reads the journey, and finds
-it unchanged.
+Coordinates on `trips` are **NOT NULL** at both ends. A trip that cannot be
+routed should never have been created, and pushing that judgement downstream is
+how Module 06 ends up drawing a corridor from a guess.
 
 ---
 
-## Ownership, and the IDOR this module adds
+## Coordinates are never invented
 
-The same structural rule as Module 04: **no route carries a customer
-identifier.** The owner comes from the Sanctum token, `TripService::ownedByOrFail()`
-is the only path to a journey, and "not yours" and "does not exist" give the
-byte-identical 404 so the endpoint cannot be walked to discover which ids are
-real.
+The rule, in the four places it applies:
 
-Module 05 adds one surface Module 04 did not have. A journey can be planned
-**from a saved address**, by id — so "plan a journey from somebody else's saved
-address" is an ownership attack on Module 04 reached through a Module 05
-endpoint.
+- **A saved address with no position** cannot be one end of a journey. The picker
+  says so and points at the search box. Nothing geocodes the typed address lines
+  behind the customer's back — an address is a description a person wrote, and a
+  coordinate is a claim about a point on the earth.
+- **A place with no position** in a Details response is a failure, not a place.
+  The adapter raises rather than deriving one from the address text.
+- **A device fix that cannot be named** is still a device fix. The coordinates
+  stand; the endpoint is labelled "Current location", which is true of any
+  coordinate. Reverse geocoding never *replaces* the caller's coordinates with a
+  landmark's — snapping a fix to the nearest known place moves somebody's
+  starting point by kilometres.
+- **(0, 0)** is refused outright. It is a real point in the Gulf of Guinea and the
+  usual value of an uninitialised coordinate, so a journey drawn to it crosses an
+  ocean while looking entirely ordinary in a list.
 
-It is closed by *reuse* rather than by a second check:
+Module 04 accepted `latitude`/`longitude` on an address but the app never sent
+any, so no saved address could ever be used here. Module 05 closes that: the
+address form offers **Find this address**, which opens place search — search
+only, because offering the device's position would pin an address somebody is
+describing from memory to wherever they happen to be standing.
 
-```php
-if (is_string($savedAddressId) && $savedAddressId !== '') {
-    return JourneyEndpoint::fromSavedAddress(
-        $this->addresses->ownedByOrFail($customer, $savedAddressId),
-    );
-}
-```
+---
 
-The service does not query `customer_addresses`. It asks Module 04's own
-ownership-scoped lookup, which throws the same `ADDRESS_NOT_FOUND` it throws for
-a direct read. So the attempt fails exactly the way reading the address directly
-fails, and tells the caller nothing about whether it exists.
+## Location: asked for once, in the tap that needs it
 
-The form request is deliberately careless in one specific way that supports this:
-`address_id` is validated as a *uuid* and never as `exists:customer_addresses,uuid`.
-An existence rule would confirm that another customer's address is real before
-anybody had checked who owns it.
+Permission is requested from exactly one place — the "Use my current location"
+row — and nowhere else. Not at launch, not on a splash screen, not as the price
+of opening the planner. An app that asks before the customer has any reason to
+say yes is an app most people say no to, and a denial is much harder to undo than
+a question deferred.
+
+Every outcome gets its own screen, its own words and its own way onwards:
+
+| Outcome | What the customer is told | What they can do |
+| --- | --- | --- |
+| Granted | — (the origin is filled in) | Carry on |
+| Granted, but coarse (> 500 m) | "This location is approximate" | Keep it or choose another |
+| Denied | "Location not shared" | Try again · Search instead |
+| Denied permanently | "Location is blocked" | Open settings · Search instead |
+| **Services switched off** | "Location is switched off" | Try again · Search instead |
+| Timed out | "We could not find you" · "common indoors" | Try again · Search instead |
+| Platform failure | "Location unavailable" | Try again · Search instead |
+
+Two of those rows carry most of the weight.
+
+**Services off is not a denial.** The permission may be granted and the answer
+still be this one. Reporting it as a refusal sends somebody to an app-permission
+screen where everything already looks correct.
+
+**Every screen offers a search box.** A permission wall with no alternative is
+how an app traps a customer, and there is nothing here that search cannot do
+instead.
+
+There is no ongoing location tracking anywhere in Module 05: one fix, on demand,
+discarded once the trip is created. No position stream, no background permission,
+no "always" authorisation.
+
+### The hard deadline
+
+`Geolocator`'s own `timeLimit` is advisory — on the web it is not honoured at
+all, and an unanswered permission prompt leaves the underlying future pending
+forever. The picker sat on "Finding you…" indefinitely in a browser that never
+resolved the prompt.
+
+So the operation carries a Dart-side deadline of 25 seconds
+(`kLocationDeadline`), applied in the controller so it holds for *any*
+`LocationService` implementation, present or future. It is generous because on a
+phone that window is mostly a system dialog with a person deciding behind it. If
+it does expire, the screen says so and offers another go — recoverable. A spinner
+with no end is not.
+
+---
+
+## Ownership is the shape of the API
+
+No route in this module takes a customer id. `TripService::ownedByOrFail()` is
+the only path to a trip, and both "no such trip" and "not yours" answer **404**,
+so the API cannot be used to discover which ids are real.
+
+The subtle one this module adds is planning a journey *from somebody else's saved
+address*. It is closed by construction rather than by a check: `resolveEndpoint`
+calls Module 04's `CustomerAddressService::ownedByOrFail()` instead of querying
+the address table, so there is no code path in which an unowned address is read.
+And `saved_address_id` is validated as a `uuid` and deliberately **not** with
+`exists:customer_addresses,uuid` — an existence rule would confirm that another
+customer's address is real before anybody had checked who owns it.
+
+`StoreTripRequest` accepts exactly two keys, `origin` and `destination`. A body
+carrying `customer_id`, `status`, `route_status`, `distance` or `eta` validates
+fine and has no effect: `Trip` has an empty `$fillable`, and the service writes
+every column by name. Verified against a real server in the integration run.
+
+---
+
+## What gets logged, and what does not
+
+Where somebody is travelling from and to is the most sensitive thing this module
+holds, and a search query is close behind: what a person types into a search box
+is a statement about where they are going.
+
+| Logged | Never logged |
+| --- | --- |
+| `trip.created`, `trip.discarded`, `trip.access_denied` | Any place name |
+| The trip's uuid and the actor's uuid | Any coordinate |
+| Which *kind* of source each end used | Any search query |
+| `route_status` | The provider key, or any provider message |
+| A request/correlation id on every line | Phone numbers |
+
+The source kinds are worth keeping — how people actually choose places is an
+operational question — and they say nothing about where. `TripLoggingTest` reads
+what the application actually wrote to disk during a full round of operations
+rather than asserting on a redaction helper: the risk is not a missed key, it is
+a call site that logged the whole payload because it was convenient at the time.
+
+The same rule governs analytics: no full addresses, no coordinates, no phone
+numbers in any event.
+
+---
+
+## Cache and account isolation
+
+The place-search cache is keyed by the **query and region bias only**, never by
+the customer. Nothing customer-specific goes in, so nothing customer-specific can
+come back out under another account, and two people searching for the same
+airport cost one request.
+
+Everything customer-specific is the opposite: the planner draft, the search
+state and the session token live on `autoDispose` providers that die with the
+sheet, and the trips list watches the session, so signing out disposes it. There
+is nothing to remember to clear because there is nothing kept.
 
 ---
 
@@ -128,152 +278,57 @@ anybody had checked who owns it.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/v1/customer/trips` | List, `?scope=upcoming\|past\|cancelled\|all` |
-| POST | `/api/v1/customer/trips` | Plan a journey |
-| GET | `/api/v1/customer/trips/next` | The soonest journey still ahead, or `null` |
-| GET | `/api/v1/customer/trips/{uuid}` | Read one |
-| PATCH | `/api/v1/customer/trips/{uuid}` | Change a planned journey |
-| POST | `/api/v1/customer/trips/{uuid}/cancel` | Cancel it |
+| `GET` | `/customer/places/search?q=&session_token=` | Autocomplete. Minimum two characters. |
+| `GET` | `/customer/places/{place}?session_token=` | Resolve one suggestion to a position. |
+| `POST` | `/customer/places/reverse-geocode` | Name a coordinate. A null answer is a success. |
+| `GET` | `/customer/trips?status=` | The customer's trips. `status` takes a `TripStatus` value. |
+| `GET` | `/customer/trips/current` | The most recent open trip, or null. |
+| `GET` | `/customer/trips/{trip}` | One trip. |
+| `POST` | `/customer/trips` | Create. Two keys: `origin`, `destination`. |
+| `POST` | `/customer/trips/{trip}/discard` | Call it off. |
 
-**There is no DELETE.** A journey is history: cancelling records a decision, and
-a later module's orders will point at the record. The absence is asserted — a
-`DELETE` returns 405.
+There is no `DELETE`: a trip is discarded, never erased, and later modules' orders
+will point at it. Discarding is a POST to a named action rather than
+`PATCH {"status": "CANCELLED"}`, because `status` is never an accepted field
+anywhere in this module — so no request shape can set a trip to an arbitrary
+state.
 
-**`/next` is declared before `/{trip}`** so it is matched as a literal. The
-reverse order would send the string "next" to `ownedByOrFail()` and answer 404 to
-the home screen.
+The list filter is the server's own `status` vocabulary rather than words of the
+client's. An unknown query parameter is *ignored* rather than refused, so a
+client sending its own dialect gets a complete list back and looks entirely
+healthy — which is exactly the defect that shipped briefly and is now pinned by
+a test.
 
-**`/next` returns `data: null`** for a customer with nothing planned. That is an
-ordinary state, not a 404: the home screen renders nothing for journeys when it
-gets one, and a 404 would make an empty account look like a failure.
+---
 
-Three error codes are new:
+## Error codes
 
-| Code | HTTP | Meaning |
+| Code | Status | Meaning |
 | --- | --- | --- |
-| `TRIP_NOT_FOUND` | 404 | No such journey, or not this caller's |
-| `TRIP_LIMIT_REACHED` | 422 | Too many journeys still ahead |
-| `TRIP_NOT_EDITABLE` | 422 | Departed or cancelled — nothing left to change |
+| `ORIGIN_REQUIRED` / `DESTINATION_REQUIRED` | 422 | An end was not supplied. |
+| `SAME_LOCATION` | 422 | Both ends resolve to the same place (75 m, or a matching place id). |
+| `INVALID_COORDINATES` | 422 | Out of range, or the (0, 0) sentinel. |
+| `SAVED_ADDRESS_NOT_LOCATED` | 422 | The address has never been located. Locate it; do not retry. |
+| `TRIP_LIMIT_REACHED` | 422 | Twenty open trips. |
+| `TRIP_NOT_FOUND` | 404 | Missing, or not yours. Indistinguishable, deliberately. |
+| `ADDRESS_NOT_FOUND` | 404 | Same, for a saved address. |
+| `PLACE_NOT_FOUND` | 404 | The provider does not know that id. |
+| `TRIP_CREATE_FAILED` | 500 | Ours. Offer a retry, not a field. |
+| `PLACE_LOOKUP_FAILED` | 503 | The provider is down. Ours, not the customer's. |
 
-`is_editable` and `has_departed` are **sent by the server** rather than derived
-by the client. A handset with a slow clock would otherwise offer an edit the
-server then refuses.
-
----
-
-## Cancelling refuses to be idempotent
-
-Cancelling an already-cancelled journey returns `TRIP_NOT_EDITABLE`, not a
-cheerful 200.
-
-The usual argument for idempotence is retry safety, and it does not apply: the
-customer is looking at a screen that is out of date, and answering "done" would
-hide that from them. The same holds for a departed journey — there is nothing
-left to call off.
+Nothing from a provider's own message reaches a client: an upstream error names
+our project, our key state and our quota.
 
 ---
 
-## Validation, and where it lives
+## What the app shows, and what it refuses to
 
-| Rule | Enforced by |
-| --- | --- |
-| Departure is in the future | Form request **and** service, with the same configured grace |
-| Departure is within the planning horizon | Form request (`before_or_equal`) |
-| Arrival, if given, is after departure | Service — it knows both values even when a PATCH sends one |
-| Origin and destination are different places | Service, compared against what the journey *will be* |
-| A coordinate is a complete pair | Form request |
-| A typed place has a city and a country | Form request, only for an endpoint the request carries |
-| At most N journeys still ahead | Service, under a row lock |
+The planner is two rows and a button. No map, no route line, no distance, no
+travel time, no arrival estimate — and it says so in as many words rather than
+showing a placeholder that looks like it is loading something:
 
-Two of these are worth their explanation.
+> Route and travel time arrive with the next release. This saves where you are
+> going.
 
-**The grace on departure is applied in both places, with the same number.** If
-the layers disagreed, a request the validator accepted would be refused by the
-service, and the customer would see a failure with no field to correct. It exists
-so that "leaving now" works: a handset's clock runs a little behind the server's,
-and a departure two seconds past is not a mistake anybody can fix.
-
-**Origin-versus-destination is compared after the change is applied**, not
-against what was sent. Moving only the origin onto the existing destination is
-the same mistake as sending both the same, and a check on the request body would
-miss it.
-
-**Endpoint sub-fields are only declared for an endpoint the request carries.**
-Declaring them unconditionally made `required_without:origin.address_id` fire on
-a PATCH that never mentioned the origin — asking for a city for a place the
-customer was not changing.
-
----
-
-## In the app
-
-The Trips tab is the module's home: three scopes over one list, with the four
-states every list in this app has — loading skeleton, empty, error with retry,
-data. The scope lives in a provider rather than in the widget, because the list
-provider watches it; a `setState` would leave the segment and the data one
-rebuild out of step.
-
-**Nothing is optimistic.** A journey is not shown as saved until the server has
-saved it, not shown as cancelled until the server has cancelled it, and never
-removed from a list on the strength of a request that failed. Every write
-re-reads.
-
-**Cache isolation is structural.** `TripsController.build()` *watches* the auth
-session, so signing out disposes the state. One customer's journeys cannot
-survive into another's session, because there is no state that outlives a
-session to forget to clear. Where somebody is going is at least as sensitive as
-where they live.
-
-### The planner
-
-One screen for planning and editing, because they are the same fields.
-
-A place is **chosen, not typed into the form**: a sheet offers the customer's
-saved addresses first — this is what Module 04 was for — and a short form for
-anywhere else. There is no map and no autocomplete, and the typed branch produces
-no coordinates. A "suggestion" here would be a guess presented as a fact.
-
-Two layout rules, both learned in Module 04 and both pinned by tests here:
-
-- The form scrolls in a **non-lazy `Column`**, never a `ListView`. A `ListView`
-  builds lazily, so a field scrolled out of view is never registered with its
-  `Form` and `validate()` skips it in silence.
-- The primary action is **pinned above the keyboard**, not placed after the last
-  field where a small screen puts it under the bottom navigation bar.
-
-The picker sheet repeats both, because it has a validated form of its own.
-
-### On the home screen
-
-The home screen shows the customer's real next journey, from `/trips/next`.
-
-It uses a new card rather than Module 02's `RouteSummaryCard`. That card drew
-progress, remaining time and a next pickup — none of which exists — and a
-progress bar at zero would imply the app is tracking a journey it cannot see.
-The new card shows where, when and how many, and nothing else.
-
-Module 02's `ActiveTripSummary`, `RouteSummaryCard` and `HomeDashboard.activeTrip`
-were removed with it. They were scaffolding for exactly this moment, and keeping
-a second fixture-shaped journey alongside the real one is how two halves of one
-screen come to disagree about whether somebody is travelling. The greeting's
-`isTravelling` branch went too: nothing observes travel yet, and greeting a
-traveller with "here is how your journey is going" three days before they leave
-is worse than saying nothing.
-
----
-
-## What this module deliberately did not build
-
-- **Routing, corridors, distance and duration** — Module 09.
-- **Google Maps rendering and Places autocomplete** — the schema carries
-  `place_id` at both ends and nothing fills it.
-- **Geocoding** — coordinates stay `NULL`.
-- **GPS and live tracking** — and the status enum reflects the absence rather
-  than papering over it.
-- **Restaurant discovery along the route** — Module 09.
-- **The ETA engine** — the thing the product lives by, scheduled with Modules
-  08 and 09.
-- **Orders against a journey** — Module 08.
-
-Each of these is a reason a field in this schema is nullable rather than absent.
-The shape is ready; the data is honest about not being there yet.
+Every trip row and the trip detail screen say **"Route not calculated yet"**.
+Several tests exist purely to fail the day somebody replaces that with a number.

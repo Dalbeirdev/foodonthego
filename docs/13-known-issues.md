@@ -72,6 +72,32 @@ KI-001 is cleared. The iOS job is written but gated behind a macOS runner.
 
 ---
 
+### KI-010 · Live Google Places verification cannot be performed
+
+**Severity:** Medium
+
+This environment has no Google Places credentials, and `places.googleapis.com`
+answers 403 without a key. OpenStreetMap's Nominatim, the obvious substitute, is
+blocked by the egress policy entirely.
+
+So `GooglePlacesProvider` is verified against a **stubbed HTTP transport**
+(`PlaceProviderTest`, 18 assertions): what is established is that the adapter
+sends the right request — key and field mask in headers, session token and region
+bias in the body — and reads the documented response shapes. Whether Google's
+live responses match those shapes is not established here.
+
+Development and automated verification run against `DevelopmentGazetteerProvider`
+— a dozen real places with their real published coordinates and `dev:`-namespaced
+ids, which refuses to be constructed in production.
+
+**This is reported as PENDING, not as PASS.** See M05-037.
+
+**To clear:** configure `GOOGLE_PLACES_API_KEY` with the restrictions documented
+in [20-trip-planner.md](20-trip-planner.md) and re-run the integration script
+with `PLACES_PROVIDER=google`.
+
+---
+
 ## Open — product gaps (by design, scheduled)
 
 ### KI-005 · No authentication ~~open~~ → **partially resolved in Module 03**
@@ -159,26 +185,63 @@ the account, inside one transaction.
 
 All found during Module 05, all fixed and retested. Environment: PHP 8.4.19 /
 Laravel 12.69.1 / MySQL 8.0.46 / Flutter 3.47.2 on Ubuntu 24.04; live-view render
-in Chromium at 320–768dp.
+in Chromium at 320–430dp.
+
+B01–B05 were found during the module's first pass, which built a journey planner
+from the project roadmap rather than from the specification. That pass was
+replaced, and the code some of these fixes lived in went with it — they are kept
+here because the register is a record of what was found, not of what survived.
+Where the lesson still applies to the current code it is said in the row.
 
 | ID | Requirement | Description | Severity | Reproduction | Expected | Actual | Root cause | Fix | Retest | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| M05-B01 | M05-007 | A journey could be created in the past | **High** | Call `TripService::create()` with a departure behind the clock | Refused | Accepted and stored | `update()` checked the departure and `create()` did not — it leaned on the form request, so any caller reaching the service another way could write a journey into the past | The service checks its own boundary, with the same configured grace the request applies | `TripServiceTest`: a past departure is refused | **Fixed** |
-| M05-B02 | M05-019 | Cancelling threw an assertion in debug and could crash the screen | **High** | Open the cancel dialog, confirm it | The dialog closes cleanly | `A TextEditingController was used after being disposed` | The controller was created beside `showDialog` and disposed as soon as the future completed — while the dialog's exit animation was still building its `TextField` | The dialog became a `StatefulWidget` that owns its controller and disposes it with itself | `trips_screen_test`: three cancel tests | **Fixed** |
-| M05-B03 | M05-014 | The Trips empty state's only action was unreachable on the smallest supported screen | **High** | Open Trips with no journeys at 320×568 | "Plan your first journey" is on screen | Measured at y=580 on a 568px display — below the fold, reachable only by scrolling | The 116px motif plus a headline, a paragraph and padding is taller than the space a short phone leaves under an app bar, a segmented control and the navigation bar | The shared `EmptyStateView` shrinks its motif and tightens its spacing below 420px of height; the action never moves | `trips_screen_test` at 320dp; `variant-320-trips.png` | **Fixed** |
-| M05-B04 | M05-011 | A partial update silently reset the traveller count | **High** | Plan a journey for three, then edit only its note | Three travellers | One | `TripDraft.travellerCount` defaulted to 1, so every partial update sent `traveller_count: 1` for a field the customer had not touched — invisible to the API assertions, which only checked the update that set it | The default removed: null means "the request said nothing" | A model test asserts the key is absent; the integration run now re-reads the row | **Fixed** |
-| M05-B05 | M05-002 | The two place rows and the two time rows were unlabelled to a screen reader | Medium | Inspect the planner's semantics | Each row names itself and what it holds | A tappable region with no accessible name at all | An `InkWell` around an `InputDecorator` produces a gesture target, not a labelled control | Both wrapped in `Semantics(button: true, label: …)` carrying the field, its value and any error | Semantics inspected in the live run; the rows are now drivable by name | **Fixed** |
+| M05-B01 | M05-012 | A journey could be created in the past | **High** | Call `TripService::create()` with a departure behind the clock | Refused | Accepted and stored | `update()` checked the departure and `create()` did not — it leaned on the form request, so any caller reaching the service another way could write a journey into the past | The service checks its own boundary rather than trusting the request. The rule survives the rework as a principle: **the service validates, the request only filters** | `TripServiceTest` | **Fixed (superseded)** |
+| M05-B02 | M05-020 | Cancelling threw an assertion in debug and could crash the screen | **High** | Open the cancel dialog, confirm it | The dialog closes cleanly | `A TextEditingController was used after being disposed` | The controller was created beside `showDialog` and disposed as soon as the future completed — while the dialog's exit animation was still building its `TextField` | The dialog became a `StatefulWidget` owning its controller. The rework removed the reason field entirely, so the current discard dialog has no controller at all | `trips_screen_test.dart` | **Fixed (superseded)** |
+| M05-B03 | M05-019 | The Trips empty state's only action was unreachable on the smallest supported screen | **High** | Open Trips with no journeys at 320×568 | "Plan your first journey" is on screen | Measured at y=580 on a 568px display — below the fold | The 116px motif plus a headline, a paragraph and padding is taller than the space a short phone leaves under an app bar, a segmented control and the navigation bar | The shared `EmptyStateView` shrinks its motif and tightens its spacing below 420px of height; the action never moves | `trips_screen_test.dart` at 320dp; `state-24-320-planner.png` | **Fixed** |
+| M05-B04 | M05-015 | A partial update silently reset the traveller count | **High** | Plan a journey for three, then edit only its note | Three travellers | One | `TripDraft.travellerCount` defaulted to 1, so every partial update sent a value for a field the customer had not touched — invisible to the API assertions, which only checked the update that set it | The default removed: null means "the request said nothing". Found by reading MySQL, not by reading a response, which is why the integration run still re-reads the database | Model test; integration run | **Fixed (superseded)** |
+| M05-B05 | M05-003 | The planner's rows were unlabelled to a screen reader | Medium | Inspect the planner's semantics | Each row names itself and what it holds | A tappable region with no accessible name at all | An `InkWell` around an `InputDecorator` produces a gesture target, not a labelled control | Wrapped in `Semantics(button: true, label: …)` carrying the field and its value | Semantics inspected in the live run | **Fixed** — and see B08, which this fix caused |
+| M05-B06 | M05-030 | Two unrelated places compared equal | Medium | `TripLocation.isSamePlaceAs` on two endpoints that both have an empty `place_id` | Compared by distance | Judged the same place, so a valid journey was refused | The identity check was `placeId != null && placeId == other.placeId`; an empty string is not null, and `'' == ''` | Both identity checks require a non-empty value on this side before comparing | `trip_models_test.dart`: "Delhi and Jaipur are not the same place" | **Fixed** |
+| M05-B07 | M05-014 | An `autoDispose` controller reached for `ref` after its provider was gone | Medium | Close the picker sheet while a search is in flight | The answer is discarded | `Cannot use the Ref of … after it has been disposed` | The controllers read their repositories lazily through `ref` and wrote `state` after an await, both of which throw once the sheet has closed | Dependencies captured at build time; a disposal flag checked before every state write; the planner takes the list notifiers *before* awaiting so a refresh still works if the customer navigates away | `place_search_test.dart` drives the full lifecycle | **Fixed** |
+| M05-B08 | M05-003 | Labelled rows announced themselves as buttons and could not be pressed | **High** | Drive the built app and click the picker's "Use my current location" row through the semantics tree | The sheet acts on it | Nothing happens; assistive technology has no way to activate the row | B05's fix used `Semantics(excludeSemantics: true)` to give each row one sensible label, which also **removes the child `InkWell`'s tap action** from the semantics tree. Every row fixed by B05 had the defect, plus the Home planner card and the quick-action tiles | The tap action is declared on the node that carries the label, in all four places | Two tests assert `SemanticsAction.tap` on the labelled nodes; the live run now drives every row by name | **Fixed** |
+| M05-B09 | M05-041 | "Finding you…" never resolved | **High** | Open the picker in a browser that leaves the permission prompt pending; tap "Use my current location" | A refusal or a timeout within seconds | The spinner ran for 25 s and was still running when the probe gave up | `LocationSettings.timeLimit` is advisory: `geolocator_web` does not honour it, and an unanswered prompt leaves the underlying future pending forever. This is exactly the "do not trap the customer" case | A Dart-side deadline on the position fetch, and a 25 s backstop in the controller so it holds for **any** `LocationService` implementation | `location_permission_test.dart`: "a device that never answers resolves anyway"; re-driven live, now settles into "We could not find you" | **Fixed** |
+| M05-B10 | M05-019 | Every list filter was ignored, so discarded trips sat in the open list | **High** | `GET /customer/trips` from the app after discarding a trip | Only open trips | Every trip, discarded ones included | The client sent `?scope=open`; the server filters on `?status=`. An unknown query parameter is **ignored**, not refused — so the request looked healthy and every widget test against a fake repository, which did its own filtering, still passed | `TripScope` now carries the server's own `TripStatus` values, and asks for no filter at all rather than a word the server would ignore | A unit test pins the vocabulary against `TripStatus`; the integration run asserts it against a real server | **Fixed** |
+| M05-B11 | M05-008 | Every journey started from a place called "Use my current location" | Low | Create a trip from the device's position, then read the `trips` row | A place name | The row's action label, stored as the origin's name | The current-location endpoint used the picker row's label as its display name; the reverse-geocoded name was fetched and then only used for the city | The reverse-geocoded name supplies the display name when there is one; the neutral "Current location" is the fallback for a point that cannot be named | `trip_models_test.dart`; MySQL now reads `New Delhi → Jaipur International Airport` | **Fixed** |
 
 No Module 05 issue was left open.
+
+### Also fixed here — a Module 01 defect this module exposed
+
+`EnforceIdempotency` derived its actor from `$request->user()`, which middleware
+reads **before authentication has run**. Two retries of the same request could
+therefore land on different cache keys and both execute. It now fingerprints the
+`Authorization` header. Module 04's idempotency tests passed against the bug by
+coincidence; Module 05's did not.
+
+### Also closed here — a Module 04 gap
+
+The address API accepted `latitude`/`longitude` but the Flutter `AddressDraft`
+never sent any, so **no saved address could ever be used as one end of a
+journey**. The address form now offers "Find this address", which resolves a real
+place through the same server-mediated search. Nothing geocodes the typed lines.
 
 ### Noted, not a defect
 
 Flutter web does not place the bottom `NavigationBar` in the DOM semantics tree,
 so the live-view driver reaches it by geometry. The bar is a standard Material
 `NavigationBar` with a label and a tooltip on every destination, and it is
-exposed correctly on Android and iOS; this is a Flutter web rendering
-limitation, not a gap in the app, and it is recorded here so the next module's
-driver does not spend time rediscovering it.
+exposed correctly on Android and iOS; this is a Flutter web rendering limitation,
+not a gap in the app.
+
+Two more for the next driver: a `Semantics` node that carries its own `label`
+exposes that text as an `aria-label` rather than as child text, so a driver
+matching on text content alone will miss it; and popup menu items are not in the
+semantics tree at all, so they have to be tapped by geometry from the anchor's
+position taken *before* the menu opens.
+
+The application log records the actor's uuid in the event context but leaves the
+envelope's own `actor_id` null on these routes. The information is present and
+correctly scoped; the duplication is cosmetic and is left for the module that
+next touches `StructuredLogger`.
 
 ---
 

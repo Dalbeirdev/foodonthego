@@ -90,11 +90,16 @@ state that outlives the session to forget to clear.
 
 Modules 04 and 05 introduced a distinction the rest of the product inherits.
 
-A saved address and a journey are **records of what a customer told us**. Neither
-carries anything derived, computed or observed: coordinates are `NULL` until
-something really geocodes a place, an arrival time is `NULL` unless the traveller
-stated one, and the journey status enum has two cases because two is all this
-part of the system can honestly establish.
+A saved address and a trip are **records of what a customer told us or chose**.
+Neither carries anything derived, computed or observed: a saved address has no
+coordinates until the customer locates it against a real place, a trip's
+`route_status` is `NOT_CALCULATED` because nothing has calculated a route, and
+the trip status enum has two cases because two is all this part of the system can
+honestly establish.
+
+The trip table takes the rule one step further: there is no `distance`,
+`duration`, `polyline` or `eta` column at all. A nullable column is an invitation
+to render "0 km" while it is still null; an absent one cannot be rendered.
 
 The alternative — filling those fields with something plausible — is not a
 shortcut, it is a corruption. A fabricated coordinate is indistinguishable from a
@@ -105,9 +110,14 @@ the schema is ready and the data is honest about not being there yet.
 
 The shape this takes in code is worth naming: **a record snapshots the values it
 was decided from** rather than pointing at somewhere they might later change.
-A journey copies each end out of the saved address it was chosen from and keeps
-the address id only as provenance, so editing that address cannot rewrite
-journeys already planned against it.
+A trip copies each end out of whatever produced it — a saved address, a searched
+place, a device fix — and keeps the address id only as provenance, so editing
+that address cannot rewrite journeys already planned against it.
+
+**Third-party credentials stay on the server.** The app never calls a place
+provider: every lookup goes through `/customer/places/*`, so the key is in one
+environment rather than in every installed bundle, and swapping providers is a
+change to one adapter rather than an app release.
 
 ## What Module 01 deliberately did not build
 
