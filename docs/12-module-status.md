@@ -220,4 +220,56 @@ running app's semantics tree: the discovery card was a single merged node, so
 the **View** button had no node at all and a screen-reader user could not open a
 restaurant's page.
 
-Module 10 has **not** been started, per the one-module-at-a-time rule.
+---
+
+## Module 10 — Menu, Categories & Menu Item Browsing
+
+**Status: COMPLETE**, with the same two runtime verifications honestly pending.
+
+| Item | Status | Note |
+| --- | --- | --- |
+| Menu API, route- and restaurant-scoped | **PASS** | Same eligibility path as the restaurant page |
+| Categories in operator order | **PASS** | `display_order`, then id |
+| Items in operator order | **PASS** | Per category |
+| Money as integer minor units | **PASS** | Never a float, anywhere; unsigned column |
+| Currency travels with the amount | **PASS** | `{amount_minor, currency}`; no rendered string on the wire |
+| Client-side formatting | **PASS** | ₹249, ₹349.50, ₹0, ₹12,999 — all from `intl` |
+| Inactive category hidden, with its items | **PASS** | Including live items inside it |
+| Inactive item hidden | **PASS** | By list and by id |
+| Time-limited category | **PASS** | Breakfast absent at 16:00, present at 08:00 |
+| Empty category omitted | **PASS** | Not a heading with nothing under it |
+| Sold out shown and marked | **PASS** | Dimmed, labelled, not removed |
+| Restaurant A context, restaurant B item | **PASS** | `ITEM_NOT_FOUND` |
+| Cross-restaurant item in the schema | **PASS** | Composite FK; MySQL 1452 on a direct INSERT |
+| Suspended restaurant's menu by uuid | **PASS** | 404 before the menu service is reached |
+| Search: match, no match, injection, oversize | **PASS** | In memory; never becomes SQL |
+| Two empty states told apart | **PASS** | `visible_item_count` vs `item_count` |
+| Customer-safe response | **PASS** | Allow-list; raw-body assertion over 13 needles |
+| No invented description, image, diet, spice, allergen | **PASS** | Each absent where the operator published nothing |
+| Preparation time not a pickup time | **PASS** | Worded, and spelled out to a screen reader |
+| Read-only | **PASS** | Six verb/path pairs, none accepted |
+| No N+1 | **PASS** | Two queries for the menu at 6 items and at 500 |
+| 500-item menu served whole | **PASS** | 20 sections, 2 queries, ~130 KB, no pagination |
+| No provider call on open | **PASS** | Stub count and real provider log both flat |
+| Section selector leads and follows | **PASS** | Including a section never built |
+| A dish is announced with its diet | **PASS** | Merged label carries name, diet, price, spice, availability |
+| Request race | **PASS** | Generation-checked; the newest wins |
+| Offline, with the menu kept | **PASS** | Except a withdrawn restaurant, which loses it |
+| Android runtime | **PENDING** | KI-001 — no Android SDK |
+| iOS runtime | **PENDING** | KI-002 — no macOS host |
+
+**1 550 automated tests pass** (864 backend, 686 Flutter), plus a 32-check
+integration run against a live server, 30 live states inspected in a rendered
+release build, and Modules 01–09 regression green.
+
+Three defects were found and fixed; none left open. All three were found by
+running the thing rather than by reading it:
+
+- the dietary-type wire strings did not match the server's (`VEG` against
+  `VEGETARIAN`), so every diet badge would have been silently absent in
+  production while every fixture-built widget test passed;
+- a punctuation-only search returned the whole menu labelled as its result;
+- and the menu card's merged semantics label omitted the dietary type, so a
+  screen-reader user could not hear which dishes were vegetarian.
+
+Module 11 has **not** been started, per the one-module-at-a-time rule.

@@ -444,3 +444,65 @@ The detail endpoint shares the discovery throttle (`RATE_LIMIT_DISCOVERY`, 30
 a minute). Opening a page calls no provider, but it does reach `discover()`,
 and a cold cache there costs what the list costs. Sharing the budget is what
 stops a loop over restaurant uuids from being a cheaper way to spend it.
+
+---
+
+## Module 10 — a menu is read-only, and the schema says who owns what
+
+### There is no write endpoint to secure
+
+A customer may `GET` a menu and `GET` one item. There is no `POST`, `PATCH`,
+`PUT` or `DELETE` on any menu path, no image-upload route, and no write method
+on `MenuRepository` in the Flutter app. The integration run tries six verb/path
+combinations a modified client would try — including `POST …/menu/items` and
+`POST …/menu/items/{item}/image` — and every one is refused.
+
+This is the strongest form of "customers cannot change a menu": not a policy
+check that could be bypassed, but an endpoint that does not exist.
+
+### IDOR, answered in the query and in the schema
+
+| Attack | Answer | Enforced by |
+| --- | --- | --- |
+| Restaurant A's context, restaurant B's item id | `ITEM_NOT_FOUND` | `where('restaurant_id', …)` in `CustomerMenuService::item()` |
+| An item stored against the wrong restaurant | Cannot exist | Composite foreign key — MySQL refuses the row |
+| A withdrawn item's id | `ITEM_NOT_FOUND` | `where('is_active', true)` |
+| An item inside a withdrawn category | `ITEM_NOT_FOUND` | `whereHas('category', active)` |
+| A suspended restaurant's menu, by uuid | 404 | `orderingContext()` refuses before the menu service is reached |
+| Another customer's trip | `TRIP_NOT_FOUND` | `TripService::ownedByOrFail()` |
+
+A withdrawn item and a nonexistent one answer **identically**, on purpose:
+telling them apart would let anybody with a list of ids map a competitor's menu
+by elimination.
+
+### The customer payload is an allow-list
+
+`MenuItem::toCustomerArray()` names every field it emits. Cost price, margin,
+vendor, supplier, recipe, internal notes, staff notes, stock quantity and
+commission are not filtered out — there is no line that could emit them. A test
+asserts each string is absent from the raw response body, and the integration
+run repeats it against real rows.
+
+The same method takes its category as an **argument** rather than reading the
+relation, which is a performance decision that happens to be a security one too:
+nothing here can lazily reach a row the query did not deliberately fetch.
+
+### A search term never becomes SQL
+
+Menu search runs in memory over items already loaded. There is no query for a
+term to become part of, so injection has nothing to inject into — and, just as
+usefully, a search **cannot reach** an item the visibility rules already
+excluded, because such items were never fetched. The integration run sends four
+injection probes and asserts each returns nothing and the table still exists.
+
+### One residual disclosure, inherited from Module 09
+
+A restaurant that exists but is ineligible answers `404 RESTAURANT_UNAVAILABLE`;
+one that never existed answers `404 RESTAURANT_NOT_FOUND`. The status is the
+same — which is what defeats a bulk uuid sweep — but the code differs, so a
+careful prober can tell a suspended business from a nonexistent one.
+
+Module 09 chose this deliberately: the customer's next move genuinely differs,
+and the wording on screen differs with it. Module 10 inherits rather than
+diverging. Recorded here as a known trade-off; if it is ever judged wrong, the
+fix is in `RestaurantDetailService::absent()` and changes both modules at once.

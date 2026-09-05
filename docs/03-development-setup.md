@@ -118,3 +118,33 @@ cd web     && npm run typecheck       # TypeScript, all workspaces
 cd mobile  && flutter analyze --fatal-infos
 cd mobile  && dart format --set-exit-if-changed .
 ```
+
+---
+
+## Seeding a menu (Module 10)
+
+```bash
+php artisan db:seed --class=DiscoveryTestRestaurantSeeder --force
+php artisan db:seed --class=MenuTestDataSeeder --force
+```
+
+Order matters — the menu seeder attaches to restaurants the discovery seeder
+creates, and warns rather than inventing a partner if they are missing.
+
+Both refuse to run when `APP_ENV=production`, mark everything they create with
+`[TEST]`, and are **not** in `DatabaseSeeder`. Re-running is safe: each clears
+its own rows first (the menu seeder deletes items before categories, because the
+composite foreign key holds them together).
+
+### Two environment gotchas worth knowing
+
+**MySQL and Redis stop when the container idles.** `service mysql start` and
+`service redis-server start` bring them back. `redis-cli -n 1 FLUSHDB` clears
+the discovery cache; `redis-cli FLUSHALL` also clears the OTP per-IP budget,
+which a long driver run will exhaust.
+
+**The live-view driver and the smoke suite share a database and must not run at
+the same time.** `restaurant_detail_smoke` re-seeds the discovery fixtures,
+which recreates the restaurant rows — and menu rows cascade-delete with their
+restaurant. Running both at once will empty a menu underneath a driver that is
+halfway through asserting on it.

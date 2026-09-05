@@ -8,8 +8,11 @@ import 'restaurant_detail.dart' show RestaurantOrderingState;
 /// guess is wrong it is served to somebody whose religion or health depended on
 /// it. [unknown] renders nothing at all rather than a hedge.
 enum MenuItemDietaryType {
-  vegetarian('VEG'),
-  nonVegetarian('NON_VEG'),
+  // The wire strings are the server's `App\Enums\MenuItemDietaryType` values,
+  // spelled exactly. An abbreviation here would compile, pass every widget
+  // test built on fixtures, and silently drop every badge in production.
+  vegetarian('VEGETARIAN'),
+  nonVegetarian('NON_VEGETARIAN'),
   vegan('VEGAN'),
   egg('EGG'),
   unknown('');
@@ -317,11 +320,9 @@ class RestaurantMenu {
     for (final MenuCategory category in categories) ...category.items,
   ];
 
-  static RestaurantMenu? fromJson(Map<String, dynamic> body) {
-    final Object? data = body['data'];
-
-    if (data is! Map<String, dynamic>) return null;
-
+  /// Reads the payload the API client hands over — which is the contents of
+  /// the envelope's `data`, already unwrapped.
+  static RestaurantMenu? fromJson(Map<String, dynamic> data) {
     final MenuRestaurantHeader? restaurant = MenuRestaurantHeader.fromJson(
       data['restaurant'],
     );
@@ -389,11 +390,7 @@ class MenuItemPreview {
   final String categoryName;
   final DateTime generatedAt;
 
-  static MenuItemPreview? fromJson(Map<String, dynamic> body) {
-    final Object? data = body['data'];
-
-    if (data is! Map<String, dynamic>) return null;
-
+  static MenuItemPreview? fromJson(Map<String, dynamic> data) {
     final Object? rawItem = data['item'];
 
     if (rawItem is! Map<String, dynamic>) return null;

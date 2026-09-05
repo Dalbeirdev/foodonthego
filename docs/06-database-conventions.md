@@ -268,3 +268,55 @@ projection never mentions it.
 Module 07 stored `logo_url` and `cover_image_url` on the restaurant row, which
 is enough for a list card. `image_1_url` through `image_5_url` is a schema that
 runs out; `restaurant_media` is not.
+
+---
+
+## Money is an integer, and the column says so (Module 10)
+
+```php
+$table->unsignedInteger('base_price_minor');
+$table->char('currency', 3)->default('INR');
+```
+
+Paise, not rupees. `DECIMAL` would be defensible; `FLOAT` and `DOUBLE` are not,
+and `unsignedInteger` adds one more thing the storage engine enforces — a
+negative price cannot be written at all.
+
+The currency is stored per item rather than per restaurant. A restaurant does
+not have a currency; a **price** does, and the day one operator lists something
+in a second currency the schema does not need changing.
+
+---
+
+## A composite foreign key can make a whole class of bug impossible (Module 10)
+
+An item must belong to a category **of its own restaurant**. That is easy to
+state, easy to check in a service, and easy for the next person to forget in a
+new query. So it is not a check:
+
+```php
+// menu_categories — not redundant with the primary key: this is what lets
+// menu_items carry a composite foreign key.
+$table->unique(['id', 'restaurant_id'], 'menu_categories_id_restaurant_unique');
+
+// menu_items
+$table->foreign(['menu_category_id', 'restaurant_id'], 'menu_items_category_same_restaurant')
+    ->references(['id', 'restaurant_id'])->on('menu_categories')->cascadeOnDelete();
+```
+
+With `restaurant_id` on both tables and that redundant-looking `UNIQUE`, MySQL
+itself refuses to link restaurant A's item to restaurant B's category —
+regardless of what a service, a seeder, a migration or a direct `INSERT` tries.
+A test attempts exactly that and asserts `SQLSTATE[23000] … 1452`.
+
+The cost is one denormalised column and one extra index. The benefit is that a
+cross-tenant data leak in this relationship is not a bug that can be written.
+
+**When to reach for this:** a foreign key whose validity depends on a shared
+parent — an item and its category, an order line and its order, an address and
+its customer. When the rule is "these two must belong to the same third thing",
+the schema can say so.
+
+One consequence worth knowing: deletion order matters. `MenuTestDataSeeder`
+clears items before categories, because the composite key is what holds them
+together.

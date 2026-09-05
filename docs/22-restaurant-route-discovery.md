@@ -617,3 +617,17 @@ The seeded fixtures grew by three: an overnight kitchen, a split service with a
 day off, and one with no optional metadata at all. They are eligible, so they
 appear in discovery too — which is why the Module 08 integration run's expected
 counts were updated alongside them.
+
+---
+
+## Everything downstream still reads through this (Module 10)
+
+Module 09's restaurant page and Module 10's menu both reach the same cached
+`discover()` result, and neither adds a second query with its own eligibility
+clauses. That is why a suspended restaurant's *menu* is unreachable without
+anybody having written a rule about menus, and why a customer can open five
+menus while deciding where to stop without costing a single provider call.
+
+The corridor read is the only thing in the application that can reach a routing
+provider. Keeping it that way is what makes the cost of every screen above it
+predictable.

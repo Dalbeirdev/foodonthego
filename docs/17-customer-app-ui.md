@@ -555,3 +555,94 @@ timestamp, and never a claim that the open sign is live.
 
 The one exception: a refresh that finds the restaurant *withdrawn* takes the
 page away. Leaving it up would present a suspended business as trading.
+
+---
+
+## The menu (Module 10)
+
+Reached from the restaurant page's sticky button, and only where the ordering
+state permits browsing. The customer's question has narrowed again — *what can I
+eat here, and what does it cost?* — and the screen answers only that. No cart,
+no quantity stepper, no variant list.
+
+### Down the screen
+
+| Element | Notes |
+| --- | --- |
+| Ordering banner | Only when an order could not be placed. "Closed now — you can still browse" |
+| Offline banner | Only when what is shown came from a failed refresh |
+| Search field | Capped at 100 characters, so a customer cannot type into an error |
+| Section selector | Pinned. Absent when there is only one section — one section is not a choice |
+| Section heading | The operator's name and description, marked as a header for a screen reader |
+| Item card | Name, price, up-to-two-line description, badges, thumbnail |
+| Item sheet | The same, in full, plus the cooking time and the browse-only notice |
+
+### The item card
+
+Name and price first, because that is what the customer is scanning for.
+Description clipped to two lines — the sheet has it in full. Badges only for
+what the restaurant declared: no "diet unspecified" chip, no greyed placeholder,
+because a customer who cannot eat egg needs an absent badge to mean *nobody
+said*, not *we checked*.
+
+The photograph is the dish's own or a monogram. **There is no stock-image
+fallback anywhere in this app.** A generic curry standing in for an
+unphotographed dish is a claim about what arrives in the box.
+
+A sold-out dish stays on the menu, dimmed to 55% with a label over its
+thumbnail. Removing it would be tidier and worse: a customer who came for one
+thing deserves to learn the kitchen has run out.
+
+### Prices
+
+`₹249`, not `₹249.00` — a menu of trailing zeroes reads like a spreadsheet.
+`₹349.50` keeps its paise, because `₹349` would be a lie. `₹0` for a free item,
+because a blank invites the question. `₹12,999` grouped the way the customer's
+locale groups. All of it from `intl` and the customer's own locale; the symbol
+is never concatenated.
+
+Announced to a screen reader as **"249 rupees"**, because some engines read
+"₹249" as "rupee two four nine".
+
+### The section selector leads and follows
+
+Tapping a chip scrolls to that section; scrolling the list moves the highlight
+and brings its chip into view. The second half is the one that matters — a
+selector that only leads is a set of shortcuts, while one that follows tells a
+customer halfway down a twenty-section menu where they are.
+
+### Searching
+
+Debounced 350 ms, so typing "paneer" is one request rather than six. Below two
+characters nothing is sent. **The menu does not blank while a search is in
+flight** — the previous results stay under a two-pixel progress bar, because a
+list that empties and refills on every letter is unreadable.
+
+### The two empty states, which are different problems
+
+| State | Words | Action |
+| --- | --- | --- |
+| No menu published | "No menu yet — Highway Spice Kitchen hasn't published a menu here yet." | None. Not a failure |
+| Search found nothing | "Nothing matched — No items on this menu match 'pizza'." | **Clear search** |
+
+Conflating them would send a customer away from a restaurant that has a perfectly
+good menu they mistyped a word into.
+
+### The item sheet
+
+Read-only, and fetched fresh rather than echoed from the list — a customer may
+have had the menu open for ten minutes. The card's copy is drawn immediately
+under a thin progress bar, then replaced.
+
+Where Module 10 stops is visible here: a notice saying *"Ordering opens soon"*,
+and **no button at all**. Not a disabled one — a greyed-out "Add to cart"
+promises a cart that does not exist and invites a customer to keep tapping it.
+
+An item withdrawn since the list was drawn loses the card's copy too, for the
+same reason a withdrawn restaurant loses its page.
+
+### Offline
+
+The menu stays, with a banner. Prices from a failed refresh are still worth
+showing — but never silently, because a price from an hour ago presented as
+current is the kind of thing a customer discovers at the counter.

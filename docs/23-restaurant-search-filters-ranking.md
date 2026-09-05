@@ -612,3 +612,15 @@ One defect this uncovered: the discovery card was a single merged semantics
 node, which took the **View** button's node with it — so a screen-reader user
 could select a restaurant and had no way at all to open its page. Fixed in
 Module 09; see M09-B01.
+
+## Two counts, reused (Module 10)
+
+The `visible_item_count` / `item_count` pair on the menu endpoint is this
+module's `visible` / `matched` pair under a different name and for the same
+reason: a client cannot tell "this restaurant has no menu" from "your search
+matched nothing" out of one number, and the two need opposite answers — leave,
+or clear the box.
+
+Recorded here because it is now a pattern rather than a one-off. Any endpoint in
+this product that can be filtered returns both counts. See
+[05-api-standards.md](05-api-standards.md).

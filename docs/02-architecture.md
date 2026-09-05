@@ -240,3 +240,38 @@ vocabulary and go on speaking it; `RestaurantOrderingState` is the derived
 rollup, and a response carries both.
 
 See `24-restaurant-details.md`.
+
+---
+
+## Module 10 — a menu, and the project's money convention
+
+Module 10 adds one thing to the architecture that outlives it: **money is an
+integer count of minor units, and the server never formats it.**
+
+```
+{ "amount_minor": 24900, "currency": "INR" }
+```
+
+Three rules, all of which later modules inherit:
+
+1. **Never a binary float for an authoritative amount.** The column is
+   `unsignedInteger`, the PHP type is a readonly `Money`, the Dart type is a
+   `Money`, and neither has a `toDouble()`. A server that started sending rupees
+   is *refused* rather than rounded.
+2. **The currency travels with the amount.** `24900` alone is ₹249 or $249
+   depending on something a widget three files away cannot see.
+3. **The client formats.** What a price looks like is a locale decision and the
+   server does not know the customer's. `Money.format()` in the Flutter app is
+   the only place in the product that turns an amount into text.
+
+Structurally the module continues the pattern Modules 08 and 09 established:
+**it reuses the previous module's already-validated result rather than
+re-querying.** `RestaurantMenuController` calls
+`RestaurantDetailService::orderingContext()`, which calls Module 07's cached
+`discover()`. A suspended restaurant's menu is unreachable for exactly the same
+reason its page is, and no routing provider is called.
+
+The one new structural idea is in the schema rather than the services: a
+**composite foreign key** makes a cross-restaurant menu item impossible to
+store, rather than merely unlikely. See
+[06-database-conventions.md](06-database-conventions.md).

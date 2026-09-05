@@ -43,3 +43,17 @@ truncates. Pointing it elsewhere destroys that data.
 The personas in this repository — Rahul Sharma, Priya Verma, Highway Spice Kitchen, the
 Delhi → Jaipur journey — are development fixtures. They appear only in shells and tests, are clearly
 labelled as test personas in the UI, and must never be seeded into a production database.
+
+---
+
+## Module 10 adds no environment variable
+
+The menu reads only from this application's own database. There is no menu
+provider, no image CDN configuration and no currency service — the currency is
+stored per item, and formatting happens on the customer's device from their own
+locale.
+
+`MenuTestDataSeeder` reads `APP_ENV` and refuses to run when it is
+`production`. That is the only environment-sensitive thing the module adds, and
+it is a refusal rather than a configuration knob: there is no value of any
+variable that makes it seed a production database.

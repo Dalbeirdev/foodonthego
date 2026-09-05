@@ -752,3 +752,105 @@ Screenshot names refer to the Module 09 live-view run recorded in
   blocked by the egress policy. KI-002: no macOS host. Verification was done
   against a release **web** build of the same Flutter code, driven through its
   real semantics tree. That is a real runtime and it is not an Android device.
+
+---
+
+## Module 10 — Menu, categories and menu item browsing
+
+Screenshot names refer to the Module 10 live-view run recorded in
+[15-test-evidence.md](15-test-evidence.md) and captured under
+`docs/evidence/module-10/`.
+
+| ID | Feature | FE | BE | API | DB | Sec | Tests | Android | iOS | Docs | Status | Evidence |
+| --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
+| M10-001 | Menu opened from the restaurant page | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-01`; the Module 10 placeholder is gone |
+| M10-002 | Menu API nested under trip and restaurant | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `routes/api.php`; smoke check 2 |
+| M10-003 | Categories in the operator's order | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | smoke check 3; `state-07` |
+| M10-004 | Items in the operator's order within a category | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `RestaurantMenuApiTest` |
+| M10-005 | Category name and optional description | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-01` |
+| M10-006 | Item name | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-01` |
+| M10-007 | Item description, or nothing | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-05` (Papad); smoke check 5 |
+| M10-008 | Item price, from a real record | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-02` |
+| M10-009 | **Money stored as integer minor units** | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `unsignedInteger base_price_minor`; `MoneyTest` (10) |
+| M10-010 | No floating point for authoritative money | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `Money::tryFromMinor` rejects floats and decimal strings |
+| M10-011 | Currency carried with every amount | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `{amount_minor, currency}` |
+| M10-012 | Centralised currency formatting; no hard-coded symbol | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `Money.format()` via `intl`; smoke check 9 (no `₹` on the wire) |
+| M10-013 | Zero price rendered as a price | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-09` — Table Water, ₹0 |
+| M10-014 | Large price grouped by locale | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-10` — ₹12,999 |
+| M10-015 | Item image where one exists | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-01` |
+| M10-016 | **No stock imagery for an unphotographed dish** | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Monogram fallback; `state-05` |
+| M10-017 | Thumbnail falls back to the full image | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `RestaurantMenuApiTest`; `menu_models_test` |
+| M10-018 | Image load failure degrades to the fallback | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `errorBuilder` in `MenuItemCard` |
+| M10-019 | **Preparation time is not a pickup ETA** | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | "15 min to cook"; screen-reader disclaimer; `state-13` |
+| M10-020 | Absurd preparation time withheld | ✅ | ✅ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `preparationMinutes()` bounds 0 < n ≤ 240 |
+| M10-021 | **Dietary type only from structured data** | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-03`; Dal Makhani has no badge |
+| M10-022 | Dietary type never inferred from a name | ✅ | ✅ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | No inference code exists; asserted in `menu_screen_test` |
+| M10-023 | **No invented allergen information** | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | NOT APPLICABLE — see note | No allergen column, UI or wire string; smoke asserts absence |
+| M10-024 | **Spice level only from real data** | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Out-of-range withheld; never inferred |
+| M10-025 | Sold-out item shown and marked | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-04` |
+| M10-026 | Unknown stock status is not orderable | ✅ | ✅ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Both enums degrade to sold out |
+| M10-027 | Inactive item never appears | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-06`; smoke checks 10 and 22 |
+| M10-028 | Inactive category never appears | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-06`; smoke check 11 |
+| M10-029 | An item inside an inactive category is unreachable | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | smoke check 21 — Gulab Jamun by id |
+| M10-030 | Time-limited category respected | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Breakfast 06:00–11:00; smoke check 12 |
+| M10-031 | Empty category omitted | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `RestaurantMenuApiTest` |
+| M10-032 | Restaurant with no menu is a state, not an error | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-19` |
+| M10-033 | Empty search told apart from empty menu | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-16`; `visible_item_count` vs `item_count` |
+| M10-034 | Menu search, parameterised | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | In memory; no query to inject into |
+| M10-035 | Search length limit ≈100 characters | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 422; client `maxLength: 100` |
+| M10-036 | SQL injection in search changes nothing | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | smoke check 17; four probes |
+| M10-037 | Category selector, sticky | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-07` |
+| M10-038 | Tapping a section scrolls to it | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-08`; including a section never built |
+| M10-039 | Scrolling moves the section highlight | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-11` |
+| M10-040 | Read-only item preview | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-13` |
+| M10-041 | Preview fetched fresh, not echoed | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | smoke check 20 — a changed price is reflected |
+| M10-042 | **No customization, addons, cart, checkout or orders** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-14`; no such code exists |
+| M10-043 | **Cross-restaurant item refused (IDOR)** | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | smoke check 20; `ITEM_NOT_FOUND` |
+| M10-044 | Cross-restaurant item impossible in the schema | ➖ | ➖ | ➖ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Composite FK; MySQL 1452 asserted |
+| M10-045 | Suspended restaurant's menu refused by uuid | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | smoke check 25 — 404 |
+| M10-046 | Another customer's trip refused | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | smoke check 24 — `TRIP_NOT_FOUND` |
+| M10-047 | **No operator-private field on the wire** | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Allow-list; raw-body assertion over 13 needles |
+| M10-048 | No internal database key exposed | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | uuids only; smoke check 29 |
+| M10-049 | **Menu is read-only to a customer** | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Six verb/path pairs refused; no write method in the app |
+| M10-050 | **No N+1 on the menu endpoint** | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 2 queries at 6 items and at 500 |
+| M10-051 | **Opening a menu triggers no route calculation** | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Stub count flat; real provider log flat |
+| M10-052 | Large menu (20 categories / 500 items) | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Served whole, 2 queries, ~130 KB |
+| M10-053 | Payload size within reason | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Asserted < 600 KB at 500 items |
+| M10-054 | Closed or paused restaurant still browsable | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-20`, `state-21` |
+| M10-055 | Offline keeps the menu and says so | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-24` |
+| M10-056 | **Test seeders are development-only and marked** | ➖ | ➖ | ➖ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Refuses in production; `[TEST]` prefix; not in `DatabaseSeeder` |
+| M10-057 | Android and iOS runtime verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ⛔ | ✅ | PENDING — environment | KI-001, KI-002 |
+
+### Notes on the entries that are not a plain PASS
+
+- **M10-023 Allergen information = NOT APPLICABLE.** There is no allergen
+  column, no allergen UI and no allergen string anywhere on the wire, because no
+  restaurant has declared any. Inventing a field to demonstrate the requirement
+  would be exactly the fabrication the requirement forbids. What is verified is
+  the honest behaviour: the integration run asserts the word "allergen" does not
+  appear in the response body. When operator-declared allergens exist, they will
+  be shown the way every other optional field here is — present when published,
+  absent when not.
+
+- **M10-014 / M10-012 Locale formatting: verified for `en_IN` and `en_US`.**
+  The app ships one locale (English). `Money.format` is asserted against both
+  `en_IN` (₹12,999 — Indian grouping) and `en_US` ($249) so the *mechanism* is
+  proved locale-driven rather than hard-coded, but no non-English locale is
+  shipped to exercise.
+
+- **M10-052 Large menu: generated fixture, not production data.** Twenty
+  categories and five hundred items are inserted by the test itself. Production
+  data is never used for a load measurement, per the module's own rule.
+
+- **M10-051 Cost control: proved two ways, one of them indirect.** A counting
+  stub in `MenuPerformanceTest` shows the provider is never called; the
+  integration run counts `route.provider.called` lines in the real log across
+  fifteen menu and item requests and finds the count unchanged. Under
+  `ROUTE_PROVIDER=development` (KI-012) the provider is not a billed one, so
+  what is established is the call count, not a billing figure.
+
+- **M10-057 Android and iOS runtime verification = PENDING — environment
+  unavailable.** KI-001: no Android SDK, and `dl.google.com` is blocked by the
+  egress policy. KI-002: no macOS host. Verification was done against a release
+  **web** build of the same Flutter code, driven through its real semantics
+  tree. That is a real runtime and it is not an Android device.

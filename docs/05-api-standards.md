@@ -348,3 +348,42 @@ two concepts is worse.
 
 **Freshness travels with the payload.** `generated_at` lets an offline client
 say how old what it is showing is, rather than implying the data is live.
+
+---
+
+## Money on the wire (Module 10)
+
+An amount is always an object, never a number and never a string:
+
+```json
+"price": { "amount_minor": 24900, "currency": "INR" }
+```
+
+- **`amount_minor` is an integer count of the currency's smallest unit.** Paise
+  for INR. Not rupees, not a decimal string, and never a float — a JSON number
+  with a fractional part is a contract violation and clients reject it.
+- **`currency` is ISO 4217, upper case, and always present.** An amount without
+  one is not a price.
+- **The server never sends a rendered string.** No `"₹249"`, no `"price_label"`.
+  What a price looks like — symbol, grouping, decimals — is a locale decision,
+  and the server does not know the customer's locale. An integration test
+  asserts no `₹` appears anywhere in a menu response.
+
+This applies to every money field in every later module: cart totals, taxes,
+delivery fees, refunds.
+
+---
+
+## Two counts for two empty states (Modules 08 and 10)
+
+A collection endpoint that can be filtered returns **both** counts:
+
+```json
+"meta": { "item_count": 0, "visible_item_count": 18, "search_empty": true, "menu_empty": false }
+```
+
+`item_count` is after the filter; `visible_item_count` is before it. The client
+needs both to tell "there is nothing here" from "your search found nothing" —
+two different problems whose answers are opposite: leave, or clear the box. An
+endpoint that returned only the first forces the client to guess, and it guesses
+wrong on exactly the day a restaurant has no menu.

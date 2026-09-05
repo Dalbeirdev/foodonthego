@@ -52,3 +52,37 @@ deploy as the code that stops using it will break every instance still serving t
 Container images, an orchestration manifest, a CDN or object-storage strategy, log shipping, a
 Sentry project, and a rollback procedure. Each belongs to the module or the infrastructure work that
 needs it.
+
+---
+
+## Module 10 — two migrations, no new service
+
+```
+2026_09_10_010000_create_menu_categories_table
+2026_09_10_010100_create_menu_items_table
+```
+
+Additive: two new tables, no column changed on an existing one, no data
+migration. Rolling forward is `php artisan migrate`; rolling back drops the two
+tables and takes every menu with them, which is the correct behaviour for a
+release that introduced them.
+
+**Order matters in both directions.** `menu_items` carries a composite foreign
+key into `menu_categories`, so categories are created first and dropped last.
+The `down()` methods are written accordingly, and any script that clears menu
+data must delete items before categories.
+
+No new environment variable, no new external service, no new queue worker, and
+no new scheduled job. The menu is served from this application's own database
+and adds nothing to the deployment surface.
+
+### What to watch after release
+
+- **Query count per menu request.** Seventeen at the time of writing, of which
+  two are the menu itself. A jump proportional to the number of items means an
+  N+1 has been reintroduced; `MenuPerformanceTest` should have caught it, so a
+  jump in production without a test failure means the test's fixture no longer
+  resembles production.
+- **Routing-provider call volume.** It must not move when menu traffic moves.
+  The menu is the most-opened screen in the product after discovery, and it is
+  the one that must stay free.

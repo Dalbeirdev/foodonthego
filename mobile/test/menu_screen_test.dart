@@ -505,19 +505,55 @@ void main() {
   });
 
   group('accessibility', () {
-    testWidgets('a dish is announced with its price and its availability', (
+    testWidgets('a dish is announced with its diet, price and availability', (
       WidgetTester tester,
     ) async {
       await open(tester);
 
-      // Not "button" three hundred times.
+      // Not "button" three hundred times — and the diet is in the sentence,
+      // because the card merges its children and a badge with its own node
+      // would be a badge nobody hears.
       expect(
-        find.bySemanticsLabel('Paneer Tikka. 249 rupees'),
+        find.bySemanticsLabel('Paneer Tikka. Veg. 249 rupees'),
         findsOneWidget,
       );
       expect(
         find.bySemanticsLabel(RegExp('Tandoori Mushroom.*Sold out')),
         findsOneWidget,
+      );
+    });
+
+    testWidgets('a dish nobody declared a diet for claims none', (
+      WidgetTester tester,
+    ) async {
+      await open(tester);
+
+      await scrollTo(tester, find.text('Dal Makhani'));
+
+      // Vegetarian to a reader, unknown to this app. The sentence goes
+      // straight from the name to the price.
+      expect(
+        find.bySemanticsLabel('Dal Makhani. 299 rupees'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a declared spice level is announced, and only then', (
+      WidgetTester tester,
+    ) async {
+      await open(tester);
+
+      expect(
+        find.bySemanticsLabel(
+          RegExp('Chicken Seekh Kebab.*Spice level: Medium'),
+        ),
+        findsOneWidget,
+      );
+
+      // Paneer Tikka has no spice level in the fixture.
+      expect(
+        find.bySemanticsLabel(RegExp('Paneer Tikka.*Spice level')),
+        findsNothing,
       );
     });
 

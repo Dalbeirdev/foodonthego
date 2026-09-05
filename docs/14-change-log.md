@@ -660,3 +660,82 @@ restaurant's page at all.
 - **Detour magnitude is not meaningful** under `ROUTE_PROVIDER=development`
   (KI-012). What this module establishes is that the page shows the same figure
   the card did, without calling a provider again.
+
+---
+
+## Module 10 — Menu, categories and menu item browsing
+
+### Added
+
+- **`Money`, twice.** A readonly PHP value object and a Dart class, both holding
+  an integer count of minor units and a currency, and neither with a
+  `toDouble()`. This is the project's first money convention and every later
+  module inherits it.
+- **`menu_categories` and `menu_items`.** Money as `unsignedInteger
+  base_price_minor` — unsigned so a negative price cannot be stored at all.
+- **A composite foreign key** on `menu_items(menu_category_id, restaurant_id)`
+  referencing `menu_categories(id, restaurant_id)`, with the redundant-looking
+  `UNIQUE(id, restaurant_id)` that makes it possible. An item belonging to one
+  restaurant cannot be filed under another's category, by any route including a
+  direct `INSERT`.
+- **`GET …/restaurants/{restaurant}/menu`** and
+  **`GET …/menu/items/{item}`**. Both go through Module 09's eligibility, so a
+  menu cannot be opened for a restaurant whose page could not be.
+- **`CustomerMenuService`**, two queries whatever the size of the menu.
+- **`MenuSearch`**, in memory over items already fetched — so a search cannot
+  reach an item the visibility rules excluded, and a term never becomes SQL.
+- **The Flutter menu screen**: pinned section selector that leads *and* follows,
+  debounced search, sold-out treatment, two distinct empty states, and a
+  read-only item sheet.
+- **`MenuTestDataSeeder`**, development-only and `[TEST]`-marked, with fixtures
+  for every edge the module names: nothing-optional, sold out, withdrawn item,
+  withdrawn category with a live item inside, time-limited section, ₹0, ₹12,999,
+  a 60-character name, and a restaurant with no menu at all.
+
+### Changed
+
+- **`RestaurantDetailService` gained `orderingContext()`**, the eligibility half
+  without the profile. `detail()` now builds on it, so the two screens cannot
+  drift on who may see what — and the menu no longer loads photographs,
+  cuisines, facilities and a fortnight of opening hours it never renders.
+  Twenty queries a menu open, down to seventeen.
+- **`MenuItem::toCustomerArray()` takes its category as an argument.** Reading
+  the inverse relation would be one query per item; requiring the argument makes
+  that impossible rather than merely absent.
+- `intl` added to the Flutter app, for locale-driven currency formatting.
+
+### Fixed
+
+Two defects, both found by running the thing rather than by reading it, neither
+left open — see [13-known-issues.md](13-known-issues.md):
+
+- **M10-B01 (High).** The client's dietary-type wire strings were `VEG` and
+  `NON_VEG`; the server sends `VEGETARIAN` and `NON_VEGETARIAN`. Every diet
+  badge would have been silently absent in production — and every widget test
+  passed, because the fixtures built domain objects directly and never crossed
+  the JSON boundary. A test now asserts the four strings literally.
+- **M10-B02 (Low).** A punctuation-only search (`%%`, `--`, `...`) normalised to
+  nothing, matched every item, and came back as *the whole menu labelled the
+  result for `%%`*. Such a term is now discarded, so the menu is returned
+  honestly unfiltered.
+
+### Not done, and said plainly
+
+- **No allergen information exists**, so none is shown. There is no allergen
+  column, no allergen UI and no allergen string on the wire; the integration run
+  asserts the word does not appear. When operator-declared allergens exist they
+  will be shown like every other optional field — present when published, absent
+  when not.
+- **Nothing can be ordered.** No cart, no variants, no add-ons, no quantity
+  stepper — and no disabled "Add" button either, because a dead button promises
+  a cart that does not exist. `is_orderable` drives what the screen *says*.
+- **Android and iOS runtime verification are pending** — no Android SDK
+  (KI-001), no macOS host (KI-002). Verification was against a release web build
+  of the same Flutter code, driven through its real semantics tree.
+- **Only English ships.** `Money.format` is asserted against `en_IN` and `en_US`
+  so the mechanism is proved locale-driven rather than hard-coded, but no
+  non-English locale exists to exercise.
+- **The suspended-versus-missing distinction is inherited.** Both answer 404;
+  the error *codes* differ, which is Module 09's documented trade-off. Recorded
+  in [25-customer-menu-browsing.md](25-customer-menu-browsing.md) rather than
+  silently changed here.

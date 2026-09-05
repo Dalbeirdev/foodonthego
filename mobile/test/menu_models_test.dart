@@ -119,7 +119,7 @@ void main() {
         json(<String, dynamic>{
           'description': 'Cottage cheese in the tandoor.',
           'preparation_minutes': 15,
-          'dietary_type': 'VEG',
+          'dietary_type': 'VEGETARIAN',
           'spice_level': 2,
         }),
       );
@@ -151,6 +151,25 @@ void main() {
       );
 
       expect(item?.description, isNull);
+    });
+
+    test('the dietary wire strings are the ones the server sends', () {
+      // Spelled out rather than derived, because an abbreviation compiles,
+      // passes every fixture-built widget test, and silently drops every badge
+      // against the real API. This is the assertion that would have caught it.
+      expect(
+        MenuItemDietaryType.values
+            .where((MenuItemDietaryType t) => t.isKnown)
+            .map((MenuItemDietaryType t) => t.wire),
+        <String>['VEGETARIAN', 'NON_VEGETARIAN', 'VEGAN', 'EGG'],
+      );
+
+      expect(
+        MenuItem.fromJson(
+          json(<String, dynamic>{'dietary_type': 'NON_VEGETARIAN'}),
+        )?.dietaryType,
+        MenuItemDietaryType.nonVegetarian,
+      );
     });
 
     test('an unknown dietary type is unknown, not one of the four', () {
@@ -210,7 +229,6 @@ void main() {
       int visibleItemCount = 0,
       String? search,
     }) => <String, dynamic>{
-      'data': <String, dynamic>{
         'restaurant': <String, dynamic>{
           'id': 'restaurant-1',
           'name': 'Highway Spice Kitchen',
@@ -226,7 +244,6 @@ void main() {
           'visible_item_count': visibleItemCount,
           'applied': <String, dynamic>{'search': search},
         },
-      },
     };
 
     Map<String, dynamic> category(String id, String name, int items) =>
@@ -301,9 +318,11 @@ void main() {
       expect(noResults?.appliedSearch, 'pizza');
     });
 
-    test('a body that is not the documented envelope reads as nothing', () {
+    test('a payload with no restaurant reads as nothing', () {
+      // A 200 whose body cannot be read is a contract change, not a menu with
+      // half a restaurant.
       expect(
-        RestaurantMenu.fromJson(<String, dynamic>{'data': 'nonsense'}),
+        RestaurantMenu.fromJson(<String, dynamic>{'categories': <Object?>[]}),
         isNull,
       );
     });

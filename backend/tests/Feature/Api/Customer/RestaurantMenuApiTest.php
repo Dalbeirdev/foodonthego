@@ -584,6 +584,47 @@ final class RestaurantMenuApiTest extends TestCase
 
     // --- the empty menu -------------------------------------------------------
 
+    public function test_a_punctuation_only_search_is_not_a_search(): void
+    {
+        MenuFixtures::ordinaryMenu($this->restaurant);
+
+        foreach (['%%', '...', '--', '###', '@@'] as $probe) {
+            $response = $this->asRahul()
+                ->getJson($this->url('search='.urlencode($probe)))
+                ->assertOk();
+
+            // The matcher folds punctuation away, so such a term matches every
+            // item. Reporting the whole menu as the result for "%%" is a claim
+            // the customer would read as "these all match"; the menu comes back
+            // unfiltered and says it was not searched.
+            $this->assertNull($response->json('data.meta.applied.search'));
+            $this->assertFalse($response->json('data.meta.search_empty'));
+            $this->assertSame(6, $response->json('data.meta.item_count'));
+        }
+    }
+
+    public function test_a_wildcard_is_an_ordinary_character(): void
+    {
+        MenuFixtures::ordinaryMenu($this->restaurant);
+
+        // A SQL wildcard, folded away like any other punctuation rather than
+        // expanded. "k" is in none of the three section names, so nothing here
+        // comes back through the category-name rule — if "%" meant "anything"
+        // this would return the whole menu.
+        $response = $this->asRahul()
+            ->getJson($this->url('search='.urlencode('%k')))
+            ->assertOk();
+
+        $names = collect($response->json('data.categories'))
+            ->flatMap(static fn (array $category): array => $category['items'])
+            ->pluck('name')
+            ->all();
+
+        $this->assertContains('Paneer Tikka', $names);
+        // No "k" anywhere in it. A leaked wildcard would have swept it up.
+        $this->assertNotContains('Table Water', $names);
+    }
+
     public function test_a_restaurant_with_no_menu_says_so(): void
     {
         $this->asRahul()->getJson($this->url())

@@ -90,15 +90,53 @@ class MenuItemCard extends StatelessWidget {
     );
   }
 
+  /// What a screen reader hears for this row.
+  ///
+  /// The card merges its children into one node, so everything a sighted
+  /// customer can see on it has to be in this sentence. The **dietary type
+  /// belongs here**: it is drawn as a badge, and a blind customer scanning a
+  /// menu in India needs to know which dishes are vegetarian at least as much
+  /// as a sighted one does. Leaving it to the badge's own node would be leaving
+  /// it out entirely.
+  ///
+  /// Order matters — name, diet, price, availability — so the thing that
+  /// decides whether the dish is even a candidate is heard second, not last.
   String _semanticsLabel(AppStrings strings) {
-    final StringBuffer buffer = StringBuffer(item.name)
+    final StringBuffer buffer = StringBuffer(item.name);
+
+    if (_dietaryLabel(strings) case final String diet) {
+      buffer.write('. $diet');
+    }
+
+    buffer
       ..write('. ')
       ..write(item.price.spokenLabel());
+
+    // Only where the operator set one. A spice level nobody declared is not
+    // announced as "mild".
+    if (_spiceLabel(strings) case final String spice) {
+      buffer.write('. ${strings.menuSpiceSemantics(spice)}');
+    }
 
     if (item.isSoldOut) buffer.write('. ${strings.menuSoldOut}');
 
     return buffer.toString();
   }
+
+  String? _dietaryLabel(AppStrings strings) => switch (item.dietaryType) {
+    MenuItemDietaryType.vegetarian => strings.menuVeg,
+    MenuItemDietaryType.nonVegetarian => strings.menuNonVeg,
+    MenuItemDietaryType.vegan => strings.menuVegan,
+    MenuItemDietaryType.egg => strings.menuEgg,
+    MenuItemDietaryType.unknown => null,
+  };
+
+  String? _spiceLabel(AppStrings strings) => switch (item.spiceLevel) {
+    1 => strings.menuSpiceMild,
+    2 => strings.menuSpiceMedium,
+    3 => strings.menuSpiceHot,
+    _ => null,
+  };
 }
 
 /// The dish's own photograph, or nothing.

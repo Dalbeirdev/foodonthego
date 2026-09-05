@@ -71,7 +71,20 @@ final readonly class MenuQuery
         // Shorter than the minimum is a customer mid-keystroke, not an error.
         // Treated as no search rather than answered with a validation message
         // between the first letter and the second.
-        return new self(mb_strlen($clean) < self::MIN_SEARCH_LENGTH ? null : $clean);
+        if (mb_strlen($clean) < self::MIN_SEARCH_LENGTH) {
+            return new self(null);
+        }
+
+        // Punctuation only — "%%", "...", "--". The matcher folds punctuation
+        // away, so such a term normalises to nothing and matches every item;
+        // the response would then report the whole menu as the result for
+        // "%%", which a customer would reasonably read as "these all match".
+        // Treated as no search, so the menu comes back unfiltered and says so.
+        if (MenuSearch::normalise($clean) === '') {
+            return new self(null);
+        }
+
+        return new self($clean);
     }
 
     public function hasSearch(): bool

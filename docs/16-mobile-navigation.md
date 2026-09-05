@@ -189,3 +189,44 @@ put a half-made decision in the back stack. Its state lives on `autoDispose`
 providers, so closing it disposes the query, the results and the provider session
 token — nothing about a search outlives the sheet, and nothing survives into the
 next customer's session.
+
+---
+
+## The menu, nested under the restaurant (Module 10)
+
+```
+/trips/:tripId/route/restaurants/:restaurantId/menu
+```
+
+Four levels deep, and each one earns its place. The menu belongs to the
+restaurant, which belongs to the route, which belongs to the journey — so
+Android back and the iOS swipe land on the restaurant page the customer came
+from, which lands on the discovery list with its search and filters still in
+place, which lands on the route.
+
+The restaurant's name is passed as `extra` so the app bar has a title during the
+first request rather than a blank space. It is never authoritative: the server's
+answer replaces it, exactly as the discovery card's preview is replaced on the
+restaurant page.
+
+The menu route is reached only from the restaurant page's sticky button, which
+exists only where the ordering state permits browsing — so a permanently closed
+restaurant's menu is not offered. Deep-linking to it directly still works and is
+still safe: the server refuses on eligibility, and the screen shows the same
+withdrawn state it would after a refresh.
+
+### The item preview is a sheet, not a route
+
+For the same reason the place picker is: it is a transient look at one dish that
+returns the customer to where they were. Giving it a URL would put "I glanced at
+the paneer tikka" in the back stack, and Android back would then take three
+presses to leave a menu. Its state lives on the same `autoDispose` controller as
+the menu and is cleared when the sheet closes.
+
+### The back button goes through the router
+
+`AppBar`'s automatic back button calls `Navigator.maybePop`, which pops the
+widget stack without telling go_router — leaving the router with an empty match
+list and the customer with a blank screen. Every screen from Module 09 onwards
+uses an explicit `BackButton` that routes through `context.pop()`. The menu is no
+exception.

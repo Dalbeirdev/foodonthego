@@ -370,3 +370,19 @@ Module 10 — menu, categories and menu item browsing — receives:
 What Module 10 must not assume: that a restaurant on screen is still open. The
 availability in a detail response is a snapshot re-checked on each request, and
 a menu opened five minutes later has to ask again.
+
+### What Module 10 did with it
+
+The menu screen does ask again, on every request — and it does so through this
+service rather than around it.
+
+`RestaurantDetailService` now has two entry points. `detail()` is this module's
+and is unchanged in behaviour. `orderingContext()` is the eligibility half
+without the profile: it runs the same `onRoute()` lookup and the same freshness
+re-read, and skips the photographs, cuisines, facilities and fortnight of
+opening-hours arithmetic that a menu screen never renders. That took a menu open
+from twenty queries to seventeen.
+
+Both go through `onRoute()`, so **who may see a restaurant is decided in one
+place** and cannot drift between the two screens. A restaurant whose page 404s
+has a menu that 404s, for the same reason and by the same code.

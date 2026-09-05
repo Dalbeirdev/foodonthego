@@ -47,3 +47,22 @@ conventions, security baseline, application shells, CI, and documentation.
 **No business feature is implemented.** No authentication, journey planner, restaurant search,
 ordering, payment or ETA engine. Every shell route that has no feature behind it renders a
 placeholder that says so and names the module that will deliver it.
+
+---
+
+## Where Module 10 leaves the customer
+
+A customer can now plan a journey, see what is on the road, filter it, open one
+restaurant, decide whether to stop there — and read the whole menu.
+
+What they still cannot do is order. That is deliberate and it is the boundary
+Module 10 stops at: no cart, no variants, no add-ons, no payment. The menu shows
+`is_orderable` and the screen says *"Ordering opens soon"* rather than showing a
+button that does nothing.
+
+The product decision underneath it is the one this whole app is built on: **a
+menu that says less than it knows is a menu a customer can trust.** A dish
+without a description gets none. A dish nobody photographed gets a monogram, not
+somebody else's curry. A dish nobody declared vegetarian is not marked
+vegetarian, however obvious the name makes it — because the one time that guess
+is wrong, it is wrong on somebody's plate.

@@ -376,3 +376,66 @@ network layer against a live Laravel backend and real MySQL rows. It reads
 fixture uuids **straight from the database** for the direct-id tests, because
 the point is that an identifier obtained from outside the API buys nothing, and
 taking it from an API response would not test that.
+
+---
+
+## Module 10 — testing a screen that must not know more than it was told
+
+Module 09's worst failure was a lie about a restaurant. Module 10's is a lie
+about a **dish** — and one of them lands on somebody's plate. The tests are
+shaped accordingly: most of them assert an absence.
+
+### The three that matter most
+
+| Test | What it proves |
+| --- | --- |
+| `test_the_database_itself_refuses_a_cross_restaurant_item` | A direct `INSERT` linking restaurant A's item to restaurant B's category raises MySQL 1452. Not a service check — the storage engine's. |
+| `test_metadata_a_restaurant_did_not_give_is_null_not_invented` | Description, image, prep time, diet and spice are each absent, individually, on a dish that has none. |
+| `test_opening_a_menu_asks_the_routing_provider_nothing` | The mandatory one. A counting stub across three menu opens, a search and a reopen. |
+
+### Money is tested where floats would hide
+
+`MoneyTest` has ten cases and half of them are refusals: a decimal amount, a
+negative amount, a missing currency, a malformed currency, a cross-currency
+comparison. `menu_models_test.dart` mirrors them on the client. The one that
+would have caught the real-world bug is `a decimal amount is refused rather than
+rounded` — because a server that started sending rupees would otherwise be
+absorbed silently and be off by a factor of a hundred.
+
+### Performance is asserted, not measured and forgotten
+
+`MenuPerformanceTest` is eleven tests. Three of them add items, categories and
+whole 500-item menus and assert the **query count does not move**; one asserts
+the menu is exactly two queries by inspecting the query log; one asserts the
+payload stays under 600 KB at five hundred items. The 500-item fixture is
+generated in the test — production data is never used for a load measurement.
+
+### What the unit tests could not see
+
+Every widget test in this module passed while the client's dietary-type wire
+strings did not match the server's (M10-B01), because the fixtures build domain
+objects directly and never cross the JSON boundary. That is a real limitation of
+fixture-built widget tests and the reason the integration run exists.
+
+The lesson taken: **an enum whose values are a wire contract gets a test that
+spells the strings out literally**, not one that derives them from the enum
+itself, which would agree with whatever was written.
+
+### Where each layer is tested
+
+| Layer | File | Tests |
+| --- | --- | --- |
+| Money | `tests/Unit/MoneyTest.php` | 10 |
+| HTTP contract | `tests/Feature/Api/Customer/RestaurantMenuApiTest.php` | 42 |
+| Query cost | `tests/Feature/MenuPerformanceTest.php` | 11 |
+| Client models and money | `mobile/test/menu_models_test.dart` | 24 |
+| Client state | `mobile/test/menu_controller_test.dart` | 15 |
+| Client widgets | `mobile/test/menu_screen_test.dart` | 34 |
+
+### Integration
+
+`mobile/tool/menu_smoke.dart` — 32 checks through this app's own network layer
+against a live Laravel backend and real MySQL rows. Like Module 09's, it reads
+fixture uuids **straight from the database** for the direct-id tests. It also
+changes a price behind the API's back and re-reads the item, which is the only
+honest way to prove the preview is fetched rather than echoed.

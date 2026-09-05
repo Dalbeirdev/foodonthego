@@ -569,3 +569,111 @@ one of these will hit them.
   driver reads the semantics tree by substring. The section's absence is
   asserted where a heading can be told from a sentence: the widget tests and the
   integration run.
+
+---
+
+## Module 10 — menu, categories and item browsing
+
+### M10-B01 — every dietary badge was silently absent — **High** — FIXED
+
+The Flutter enum's wire strings were `VEG` and `NON_VEG`. The server's
+`App\Enums\MenuItemDietaryType` sends `VEGETARIAN` and `NON_VEGETARIAN`.
+`MenuItemDietaryType.fromWire` therefore matched nothing, returned `unknown` for
+every dish, and `MenuItemBadges` drew nothing at all.
+
+The failure mode is the bad one: no error, no exception, no visible breakage —
+just a menu on which no dish is ever marked vegetarian. On a food app in India
+that is not cosmetic.
+
+**Why the whole test suite passed.** The widget tests build `MenuItem` objects
+directly through `sampleMenuItem(dietary: MenuItemDietaryType.vegetarian)`. They
+never cross the JSON boundary, so they could not see a wire string that did not
+match. Only the integration run, which reads real rows over real HTTP, could.
+
+Fixed by spelling the server's values in the Dart enum, and by adding a test
+that asserts the four strings **literally** rather than deriving them — a
+derived assertion would have agreed with whatever was written.
+
+### M10-B02 — a punctuation-only search returned the whole menu as its result — **Low** — FIXED
+
+`MenuSearch::normalise` folds punctuation away, so `%%`, `--` and `...`
+normalise to the empty string. `matching()` treats an empty needle as "no
+filter" and returns every item — which is the right *content*, but the response
+still reported `applied.search: "%%"` and the screen still showed the menu as
+the result for that term. A customer reads that as "these all match".
+
+Found by the integration run's injection probes, which expected zero results for
+every probe and got the whole menu for the wildcard ones.
+
+Fixed in `MenuQuery::fromRequest`: a term that normalises to nothing is
+discarded, so `applied.search` is null and the menu is returned honestly
+unfiltered. Two regression tests cover it — one for the punctuation terms, one
+proving a wildcard mixed with a letter (`%k`) is still an ordinary search that
+excludes non-matching dishes.
+
+### M10-B03 — a screen-reader user could not hear which dishes were vegetarian — **Medium** — FIXED
+
+`MenuItemCard` merges its children into one semantics node — which is right, or
+a menu of thirty dishes would be a hundred and twenty separate stops — and the
+merged sentence was *"Paneer Tikka. 249 rupees"*.
+
+Everything visible on the card that was not in that sentence was therefore
+invisible to a screen reader, and the dietary badge was the important one. On a
+food app in India, "is this vegetarian" is not a secondary attribute; it is
+often the first question, and a blind customer had no way to ask it short of
+opening every dish in turn.
+
+Found by the live driver, which reads the same semantics tree a screen reader
+does and could not find "Veg" anywhere on a menu that plainly showed it.
+
+Fixed by putting the diet — and the declared spice level — into the card's
+sentence: *"Paneer Tikka. Veg. 249 rupees"*, and *"Chicken Seekh Kebab.
+Non-veg. 329 rupees. Spice level: Medium"*. Order matters: the diet is heard
+second, because it decides whether the dish is a candidate at all. A dish whose
+diet nobody declared goes straight from name to price and claims nothing.
+
+Three widget tests cover it, including one asserting Dal Makhani — vegetarian to
+a reader, undeclared in the data — is announced without a diet.
+
+No Module 10 issue was left open. No Critical defect was found.
+
+### Three things the harness got wrong, and what they taught
+
+**Screenshots in this environment carry no text.** Flutter web paints glyphs to
+a canvas that headless Chromium does not capture, so every screenshot from
+Module 09 onwards shows layout, colour, icons and structure — and no words. The
+screenshots are structural evidence; **text is verified through the semantics
+tree**, which is real DOM, and through the widget tests, which can read a
+rendered string. Three of the live driver's misses were assertions on rendered
+glyphs (`₹249`, `₹12,999`, `15 min to cook`) that were never going to be
+visible to it; they now read the spoken forms, which is what a screen reader
+gets and what actually has to be right.
+
+**Running the regression smokes concurrently with the live run wiped the
+menus.** `restaurant_detail_smoke` re-seeds `DiscoveryTestRestaurantSeeder`,
+which recreates the restaurant rows — and `menu_items` cascade-delete with their
+restaurant. The dark-mode and large-text states consequently found an empty menu
+and were re-run afterwards. An operational error, not a product one, and worth
+writing down: **the live run and the smoke suite share a database and must not
+overlap.**
+
+**An assertion on a dish below the fold passes for the wrong reason.** The menu
+is a `ListView.builder`; "Masala Chai is hidden while searching for paneer"
+passed because it was never built, and the matching "it comes back when the
+search is cleared" then failed for the same reason. Both now use a dish near the
+top of the list, which the builder has actually made.
+
+### One thing the test suite got wrong, and what it taught
+
+Not a product defect, and worth recording: three of the first widget-test
+failures were the test's fault, not the app's — a chip clipped at the right edge
+of a 390 pt phone so `tester.tap` landed on nothing, a lazy selector whose
+fourteenth chip had never been built, and a `find.text('Starters')` that matched
+both the chip and the heading.
+
+But the fourth was real. Tapping a section chip for a heading the
+`ListView.builder` had not built did nothing at all, because `ensureVisible`
+needs a `BuildContext` and an unbuilt row has none. A section selector that
+works only for the sections already on screen is useless on precisely the menus
+it exists for. `_jumpTo` now steps towards the target a screen at a time until
+the builder has made the heading.

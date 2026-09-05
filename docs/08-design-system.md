@@ -378,3 +378,40 @@ stand-in.
 - Price is announced as a word. "₹₹" is a visual convention.
 - An overnight window says "(overnight)" — "6:00 PM – 2:00 AM" read quickly
   looks like a typo.
+
+---
+
+## Module 10 — a badge that is absent means nobody said
+
+The menu introduces three small components, and the interesting rule is shared
+by all of them: **a badge is drawn only where the restaurant published the field
+behind it.** There is no "unspecified" chip and no greyed-out placeholder,
+because a customer who cannot eat egg needs the absence of a badge to mean
+*nobody said*, not *we checked and it's fine*.
+
+| Component | Tokens | Notes |
+| --- | --- | --- |
+| `MenuItemBadges` | `successSurface`/`success` for veg and vegan, `errorSurface`/`error` for non-veg, `warningSurface`/`warning` for spice, `neutral100`/`neutral600` for cooking time | Pill radius, `labelSmall`, weight 600. `compact` drops the cooking time for the list card |
+| `MenuItemCard` | `FotgRadius.card` ink, 72 dp thumbnail at `FotgRadius.control` | Sold out dims the whole row to 55% opacity and overlays `neutral950` at 45% on the thumbnail |
+| `MenuCategorySelector` | `ChoiceChip`, 52 dp row | Horizontal, lazy, and scrolls the active chip into view when the highlight moves |
+
+### The veg/non-veg mark
+
+The square-in-a-square mark Indian menus use is drawn beside the word, never
+instead of it — colour alone is not information, and the mark is meaningless to
+somebody who has not seen an Indian menu. It is wrapped in `ExcludeSemantics`,
+so a screen reader hears "Dietary: Veg" once rather than an anonymous image
+between two words.
+
+### Dimming, not recolouring
+
+A sold-out row is dimmed with `Opacity`, not repainted from a grey palette. A
+greyed palette would flatten the badge colours to the point where "Non-veg" and
+"Veg" stop being distinguishable — which is exactly the information a customer
+still needs while deciding whether to wait for the kitchen to restock.
+
+### Money is never a string in a widget
+
+`Money.format()` is the only place a price becomes text. No widget concatenates
+a symbol, and no design token holds one — the symbol comes from the customer's
+locale through `intl`. See [02-architecture.md](02-architecture.md).

@@ -1497,3 +1497,138 @@ known limit of this environment, not a product behaviour.
 | Android | **PENDING — environment unavailable.** No Android SDK; `dl.google.com` is blocked by the egress policy. (KI-001) |
 | iOS | **PENDING — environment unavailable.** No macOS host. (KI-002) |
 | Live Google map render | **PENDING** — no Maps SDK key. (KI-011) |
+
+---
+
+# Module 10 — Menu, categories and menu item browsing
+
+Recorded against PHP 8.4.19 / Laravel 12.69.1 / MySQL 8.0.46 / Redis 7.0.15 /
+Flutter 3.47.2 on Ubuntu 24.04. Providers: `ROUTE_PROVIDER=development`,
+`PLACES_PROVIDER=development`, `OTP_PROVIDER=log`.
+
+Full run output: [`evidence/module-10-verification-run.txt`](evidence/module-10-verification-run.txt).
+Screenshots: `evidence/module-10/state-01..30-*.png`.
+
+## Automated tests
+
+| Suite | Result |
+| --- | --- |
+| Backend (PHPUnit) | **864 passed**, 3 616 assertions, 0 failed, 0 skipped |
+| Flutter | **686 passed**, 0 failed, 0 skipped |
+| Laravel Pint | clean |
+| `dart analyze` | no issues |
+
+New in Module 10: 63 backend test methods and 73 Flutter test cases.
+
+| File | Tests |
+| --- | --- |
+| `tests/Unit/MoneyTest.php` | 10 |
+| `tests/Feature/Api/Customer/RestaurantMenuApiTest.php` | 42 |
+| `tests/Feature/MenuPerformanceTest.php` | 11 |
+| `mobile/test/menu_models_test.dart` | 24 |
+| `mobile/test/menu_controller_test.dart` | 15 |
+| `mobile/test/menu_screen_test.dart` | 34 |
+
+## Integration run
+
+`mobile/tool/menu_smoke.dart` against a live Laravel server, real MySQL rows and
+this app's own network layer: **32 passed, 0 failed.**
+
+The checks worth naming:
+
+| Check | What it establishes |
+| --- | --- |
+| the wire carries no rendered price string | No `₹` anywhere in the response; `amount_minor` present |
+| a five-figure price groups the way the locale does | ₹12,999 from `intl`, not from the server |
+| a withdrawn category takes its items with it | Gulab Jamun is invisible although the item row is active |
+| an item in a withdrawn category is not reachable by id | uuid read straight from MySQL, then refused |
+| another restaurant's item cannot be read through this one | The IDOR test the module mandates |
+| a suspended restaurant will not serve a menu to a known id | 404, matching a nonexistent one |
+| the preview reflects a price that has since changed | Price altered behind the API's back and re-read |
+| no operator-private field is on the wire | 13 needles, raw body |
+| a customer has no way to change a menu | Six verb/path pairs, all refused |
+| **opening a menu asks no routing provider** | Provider log unchanged across 15 menu and item requests |
+
+The direct-id checks read fixture uuids **from the database**, not from an API
+response — the point is that an identifier obtained outside the API buys
+nothing, and taking it from a response would not test that.
+
+## Performance
+
+| Measurement | Result |
+| --- | --- |
+| Menu queries, 6 items / 3 categories | 2 |
+| Menu queries, 500 items / 20 categories | 2 |
+| Whole request, either size | 17 |
+| 500-item response time | < 1 500 ms budget; measured well under |
+| 500-item payload | ~130 KB, unpaginated |
+| Query count vs 60 more items | unchanged |
+| Query count vs 17 more categories | unchanged |
+| Routing provider calls on menu open | 0 |
+
+The 500-item fixture is generated inside the test. Production data is never used
+for a load measurement.
+
+## Live view — a rendered release build
+
+A release web build of the same Flutter code, served on `:5173` against the live
+backend on `:8000`, driven with Playwright through Flutter's real DOM semantics
+tree.
+
+| State | What it shows |
+| --- | --- |
+| 01 | The menu, opened from the restaurant page |
+| 02 | Prices, locale-formatted — no `₹249.00`, no `24900` |
+| 03 | Declared dietary types, and only those |
+| 04 | A sold-out dish, shown and labelled |
+| 05 | A dish with nothing optional (Papad) |
+| 06 | The withdrawn item and withdrawn category are absent |
+| 07 | The section selector |
+| 08 | Tapping a section takes the customer to it |
+| 09 | A free item priced at ₹0 |
+| 10 | ₹12,999, grouped |
+| 11 | Scrolling moves the highlight |
+| 12 | A 60-character dish name, wrapped |
+| 13 | The read-only item preview |
+| 14 | Nothing in it can be ordered |
+| 15 | Search narrows the menu |
+| 16 | A search that matched nothing |
+| 17 | Clearing brings the menu back |
+| 18 | Back to the restaurant page |
+| 19 | A restaurant with no menu |
+| 20 | A paused kitchen — browse only |
+| 21 | A closed restaurant — browse only |
+| 22 | Load failure, with **Try again** |
+| 23 | Withdrawn, with no retry |
+| 24 | Offline, keeping the menu |
+| 25 | Loading |
+| 26 | 320 dp |
+| 27 | 360 dp |
+| 28 | 430 dp |
+| 29 | Dark mode |
+| 30 | 200% text |
+
+## Regression, Modules 01–09
+
+| Run | Result |
+| --- | --- |
+| `integration_smoke` (M01–04) | 13 passed, 0 failed |
+| `profile_addresses_smoke` (M04) | 24 passed, 0 failed |
+| `trip_planner_smoke` (M05) | 31 passed, 0 failed |
+| `route_smoke` (M06) | see note |
+| `discovery_smoke` (M07) | see note |
+| `discovery_filters_smoke` (M08) | see note |
+| `restaurant_detail_smoke` (M09) | see note |
+
+The last four were first run while the live-view driver was still signing in
+roughly a dozen times, and hit the **OTP per-IP budget** — a limit of this
+environment, not a product behaviour. They were re-run afterwards; results
+above.
+
+## Runtime coverage
+
+| Runtime | Result |
+| --- | --- |
+| Web (Chromium, release build) | **PASS** — 30 states |
+| Android | **PENDING — environment unavailable.** No Android SDK; `dl.google.com` is blocked by the egress policy. (KI-001) |
+| iOS | **PENDING — environment unavailable.** No macOS host. (KI-002) |
