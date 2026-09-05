@@ -98,6 +98,19 @@ final class Restaurant extends Model
             ->orderBy('id');
     }
 
+    /**
+     * The menu sections a customer may see, in the operator's order.
+     *
+     * @return HasMany<MenuCategory, $this>
+     */
+    public function menuCategories(): HasMany
+    {
+        return $this->hasMany(MenuCategory::class)
+            ->where('is_active', true)
+            ->orderBy('display_order')
+            ->orderBy('id');
+    }
+
     /** @return HasMany<RestaurantOpeningHour, $this> */
     public function openingHours(): HasMany
     {

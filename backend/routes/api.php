@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Customer\AddressController;
 use App\Http\Controllers\Api\V1\Customer\PlaceController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController;
+use App\Http\Controllers\Api\V1\Customer\RestaurantMenuController;
 use App\Http\Controllers\Api\V1\Customer\TripController;
 use App\Http\Controllers\Api\V1\Customer\TripRestaurantController;
 use App\Http\Controllers\Api\V1\Customer\TripRestaurantDetailController;
@@ -196,6 +197,23 @@ Route::prefix('v1')->group(function (): void {
                 Route::get('/{trip}/restaurants/{restaurant}', [TripRestaurantDetailController::class, 'show'])
                     ->middleware('throttle:discovery')
                     ->name('api.v1.customer.trips.restaurants.show');
+
+                // Module 10. Nested under the restaurant, which is nested under
+                // the trip: a menu has no meaning without a restaurant, and the
+                // restaurant is only reachable through the customer's own
+                // journey.
+                //
+                // The general authenticated allowance rather than the discovery
+                // throttle. Reading a menu is a database read behind a warm
+                // cache — a customer scrolling and searching one should not be
+                // spending the corridor-search budget, and cannot: the
+                // expensive half is already cached before either of these
+                // handlers runs.
+                Route::get('/{trip}/restaurants/{restaurant}/menu', [RestaurantMenuController::class, 'index'])
+                    ->name('api.v1.customer.trips.restaurants.menu.index');
+
+                Route::get('/{trip}/restaurants/{restaurant}/menu/items/{item}', [RestaurantMenuController::class, 'show'])
+                    ->name('api.v1.customer.trips.restaurants.menu.items.show');
             });
         });
 });

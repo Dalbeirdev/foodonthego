@@ -141,6 +141,12 @@ final class RestaurantDetailPerformanceTest extends TestCase
             ->getJson('/api/v1/customer/trips/'.$this->trip->uuid.'/restaurants')
             ->assertOk();
 
+        // One open before the measured ones. The very first request of a
+        // session warms things that have nothing to do with the menu — the
+        // token, the rate limiter's bucket — and counting them made this test
+        // fail by exactly one, once, depending on what ran before it.
+        $this->costOfOpening($uuids[0]);
+
         $counts = [];
 
         foreach ($uuids as $uuid) {

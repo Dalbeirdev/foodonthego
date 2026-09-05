@@ -55,15 +55,52 @@ final class RestaurantDetailService
      */
     public function detail(Trip $trip, string $restaurantUuid, CarbonImmutable $now): RestaurantDetail
     {
+        // Everything the list did not need: the row with its media, cuisines,
+        // facilities and hours — one query each, not one per relation.
+        $context = $this->orderingContext($trip, $restaurantUuid, $now, [
+            'cuisines', 'facilities', 'openingHours', 'media',
+        ]);
+
+        $restaurant = $context->discovered->restaurant;
+
+        return new RestaurantDetail(
+            discovered: $context->discovered,
+            ordering: $context->ordering,
+            todayHours: ['windows' => $this->hours->today($restaurant, $now)],
+            weeklyHours: $this->hours->week($restaurant, $now),
+            currentWindow: $this->hours->currentWindow($restaurant, $now),
+            nextOpenAt: $this->hours->nextOpenAt($restaurant, $now),
+            timezone: $restaurant->timezone
+                ?: (string) config('foodonthego.discovery.default_timezone'),
+            generatedAt: $now,
+            routeFromCache: $this->lastDiscoveryWasCached,
+        );
+    }
+
+    /**
+     * The eligibility half, on its own.
+     *
+     * The menu screen calls this rather than {@see detail()} because it renders
+     * a name and an ordering state, not a profile. Both go through the same
+     * {@see onRoute()}, so there is one place where a customer's entitlement to
+     * see a restaurant is decided, and it cannot drift between the two screens.
+     *
+     * @param  list<string>  $with  relations the caller will actually render
+     *
+     * @throws ApiException
+     */
+    public function orderingContext(
+        Trip $trip,
+        string $restaurantUuid,
+        CarbonImmutable $now,
+        array $with = [],
+    ): RestaurantOrderingContext {
         // Not validated as a uuid first: a malformed identifier simply matches
         // nothing below, and answering it differently would tell a prober that
         // their guess had the right shape.
         $discovered = $this->onRoute($trip, $restaurantUuid, $now);
 
-        // Everything the list did not need. One query for the row with its
-        // media, cuisines, facilities and hours — not four, and not one per
-        // relation.
-        $restaurant = $this->profile($restaurantUuid);
+        $restaurant = $this->profile($restaurantUuid, $with);
 
         // The row that was just read is the authority on whether this is still
         // orderable. The discovery result may be up to five minutes old, and a
@@ -73,17 +110,9 @@ final class RestaurantDetailService
 
         $availability = $this->availability->availabilityOf($restaurant, $now);
 
-        return new RestaurantDetail(
+        return new RestaurantOrderingContext(
             discovered: $discovered->withAvailability($availability),
             ordering: RestaurantOrderingState::resolve($restaurant->status, $availability),
-            todayHours: ['windows' => $this->hours->today($restaurant, $now)],
-            weeklyHours: $this->hours->week($restaurant, $now),
-            currentWindow: $this->hours->currentWindow($restaurant, $now),
-            nextOpenAt: $this->hours->nextOpenAt($restaurant, $now),
-            timezone: $restaurant->timezone
-                ?: (string) config('foodonthego.discovery.default_timezone'),
-            generatedAt: $now,
-            routeFromCache: $this->lastDiscoveryWasCached,
         );
     }
 
@@ -152,14 +181,16 @@ final class RestaurantDetailService
     }
 
     /**
-     * The profile half: one query, every relation the screen needs.
+     * The row, freshly read, with whatever the caller will render.
+     *
+     * @param  list<string>  $with
      *
      * @throws ApiException
      */
-    private function profile(string $restaurantUuid): Restaurant
+    private function profile(string $restaurantUuid, array $with): Restaurant
     {
         $restaurant = Restaurant::query()
-            ->with(['cuisines', 'facilities', 'openingHours', 'media'])
+            ->with($with)
             ->where('uuid', $restaurantUuid)
             ->first();
 

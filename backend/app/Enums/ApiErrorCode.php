@@ -106,6 +106,23 @@ enum ApiErrorCode: string
     case RestaurantOutsideRoute = 'RESTAURANT_OUTSIDE_ROUTE';
     case DetailLoadFailed = 'DETAIL_LOAD_FAILED';
 
+    // Module 10. A menu is customer-facing content, so most of what can go
+    // wrong here is already covered by the restaurant codes above — a menu
+    // cannot be reached for a restaurant that cannot be reached.
+    //
+    // MenuNotAvailable is the case where the restaurant is fine and the menu is
+    // not: nothing published, or nothing a customer may see. It is a 200 in
+    // practice — an empty menu is an answer, not a failure — and the code
+    // exists for the paths where it is genuinely an error.
+    //
+    // ItemNotFound covers three situations that are answered identically on
+    // purpose: no such item, an item belonging to another restaurant, and an
+    // item withdrawn from the menu. Telling them apart would let anybody with a
+    // list of ids map another restaurant's menu.
+    case MenuNotAvailable = 'MENU_NOT_AVAILABLE';
+    case ItemNotFound = 'ITEM_NOT_FOUND';
+    case ItemUnavailable = 'ITEM_UNAVAILABLE';
+
     public function httpStatus(): int
     {
         return match ($this) {
@@ -185,6 +202,13 @@ enum ApiErrorCode: string
             // it; it conflicts with the route they have selected.
             self::RestaurantOutsideRoute => 409,
             self::DetailLoadFailed => 500,
+
+            self::MenuNotAvailable => 409,
+            // 404 for both, and the same 404 a missing restaurant gets. An
+            // item on another restaurant's menu must not answer differently
+            // from one that does not exist.
+            self::ItemNotFound => 404,
+            self::ItemUnavailable => 404,
             self::RateLimited => 429,
             self::BusinessRuleViolated => 422,
             self::DependencyUnavailable => 503,
