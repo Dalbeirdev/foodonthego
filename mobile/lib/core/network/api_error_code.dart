@@ -124,6 +124,17 @@ enum ApiErrorCode {
   restaurantOutsideRoute('RESTAURANT_OUTSIDE_ROUTE'),
   detailLoadFailed('DETAIL_LOAD_FAILED'),
 
+  /// Module 10. [itemNotFound] covers three things the server deliberately
+  /// does not tell apart: no such item, another restaurant's item, and one
+  /// withdrawn from the menu. Distinguishing them is how somebody with a list
+  /// of ids maps a competitor's menu.
+  ///
+  /// [itemUnavailable] is different in kind: the row exists and cannot be
+  /// shown honestly — today, only a price that will not parse.
+  menuNotAvailable('MENU_NOT_AVAILABLE'),
+  itemNotFound('ITEM_NOT_FOUND'),
+  itemUnavailable('ITEM_UNAVAILABLE'),
+
   /// The request never reached the server, or never came back.
   network('NETWORK'),
 

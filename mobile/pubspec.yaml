@@ -52,6 +52,13 @@ dependencies:
   # background permission and no "always" authorisation anywhere in this app.
   geolocator: ^14.0.3
   google_maps_flutter: ^2.18.0
+  # Locale-aware number and currency formatting. The app stores money as
+  # integer minor units and formats it in exactly one place
+  # (domain/models/money.dart); this is what that place asks. A hard-coded
+  # rupee sign would be wrong the first time this ships outside India, and
+  # wrong for an Indian customer whose phone is set to a locale that groups
+  # digits differently.
+  intl: ^0.20.3
 
 dev_dependencies:
   flutter_test:

@@ -13,6 +13,7 @@ import '../../features/placeholder/coming_soon_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../domain/models/discovered_restaurant.dart';
 import '../../features/discovery/discovery_screen.dart';
+import '../../features/menu/menu_screen.dart';
 import '../../features/restaurant/restaurant_detail_screen.dart';
 import '../../features/routes/route_screen.dart';
 import '../../features/trips/trip_detail_screen.dart';
@@ -178,6 +179,29 @@ GoRouter createRouter({
                                           ? state.extra as DiscoveredRestaurant
                                           : null,
                                     ),
+                                routes: <RouteBase>[
+                                  GoRoute(
+                                    path: Routes.restaurantMenu,
+                                    builder:
+                                        (
+                                          BuildContext context,
+                                          GoRouterState state,
+                                        ) => MenuScreen(
+                                          tripId:
+                                              state.pathParameters['tripId'] ??
+                                              '',
+                                          restaurantId:
+                                              state.pathParameters['restaurantId'] ??
+                                              '',
+                                          // The name the previous screen
+                                          // already had, so the app bar is not
+                                          // blank during the first request.
+                                          restaurantName: state.extra is String
+                                              ? state.extra as String
+                                              : null,
+                                        ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),

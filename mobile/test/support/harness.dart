@@ -27,7 +27,10 @@ import 'package:foodonthego/domain/repositories/auth_repository.dart';
 import 'package:foodonthego/domain/repositories/customer_repository.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
 import 'package:foodonthego/domain/repositories/place_repository.dart';
+import 'package:foodonthego/domain/models/money.dart';
 import 'package:foodonthego/domain/models/restaurant_detail.dart';
+import 'package:foodonthego/domain/models/restaurant_menu.dart';
+import 'package:foodonthego/domain/repositories/menu_repository.dart';
 import 'package:foodonthego/domain/repositories/discovery_repository.dart';
 import 'package:foodonthego/domain/repositories/restaurant_repository.dart';
 import 'package:foodonthego/domain/repositories/route_repository.dart';
@@ -1494,6 +1497,7 @@ Widget wrapApp({
   FakeRouteRepository? routes,
   FakeDiscoveryRepository? discovery,
   FakeRestaurantRepository? restaurants,
+  FakeMenuRepository? menus,
   bool signedIn = true,
 }) {
   final FakeAuthRepository authRepository = auth ?? FakeAuthRepository();
@@ -1528,6 +1532,7 @@ Widget wrapApp({
       restaurantRepositoryProvider.overrideWithValue(
         restaurants ?? FakeRestaurantRepository(),
       ),
+      menuRepositoryProvider.overrideWithValue(menus ?? FakeMenuRepository()),
       locationServiceProvider.overrideWithValue(
         location ?? FakeLocationService(),
       ),
@@ -1617,6 +1622,326 @@ class FakeRestaurantRepository implements RestaurantRepository {
         detailToReturn ??
         sampleRestaurantDetail();
   }
+}
+
+/// A menu, without a server.
+class FakeMenuRepository implements MenuRepository {
+  FakeMenuRepository({
+    this.menuToReturn,
+    this.responder,
+    this.delay = Duration.zero,
+    this.delayFor,
+    this.errorFor,
+  });
+
+  final RestaurantMenu? menuToReturn;
+
+  /// A scripted answer per request, for the tests that need a different menu
+  /// per search term.
+  final RestaurantMenu Function(String restaurantId, String? search)? responder;
+
+  int calls = 0;
+  int itemCalls = 0;
+
+  final List<({String restaurantId, String? search})> requests =
+      <({String restaurantId, String? search})>[];
+
+  ({String restaurantId, String? search})? get lastRequest =>
+      requests.isEmpty ? null : requests.last;
+
+  final List<String> itemRequests = <String>[];
+
+  ApiException? nextError;
+  ApiException? nextItemError;
+
+  Duration delay;
+
+  /// A delay chosen per search term, so a test can make an early request
+  /// finish after a later one and prove the stale answer is discarded.
+  Duration Function(String? search)? delayFor;
+
+  /// A failure chosen per search term, for the same reason: [nextError] fires
+  /// for whichever request resolves first, which is the wrong one when the
+  /// point of the test is that a *particular* request failed.
+  ApiException? Function(String? search)? errorFor;
+
+  MenuItemPreview Function(String itemId)? itemResponder;
+
+  @override
+  Future<RestaurantMenu> menu({
+    required String tripId,
+    required String restaurantId,
+    String? search,
+  }) async {
+    calls++;
+    requests.add((restaurantId: restaurantId, search: search));
+
+    final Duration wait = delayFor?.call(search) ?? delay;
+    if (wait > Duration.zero) await Future<void>.delayed(wait);
+
+    final ApiException? scripted = errorFor?.call(search);
+    if (scripted != null) throw scripted;
+
+    final ApiException? error = nextError;
+
+    if (error != null) {
+      nextError = null;
+      throw error;
+    }
+
+    if (responder case final RestaurantMenu Function(String, String?) build) {
+      return build(restaurantId, search);
+    }
+
+    final RestaurantMenu whole = menuToReturn ?? sampleMenu();
+
+    return search == null ? whole : searchedMenu(whole, search);
+  }
+
+  @override
+  Future<MenuItemPreview> item({
+    required String tripId,
+    required String restaurantId,
+    required String itemId,
+  }) async {
+    itemCalls++;
+    itemRequests.add(itemId);
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+
+    final ApiException? error = nextItemError;
+
+    if (error != null) {
+      nextItemError = null;
+      throw error;
+    }
+
+    if (itemResponder case final MenuItemPreview Function(String) build) {
+      return build(itemId);
+    }
+
+    final RestaurantMenu menu = menuToReturn ?? sampleMenu();
+
+    for (final MenuCategory category in menu.categories) {
+      for (final MenuItem item in category.items) {
+        if (item.id == itemId) {
+          return MenuItemPreview(
+            item: item,
+            restaurant: menu.restaurant,
+            categoryName: category.name,
+            generatedAt: DateTime.now(),
+          );
+        }
+      }
+    }
+
+    throw const ApiException(
+      code: ApiErrorCode.itemNotFound,
+      message: 'That menu item could not be found.',
+      status: 404,
+    );
+  }
+}
+
+/// The same in-memory narrowing the server does, so a fake search behaves the
+/// way the real one does: a category-name match keeps all of its items.
+RestaurantMenu searchedMenu(RestaurantMenu menu, String term) {
+  final String needle = term.toLowerCase();
+
+  final List<MenuCategory> matched = <MenuCategory>[
+    for (final MenuCategory category in menu.categories)
+      if (category.name.toLowerCase().contains(needle))
+        category
+      else
+        MenuCategory(
+          id: category.id,
+          name: category.name,
+          description: category.description,
+          items: <MenuItem>[
+            for (final MenuItem item in category.items)
+              if (item.name.toLowerCase().contains(needle) ||
+                  (item.description ?? '').toLowerCase().contains(needle))
+                item,
+          ],
+        ),
+  ].where((MenuCategory c) => c.items.isNotEmpty).toList();
+
+  return RestaurantMenu(
+    restaurant: menu.restaurant,
+    categories: matched,
+    itemCount: matched.fold(0, (int n, MenuCategory c) => n + c.items.length),
+    visibleItemCount: menu.visibleItemCount,
+    appliedSearch: term,
+    generatedAt: DateTime.now(),
+  );
+}
+
+/// One dish, with every optional field stated rather than defaulted — because
+/// the interesting part of a menu test is usually *which* field is missing.
+MenuItem sampleMenuItem({
+  String id = 'item-1',
+  String categoryId = 'category-1',
+  String name = 'Paneer Tikka',
+  int priceMinor = 24900,
+  String currency = 'INR',
+  String? description = 'Cottage cheese in the tandoor.',
+  String? imageUrl,
+  String? thumbnailUrl,
+  int? preparationMinutes = 15,
+  MenuItemDietaryType dietaryType = MenuItemDietaryType.vegetarian,
+  int? spiceLevel,
+  MenuItemStockStatus stockStatus = MenuItemStockStatus.inStock,
+  bool? isOrderable,
+}) => MenuItem(
+  id: id,
+  categoryId: categoryId,
+  name: name,
+  price: Money(amountMinor: priceMinor, currency: currency),
+  description: description,
+  imageUrl: imageUrl,
+  thumbnailUrl: thumbnailUrl,
+  preparationMinutes: preparationMinutes,
+  dietaryType: dietaryType,
+  spiceLevel: spiceLevel,
+  stockStatus: stockStatus,
+  isOrderable: isOrderable ?? stockStatus == MenuItemStockStatus.inStock,
+);
+
+/// A small, ordinary menu: three sections, six dishes, one of them sold out and
+/// one of them free.
+RestaurantMenu sampleMenu({
+  String restaurantName = 'Highway Spice Kitchen',
+  RestaurantOrderingState ordering = RestaurantOrderingState.openAccepting,
+  List<MenuCategory>? categories,
+}) {
+  final List<MenuCategory> sections =
+      categories ??
+      <MenuCategory>[
+        MenuCategory(
+          id: 'category-1',
+          name: 'Starters',
+          description: 'From the tandoor.',
+          items: <MenuItem>[
+            sampleMenuItem(),
+            sampleMenuItem(
+              id: 'item-2',
+              name: 'Chicken Seekh Kebab',
+              priceMinor: 32900,
+              description: null,
+              dietaryType: MenuItemDietaryType.nonVegetarian,
+              spiceLevel: 2,
+              preparationMinutes: null,
+            ),
+            sampleMenuItem(
+              id: 'item-3',
+              name: 'Tandoori Mushroom',
+              priceMinor: 27900,
+              description: null,
+              stockStatus: MenuItemStockStatus.soldOut,
+              preparationMinutes: null,
+              dietaryType: MenuItemDietaryType.unknown,
+            ),
+          ],
+        ),
+        MenuCategory(
+          id: 'category-2',
+          name: 'Main Course',
+          items: <MenuItem>[
+            sampleMenuItem(
+              id: 'item-4',
+              categoryId: 'category-2',
+              name: 'Dal Makhani',
+              priceMinor: 29900,
+              description: null,
+              preparationMinutes: null,
+              dietaryType: MenuItemDietaryType.unknown,
+            ),
+            sampleMenuItem(
+              id: 'item-5',
+              categoryId: 'category-2',
+              name: 'Paneer Butter Masala',
+              priceMinor: 34950,
+              description: null,
+              preparationMinutes: null,
+              dietaryType: MenuItemDietaryType.unknown,
+            ),
+          ],
+        ),
+        MenuCategory(
+          id: 'category-3',
+          name: 'Beverages',
+          items: <MenuItem>[
+            sampleMenuItem(
+              id: 'item-6',
+              categoryId: 'category-3',
+              name: 'Table Water',
+              priceMinor: 0,
+              description: null,
+              preparationMinutes: null,
+              dietaryType: MenuItemDietaryType.unknown,
+            ),
+          ],
+        ),
+      ];
+
+  final int count = sections.fold(
+    0,
+    (int n, MenuCategory c) => n + c.items.length,
+  );
+
+  return RestaurantMenu(
+    restaurant: MenuRestaurantHeader(
+      id: 'restaurant-1',
+      name: restaurantName,
+      ordering: ordering,
+      canOrder: ordering == RestaurantOrderingState.openAccepting,
+      canBrowseMenu: ordering != RestaurantOrderingState.closedPermanently,
+    ),
+    categories: sections,
+    itemCount: count,
+    visibleItemCount: count,
+    generatedAt: DateTime.now(),
+  );
+}
+
+/// A restaurant that has published nothing.
+RestaurantMenu emptyMenu({String restaurantName = 'Bare Bones Stop'}) =>
+    RestaurantMenu(
+      restaurant: MenuRestaurantHeader(
+        id: 'restaurant-1',
+        name: restaurantName,
+        ordering: RestaurantOrderingState.openAccepting,
+        canOrder: true,
+      ),
+      categories: const <MenuCategory>[],
+      itemCount: 0,
+      visibleItemCount: 0,
+      generatedAt: DateTime.now(),
+    );
+
+/// A menu of an arbitrary size, for the tests that care about a long one.
+RestaurantMenu largeMenu({int categories = 20, int itemsPerCategory = 25}) {
+  final List<MenuCategory> sections = <MenuCategory>[
+    for (int c = 1; c <= categories; c++)
+      MenuCategory(
+        id: 'category-$c',
+        name: 'Section $c',
+        items: <MenuItem>[
+          for (int i = 1; i <= itemsPerCategory; i++)
+            sampleMenuItem(
+              id: 'item-$c-$i',
+              categoryId: 'category-$c',
+              name: 'Section $c Dish $i',
+              priceMinor: 10000 + i * 100,
+              description: null,
+              preparationMinutes: null,
+              dietaryType: MenuItemDietaryType.unknown,
+            ),
+        ],
+      ),
+  ];
+
+  return sampleMenu(categories: sections);
 }
 
 /// One restaurant page, with every figure stated rather than defaulted.

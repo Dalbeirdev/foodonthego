@@ -76,6 +76,14 @@ class Routes {
   static String restaurantDetailPath(String tripId, String restaurantId) =>
       '/trips/$tripId/route/restaurants/$restaurantId';
 
+  /// That restaurant's menu (Module 10). Nested under the restaurant, because
+  /// a menu has no existence away from one — and so Android back lands on the
+  /// restaurant page the customer came from rather than on the discovery list.
+  static const String restaurantMenu = 'menu';
+
+  static String restaurantMenuPath(String tripId, String restaurantId) =>
+      '/trips/$tripId/route/restaurants/$restaurantId/menu';
+
   /// The controlled destination for anything not built yet. Takes the feature
   /// name and owning module as query parameters so one screen serves them all.
   static const String comingSoon = '/coming-soon';

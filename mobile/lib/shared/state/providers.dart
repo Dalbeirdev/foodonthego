@@ -12,6 +12,7 @@ import '../../data/auth/session_store.dart';
 import '../../data/fixtures/development_personas.dart';
 import '../../data/repositories/api_auth_repository.dart';
 import '../../data/repositories/api_customer_repository.dart';
+import '../../data/repositories/api_menu_repository.dart';
 import '../../data/repositories/api_place_repository.dart';
 import '../../data/repositories/api_discovery_repository.dart';
 import '../../data/repositories/api_restaurant_repository.dart';
@@ -23,6 +24,7 @@ import '../../domain/models/home_dashboard.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/customer_repository.dart';
 import '../../domain/repositories/home_repository.dart';
+import '../../domain/repositories/menu_repository.dart';
 import '../../domain/repositories/place_repository.dart';
 import '../../domain/repositories/discovery_repository.dart';
 import '../../domain/repositories/restaurant_repository.dart';
@@ -235,6 +237,17 @@ final discoveryRepositoryProvider = Provider<DiscoveryRepository>(
 /// one has no business holding the other.
 final restaurantRepositoryProvider = Provider<RestaurantRepository>(
   (Ref ref) => ApiRestaurantRepository(ref.watch(apiClientProvider)),
+);
+
+/// A restaurant's menu (Module 10).
+///
+/// Separate from the restaurant repository again, and for the same reason: the
+/// menu is a much larger read that a screen showing only a profile has no
+/// business making. The interface has no write methods, which is the client
+/// half of a rule the server enforces on its own — a customer cannot add,
+/// reprice, restock or photograph a menu item.
+final menuRepositoryProvider = Provider<MenuRepository>(
+  (Ref ref) => ApiMenuRepository(ref.watch(apiClientProvider)),
 );
 
 /// The device's position.

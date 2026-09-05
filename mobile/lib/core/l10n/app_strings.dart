@@ -746,6 +746,96 @@ class AppStrings {
   String restaurantOfflineAge(String age) =>
       'Last updated $age ago. Opening times may have changed.';
 
+  // --- menu (Module 10) ----------------------------------------------------
+  //
+  // Every string here that describes a dish describes what the operator
+  // published. There is no wording for a guessed diet, an inferred spice
+  // level or an invented allergen, because there is no such data to describe.
+
+  String get menuTitle => 'Menu';
+  String menuTitleFor(String restaurant) => '$restaurant · Menu';
+  String get menuViewMenu => 'View menu';
+  String get menuSearchHint => 'Search this menu';
+  String get menuSearchClear => 'Clear search';
+  String get menuSearchLabel => 'Search the menu';
+  String menuSearchResults(int count) =>
+      count == 1 ? '1 item' : '$count items';
+  String menuCategoryItemCount(int count) =>
+      count == 1 ? '1 item' : '$count items';
+
+  /// The selector chip row. Named for a screen reader, which otherwise
+  /// announces a row of bare words with no idea what they select.
+  String get menuCategorySelector => 'Menu sections';
+  String menuJumpToCategory(String name) => 'Jump to $name';
+
+  // Item metadata. Each of these is shown only when the restaurant published
+  // the underlying field.
+  String get menuVeg => 'Veg';
+  String get menuNonVeg => 'Non-veg';
+  String get menuVegan => 'Vegan';
+  String get menuEgg => 'Contains egg';
+  String menuDietarySemantics(String label) => 'Dietary: $label';
+
+  String get menuSpiceMild => 'Mild';
+  String get menuSpiceMedium => 'Medium';
+  String get menuSpiceHot => 'Hot';
+  String menuSpiceSemantics(String label) => 'Spice level: $label';
+
+  /// Preparation time. Worded so it cannot be read as a pickup time: it is
+  /// what the kitchen says the dish takes, and it says nothing about the queue
+  /// ahead of the customer or the drive to get there.
+  String menuPreparationTime(int minutes) => '$minutes min to cook';
+  String menuPreparationSemantics(int minutes) =>
+      'Takes about $minutes minutes to cook. This is not a pickup time.';
+
+  String get menuSoldOut => 'Sold out';
+  String menuSoldOutSemantics(String item) => '$item is sold out';
+  String get menuUnavailableNow => 'Not available right now';
+
+  String get menuNoPhotograph => 'No photograph';
+
+  /// The banner above the list when the kitchen cannot take an order.
+  String get menuBrowseOnlyClosed => "Closed now — you can still browse";
+  String get menuBrowseOnlyPaused =>
+      'Not taking orders right now — you can still browse';
+  String get menuBrowseOnlyPermanently => 'Permanently closed';
+
+  // Empty states. Two of them, because they are different problems: a
+  // restaurant that has published nothing, and a search that found nothing.
+  String get menuEmptyTitle => 'No menu yet';
+  String menuEmptyBody(String restaurant) =>
+      "$restaurant hasn't published a menu here yet.";
+  String get menuSearchEmptyTitle => 'Nothing matched';
+  String menuSearchEmptyBody(String term) =>
+      'No items on this menu match "$term".';
+  String get menuSearchEmptyAction => 'Clear search';
+  String get menuSearchTooLong =>
+      "That's longer than this menu's search can take. Try a shorter phrase.";
+
+  // Failure states.
+  String get menuErrorTitle => "We couldn't load this menu";
+  String get menuErrorBody => 'Please try again in a moment.';
+  String get menuTryAgain => 'Try again';
+  String get menuBackToRestaurant => 'Back to restaurant';
+  String get menuOfflineCached => 'Offline · showing what we last loaded';
+  String menuOfflineAge(String age) =>
+      'Last updated $age ago. Prices and availability may have changed.';
+
+  // The read-only preview sheet.
+  String get menuItemPreviewTitle => 'Item details';
+  String get menuItemClose => 'Close';
+  String get menuItemErrorTitle => "We couldn't load this item";
+  String get menuItemGoneTitle => 'No longer on the menu';
+  String get menuItemGoneBody =>
+      'This item was on the menu a moment ago and has since been taken off.';
+
+  /// Module 10 stops at browsing. The sheet says so rather than showing a
+  /// disabled "Add" button, which would promise a cart that does not exist.
+  String get menuItemBrowseOnly => 'Ordering opens soon';
+  String get menuItemBrowseOnlyBody =>
+      "You can browse the full menu. Choosing options and ordering aren't "
+      'available yet.';
+
   // --- home: the current journey -------------------------------------------
   String get homeCurrentJourney => 'Your journey';
   String get homeJourneyViewAll => 'All journeys';

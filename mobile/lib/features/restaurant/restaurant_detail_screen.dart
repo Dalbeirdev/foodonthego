@@ -298,12 +298,13 @@ class _StickyCta extends StatelessWidget {
           padding: const EdgeInsets.all(FotgSpacing.x4),
           child: RestaurantPrimaryCta(
             state: detail.ordering,
-            // Module 10 owns the menu. Until it exists the controlled
-            // placeholder stands in — and it is reached only where the
-            // ordering state permits browsing, so the button's meaning is
-            // already correct.
+            // Reached only where the ordering state permits browsing, so a
+            // permanently closed restaurant's menu is not offered at all. The
+            // name goes along so the menu's app bar is not blank during its
+            // first request.
             onPressed: () => context.push(
-              Routes.comingSoonFor(feature: detail.name, module: 'Module 10'),
+              Routes.restaurantMenuPath(tripId, detail.id),
+              extra: detail.name,
             ),
           ),
         ),
