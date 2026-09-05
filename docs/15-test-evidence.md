@@ -1608,6 +1608,25 @@ tree.
 | 29 | Dark mode |
 | 30 | 200% text |
 
+**50 assertions across those states, none failing.** State 03 was re-run on its
+own with a corrected probe: the first attempt named Dal Makhani as the dish with
+no declared diet, and the seeder does declare that one vegetarian. Papad is the
+fixture with nothing set, and its sentence goes straight from the name to the
+price.
+
+### What the screenshots can and cannot show
+
+Flutter web paints text to a canvas this headless Chromium does not capture, so
+every screenshot here shows layout, colour, icons, badges and structure — and no
+words. That has been true since Module 09 and is a property of the environment,
+not of the app.
+
+**Text is verified through the semantics tree**, which is real DOM and is
+exactly what a screen reader reads, and through the widget tests, which can read
+a rendered string. Where the two differ the live driver asserts the spoken form:
+the card's merged label is *"Paneer Tikka. Veg. 249 rupees"*, and the rendered
+*"₹249"* is asserted in `menu_screen_test.dart`.
+
 ## Regression, Modules 01–09
 
 | Run | Result |
@@ -1615,15 +1634,19 @@ tree.
 | `integration_smoke` (M01–04) | 13 passed, 0 failed |
 | `profile_addresses_smoke` (M04) | 24 passed, 0 failed |
 | `trip_planner_smoke` (M05) | 31 passed, 0 failed |
-| `route_smoke` (M06) | see note |
-| `discovery_smoke` (M07) | see note |
-| `discovery_filters_smoke` (M08) | see note |
-| `restaurant_detail_smoke` (M09) | see note |
+| `route_smoke` (M06) | 21 passed, 0 failed |
+| `discovery_smoke` (M07) | 22 passed, 0 failed |
+| `discovery_filters_smoke` (M08) | 28 passed, 0 failed |
+| `restaurant_detail_smoke` (M09) | 25 passed, 0 failed |
 
-The last four were first run while the live-view driver was still signing in
-roughly a dozen times, and hit the **OTP per-IP budget** — a limit of this
-environment, not a product behaviour. They were re-run afterwards; results
-above.
+**164 integration checks across nine modules, none failing.**
+
+The last four were first attempted while the live-view driver was still signing
+in roughly a dozen times, and hit the **OTP per-IP budget** — a limit of this
+environment, not a product behaviour. They were re-run afterwards, and Module
+10's own run was re-run again after them, because `restaurant_detail_smoke`
+re-seeds the discovery fixtures and menu rows cascade-delete with their
+restaurant.
 
 ## Runtime coverage
 
