@@ -560,11 +560,21 @@ class _ListMode extends StatelessWidget {
   }
 }
 
-/// The full restaurant page belongs to a later module.
+/// Opens one restaurant's page.
+///
+/// `push`, not `go`: the customer is going *into* something and expects to come
+/// back to the list they were reading — with the search they typed, the filters
+/// they chose and the sort they picked still in place. Because the detail route
+/// is nested under discovery, Android's back button and iOS's edge swipe both
+/// do the same thing, and this screen's state is never rebuilt.
+///
+/// The restaurant travels as `extra` so the detail screen can draw a name and a
+/// detour in its first frame. It is a preview, not a source of truth: the
+/// screen asks the server and replaces it.
 void _openRestaurant(BuildContext context, DiscoveredRestaurant restaurant) {
-  context.push(
-    Routes.comingSoonFor(feature: restaurant.displayName, module: 'Module 09'),
-  );
+  final GoRouterState state = GoRouterState.of(context);
+
+  context.push('${state.uri.path}/${restaurant.id}', extra: restaurant);
 }
 
 /// Map or list. State is preserved across the switch — the results are already

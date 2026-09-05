@@ -568,6 +568,92 @@ void main() {
     });
   });
 
+  group('opening a restaurant, and coming back', () {
+    testWidgets('tapping a card opens that restaurant', (
+      WidgetTester tester,
+    ) async {
+      final FakeRestaurantRepository restaurants = FakeRestaurantRepository();
+
+      usePhoneSurface(tester);
+
+      await tester.pumpWidget(
+        wrapApp(
+          repository: StubHomeRepository.value(
+            const HomeDashboard(
+              customer: CustomerSummary(fullName: 'Rahul Sharma'),
+            ),
+          ),
+          routes: FakeRouteRepository(calculated: true),
+          discovery: FakeDiscoveryRepository(facets: facets),
+          restaurants: restaurants,
+          initialLocation: '/trips/trip-1/route/restaurants',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('View'));
+      await tester.pumpAndSettle();
+
+      // The id from the card, and the trip from the url it was on.
+      expect(restaurants.lastRequest!.restaurantId, 'restaurant-1');
+      expect(restaurants.lastRequest!.tripId, 'trip-1');
+      expect(find.text('On your route'), findsOneWidget);
+    });
+
+    testWidgets('coming back keeps the search and the filters', (
+      WidgetTester tester,
+    ) async {
+      usePhoneSurface(tester);
+
+      final FakeDiscoveryRepository discovery = FakeDiscoveryRepository(
+        facets: facets,
+      );
+
+      await tester.pumpWidget(
+        wrapApp(
+          repository: StubHomeRepository.value(
+            const HomeDashboard(
+              customer: CustomerSummary(fullName: 'Rahul Sharma'),
+            ),
+          ),
+          routes: FakeRouteRepository(calculated: true),
+          discovery: discovery,
+          restaurants: FakeRestaurantRepository(),
+          initialLocation: '/trips/trip-1/route/restaurants',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).first, 'spice');
+      await tester.pump(DiscoveryController.searchDebounce);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Filter these stops'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('North Indian (3)'));
+      await tester.pump();
+      await tester.tap(find.text('Show results'));
+      await tester.pumpAndSettle();
+
+      final int callsBefore = discovery.discoverCalls;
+
+      await tester.tap(find.text('View'));
+      await tester.pumpAndSettle();
+
+      // Back the way a customer goes: the app bar's own button, which is what
+      // Android's hardware back and iOS's edge swipe both drive.
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+
+      // The discovery route was never left, so its state was never rebuilt:
+      // the search is still typed and the chip is still on, and no request was
+      // spent restoring them.
+      expect(find.widgetWithText(InputChip, 'North Indian'), findsOneWidget);
+      expect(find.text('spice'), findsOneWidget);
+      expect(discovery.discoverCalls, callsBefore);
+    });
+  });
+
   group('narrow screens, long labels and large text', () {
     testWidgets('the controls fit at every width we support', (
       WidgetTester tester,

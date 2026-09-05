@@ -81,6 +81,23 @@ final class Restaurant extends Model
         return $this->hasMany(RestaurantFacility::class)->orderBy('position');
     }
 
+    /**
+     * Customer-visible photographs, in the operator's order.
+     *
+     * Scoped to active rows at the relation, so nothing downstream has to
+     * remember: a query that forgets `->visible()` still cannot reach an
+     * unmoderated image.
+     *
+     * @return HasMany<RestaurantMedia, $this>
+     */
+    public function media(): HasMany
+    {
+        return $this->hasMany(RestaurantMedia::class)
+            ->where('is_active', true)
+            ->orderBy('position')
+            ->orderBy('id');
+    }
+
     /** @return HasMany<RestaurantOpeningHour, $this> */
     public function openingHours(): HasMany
     {

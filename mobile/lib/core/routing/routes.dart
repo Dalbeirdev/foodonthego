@@ -68,6 +68,14 @@ class Routes {
   static String tripRestaurantsPath(String id) =>
       '/trips/$id/route/restaurants';
 
+  /// One of those restaurants (Module 09). Nested under discovery, so Android
+  /// back and the iOS swipe both land on the list the customer came from —
+  /// with its search, filters and sort still in place.
+  static const String restaurantDetail = ':restaurantId';
+
+  static String restaurantDetailPath(String tripId, String restaurantId) =>
+      '/trips/$tripId/route/restaurants/$restaurantId';
+
   /// The controlled destination for anything not built yet. Takes the feature
   /// name and owning module as query parameters so one screen serves them all.
   static const String comingSoon = '/coming-soon';

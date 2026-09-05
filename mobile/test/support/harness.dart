@@ -27,7 +27,9 @@ import 'package:foodonthego/domain/repositories/auth_repository.dart';
 import 'package:foodonthego/domain/repositories/customer_repository.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
 import 'package:foodonthego/domain/repositories/place_repository.dart';
+import 'package:foodonthego/domain/models/restaurant_detail.dart';
 import 'package:foodonthego/domain/repositories/discovery_repository.dart';
+import 'package:foodonthego/domain/repositories/restaurant_repository.dart';
 import 'package:foodonthego/domain/repositories/route_repository.dart';
 import 'package:foodonthego/domain/repositories/trip_repository.dart';
 import 'package:foodonthego/shared/state/connectivity.dart';
@@ -1491,6 +1493,7 @@ Widget wrapApp({
   FakeLocationService? location,
   FakeRouteRepository? routes,
   FakeDiscoveryRepository? discovery,
+  FakeRestaurantRepository? restaurants,
   bool signedIn = true,
 }) {
   final FakeAuthRepository authRepository = auth ?? FakeAuthRepository();
@@ -1522,6 +1525,9 @@ Widget wrapApp({
       discoveryRepositoryProvider.overrideWithValue(
         discovery ?? FakeDiscoveryRepository(),
       ),
+      restaurantRepositoryProvider.overrideWithValue(
+        restaurants ?? FakeRestaurantRepository(),
+      ),
       locationServiceProvider.overrideWithValue(
         location ?? FakeLocationService(),
       ),
@@ -1549,3 +1555,125 @@ void usePhoneSurface(WidgetTester tester, {Size size = const Size(390, 844)}) {
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 }
+
+/// One restaurant's page, without a server.
+///
+/// Records every request, so a test can assert on *which* restaurant the
+/// screen asked for rather than on what this fake decided to return — the
+/// client's job is the request, and that is what is checked.
+class FakeRestaurantRepository implements RestaurantRepository {
+  FakeRestaurantRepository({this.detailToReturn, this.responder});
+
+  final RestaurantDetail? detailToReturn;
+
+  /// A scripted answer per request, for the tests that need two different
+  /// restaurants or a per-request delay.
+  final RestaurantDetail Function(String tripId, String restaurantId)?
+  responder;
+
+  int calls = 0;
+
+  final List<({String tripId, String restaurantId})> requests =
+      <({String tripId, String restaurantId})>[];
+
+  ({String tripId, String restaurantId})? get lastRequest =>
+      requests.isEmpty ? null : requests.last;
+
+  ApiException? nextError;
+
+  Duration delay = Duration.zero;
+
+  /// A delay chosen per restaurant, so a test can make an early request finish
+  /// after a later one and prove the stale answer is discarded.
+  Duration Function(String restaurantId)? delayFor;
+
+  /// A failure chosen per restaurant, for the same reason: [nextError] fires
+  /// for whichever request resolves first, which is the wrong one when the
+  /// point of the test is that a *particular* request failed.
+  ApiException? Function(String restaurantId)? errorFor;
+
+  @override
+  Future<RestaurantDetail> detail({
+    required String tripId,
+    required String restaurantId,
+  }) async {
+    calls++;
+    requests.add((tripId: tripId, restaurantId: restaurantId));
+
+    final Duration wait = delayFor?.call(restaurantId) ?? delay;
+    if (wait > Duration.zero) await Future<void>.delayed(wait);
+
+    final ApiException? scripted = errorFor?.call(restaurantId);
+    if (scripted != null) throw scripted;
+
+    final ApiException? error = nextError;
+
+    if (error != null) {
+      nextError = null;
+      throw error;
+    }
+
+    return responder?.call(tripId, restaurantId) ??
+        detailToReturn ??
+        sampleRestaurantDetail();
+  }
+}
+
+/// One restaurant page, with every figure stated rather than defaulted.
+RestaurantDetail sampleRestaurantDetail({
+  DiscoveredRestaurant? restaurant,
+  RestaurantOrderingState ordering = RestaurantOrderingState.openAccepting,
+  String? description = 'A highway kitchen on the Delhi-Jaipur road.',
+  String? publicPhone = '+911412345678',
+  List<RestaurantImage> media = const <RestaurantImage>[],
+  RestaurantHours? hours,
+  DateTime? generatedAt,
+  bool routeFromCache = true,
+}) => RestaurantDetail(
+  restaurant: restaurant ?? sampleRestaurant(),
+  ordering: ordering,
+  description: description,
+  publicPhone: publicPhone,
+  media: media,
+  hours: hours ?? sampleHours(),
+  generatedAt: generatedAt ?? DateTime.now(),
+  routeFromCache: routeFromCache,
+);
+
+/// An ordinary week: open 08:00 to 22:00, every day.
+RestaurantHours sampleHours({
+  String timezone = 'Asia/Kolkata',
+  List<OpeningWindow>? today,
+  List<DayHours>? week,
+  DateTime? closesAt,
+  DateTime? nextOpenAt,
+}) {
+  const OpeningWindow ordinary = OpeningWindow(
+    opensAt: '08:00:00',
+    closesAt: '22:00:00',
+  );
+
+  return RestaurantHours(
+    timezone: timezone,
+    today: today ?? const <OpeningWindow>[ordinary],
+    week:
+        week ??
+        <DayHours>[
+          for (int day = 0; day <= 6; day++)
+            DayHours(
+              dayOfWeek: day,
+              isToday: day == 0,
+              windows: const <OpeningWindow>[ordinary],
+            ),
+        ],
+    closesAt: closesAt,
+    nextOpenAt: nextOpenAt,
+  );
+}
+
+/// One photograph.
+RestaurantImage sampleImage({
+  String id = 'image-1',
+  String url = 'https://cdn.example.test/1.jpg',
+  String? altText,
+}) => RestaurantImage(id: id, url: url, thumbnailUrl: url, altText: altText);

@@ -11,7 +11,9 @@ import '../../features/notifications/notifications_screen.dart';
 import '../../features/orders/orders_screen.dart';
 import '../../features/placeholder/coming_soon_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../domain/models/discovered_restaurant.dart';
 import '../../features/discovery/discovery_screen.dart';
+import '../../features/restaurant/restaurant_detail_screen.dart';
 import '../../features/routes/route_screen.dart';
 import '../../features/trips/trip_detail_screen.dart';
 import '../../features/trips/trip_planner_screen.dart';
@@ -152,6 +154,32 @@ GoRouter createRouter({
                                       tripId:
                                           state.pathParameters['tripId'] ?? '',
                                     ),
+                            routes: <RouteBase>[
+                              GoRoute(
+                                path: Routes.restaurantDetail,
+                                builder:
+                                    (
+                                      BuildContext context,
+                                      GoRouterState state,
+                                    ) => RestaurantDetailScreen(
+                                      tripId:
+                                          state.pathParameters['tripId'] ?? '',
+                                      restaurantId:
+                                          state
+                                              .pathParameters['restaurantId'] ??
+                                          '',
+                                      // What the card already knew, handed
+                                      // over so the transition has a name and
+                                      // a detour in it. Never authoritative:
+                                      // the screen asks the server and
+                                      // replaces it.
+                                      preview:
+                                          state.extra is DiscoveredRestaurant
+                                          ? state.extra as DiscoveredRestaurant
+                                          : null,
+                                    ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

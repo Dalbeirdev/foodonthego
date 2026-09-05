@@ -45,6 +45,45 @@ final readonly class DiscoveredRestaurant
      * field, so a rescored restaurant is a new value and nothing downstream can
      * be holding a half-updated one.
      */
+    /**
+     * The same place on the route, described by a freshly read row.
+     *
+     * Module 09 uses this. A discovery result may be five minutes old, and the
+     * detail screen reads the restaurant again for its profile — so it also has
+     * the newer answer to "are you still taking orders". The route geometry is
+     * kept: where a restaurant sits on a road does not change because somebody
+     * paused their kitchen, and recomputing it would cost a provider call for
+     * an answer that is already correct.
+     */
+    public function withRestaurant(Restaurant $restaurant): self
+    {
+        return new self(
+            restaurant: $restaurant,
+            projection: $this->projection,
+            availability: $this->availability,
+            detour: $this->detour,
+            timeAheadSeconds: $this->timeAheadSeconds,
+            relevanceScore: $this->relevanceScore,
+            requiresBacktracking: $this->requiresBacktracking,
+            searchRelevance: $this->searchRelevance,
+        );
+    }
+
+    /** The same restaurant, re-evaluated against the clock. */
+    public function withAvailability(RestaurantAvailability $availability): self
+    {
+        return new self(
+            restaurant: $this->restaurant,
+            projection: $this->projection,
+            availability: $availability,
+            detour: $this->detour,
+            timeAheadSeconds: $this->timeAheadSeconds,
+            relevanceScore: $this->relevanceScore,
+            requiresBacktracking: $this->requiresBacktracking,
+            searchRelevance: $this->searchRelevance,
+        );
+    }
+
     public function rescored(float $relevance, float $searchRelevance): self
     {
         return new self(

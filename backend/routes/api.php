@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Customer\PlaceController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController;
 use App\Http\Controllers\Api\V1\Customer\TripController;
 use App\Http\Controllers\Api\V1\Customer\TripRestaurantController;
+use App\Http\Controllers\Api\V1\Customer\TripRestaurantDetailController;
 use App\Http\Controllers\Api\V1\Customer\TripRouteController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MetaController;
@@ -181,6 +182,20 @@ Route::prefix('v1')->group(function (): void {
                 Route::get('/{trip}/restaurants', [TripRestaurantController::class, 'index'])
                     ->middleware('throttle:discovery')
                     ->name('api.v1.customer.trips.restaurants.index');
+
+                // Module 09. Registered after the list, and the two cannot
+                // shadow each other: `/restaurants` and `/restaurants/{uuid}`
+                // differ in segment count.
+                //
+                // Same throttle as the list, and for a subtler reason than it
+                // looks. Opening a detail screen calls no routing provider —
+                // the route context comes from the list's cache — but it does
+                // reach `discover()`, and a cold cache there costs exactly what
+                // the list costs. Sharing the budget is what stops a loop over
+                // restaurant uuids from being a cheaper way to spend it.
+                Route::get('/{trip}/restaurants/{restaurant}', [TripRestaurantDetailController::class, 'show'])
+                    ->middleware('throttle:discovery')
+                    ->name('api.v1.customer.trips.restaurants.show');
             });
         });
 });

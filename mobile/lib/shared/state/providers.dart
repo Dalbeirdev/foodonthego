@@ -14,6 +14,7 @@ import '../../data/repositories/api_auth_repository.dart';
 import '../../data/repositories/api_customer_repository.dart';
 import '../../data/repositories/api_place_repository.dart';
 import '../../data/repositories/api_discovery_repository.dart';
+import '../../data/repositories/api_restaurant_repository.dart';
 import '../../data/repositories/api_route_repository.dart';
 import '../../data/repositories/api_trip_repository.dart';
 import '../../data/repositories/fixture_home_repository.dart';
@@ -24,6 +25,7 @@ import '../../domain/repositories/customer_repository.dart';
 import '../../domain/repositories/home_repository.dart';
 import '../../domain/repositories/place_repository.dart';
 import '../../domain/repositories/discovery_repository.dart';
+import '../../domain/repositories/restaurant_repository.dart';
 import '../../domain/repositories/route_repository.dart';
 import '../../domain/repositories/trip_repository.dart';
 import 'auth_controller.dart';
@@ -224,6 +226,15 @@ final routeRepositoryProvider = Provider<RouteRepository>(
 /// Restaurants along a trip's selected route (Module 07).
 final discoveryRepositoryProvider = Provider<DiscoveryRepository>(
   (Ref ref) => ApiDiscoveryRepository(ref.watch(apiClientProvider)),
+);
+
+/// One of those restaurants, in full (Module 09).
+///
+/// A separate repository rather than a second method on the discovery one:
+/// they answer different questions at different costs, and a screen that needs
+/// one has no business holding the other.
+final restaurantRepositoryProvider = Provider<RestaurantRepository>(
+  (Ref ref) => ApiRestaurantRepository(ref.watch(apiClientProvider)),
 );
 
 /// The device's position.

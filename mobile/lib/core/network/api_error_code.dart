@@ -111,6 +111,19 @@ enum ApiErrorCode {
   restaurantDataUnavailable('RESTAURANT_DATA_UNAVAILABLE'),
   detourProviderUnavailable('DETOUR_PROVIDER_UNAVAILABLE'),
 
+  /// Module 09. Three codes for what a customer experiences as one thing —
+  /// "I can't see this restaurant" — because the next move differs.
+  ///
+  /// [restaurantNotFound] sends them back to the list. [restaurantUnavailable]
+  /// keeps them where they are and explains: it was on their route a minute
+  /// ago and has since been withdrawn. [restaurantOutsideRoute] is neither —
+  /// the restaurant is trading and they may see it, it is simply not on the
+  /// journey they asked about.
+  restaurantNotFound('RESTAURANT_NOT_FOUND'),
+  restaurantUnavailable('RESTAURANT_UNAVAILABLE'),
+  restaurantOutsideRoute('RESTAURANT_OUTSIDE_ROUTE'),
+  detailLoadFailed('DETAIL_LOAD_FAILED'),
+
   /// The request never reached the server, or never came back.
   network('NETWORK'),
 
@@ -153,7 +166,10 @@ enum ApiErrorCode {
     ApiErrorCode.routeResponseInvalid ||
     ApiErrorCode.discoveryFailed ||
     ApiErrorCode.restaurantDataUnavailable ||
-    ApiErrorCode.detourProviderUnavailable => true,
+    ApiErrorCode.detourProviderUnavailable ||
+    // Ours. A restaurant that exists and is on the route, whose detail we
+    // failed to assemble, is worth asking for again.
+    ApiErrorCode.detailLoadFailed => true,
     _ => false,
   };
 }

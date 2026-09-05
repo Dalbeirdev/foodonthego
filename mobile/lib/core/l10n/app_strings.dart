@@ -664,6 +664,81 @@ class AppStrings {
       'Something about that combination was not understood. Clearing your '
       'filters will get you back to the full list.';
 
+  // --- Module 09: restaurant details ---------------------------------------
+  String get restaurantDetailTitle => 'Restaurant';
+  String get restaurantLoading => 'Loading this restaurant…';
+
+  String get restaurantViewMenu => 'View menu';
+  String get restaurantMenuUnavailablePaused => 'Not accepting orders';
+  String get restaurantMenuUnavailableClosed => 'Closed right now';
+  String get restaurantMenuUnavailableGone => 'Unavailable';
+  String get restaurantBrowseMenuWhileClosed => 'Browse the menu';
+
+  /// Availability, in the customer's words rather than the server's codes.
+  String get restaurantOpenAccepting => 'Open · Accepting orders';
+  String get restaurantOpenPaused => 'Open · Not accepting orders right now';
+  String get restaurantClosedNow => 'Closed';
+  String get restaurantClosedPermanently => 'Unavailable';
+  String get restaurantAvailabilityUnknown => 'Opening times unknown';
+
+  String get restaurantPausedBannerTitle => 'Not taking orders right now';
+  String get restaurantPausedBannerBody =>
+      'The kitchen has paused orders. You can still look at the menu.';
+  String get restaurantClosedBannerTitle => 'Closed right now';
+  String restaurantOpensAt(String when) => 'Opens $when';
+  String get restaurantGoneBannerTitle => 'This restaurant is unavailable';
+  String get restaurantGoneBannerBody =>
+      'It is no longer taking orders through FoodOnTheGo.';
+
+  // Sections.
+  String get restaurantAbout => 'About';
+  String get restaurantFacilities => 'Facilities';
+  String get restaurantOpeningHours => 'Opening hours';
+  String get restaurantHoursToday => 'Today';
+  String get restaurantHoursShowAll => 'View all hours';
+  String get restaurantHoursHide => 'Hide hours';
+  String get restaurantHoursClosedDay => 'Closed';
+  String restaurantHoursOvernight(String window) => '$window (overnight)';
+  String restaurantHoursTimezone(String zone) => 'Times shown for $zone';
+  String get restaurantLocation => 'Location';
+  String get restaurantViewOnRoute => 'View on your route';
+  String get restaurantCallLabel => 'Call the restaurant';
+  String get restaurantOnYourRoute => 'On your route';
+
+  /// Day names, Monday first, matching the server's 0-based day index.
+  String weekdayName(int dayOfWeek) => switch (dayOfWeek) {
+    0 => 'Monday',
+    1 => 'Tuesday',
+    2 => 'Wednesday',
+    3 => 'Thursday',
+    4 => 'Friday',
+    5 => 'Saturday',
+    _ => 'Sunday',
+  };
+
+  // Gallery.
+  String restaurantGalleryPosition(int index, int total) => '$index / $total';
+  String restaurantGallerySemantics(String name, int index, int total) =>
+      'Photograph $index of $total of $name';
+  String get restaurantNoImages => 'No photographs yet';
+
+  // Failure states.
+  String get restaurantErrorTitle => "We couldn't load this restaurant";
+  String get restaurantErrorBody => 'Please try again in a moment.';
+  String get restaurantGoneTitle => 'This restaurant is no longer available';
+  String get restaurantGoneBody =>
+      'It was on your route a moment ago and has since stopped taking orders.';
+  String get restaurantOutsideRouteTitle => 'Not on this journey';
+  String get restaurantOutsideRouteBody =>
+      "This restaurant isn't on the route you've selected, so we can't tell "
+      'you how far off it is.';
+  String get restaurantBackToList => 'Back to restaurants';
+  String get restaurantTryAgain => 'Try again';
+
+  String get restaurantOfflineCached => 'Offline · showing what we last loaded';
+  String restaurantOfflineAge(String age) =>
+      'Last updated $age ago. Opening times may have changed.';
+
   // --- home: the current journey -------------------------------------------
   String get homeCurrentJourney => 'Your journey';
   String get homeJourneyViewAll => 'All journeys';

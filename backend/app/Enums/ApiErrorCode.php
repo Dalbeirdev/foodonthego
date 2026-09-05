@@ -86,6 +86,26 @@ enum ApiErrorCode: string
     case RestaurantDataUnavailable = 'RESTAURANT_DATA_UNAVAILABLE';
     case DetourProviderUnavailable = 'DETOUR_PROVIDER_UNAVAILABLE';
 
+    // Module 09. Three codes for what a customer experiences as one thing —
+    // "I can't see this restaurant" — because the client's next move differs.
+    //
+    // NotFound sends them back to the list: the restaurant does not exist, or
+    // is not theirs to see, and the two are answered identically on purpose so
+    // that a probe cannot tell an id apart from a permission.
+    //
+    // Unavailable keeps them where they are and explains: the restaurant is
+    // real and was on their route a minute ago, and has since been suspended
+    // or closed. That is a different sentence and a different button.
+    //
+    // OutsideRoute is neither. The restaurant is trading and the customer may
+    // see it — it is simply not on the journey they asked about, so its detour
+    // and distance-ahead figures do not exist and inventing them would be the
+    // one thing this product must never do.
+    case RestaurantNotFound = 'RESTAURANT_NOT_FOUND';
+    case RestaurantUnavailable = 'RESTAURANT_UNAVAILABLE';
+    case RestaurantOutsideRoute = 'RESTAURANT_OUTSIDE_ROUTE';
+    case DetailLoadFailed = 'DETAIL_LOAD_FAILED';
+
     public function httpStatus(): int
     {
         return match ($this) {
@@ -155,6 +175,16 @@ enum ApiErrorCode: string
             self::DiscoveryRateLimited => 429,
             self::RestaurantDataUnavailable => 503,
             self::DetourProviderUnavailable => 503,
+
+            // 404 for both. A suspended restaurant answering 403 while a
+            // non-existent one answers 404 tells anyone with a list of uuids
+            // exactly which businesses this platform has suspended.
+            self::RestaurantNotFound => 404,
+            self::RestaurantUnavailable => 404,
+            // 409: the request is well formed and the customer is entitled to
+            // it; it conflicts with the route they have selected.
+            self::RestaurantOutsideRoute => 409,
+            self::DetailLoadFailed => 500,
             self::RateLimited => 429,
             self::BusinessRuleViolated => 422,
             self::DependencyUnavailable => 503,
