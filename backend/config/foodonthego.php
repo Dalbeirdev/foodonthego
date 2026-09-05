@@ -316,6 +316,38 @@ return [
         'token_ttl_seconds' => (int) env('AUTH_TOKEN_TTL_SECONDS', 60 * 60 * 24 * 30),
     ],
 
+    /*
+     |--------------------------------------------------------------------------
+     | Item customization and the cart (Module 11)
+     |--------------------------------------------------------------------------
+     |
+     | Every limit a customer can run into while configuring a dish. Nothing in
+     | the codebase compares against a literal — a business decision to allow
+     | twenty of something is a change to this file and nothing else.
+     */
+    'cart' => [
+        // How many of one configured line a customer may add at once.
+        //
+        // Twenty rather than ninety-nine: this is a roadside pickup order for
+        // the people in one car, not a catering order, and a stepper that runs
+        // to ninety-nine invites a mis-tap nobody notices until the counter.
+        'max_quantity_per_line' => (int) env('CART_MAX_QUANTITY_PER_LINE', 20),
+
+        // A note to the kitchen, not an essay. Long enough for "no onion, pack
+        // the sauce separately, less spicy please" with room to spare; short
+        // enough that it fits on a ticket somebody has to read while cooking.
+        'max_special_instructions' => (int) env('CART_MAX_SPECIAL_INSTRUCTIONS', 300),
+
+        // How many distinct lines one cart may hold. An anti-abuse ceiling
+        // rather than a product rule; a real order is a handful of dishes.
+        'max_lines' => (int) env('CART_MAX_LINES', 50),
+
+        // How long an untouched cart stays usable. The foundation for the
+        // stale-cart handling Module 12 owns: the column is written from now,
+        // and nothing yet deletes on it.
+        'ttl_seconds' => (int) env('CART_TTL_SECONDS', 60 * 60 * 24 * 7),
+    ],
+
     'api' => [
         'current_version' => 'v1',
         'supported_versions' => ['v1'],

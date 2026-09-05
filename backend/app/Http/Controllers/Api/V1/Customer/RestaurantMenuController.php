@@ -9,6 +9,7 @@ use App\Exceptions\ApiException;
 use App\Http\Responses\ApiResponse;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
+use App\Models\MenuModifierGroup;
 use App\Models\User;
 use App\Services\Menu\CustomerMenuService;
 use App\Services\Menu\MenuQuery;
@@ -106,7 +107,10 @@ final class RestaurantMenuController
         $now = CarbonImmutable::now();
         $context = $this->detail->orderingContext($found, $restaurant, $now);
 
-        $menuItem = $this->menu->item($context->discovered->restaurant, $item);
+        $menuItem = $this->menu->itemForCustomization(
+            $context->discovered->restaurant,
+            $item,
+        );
 
         if ($menuItem === null) {
             // No such item, another restaurant's item, or one withdrawn from
@@ -146,8 +150,46 @@ final class RestaurantMenuController
                 'id' => $category->uuid,
                 'name' => $category->name,
             ],
+
+            // How the customer configures it (Module 11). Sizes first, then the
+            // questions, each carrying its own rules as numbers so the client
+            // can enforce them without parsing English.
+            'customization' => [
+                'variants' => $this->variantsOf($menuItem),
+                'requires_variant' => $menuItem->requiresVariantChoice(),
+                'modifier_groups' => $menuItem->modifierGroups
+                    ->map(static fn (MenuModifierGroup $group): array => $group->toCustomerArray())
+                    ->all(),
+                'limits' => [
+                    'max_quantity' => (int) config('foodonthego.cart.max_quantity_per_line'),
+                    'max_special_instructions' => (int) config(
+                        'foodonthego.cart.max_special_instructions',
+                    ),
+                ],
+            ],
+
             'generated_at' => $now->utc()->toIso8601String(),
         ]);
+    }
+
+    /**
+     * The sizes, skipping any whose price will not parse.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function variantsOf(MenuItem $item): array
+    {
+        $variants = [];
+
+        foreach ($item->variants as $variant) {
+            $rendered = $variant->toCustomerArray();
+
+            if ($rendered !== null) {
+                $variants[] = $rendered;
+            }
+        }
+
+        return $variants;
     }
 
     /**

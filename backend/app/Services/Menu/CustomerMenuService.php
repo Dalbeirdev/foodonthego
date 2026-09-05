@@ -116,4 +116,30 @@ final class CustomerMenuService
             ->with('category')
             ->first();
     }
+
+    /**
+     * The same item, with everything needed to configure it.
+     *
+     * A separate method rather than an argument, because the two callers want
+     * genuinely different things: the menu list needs a name and a price, and
+     * the customization screen needs the sizes, the questions and every
+     * answer. Loading the second for the first would be four eager loads
+     * nobody renders.
+     *
+     * Four queries whatever the size of the customization — one for the item,
+     * one for its variants, one for its groups, one for all of their options.
+     * Not one per group, and not one per option.
+     */
+    public function itemForCustomization(Restaurant $restaurant, string $itemUuid): ?MenuItem
+    {
+        return MenuItem::query()
+            ->where('restaurant_id', $restaurant->id)
+            ->where('uuid', $itemUuid)
+            ->where('is_active', true)
+            ->whereHas('category', static function ($query): void {
+                $query->where('is_active', true);
+            })
+            ->with(['category', 'variants', 'modifierGroups.options'])
+            ->first();
+    }
 }

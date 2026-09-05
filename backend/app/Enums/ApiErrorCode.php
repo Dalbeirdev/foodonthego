@@ -123,6 +123,56 @@ enum ApiErrorCode: string
     case ItemNotFound = 'ITEM_NOT_FOUND';
     case ItemUnavailable = 'ITEM_UNAVAILABLE';
 
+    /*
+     |--------------------------------------------------------------------------
+     | Module 11 — customization and the cart
+     |--------------------------------------------------------------------------
+     |
+     | Deliberately fine-grained. A customer who cannot add a dish deserves to
+     | be told which part of their choice is the problem, and a screen can only
+     | focus the right group if the server names it.
+     */
+
+    /** The kitchen has run out. Distinct from withdrawn: it may come back. */
+    case ItemSoldOut = 'ITEM_SOLD_OUT';
+
+    case VariantRequired = 'VARIANT_REQUIRED';
+    case VariantInvalid = 'VARIANT_INVALID';
+    case VariantUnavailable = 'VARIANT_UNAVAILABLE';
+
+    case ModifierRequired = 'MODIFIER_REQUIRED';
+    case ModifierMinNotMet = 'MODIFIER_MIN_NOT_MET';
+    case ModifierMaxExceeded = 'MODIFIER_MAX_EXCEEDED';
+    case ModifierInvalid = 'MODIFIER_INVALID';
+    case ModifierUnavailable = 'MODIFIER_UNAVAILABLE';
+
+    case QuantityInvalid = 'QUANTITY_INVALID';
+    case QuantityLimitExceeded = 'QUANTITY_LIMIT_EXCEEDED';
+
+    case SpecialInstructionsTooLong = 'SPECIAL_INSTRUCTIONS_TOO_LONG';
+
+    case RestaurantNotAcceptingOrders = 'RESTAURANT_NOT_ACCEPTING_ORDERS';
+
+    /**
+     * The cart holds another restaurant's food, or belongs to another journey.
+     *
+     * Refusals rather than merges. Emptying a customer's cart to make an API
+     * call succeed is a decision they should make, and the screen that lets
+     * them make it is Module 12's.
+     */
+    case CartRestaurantConflict = 'CART_RESTAURANT_CONFLICT';
+    case CartTripConflict = 'CART_TRIP_CONFLICT';
+    case CartLineLimitReached = 'CART_LINE_LIMIT_REACHED';
+    case CartNotFound = 'CART_NOT_FOUND';
+
+    /**
+     * The dish costs more than the customer was shown.
+     *
+     * Not an error in the usual sense — nothing is wrong — but the add is
+     * refused so the customer can look at the new figure before agreeing to it.
+     */
+    case PriceUpdated = 'PRICE_UPDATED';
+
     public function httpStatus(): int
     {
         return match ($this) {
@@ -209,6 +259,28 @@ enum ApiErrorCode: string
             // from one that does not exist.
             self::ItemNotFound => 404,
             self::ItemUnavailable => 404,
+
+            // Module 11. The 422s are "your choice does not work"; the 409s are
+            // "the world moved". A customer can fix the first by changing
+            // something on screen, and the second by looking again.
+            self::ItemSoldOut => 409,
+            self::VariantRequired => 422,
+            self::VariantInvalid => 422,
+            self::VariantUnavailable => 409,
+            self::ModifierRequired => 422,
+            self::ModifierMinNotMet => 422,
+            self::ModifierMaxExceeded => 422,
+            self::ModifierInvalid => 422,
+            self::ModifierUnavailable => 409,
+            self::QuantityInvalid => 422,
+            self::QuantityLimitExceeded => 422,
+            self::SpecialInstructionsTooLong => 422,
+            self::RestaurantNotAcceptingOrders => 409,
+            self::CartRestaurantConflict => 409,
+            self::CartTripConflict => 409,
+            self::CartLineLimitReached => 409,
+            self::CartNotFound => 404,
+            self::PriceUpdated => 409,
             self::RateLimited => 429,
             self::BusinessRuleViolated => 422,
             self::DependencyUnavailable => 503,

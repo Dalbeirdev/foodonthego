@@ -10,6 +10,8 @@ use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 /**
@@ -36,6 +38,82 @@ final class MenuItem extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(MenuCategory::class, 'menu_category_id');
+    }
+
+    /**
+     * The sizes a customer may see, in the operator's order.
+     *
+     * Scoped on the relation, so a query that forgets the scope still cannot
+     * offer a withdrawn size. Unavailable ones *are* included — they are shown
+     * disabled, which is information, where hiding them is a customer
+     * wondering whether they misremembered the menu.
+     *
+     * @return HasMany<MenuItemVariant, $this>
+     */
+    public function variants(): HasMany
+    {
+        return $this->hasMany(MenuItemVariant::class)
+            ->where('is_active', true)
+            ->orderBy('display_order')
+            ->orderBy('id');
+    }
+
+    /** @return HasMany<MenuItemVariant, $this> */
+    public function allVariants(): HasMany
+    {
+        return $this->hasMany(MenuItemVariant::class);
+    }
+
+    /**
+     * The questions asked about this dish.
+     *
+     * @return BelongsToMany<MenuModifierGroup, $this>
+     */
+    public function modifierGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            MenuModifierGroup::class,
+            'menu_item_modifier_group',
+            'menu_item_id',
+            'menu_modifier_group_id',
+        )
+            ->where('menu_modifier_groups.is_active', true)
+            ->withPivot('display_order')
+            ->orderBy('menu_item_modifier_group.display_order')
+            ->orderBy('menu_modifier_groups.id');
+    }
+
+    /**
+     * The size a customer starts on, or null.
+     *
+     * Never "the first row": a default is something an operator configured, and
+     * guessing one means a customer is quoted a price nobody chose to show
+     * them. A dish whose configured default has since gone unavailable has no
+     * default, and the screen asks.
+     */
+    public function defaultVariant(): ?MenuItemVariant
+    {
+        foreach ($this->variants as $variant) {
+            if ($variant->is_default && $variant->isSelectable()) {
+                return $variant;
+            }
+        }
+
+        return null;
+    }
+
+    /** True when the customer must choose a size before ordering. */
+    public function requiresVariantChoice(): bool
+    {
+        $selectable = $this->variants->filter(
+            static fn (MenuItemVariant $v): bool => $v->isSelectable(),
+        );
+
+        if ($selectable->isEmpty()) {
+            return false;
+        }
+
+        return $this->defaultVariant() === null;
     }
 
     /** @param Builder<self> $query */

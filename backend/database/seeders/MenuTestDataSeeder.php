@@ -8,6 +8,9 @@ use App\Enums\MenuItemDietaryType;
 use App\Enums\MenuItemStockStatus;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
+use App\Models\MenuItemVariant;
+use App\Models\MenuModifierGroup;
+use App\Models\MenuModifierOption;
 use App\Models\Restaurant;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -232,6 +235,205 @@ final class MenuTestDataSeeder extends Seeder
         //
         // [TEST] Bare Bones Stop gets nothing at all, so the empty-menu state is
         // a fixture rather than a branch nobody exercises.
+
+        $this->seedCustomization($spice);
+    }
+
+    /**
+     * Sizes and questions, on the dishes that have them (Module 11).
+     *
+     * Deliberately uneven: Paneer Tikka is fully configurable, Dal Makhani has
+     * questions but no sizes, and Papad has neither. A screen that only ever
+     * meets the rich case is a screen whose empty branches nobody has looked
+     * at.
+     */
+    private function seedCustomization(Restaurant $spice): void
+    {
+        $paneer = $this->itemNamed($spice, 'Paneer Tikka');
+        $dal = $this->itemNamed($spice, 'Dal Makhani');
+        $chai = $this->itemNamed($spice, 'Masala Chai');
+        $mushroom = $this->itemNamed($spice, 'Tandoori Mushroom');
+
+        if ($paneer === null) {
+            return;
+        }
+
+        // --- Sizes ------------------------------------------------------------
+        //
+        // Absolute prices: Large *is* ₹329, not ₹329 more. Regular is the
+        // configured default, so the screen opens on a price somebody chose to
+        // show rather than on the first database row.
+        $this->variant($paneer, 'Regular', 24_900, ['default' => true, 'order' => 0]);
+        $this->variant($paneer, 'Large', 32_900, ['preparation_minutes' => 20, 'order' => 1]);
+
+        // Sold out today, and still on the screen. A customer who came for the
+        // family size learns why rather than wondering.
+        $this->variant($paneer, 'Family (serves 4)', 54_900, [
+            'available' => false,
+            'preparation_minutes' => 30,
+            'order' => 2,
+        ]);
+
+        // Chai has sizes and **no default**, so choosing one is required. This
+        // is the fixture behind the "Choose a size to continue" refusal.
+        if ($chai !== null) {
+            $this->variant($chai, '150 ml', 4_900, ['order' => 0]);
+            $this->variant($chai, '250 ml', 6_900, ['order' => 1]);
+        }
+
+        // --- Questions --------------------------------------------------------
+        //
+        // Written once against the restaurant and attached to several dishes,
+        // which is the whole reason groups are not columns on an item.
+        $spiceLevel = $this->group($spice, 'Spice level', 1, 1, [
+            'description' => 'How hot would you like it?',
+            'order' => 0,
+        ]);
+
+        $this->option($spiceLevel, 'Mild', 0, ['default' => true, 'order' => 0]);
+        $this->option($spiceLevel, 'Medium', 0, ['order' => 1]);
+        $this->option($spiceLevel, 'Hot', 0, ['order' => 2]);
+
+        // Optional, multi-select, and the group add-ons live in. There is no
+        // separate addon model — see 26-menu-item-customization.md.
+        $extras = $this->group($spice, 'Add extras', 0, 2, [
+            'description' => 'Choose up to 2.',
+            'order' => 1,
+        ]);
+
+        $this->option($extras, 'Extra Paneer', 6_000, ['order' => 0]);
+        $this->option($extras, 'Extra Cheese', 4_000, ['order' => 1]);
+        $this->option($extras, 'Jalapeños', 2_000, ['order' => 2]);
+
+        // Sold out today. Shown disabled, and refused if a tampered request
+        // names it anyway.
+        $this->option($extras, 'Extra Cashew', 8_000, ['available' => false, 'order' => 3]);
+
+        // A two-to-four group, so the "choose at least 2" message is a fixture
+        // rather than a branch only a unit test has seen.
+        $sides = $this->group($spice, 'Pick your sides', 2, 4, [
+            'description' => 'Choose 2 to 4.',
+            'order' => 2,
+        ]);
+
+        $this->option($sides, 'Mint chutney', 0, ['order' => 0]);
+        $this->option($sides, 'Onion salad', 0, ['order' => 1]);
+        $this->option($sides, 'Green chilli', 0, ['order' => 2]);
+        $this->option($sides, 'Lemon wedge', 0, ['order' => 3]);
+
+        $this->attach($paneer, $spiceLevel, 0);
+        $this->attach($paneer, $extras, 1);
+
+        // Dal Makhani: questions, no sizes. The screen must not invent a
+        // "Regular" for it.
+        if ($dal !== null) {
+            $this->attach($dal, $spiceLevel, 0);
+        }
+
+        // Tandoori Mushroom is sold out at the item level and still carries a
+        // question, so the sold-out refusal is tested on a configurable dish
+        // rather than only on a plain one.
+        if ($mushroom !== null) {
+            $this->attach($mushroom, $spiceLevel, 0);
+        }
+    }
+
+    private function itemNamed(Restaurant $restaurant, string $name): ?MenuItem
+    {
+        return MenuItem::query()
+            ->where('restaurant_id', $restaurant->id)
+            ->where('name', $name)
+            ->first();
+    }
+
+    /** @param array<string, mixed> $options */
+    private function variant(
+        MenuItem $item,
+        string $name,
+        int $priceMinor,
+        array $options = [],
+    ): MenuItemVariant {
+        $variant = new MenuItemVariant;
+
+        $variant->forceFill([
+            'uuid' => (string) Str::uuid(),
+            'menu_item_id' => $item->id,
+            'restaurant_id' => $item->restaurant_id,
+            'name' => $name,
+            'description' => $options['description'] ?? null,
+            'price_minor' => $priceMinor,
+            'currency' => 'INR',
+            'preparation_minutes' => $options['preparation_minutes'] ?? null,
+            'is_active' => $options['active'] ?? true,
+            'is_available' => $options['available'] ?? true,
+            'is_default' => $options['default'] ?? false,
+            'display_order' => $options['order'] ?? 0,
+        ])->save();
+
+        return $variant;
+    }
+
+    /** @param array<string, mixed> $options */
+    private function group(
+        Restaurant $restaurant,
+        string $name,
+        int $min,
+        int $max,
+        array $options = [],
+    ): MenuModifierGroup {
+        $group = new MenuModifierGroup;
+
+        $group->forceFill([
+            'uuid' => (string) Str::uuid(),
+            'restaurant_id' => $restaurant->id,
+            'name' => $name,
+            'description' => $options['description'] ?? null,
+            'min_select' => $min,
+            'max_select' => $max,
+            'is_required' => $min >= 1,
+            'is_active' => $options['active'] ?? true,
+            'display_order' => $options['order'] ?? 0,
+        ])->save();
+
+        return $group;
+    }
+
+    /** @param array<string, mixed> $options */
+    private function option(
+        MenuModifierGroup $group,
+        string $name,
+        int $deltaMinor,
+        array $options = [],
+    ): MenuModifierOption {
+        $option = new MenuModifierOption;
+
+        $option->forceFill([
+            'uuid' => (string) Str::uuid(),
+            'menu_modifier_group_id' => $group->id,
+            'restaurant_id' => $group->restaurant_id,
+            'name' => $name,
+            'description' => $options['description'] ?? null,
+            'price_delta_minor' => $deltaMinor,
+            'currency' => 'INR',
+            'is_active' => $options['active'] ?? true,
+            'is_available' => $options['available'] ?? true,
+            'is_default' => $options['default'] ?? false,
+            'display_order' => $options['order'] ?? 0,
+        ])->save();
+
+        return $option;
+    }
+
+    private function attach(MenuItem $item, MenuModifierGroup $group, int $order): void
+    {
+        DB::table('menu_item_modifier_group')->insert([
+            'menu_item_id' => $item->id,
+            'menu_modifier_group_id' => $group->id,
+            'restaurant_id' => $item->restaurant_id,
+            'display_order' => $order,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     /** Removes anything this seeder created before, so re-running is safe. */
@@ -245,8 +447,12 @@ final class MenuTestDataSeeder extends Seeder
             return;
         }
 
-        // Items first: the composite foreign key means a category cannot go
-        // while an item points at it.
+        // Order matters throughout: every one of these tables is held to the
+        // next by a composite foreign key, and deleting upwards fails.
+        DB::table('menu_item_modifier_group')->whereIn('restaurant_id', $ids)->delete();
+        DB::table('menu_modifier_options')->whereIn('restaurant_id', $ids)->delete();
+        DB::table('menu_modifier_groups')->whereIn('restaurant_id', $ids)->delete();
+        DB::table('menu_item_variants')->whereIn('restaurant_id', $ids)->delete();
         DB::table('menu_items')->whereIn('restaurant_id', $ids)->delete();
         DB::table('menu_categories')->whereIn('restaurant_id', $ids)->delete();
     }

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Auth\CustomerOtpController;
 use App\Http\Controllers\Api\V1\Auth\CustomerRegistrationController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Customer\AddressController;
+use App\Http\Controllers\Api\V1\Customer\CartItemController;
 use App\Http\Controllers\Api\V1\Customer\PlaceController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController;
 use App\Http\Controllers\Api\V1\Customer\RestaurantMenuController;
@@ -214,6 +215,24 @@ Route::prefix('v1')->group(function (): void {
 
                 Route::get('/{trip}/restaurants/{restaurant}/menu/items/{item}', [RestaurantMenuController::class, 'show'])
                     ->name('api.v1.customer.trips.restaurants.menu.items.show');
+
+                /*
+                 | The cart (Module 11).
+                 |
+                 | Nested under the restaurant for the same reason the menu is:
+                 | a cart line is a dish from one kitchen on one journey, and
+                 | the path is what proves the customer is entitled to both.
+                 |
+                 | Idempotency is not opt-in here — the middleware honours an
+                 | `Idempotency-Key` header on any unsafe request — but it is
+                 | what makes a retry after a lost response safe, so it is
+                 | mentioned where somebody reading the routes will see it.
+                 */
+                Route::post('/{trip}/restaurants/{restaurant}/cart/items', [CartItemController::class, 'store'])
+                    ->name('api.v1.customer.trips.restaurants.cart.items.store');
+
+                Route::get('/{trip}/cart', [CartItemController::class, 'show'])
+                    ->name('api.v1.customer.trips.cart.show');
             });
         });
 });

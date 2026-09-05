@@ -8,7 +8,11 @@ use App\Enums\MenuItemDietaryType;
 use App\Enums\MenuItemStockStatus;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
+use App\Models\MenuItemVariant;
+use App\Models\MenuModifierGroup;
+use App\Models\MenuModifierOption;
 use App\Models\Restaurant;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -70,6 +74,162 @@ final class MenuFixtures
         ])->save();
 
         return $item;
+    }
+
+    /**
+     * A size of a dish (Module 11). The price is absolute.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    public static function variant(
+        MenuItem $item,
+        string $name,
+        int $priceMinor,
+        array $options = [],
+    ): MenuItemVariant {
+        $variant = new MenuItemVariant;
+
+        $variant->forceFill([
+            'uuid' => (string) Str::uuid(),
+            'menu_item_id' => $item->id,
+            'restaurant_id' => $item->restaurant_id,
+            'name' => $name,
+            'description' => $options['description'] ?? null,
+            'price_minor' => $priceMinor,
+            'currency' => $options['currency'] ?? 'INR',
+            'preparation_minutes' => $options['preparation_minutes'] ?? null,
+            'is_active' => $options['active'] ?? true,
+            'is_available' => $options['available'] ?? true,
+            'is_default' => $options['default'] ?? false,
+            'display_order' => $options['order'] ?? 0,
+        ])->save();
+
+        return $variant;
+    }
+
+    /**
+     * A question the kitchen asks. `min` and `max` are the whole rule.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    public static function group(
+        Restaurant $restaurant,
+        string $name,
+        int $min = 0,
+        int $max = 1,
+        array $options = [],
+    ): MenuModifierGroup {
+        $group = new MenuModifierGroup;
+
+        $group->forceFill([
+            'uuid' => (string) Str::uuid(),
+            'restaurant_id' => $restaurant->id,
+            'name' => $name,
+            'description' => $options['description'] ?? null,
+            'min_select' => $min,
+            'max_select' => $max,
+            'is_required' => $min >= 1,
+            'is_active' => $options['active'] ?? true,
+            'display_order' => $options['order'] ?? 0,
+        ])->save();
+
+        return $group;
+    }
+
+    /**
+     * One answer. The price is a delta, and never negative.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    public static function option(
+        MenuModifierGroup $group,
+        string $name,
+        int $deltaMinor = 0,
+        array $options = [],
+    ): MenuModifierOption {
+        $option = new MenuModifierOption;
+
+        $option->forceFill([
+            'uuid' => (string) Str::uuid(),
+            'menu_modifier_group_id' => $group->id,
+            'restaurant_id' => $group->restaurant_id,
+            'name' => $name,
+            'description' => $options['description'] ?? null,
+            'price_delta_minor' => $deltaMinor,
+            'currency' => $options['currency'] ?? 'INR',
+            'is_active' => $options['active'] ?? true,
+            'is_available' => $options['available'] ?? true,
+            'is_default' => $options['default'] ?? false,
+            'display_order' => $options['order'] ?? 0,
+        ])->save();
+
+        return $option;
+    }
+
+    /** Asks a question about a dish. */
+    public static function attach(MenuItem $item, MenuModifierGroup $group, int $order = 0): void
+    {
+        DB::table('menu_item_modifier_group')->insert([
+            'menu_item_id' => $item->id,
+            'menu_modifier_group_id' => $group->id,
+            'restaurant_id' => $item->restaurant_id,
+            'display_order' => $order,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    /**
+     * A fully configurable dish: two sizes with a default, one required
+     * single-select group, one optional multi-select group with paid options.
+     *
+     * @return array{
+     *     item: MenuItem,
+     *     regular: MenuItemVariant,
+     *     large: MenuItemVariant,
+     *     spice: MenuModifierGroup,
+     *     mild: MenuModifierOption,
+     *     hot: MenuModifierOption,
+     *     extras: MenuModifierGroup,
+     *     cheese: MenuModifierOption,
+     *     jalapeno: MenuModifierOption
+     * }
+     */
+    public static function configurableItem(Restaurant $restaurant): array
+    {
+        $category = self::category($restaurant, 'Starters', 0);
+        $item = self::item($category, 'Paneer Tikka', 24_900, [
+            'description' => 'Cottage cheese in the tandoor.',
+            'preparation_minutes' => 15,
+            'dietary' => MenuItemDietaryType::Vegetarian,
+        ]);
+
+        $regular = self::variant($item, 'Regular', 24_900, ['default' => true, 'order' => 0]);
+        $large = self::variant($item, 'Large', 32_900, ['order' => 1]);
+
+        $spice = self::group($restaurant, 'Spice level', 1, 1, ['order' => 0]);
+        $mild = self::option($spice, 'Mild', 0, ['default' => true, 'order' => 0]);
+        self::option($spice, 'Medium', 0, ['order' => 1]);
+        $hot = self::option($spice, 'Hot', 0, ['order' => 2]);
+
+        $extras = self::group($restaurant, 'Add extras', 0, 2, ['order' => 1]);
+        $cheese = self::option($extras, 'Extra Cheese', 4_000, ['order' => 0]);
+        $jalapeno = self::option($extras, 'Jalapeños', 2_000, ['order' => 1]);
+
+        self::attach($item, $spice, 0);
+        self::attach($item, $extras, 1);
+
+        return [
+            'item' => $item->fresh(['variants', 'modifierGroups.options']) ?? $item,
+            'regular' => $regular,
+            'large' => $large,
+            'spice' => $spice,
+            'mild' => $mild,
+            'hot' => $hot,
+            'extras' => $extras,
+            'cheese' => $cheese,
+            'jalapeno' => $jalapeno,
+        ];
     }
 
     private static function dietary(mixed $value): ?string
