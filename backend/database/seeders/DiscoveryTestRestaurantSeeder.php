@@ -70,6 +70,11 @@ final class DiscoveryTestRestaurantSeeder extends Seeder
             cuisines: ['Rajasthani', 'Fast Food'],
             facilities: ['Parking', 'Takeaway'],
             alwaysOpen: true,
+            // A cheaper roadside stop, so the price filter and the price sort
+            // have something to distinguish. Price level is metadata an
+            // operator declares, so varying it here is fixture configuration
+            // rather than fabricated measurement.
+            priceLevel: 1,
         );
 
         // C — well outside the corridor. Must be rejected, and ideally before
@@ -113,6 +118,7 @@ final class DiscoveryTestRestaurantSeeder extends Seeder
             offsetMetres: 1_100,
             cuisines: ['Cafe', 'Bakery'],
             facilities: ['Seating'],
+            priceLevel: 3,
             // A window that has already ended on every day of the week, so this
             // fixture reads CLOSED whenever the suite happens to run.
             hours: ['02:00:00', '03:00:00'],
@@ -181,6 +187,7 @@ final class DiscoveryTestRestaurantSeeder extends Seeder
         RestaurantStatus $status = RestaurantStatus::Approved,
         RestaurantVerificationStatus $verification = RestaurantVerificationStatus::Verified,
         bool $acceptingOrders = true,
+        int $priceLevel = 2,
     ): void {
         [$latitude, $longitude] = $this->offsetFromRoute($fraction, $offsetMetres);
 
@@ -195,6 +202,7 @@ final class DiscoveryTestRestaurantSeeder extends Seeder
             status: $status,
             verification: $verification,
             acceptingOrders: $acceptingOrders,
+            priceLevel: $priceLevel,
         );
     }
 
@@ -214,6 +222,7 @@ final class DiscoveryTestRestaurantSeeder extends Seeder
         RestaurantStatus $status = RestaurantStatus::Approved,
         RestaurantVerificationStatus $verification = RestaurantVerificationStatus::Verified,
         bool $acceptingOrders = true,
+        int $priceLevel = 2,
     ): void {
         $restaurant = new Restaurant;
 
@@ -231,7 +240,7 @@ final class DiscoveryTestRestaurantSeeder extends Seeder
             'verification_status' => $verification,
             'is_discoverable' => true,
             'is_accepting_orders' => $acceptingOrders,
-            'price_level' => 2,
+            'price_level' => $priceLevel,
             // Null. There is no reviews module, so there is no rating, and a
             // fixture that carried one would be the exact fabrication the
             // module forbids.

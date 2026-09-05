@@ -249,21 +249,14 @@ final class RestaurantDiscoveryService
             );
         }
 
-        // Scored to decide *which* make the list, then ordered by journey
-        // sequence to decide how they read. A traveller scanning a list wants
-        // 22 km, 61 km, 105 km — not a relevance ordering they have to
-        // re-sort in their head.
-        usort(
-            $discovered,
-            static fn (DiscoveredRestaurant $a, DiscoveredRestaurant $b): int => $b->relevanceScore <=> $a->relevanceScore,
-        );
-
-        $discovered = array_slice(
-            $discovered,
-            0,
-            (int) config('foodonthego.discovery.result_limit'),
-        );
-
+        // Ordered by journey sequence, and **not** truncated.
+        //
+        // Module 07 used to cut this to the result limit here, which was right
+        // when the endpoint returned it directly and wrong the moment Module 08
+        // began filtering: a "Parking" filter applied to the top 25 by relevance
+        // silently hides the twenty-sixth restaurant, which may be the only one
+        // with a car park. Filtering has to see the whole eligible set, so the
+        // limit moved to where it belongs — pagination, after the filters.
         $this->orderForReading($discovered);
 
         $result = new DiscoveryResult(

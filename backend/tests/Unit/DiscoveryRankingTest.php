@@ -7,7 +7,7 @@ namespace Tests\Unit;
 use App\Enums\RestaurantAvailability;
 use App\Services\Discovery\DetourEstimate;
 use App\Services\Discovery\DiscoveryRankingService;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 /**
  * The score, and the promise that it is explainable.
@@ -24,10 +24,14 @@ final class DiscoveryRankingTest extends TestCase
     {
         parent::setUp();
 
-        // Fifteen minutes and five kilometres, matching the shipped defaults.
+        // Fifteen minutes and five kilometres, matching the shipped defaults —
+        // and the shipped weights, read from configuration rather than retyped,
+        // so a change to the product's priorities is exercised here rather than
+        // silently diverging from what runs.
         $this->ranking = new DiscoveryRankingService(
             maxDetourDurationSeconds: 900,
             corridorMetres: 5_000,
+            weights: (array) config('foodonthego.discovery.weights'),
         );
     }
 
@@ -146,6 +150,89 @@ final class DiscoveryRankingTest extends TestCase
 
         $this->assertEqualsWithDelta(1.0, $best, 0.001);
         $this->assertLessThan(0.1, $worst);
+    }
+
+    public function test_every_weight_actually_reaches_the_score(): void
+    {
+        // The regression this file exists for after M08-B01. The weights were
+        // briefly held in an array keyed *by weight*, and PHP casts a float key
+        // to an int: 0.45, 0.30, 0.15 and 0.10 all became key 0, so three of the
+        // four terms vanished and every restaurant scored exactly zero.
+        //
+        // Every assertion in this file still passed, because they compare
+        // scores to each other and 0 is not greater than 0 — no, they would have
+        // failed. What would *not* have failed is a suite that only checked the
+        // score was between 0 and 1. So this asserts the thing that was wrong:
+        // changing any single input moves the score.
+        $base = $this->score(300, 1_000, RestaurantAvailability::Open, '3.0');
+
+        $this->assertNotEqualsWithDelta($base, $this->score(600, 1_000, RestaurantAvailability::Open, '3.0'), 0.0001, 'detour is inert');
+        $this->assertNotEqualsWithDelta($base, $this->score(300, 4_000, RestaurantAvailability::Open, '3.0'), 0.0001, 'proximity is inert');
+        $this->assertNotEqualsWithDelta($base, $this->score(300, 1_000, RestaurantAvailability::Closed, '3.0'), 0.0001, 'availability is inert');
+        $this->assertNotEqualsWithDelta($base, $this->score(300, 1_000, RestaurantAvailability::Open, '5.0'), 0.0001, 'rating is inert');
+
+        $this->assertGreaterThan(0.0, $base);
+    }
+
+    public function test_search_relevance_only_counts_when_somebody_searched(): void
+    {
+        // Null and 0.0 are different. Null removes the term from the average, so
+        // a searchless result is scored exactly as Module 07 scored it; 0.0
+        // would be a restaurant that matched nothing, and one that matched
+        // nothing is not in the set at all.
+        $withoutSearch = $this->ranking->score(
+            RestaurantAvailability::Open,
+            new DetourEstimate(1_000, 300, 'test'),
+            1_000,
+            null,
+            false,
+        );
+
+        $withPerfectMatch = $this->ranking->score(
+            RestaurantAvailability::Open,
+            new DetourEstimate(1_000, 300, 'test'),
+            1_000,
+            null,
+            false,
+            1.0,
+        );
+
+        $withPoorMatch = $this->ranking->score(
+            RestaurantAvailability::Open,
+            new DetourEstimate(1_000, 300, 'test'),
+            1_000,
+            null,
+            false,
+            0.2,
+        );
+
+        $this->assertGreaterThan($withoutSearch, $withPerfectMatch);
+        $this->assertLessThan($withoutSearch, $withPoorMatch);
+    }
+
+    public function test_an_exact_name_match_outranks_a_more_convenient_stop(): void
+    {
+        // Somebody who typed "Highway Spice" is asking for one restaurant, not
+        // for the most convenient stop that happens to contain the word.
+        $exactMatchAwkward = $this->ranking->score(
+            RestaurantAvailability::Open,
+            new DetourEstimate(9_000, 600, 'test'),
+            3_000,
+            null,
+            false,
+            1.0,
+        );
+
+        $weakMatchConvenient = $this->ranking->score(
+            RestaurantAvailability::Open,
+            new DetourEstimate(500, 60, 'test'),
+            200,
+            null,
+            false,
+            0.2,
+        );
+
+        $this->assertGreaterThan($weakMatchConvenient, $exactMatchAwkward);
     }
 
     public function test_the_same_inputs_always_give_the_same_score(): void

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Services\Discovery\DiscoveryRankingService;
+use App\Services\Discovery\DiscoveryRefiner;
 use App\Services\Discovery\RestaurantAvailabilityService;
 use App\Services\Discovery\RestaurantDetourService;
 use App\Services\Discovery\RestaurantDiscoveryEligibilityService;
 use App\Services\Discovery\RestaurantDiscoveryService;
+use App\Services\Discovery\SearchMatcher;
 use App\Services\Routing\RouteCalculationService;
 use App\Services\Routing\RouteProvider;
 use Illuminate\Support\ServiceProvider;
@@ -56,6 +58,24 @@ final class DiscoveryServiceProvider extends ServiceProvider
                     'foodonthego.discovery.max_detour_duration_seconds',
                 ),
                 corridorMetres: (int) config('foodonthego.discovery.corridor_metres'),
+                // Read here and injected, so the weights are a property of the
+                // deployment rather than something a scoring method reaches out
+                // to global state for.
+                weights: (array) config('foodonthego.discovery.weights'),
+            ),
+        );
+
+        $this->app->singleton(SearchMatcher::class, fn (): SearchMatcher => new SearchMatcher);
+
+        // Module 08's refiner takes the *result* of Module 07's discovery, never
+        // the database. That is what makes "a search cannot resurrect a
+        // suspended restaurant" a property of the wiring rather than a check
+        // somebody has to remember.
+        $this->app->singleton(
+            DiscoveryRefiner::class,
+            fn (): DiscoveryRefiner => new DiscoveryRefiner(
+                matcher: $this->app->make(SearchMatcher::class),
+                ranking: $this->app->make(DiscoveryRankingService::class),
             ),
         );
 

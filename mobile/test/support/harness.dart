@@ -20,6 +20,8 @@ import 'package:foodonthego/domain/models/place.dart';
 import 'package:foodonthego/domain/models/saved_address.dart';
 import 'package:foodonthego/domain/models/trip.dart';
 import 'package:foodonthego/domain/models/discovered_restaurant.dart';
+import 'package:foodonthego/domain/models/discovery_facets.dart';
+import 'package:foodonthego/domain/models/discovery_query.dart';
 import 'package:foodonthego/domain/models/trip_route.dart';
 import 'package:foodonthego/domain/repositories/auth_repository.dart';
 import 'package:foodonthego/domain/repositories/customer_repository.dart';
@@ -1320,13 +1322,33 @@ class FakeDiscoveryRepository implements DiscoveryRepository {
     List<DiscoveredRestaurant>? restaurants,
     this.provider = 'google',
     this.corridorMetres = 5000,
+    this.facets = const DiscoveryFacets(),
+    this.responder,
   }) : _restaurants = restaurants ?? <DiscoveredRestaurant>[sampleRestaurant()];
 
   final List<DiscoveredRestaurant> _restaurants;
   final String provider;
   final int corridorMetres;
 
+  /// The filter options the "server" advertises for this route.
+  final DiscoveryFacets facets;
+
+  /// A scripted answer per query.
+  ///
+  /// Deliberately a script rather than a re-implementation of the server's
+  /// filtering. A fake that filtered by itself would let a test pass while the
+  /// real request carried no filters at all — the assertion would be on the
+  /// fake's arithmetic, not on the client's behaviour. What the client is
+  /// responsible for is *which query it sends*, and that is what [queries]
+  /// records.
+  final RestaurantDiscovery Function(DiscoveryQuery query)? responder;
+
   int discoverCalls = 0;
+
+  /// Every query the client asked for, in order.
+  final List<DiscoveryQuery> queries = <DiscoveryQuery>[];
+
+  DiscoveryQuery? get lastQuery => queries.isEmpty ? null : queries.last;
 
   /// Scripted failure. Cleared after it fires, so a test can script one failure
   /// followed by a success.
@@ -1334,11 +1356,28 @@ class FakeDiscoveryRepository implements DiscoveryRepository {
 
   Duration delay = Duration.zero;
 
-  @override
-  Future<RestaurantDiscovery> discover(String tripId) async {
-    discoverCalls++;
+  /// A delay chosen per call, so a test can make an early request finish after
+  /// a later one and prove the stale answer is discarded.
+  Duration Function(DiscoveryQuery query)? delayFor;
 
-    if (delay > Duration.zero) await Future<void>.delayed(delay);
+  /// A failure chosen per query, for the same reason: [nextError] fires for
+  /// whichever request resolves first, which is the wrong one when the point of
+  /// the test is that a *particular* request failed.
+  ApiException? Function(DiscoveryQuery query)? errorFor;
+
+  @override
+  Future<RestaurantDiscovery> discover(
+    String tripId, {
+    DiscoveryQuery query = DiscoveryQuery.unfiltered,
+  }) async {
+    discoverCalls++;
+    queries.add(query);
+
+    final Duration wait = delayFor?.call(query) ?? delay;
+    if (wait > Duration.zero) await Future<void>.delayed(wait);
+
+    final ApiException? scriptedError = errorFor?.call(query);
+    if (scriptedError != null) throw scriptedError;
 
     final ApiException? error = nextError;
 
@@ -1346,6 +1385,9 @@ class FakeDiscoveryRepository implements DiscoveryRepository {
       nextError = null;
       throw error;
     }
+
+    final RestaurantDiscovery? scripted = responder?.call(query);
+    if (scripted != null) return scripted;
 
     return RestaurantDiscovery(
       restaurants: _restaurants,
@@ -1358,9 +1400,44 @@ class FakeDiscoveryRepository implements DiscoveryRepository {
             (DiscoveredRestaurant r) => r.availability.isActionable,
           ),
       candidatesConsidered: _restaurants.length,
+      facets: facets,
+      total: _restaurants.length,
+      eligibleTotal: _restaurants.length,
+      page: query.page,
+      perPage: _restaurants.length,
+      lastPage: 1,
     );
   }
 }
+
+/// A discovery response built to order, for a test that needs to script one.
+RestaurantDiscovery sampleDiscovery({
+  List<DiscoveredRestaurant> restaurants = const <DiscoveredRestaurant>[],
+  DiscoveryFacets facets = const DiscoveryFacets(),
+  int? total,
+  int? eligibleTotal,
+  int page = 1,
+  int? perPage,
+  int lastPage = 1,
+  bool hasMore = false,
+  bool filteredEmpty = false,
+  String provider = 'google',
+  int corridorMetres = 5000,
+}) => RestaurantDiscovery(
+  restaurants: restaurants,
+  routeId: 'route-0',
+  provider: provider,
+  corridorMetres: corridorMetres,
+  facets: facets,
+  total: total ?? restaurants.length,
+  eligibleTotal: eligibleTotal ?? total ?? restaurants.length,
+  page: page,
+  perPage: perPage ?? restaurants.length,
+  lastPage: lastPage,
+  hasMore: hasMore,
+  filteredEmpty: filteredEmpty,
+  candidatesConsidered: restaurants.length,
+);
 
 /// One discovered restaurant, with every figure stated rather than defaulted.
 DiscoveredRestaurant sampleRestaurant({

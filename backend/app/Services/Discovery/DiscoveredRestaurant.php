@@ -28,7 +28,36 @@ final readonly class DiscoveredRestaurant
         public float $relevanceScore,
         /** True when reaching this restaurant would mean driving back the way you came. */
         public bool $requiresBacktracking,
+        /**
+         * How well this matched what the customer typed, 0..1. Null when they
+         * typed nothing — which is a different thing from a zero, and the
+         * ranking treats it differently.
+         */
+        public ?float $searchRelevance = null,
     ) {}
+
+    /**
+     * The same restaurant, rescored.
+     *
+     * Module 07 scores every restaurant it discovers; Module 08 rescores the
+     * ones that survive a search, because relevance to what somebody typed is
+     * not knowable until they type it. A `with`-style copy rather than a mutable
+     * field, so a rescored restaurant is a new value and nothing downstream can
+     * be holding a half-updated one.
+     */
+    public function rescored(float $relevance, float $searchRelevance): self
+    {
+        return new self(
+            restaurant: $this->restaurant,
+            projection: $this->projection,
+            availability: $this->availability,
+            detour: $this->detour,
+            timeAheadSeconds: $this->timeAheadSeconds,
+            relevanceScore: $relevance,
+            requiresBacktracking: $this->requiresBacktracking,
+            searchRelevance: $searchRelevance,
+        );
+    }
 
     /**
      * The customer-safe shape.

@@ -7,6 +7,7 @@ import '../../core/l10n/app_strings.dart';
 import '../../core/routing/routes.dart';
 import '../../core/theme/tokens.dart';
 import '../../domain/models/discovered_restaurant.dart';
+import '../../domain/models/discovery_query.dart';
 import '../../domain/models/trip.dart';
 import '../../domain/models/trip_route.dart';
 import '../../shared/state/discovery_controller.dart';
@@ -14,7 +15,11 @@ import '../../shared/state/route_controller.dart';
 import '../../shared/widgets/app_skeleton.dart';
 import '../../shared/widgets/buttons.dart';
 import '../../shared/widgets/empty_state_view.dart';
+import 'widgets/active_filter_chips.dart';
+import 'widgets/discovery_filter_sheet.dart';
 import 'widgets/discovery_map_view.dart';
+import 'widgets/discovery_search_field.dart';
+import 'widgets/discovery_sort_sheet.dart';
 import 'widgets/restaurant_preview_card.dart';
 
 /// Restaurants along the selected route.
@@ -116,17 +121,13 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
       ),
       body: SafeArea(
         top: false,
-        child: switch (state) {
-          DiscoveryState(isLoading: true, hasResults: false) =>
-            const _DiscoverySkeleton(),
-          DiscoveryState(hasResults: true) => _DiscoveryBody(
-            state: state,
-            trip: trip,
-            route: route,
-            mapKey: _mapKey,
-          ),
-          _ => _DiscoveryProblem(state: state, tripId: widget.tripId),
-        },
+        child: _DiscoveryBody(
+          state: state,
+          trip: trip,
+          route: route,
+          mapKey: _mapKey,
+          tripId: widget.tripId,
+        ),
       ),
     );
   }
@@ -136,19 +137,26 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   bool get _canRecentre => _mapKey.currentState is DiscoveryMapRecentre;
 }
 
-/// Map or list, the banners above them, and the toggle between.
+/// Everything below the app bar.
+///
+/// The search field and the filter chips are rendered outside the results,
+/// which is deliberate: a customer whose filters left them with nothing must
+/// still be able to see the filters and take one off. A screen that swaps the
+/// whole body for an empty state takes the way out away with the results.
 class _DiscoveryBody extends ConsumerWidget {
   const _DiscoveryBody({
     required this.state,
     required this.trip,
     required this.route,
     required this.mapKey,
+    required this.tripId,
   });
 
   final DiscoveryState state;
   final Trip? trip;
   final TripRoute? route;
   final GlobalKey<State<DiscoveryMapView>> mapKey;
+  final String tripId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -156,6 +164,18 @@ class _DiscoveryBody extends ConsumerWidget {
     final DiscoveryController controller = ref.read(
       discoveryControllerProvider.notifier,
     );
+
+    // The very first load, with nothing to put a search field above.
+    if (state.isLoading && state.discovery == null) {
+      return const _DiscoverySkeleton();
+    }
+
+    // A failure with no results behind it: the route is not ready, the trip is
+    // gone, we are offline with nothing cached. There is nothing to filter, so
+    // there are no controls.
+    if (state.discovery == null) {
+      return _DiscoveryProblem(state: state, tripId: tripId);
+    }
 
     return Column(
       children: <Widget>[
@@ -181,6 +201,78 @@ class _DiscoveryBody extends ConsumerWidget {
             isWarning: true,
           ),
 
+        // A filter the server refused is our bug, not the customer's. It gets a
+        // banner with a way out rather than an empty screen.
+        if (state.failure == DiscoveryFailure.filtersRejected)
+          _Banner(
+            icon: Icons.filter_alt_off_rounded,
+            message: strings.discoveryFiltersRejectedBody,
+            isWarning: true,
+          ),
+
+        _DiscoveryControls(state: state, controller: controller),
+
+        Expanded(
+          child: switch (state) {
+            DiscoveryState(hasResults: true) => switch (state.view) {
+              DiscoveryView.map => _MapMode(
+                state: state,
+                trip: trip,
+                route: route,
+                mapKey: mapKey,
+                controller: controller,
+              ),
+              DiscoveryView.list => _ListMode(
+                state: state,
+                controller: controller,
+              ),
+            },
+            _ => _DiscoveryProblem(state: state, tripId: tripId),
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// Search, filters, sort, and the count above the list.
+class _DiscoveryControls extends StatelessWidget {
+  const _DiscoveryControls({required this.state, required this.controller});
+
+  final DiscoveryState state;
+  final DiscoveryController controller;
+
+  Future<void> _openFilters(BuildContext context) async {
+    final DiscoveryQuery? chosen = await DiscoveryFilterSheet.show(
+      context,
+      facets: state.facets,
+      applied: state.query,
+    );
+
+    // Null means dismissed. Dismissing a sheet is not applying an empty one.
+    if (chosen != null) controller.applyQuery(chosen);
+  }
+
+  Future<void> _openSort(BuildContext context) async {
+    final DiscoverySort? chosen = await DiscoverySortSheet.show(
+      context,
+      facets: state.facets,
+      selected: state.query.sort,
+    );
+
+    if (chosen != null) controller.sortBy(chosen);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final AppStrings strings = AppStrings.of(context);
+    final ThemeData theme = Theme.of(context);
+
+    final int filterCount = state.query.filterCount;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
         Padding(
           padding: const EdgeInsets.fromLTRB(
             FotgSpacing.x4,
@@ -188,47 +280,161 @@ class _DiscoveryBody extends ConsumerWidget {
             FotgSpacing.x4,
             FotgSpacing.x2,
           ),
-          child: LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints constraints) => Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    strings.discoveryResultCount(state.restaurants.length),
-                    style: Theme.of(context).textTheme.titleSmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: FotgSpacing.x2),
-                _MapListToggle(
-                  view: state.view,
-                  onChanged: controller.showView,
-                  // Measured: with both labels the control wants about 250dp,
-                  // and on a 320dp screen that overflowed the row by 69 pixels.
-                  // The labels go, the icons and their accessible names stay.
-                  compact: constraints.maxWidth < 300,
-                ),
-              ],
-            ),
+          child: DiscoverySearchField(
+            text: state.searchText,
+            onChanged: controller.searchChanged,
+            onSubmitted: controller.submitSearch,
+            onCleared: controller.clearSearch,
           ),
         ),
 
-        Expanded(
-          child: switch (state.view) {
-            DiscoveryView.map => _MapMode(
-              state: state,
-              trip: trip,
-              route: route,
-              mapKey: mapKey,
-              controller: controller,
-            ),
-            DiscoveryView.list => _ListMode(
-              state: state,
-              controller: controller,
-            ),
-          },
+        ActiveFilterChips(
+          query: state.query,
+          facets: state.facets,
+          onRemoveCuisine: controller.removeCuisine,
+          onRemoveFacility: controller.removeFacility,
+          onRemovePriceLevel: controller.removePriceLevel,
+          onRemoveAvailability: controller.removeAvailability,
+          onRemoveMaxDetour: controller.removeMaxDetour,
+          onRemoveMaxDistanceAhead: controller.removeMaxDistanceAhead,
+          onRemoveMinRating: controller.removeMinRating,
+          onClearAll: controller.clearFilters,
         ),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            FotgSpacing.x4,
+            FotgSpacing.x2,
+            FotgSpacing.x4,
+            FotgSpacing.x2,
+          ),
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              // Measured: with both toggle labels the row wants about 250dp,
+              // and on a 320dp screen that overflowed by 69 pixels. Below 300dp
+              // the labels go; the icons and their accessible names stay.
+              final bool compact = constraints.maxWidth < 340;
+
+              return Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        // "6 of 11" only while something is hiding results, so
+                        // an unfiltered screen is never made to look filtered.
+                        state.query.isRefined
+                            ? strings.discoveryResultCountFiltered(
+                                state.totalCount,
+                                state.eligibleCount,
+                              )
+                            : strings.discoveryResultCount(state.totalCount),
+                        style: theme.textTheme.titleSmall,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: FotgSpacing.x2),
+                  _FilterButton(
+                    count: filterCount,
+                    compact: compact,
+                    onPressed: () => _openFilters(context),
+                  ),
+                  const SizedBox(width: FotgSpacing.x1),
+                  IconButton(
+                    icon: const Icon(Icons.swap_vert_rounded, size: 20),
+                    tooltip: strings.discoverySortBy(
+                      DiscoverySortSheet.labelFor(strings, state.query.sort),
+                    ),
+                    onPressed: () => _openSort(context),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            FotgSpacing.x4,
+            0,
+            FotgSpacing.x4,
+            FotgSpacing.x2,
+          ),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  strings.discoverySortBy(
+                    DiscoverySortSheet.labelFor(strings, state.query.sort),
+                  ),
+                  style: theme.textTheme.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: FotgSpacing.x2),
+              _MapListToggle(
+                view: state.view,
+                onChanged: controller.showView,
+                compact: MediaQuery.sizeOf(context).width < 340,
+              ),
+            ],
+          ),
+        ),
+
+        // A thin bar rather than a spinner over the list: the results below are
+        // still the last honest answer, and blanking them on every keystroke
+        // makes the list unreadable while somebody types.
+        if (state.isRefining)
+          Semantics(
+            liveRegion: true,
+            label: strings.discoveryRefining,
+            child: const LinearProgressIndicator(minHeight: 2),
+          ),
       ],
+    );
+  }
+}
+
+/// "Filters", with how many are on.
+class _FilterButton extends StatelessWidget {
+  const _FilterButton({
+    required this.count,
+    required this.onPressed,
+    this.compact = false,
+  });
+
+  final int count;
+  final VoidCallback onPressed;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppStrings strings = AppStrings.of(context);
+
+    // The count is in the accessible name whether or not the badge is drawn,
+    // so a screen reader never announces a bare "Filters" over a filtered list.
+    final String label = count == 0
+        ? strings.discoveryFiltersOpen
+        : '${strings.discoveryFiltersOpen}, ${strings.discoveryFilterCount(count)}';
+
+    final Widget icon = Badge(
+      isLabelVisible: count > 0,
+      label: Text('$count'),
+      child: const Icon(Icons.tune_rounded, size: 20),
+    );
+
+    return Tooltip(
+      message: label,
+      child: compact
+          ? IconButton(onPressed: onPressed, icon: icon)
+          : TextButton.icon(
+              onPressed: onPressed,
+              icon: icon,
+              label: Text(strings.discoveryFilters),
+            ),
     );
   }
 }
@@ -293,7 +499,7 @@ class _MapMode extends StatelessWidget {
   }
 }
 
-/// Every stop, in journey order.
+/// Every stop that matches, in the chosen order.
 class _ListMode extends StatelessWidget {
   const _ListMode({required this.state, required this.controller});
 
@@ -301,25 +507,43 @@ class _ListMode extends StatelessWidget {
   final DiscoveryController controller;
 
   @override
-  Widget build(BuildContext context) => ListView.builder(
-    padding: const EdgeInsets.fromLTRB(
-      FotgSpacing.x4,
-      0,
-      FotgSpacing.x4,
-      FotgSpacing.x6,
-    ),
-    itemCount: state.restaurants.length,
-    itemBuilder: (BuildContext context, int index) {
-      final DiscoveredRestaurant restaurant = state.restaurants[index];
+  Widget build(BuildContext context) {
+    final AppStrings strings = AppStrings.of(context);
 
-      return RestaurantPreviewCard(
-        restaurant: restaurant,
-        isSelected: restaurant.id == state.selectedRestaurantId,
-        onSelect: () => controller.selectRestaurant(restaurant.id),
-        onView: () => _openRestaurant(context, restaurant),
-      );
-    },
-  );
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(
+        FotgSpacing.x4,
+        0,
+        FotgSpacing.x4,
+        FotgSpacing.x6,
+      ),
+      // One extra row for the button, and only when there is another page.
+      itemCount: state.restaurants.length + (state.hasMore ? 1 : 0),
+      itemBuilder: (BuildContext context, int index) {
+        if (index >= state.restaurants.length) {
+          return Padding(
+            padding: const EdgeInsets.only(top: FotgSpacing.x2),
+            child: state.isLoadingMore
+                ? const Center(child: CircularProgressIndicator())
+                : SecondaryButton(
+                    label: strings.discoveryLoadMore,
+                    expand: true,
+                    onPressed: controller.loadMore,
+                  ),
+          );
+        }
+
+        final DiscoveredRestaurant restaurant = state.restaurants[index];
+
+        return RestaurantPreviewCard(
+          restaurant: restaurant,
+          isSelected: restaurant.id == state.selectedRestaurantId,
+          onSelect: () => controller.selectRestaurant(restaurant.id),
+          onView: () => _openRestaurant(context, restaurant),
+        );
+      },
+    );
+  }
 }
 
 /// The full restaurant page belongs to a later module.
@@ -394,6 +618,35 @@ class _DiscoveryProblem extends ConsumerWidget {
       discoveryControllerProvider.notifier,
     );
 
+    // Three different empty screens, and the difference matters more than the
+    // wording. "Nothing matched your search" is the customer's own doing and
+    // offers to undo it; "no stops on this route yet" is ours and offers a way
+    // back to the journey. Showing the second when it is the first tells
+    // somebody there is no food on a road with eleven restaurants on it.
+    if (state.isSearchEmpty) {
+      return EmptyStateView(
+        icon: Icons.search_off_rounded,
+        title: strings.discoverySearchEmptyTitle,
+        body: strings.discoverySearchEmptyBody(state.query.search ?? ''),
+        action: SecondaryButton(
+          label: strings.discoverySearchEmptyCta,
+          onPressed: controller.clearSearch,
+        ),
+      );
+    }
+
+    if (state.isFilteredEmpty) {
+      return EmptyStateView(
+        icon: Icons.filter_alt_off_rounded,
+        title: strings.discoveryFilteredEmptyTitle,
+        body: strings.discoveryFilteredEmptyBody(state.eligibleCount),
+        action: SecondaryButton(
+          label: strings.discoveryFilteredEmptyCta,
+          onPressed: controller.clearFilters,
+        ),
+      );
+    }
+
     // An empty result is not a failure. It is the honest answer that there is
     // nothing on this road yet, and it gets its own words and its own actions.
     if (state.isEmptyResult) {
@@ -431,6 +684,11 @@ class _DiscoveryProblem extends ConsumerWidget {
         strings.discoveryErrorTitle,
         strings.tripErrorGone,
       ),
+      DiscoveryFailure.filtersRejected => (
+        Icons.filter_alt_off_rounded,
+        strings.discoveryFiltersRejectedTitle,
+        strings.discoveryFiltersRejectedBody,
+      ),
       _ => (
         Icons.error_outline_rounded,
         strings.discoveryErrorTitle,
@@ -442,7 +700,13 @@ class _DiscoveryProblem extends ConsumerWidget {
       icon: icon,
       title: title,
       body: body,
-      action: state.failure == DiscoveryFailure.routeNotReady
+      action: state.failure == DiscoveryFailure.filtersRejected
+          ? PrimaryButton(
+              label: strings.discoveryFiltersClear,
+              expand: false,
+              onPressed: controller.resetAll,
+            )
+          : state.failure == DiscoveryFailure.routeNotReady
           ? PrimaryButton(
               label: strings.discoveryRouteNotReadyCta,
               expand: false,

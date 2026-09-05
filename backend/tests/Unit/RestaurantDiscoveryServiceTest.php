@@ -409,8 +409,17 @@ final class RestaurantDiscoveryServiceTest extends TestCase
         $this->assertSame($names, array_unique($names));
     }
 
-    public function test_the_result_limit_is_honoured(): void
+    public function test_discovery_returns_every_eligible_restaurant_not_a_page_of_them(): void
     {
+        // Changed in Module 08, and the reason matters. Discovery used to cut
+        // itself to the result limit here, which was right while the endpoint
+        // returned it directly. The moment filtering was layered on top it
+        // became wrong: a "Parking" filter applied to the top 25 by relevance
+        // silently hides the twenty-sixth restaurant, which may be the only one
+        // with a car park.
+        //
+        // The limit is now pagination's, applied after the filters. This service
+        // returns the whole eligible set.
         config(['foodonthego.discovery.result_limit' => 5]);
         $this->app->forgetInstance(RestaurantDiscoveryService::class);
 
@@ -418,7 +427,7 @@ final class RestaurantDiscoveryServiceTest extends TestCase
             RestaurantFixtures::nearRoute(0.05 * $i, 500, "Stop {$i}");
         }
 
-        $this->assertCount(5, $this->discover()->restaurants);
+        $this->assertCount(12, $this->discover()->restaurants);
     }
 }
 

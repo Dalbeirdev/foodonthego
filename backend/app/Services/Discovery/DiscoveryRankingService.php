@@ -18,12 +18,21 @@ use App\Enums\RestaurantAvailability;
  *
  * A score in [0, 1], the weighted sum of four terms:
  *
- * | Term         | Weight | What it rewards                                   |
- * | ------------ | -----: | ------------------------------------------------- |
- * | Detour       |   0.45 | Costing little to stop at                          |
- * | Availability |   0.30 | Being open, and taking orders                      |
- * | Proximity    |   0.15 | Sitting close to the road                          |
- * | Quality      |   0.10 | Being well rated, where a rating exists            |
+ * | Term             | Weight | What it rewards                               |
+ * | ---------------- | -----: | --------------------------------------------- |
+ * | Detour           |   0.45 | Costing little to stop at                     |
+ * | Availability     |   0.30 | Being open, and taking orders                 |
+ * | Proximity        |   0.15 | Sitting close to the road                     |
+ * | Quality          |   0.10 | Being well rated, where a rating exists       |
+ * | Search relevance |   0.60 | Being what the customer actually asked for    |
+ *
+ * The weights live in `config('foodonthego.discovery.weights')`, not here, and
+ * the score is normalised by their sum — so they are shares rather than
+ * magnitudes and can be retuned without a release.
+ *
+ * Search relevance is the largest of them and is applied **only** when the
+ * customer typed something. Somebody who searched "Highway Spice" is asking for
+ * one restaurant, not for the most convenient stop that happens to match.
  *
  * Detour dominates on purpose. It is the whole reason this is a route product
  * rather than a nearby-restaurants product: the stop that costs four minutes
@@ -49,30 +58,60 @@ use App\Enums\RestaurantAvailability;
  */
 final class DiscoveryRankingService
 {
-    private const WEIGHT_DETOUR = 0.45;
-
-    private const WEIGHT_AVAILABILITY = 0.30;
-
-    private const WEIGHT_PROXIMITY = 0.15;
-
-    private const WEIGHT_QUALITY = 0.10;
-
     public function __construct(
         private readonly int $maxDetourDurationSeconds,
         private readonly int $corridorMetres,
+        /** @var array{detour: float, availability: float, proximity: float, rating: float, search_relevance: float} */
+        private readonly array $weights,
     ) {}
 
+    /**
+     * @param  ?float  $searchRelevance  0..1 from {@see SearchMatcher}, or null
+     *                                   when the customer typed nothing. Null and 0.0 are different: null
+     *                                   removes the term from the average, 0.0 is a restaurant that matched
+     *                                   nothing — and if it matched nothing it is not in the set at all.
+     */
     public function score(
         RestaurantAvailability $availability,
         ?DetourEstimate $detour,
         float $proximityMetres,
         ?string $rating,
         bool $requiresBacktracking,
+        ?float $searchRelevance = null,
     ): float {
-        $score = self::WEIGHT_DETOUR * $this->detourTerm($detour)
-            + self::WEIGHT_AVAILABILITY * $this->availabilityTerm($availability)
-            + self::WEIGHT_PROXIMITY * $this->proximityTerm($proximityMetres)
-            + self::WEIGHT_QUALITY * $this->qualityTerm($rating);
+        // A list of [weight, value] pairs, and deliberately not a map keyed by
+        // weight. PHP casts a float array key to an int, so `[0.45 => …, 0.30
+        // => …]` is one entry under key 0 holding the last value — which is
+        // exactly what the first version of this method did, and every
+        // restaurant scored zero.
+        $terms = [
+            [$this->weights['detour'], $this->detourTerm($detour)],
+            [$this->weights['availability'], $this->availabilityTerm($availability)],
+            [$this->weights['proximity'], $this->proximityTerm($proximityMetres)],
+            [$this->weights['rating'], $this->qualityTerm($rating)],
+        ];
+
+        $weighted = 0.0;
+        $total = 0.0;
+
+        foreach ($terms as [$weight, $value]) {
+            $weighted += $weight * $value;
+            $total += $weight;
+        }
+
+        // Search relevance joins the average only when there is a search, which
+        // is what keeps a searchless result identical to Module 07's ordering
+        // rather than subtly reweighted by a term that is always zero.
+        if ($searchRelevance !== null) {
+            $weight = $this->weights['search_relevance'];
+            $weighted += $weight * max(0.0, min(1.0, $searchRelevance));
+            $total += $weight;
+        }
+
+        // Normalised, so the weights are shares rather than magnitudes: doubling
+        // all five changes nothing, and the score stays in [0, 1] whatever
+        // somebody puts in the configuration file.
+        $score = $total > 0.0 ? $weighted / $total : 0.0;
 
         // Halved rather than excluded. A restaurant behind the origin is a poor
         // stop for somebody setting off, but it is a real restaurant on a real

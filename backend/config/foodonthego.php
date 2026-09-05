@@ -191,6 +191,48 @@ return [
         // Used only when a restaurant's own timezone is unusable, and logged
         // when it happens. Never a silent assumption about where a restaurant is.
         'default_timezone' => env('DISCOVERY_DEFAULT_TIMEZONE', 'Asia/Kolkata'),
+
+        /*
+        |----------------------------------------------------------------------
+        | Ranking weights (Module 08)
+        |----------------------------------------------------------------------
+        |
+        | The "Recommended" order, as five numbers rather than as magic constants
+        | scattered through a scoring method. They are here so that the product
+        | question — what makes a stop worth recommending — can be answered by
+        | somebody who does not read PHP, and changed without a release.
+        |
+        | They are normalised at use, so they need not sum to anything: doubling
+        | every weight changes nothing, and doubling one changes its share.
+        |
+        | Never exposed to a customer. "Why is this first" is answered in words
+        | on the card — four minutes' detour, open now — not with a score.
+        */
+        'weights' => [
+            // Deliberately the largest. It is the whole reason this is a route
+            // product rather than a nearby-restaurants product: a stop that
+            // costs four minutes beats one that costs eighteen, whatever else
+            // is true of them.
+            'detour' => (float) env('DISCOVERY_WEIGHT_DETOUR', 0.45),
+
+            // Second, and heavily weighted: a closed restaurant is not a stop
+            // today, however convenient it is.
+            'availability' => (float) env('DISCOVERY_WEIGHT_AVAILABILITY', 0.30),
+
+            'proximity' => (float) env('DISCOVERY_WEIGHT_PROXIMITY', 0.15),
+
+            // Last and lightest. Sorting by rating is what a generic listings
+            // app does, and it would put a five-star restaurant forty minutes
+            // off the route above a good one on it. Inert today in any case:
+            // no restaurant has a rating.
+            'rating' => (float) env('DISCOVERY_WEIGHT_RATING', 0.10),
+
+            // Applied **only** when the customer typed something, and then
+            // large: somebody who searched "Highway Spice" is asking for one
+            // restaurant, not for the most convenient stop that happens to
+            // match. Zero when there is no search, so it changes nothing.
+            'search_relevance' => (float) env('DISCOVERY_WEIGHT_SEARCH_RELEVANCE', 0.60),
+        ],
     ],
 
     'routing' => [

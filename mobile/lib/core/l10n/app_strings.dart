@@ -590,6 +590,80 @@ class AppStrings {
 
   String get discoveryRecentre => 'Fit the whole route back into view';
 
+  // --- Module 08: search, filters, sorting ---------------------------------
+  String get discoverySearchHint => 'Search restaurants or cuisines';
+  String get discoverySearchLabel => 'Search stops on your route';
+  String get discoverySearchClear => 'Clear search';
+
+  String get discoveryFilters => 'Filters';
+  String get discoveryFiltersOpen => 'Filter these stops';
+  String discoveryFilterCount(int count) =>
+      count == 1 ? '1 filter' : '$count filters';
+  String get discoveryFiltersApply => 'Show results';
+  String discoveryFiltersApplyCount(int count) =>
+      count == 1 ? 'Show 1 stop' : 'Show $count stops';
+  String get discoveryFiltersClear => 'Clear all';
+  String get discoveryFiltersClearOne => 'Remove this filter';
+  String get discoveryFiltersNone =>
+      'There is nothing to filter on this route yet.';
+
+  String get discoveryFilterCuisine => 'Cuisine';
+  String get discoveryFilterFacilities => 'Facilities';
+  String get discoveryFilterPrice => 'Price';
+  String get discoveryFilterAvailability => 'Availability';
+  String get discoveryFilterOpenNow => 'Open now';
+  String get discoveryFilterAcceptingOrders => 'Taking orders';
+  String get discoveryFilterDetour => 'Detour';
+
+  /// Spelled out under the group, because "any of these" and "all of these" are
+  /// different promises and a customer who assumes the wrong one is sent to a
+  /// restaurant that does not have what they needed.
+  String get discoveryFilterCuisineHint => 'Any of these';
+  String get discoveryFilterFacilitiesHint => 'All of these';
+
+  String discoveryFilterOption(String label, int count) => '$label ($count)';
+
+  String get discoveryDetourAny => 'Any detour';
+  String discoveryDetourUnder(String duration) => 'Under $duration';
+
+  String get discoverySort => 'Sort';
+  String get discoverySortOpen => 'Change the order';
+  String discoverySortBy(String label) => 'Sorted by $label';
+  String get discoverySortRecommended => 'Recommended';
+  String get discoverySortLowestDetour => 'Shortest detour';
+  String get discoverySortSoonest => 'Soonest on your route';
+  String get discoverySortHighestRated => 'Highest rated';
+  String get discoverySortPriceLow => 'Price: low to high';
+
+  /// The customer's filters removed everything. Distinct from
+  /// [discoveryEmptyTitle], which means the road itself has nothing on it.
+  String get discoveryFilteredEmptyTitle => 'No stops match your filters';
+  String discoveryFilteredEmptyBody(int eligible) => eligible == 1
+      ? 'There is 1 stop on this route. None of them match what you chose.'
+      : 'There are $eligible stops on this route. None of them match what you '
+            'chose.';
+  String get discoveryFilteredEmptyCta => 'Clear filters';
+
+  String get discoverySearchEmptyTitle => 'Nothing matched your search';
+  String discoverySearchEmptyBody(String term) =>
+      'We found no stops on this route matching "$term".';
+  String get discoverySearchEmptyCta => 'Clear search';
+
+  /// The count line above the list. Says "of" only while something is hiding
+  /// results, so an unfiltered screen is not made to look filtered.
+  String discoveryResultCountFiltered(int shown, int eligible) =>
+      shown == 1 ? '1 of $eligible stops' : '$shown of $eligible stops';
+
+  String get discoveryLoadMore => 'Show more stops';
+  String get discoveryRefining => 'Updating your stops…';
+
+  /// Never silently swallowed: a filter this build can build and the server
+  /// refuses is our bug, and the customer needs a way out of it.
+  String get discoveryFiltersRejectedTitle => "We couldn't apply those filters";
+  String get discoveryFiltersRejectedBody =>
+      'Something about that combination was not understood. Clearing your '
+      'filters will get you back to the full list.';
+
   // --- home: the current journey -------------------------------------------
   String get homeCurrentJourney => 'Your journey';
   String get homeJourneyViewAll => 'All journeys';

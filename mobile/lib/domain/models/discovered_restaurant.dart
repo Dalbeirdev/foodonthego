@@ -1,4 +1,5 @@
 import '../../core/geo/polyline_codec.dart';
+import 'discovery_facets.dart';
 
 /// Whether a traveller can actually stop here.
 ///
@@ -216,6 +217,14 @@ class RestaurantDiscovery {
     this.closedOnly = false,
     this.fromCache = false,
     this.candidatesConsidered = 0,
+    this.facets = const DiscoveryFacets(),
+    this.total = 0,
+    this.eligibleTotal = 0,
+    this.page = 1,
+    this.perPage = 0,
+    this.lastPage = 1,
+    this.hasMore = false,
+    this.filteredEmpty = false,
   });
 
   final List<DiscoveredRestaurant> restaurants;
@@ -236,9 +245,72 @@ class RestaurantDiscovery {
   final bool fromCache;
   final int candidatesConsidered;
 
+  /// The filter options this route can actually offer, with counts.
+  final DiscoveryFacets facets;
+
+  /// How many restaurants match what the customer asked for, across every page.
+  final int total;
+
+  /// How many are on this route at all, before the customer narrowed it.
+  ///
+  /// The distinction the empty screen turns on. `eligibleTotal == 0` means
+  /// there is nothing on this road; `eligibleTotal > 0` with `total == 0` means
+  /// the customer's own filters removed everything, and those two need
+  /// different words and different buttons.
+  final int eligibleTotal;
+
+  final int page;
+  final int perPage;
+  final int lastPage;
+  final bool hasMore;
+
+  /// The server's own verdict on the distinction above, so the client is not
+  /// re-deriving it from two counts and reaching a different answer.
+  final bool filteredEmpty;
+
   bool get isEmpty => restaurants.isEmpty;
 
+  /// There are stops on this route; the filters hid all of them.
+  bool get isFilteredEmpty => filteredEmpty;
+
   bool get isFromRealProvider => provider != null && provider != 'development';
+
+  /// This page, with the pages already read in front of it.
+  ///
+  /// The counts and facets come from *this* response rather than the earlier
+  /// one: a restaurant that closed between page one and page two changes the
+  /// availability counts, and showing the older figures beside the newer rows
+  /// would put a total on screen that no page agrees with.
+  ///
+  /// Anything already present is not added twice. Pages are computed from a
+  /// snapshot that can shift under them, and a restaurant appearing on both
+  /// page one and page two must not appear twice in the list.
+  RestaurantDiscovery appendedTo(List<DiscoveredRestaurant> earlier) {
+    final Set<String> seen = earlier
+        .map((DiscoveredRestaurant r) => r.id)
+        .toSet();
+
+    return RestaurantDiscovery(
+      restaurants: <DiscoveredRestaurant>[
+        ...earlier,
+        ...restaurants.where((DiscoveredRestaurant r) => seen.add(r.id)),
+      ],
+      routeId: routeId,
+      corridorMetres: corridorMetres,
+      provider: provider,
+      closedOnly: closedOnly,
+      fromCache: fromCache,
+      candidatesConsidered: candidatesConsidered,
+      facets: facets,
+      total: total,
+      eligibleTotal: eligibleTotal,
+      page: page,
+      perPage: perPage,
+      lastPage: lastPage,
+      hasMore: hasMore,
+      filteredEmpty: filteredEmpty,
+    );
+  }
 
   static RestaurantDiscovery fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic> route =
@@ -263,6 +335,22 @@ class RestaurantDiscovery {
       fromCache: meta['from_cache'] == true,
       candidatesConsidered:
           RouteRelation._int(meta['candidates_considered']) ?? 0,
+      facets: DiscoveryFacets.fromJson(
+        json['filters'] as Map<String, dynamic>?,
+      ),
+      // A server that predates Module 08 sends no totals. Falling back to the
+      // page's own length keeps the count on screen honest rather than showing
+      // "0 stops" above a list of six.
+      total: RouteRelation._int(meta['total']) ?? raw.length,
+      eligibleTotal:
+          RouteRelation._int(meta['eligible_total']) ??
+          RouteRelation._int(meta['total']) ??
+          raw.length,
+      page: RouteRelation._int(meta['page']) ?? 1,
+      perPage: RouteRelation._int(meta['per_page']) ?? raw.length,
+      lastPage: RouteRelation._int(meta['last_page']) ?? 1,
+      hasMore: meta['has_more'] == true,
+      filteredEmpty: meta['filtered_empty'] == true,
     );
   }
 }

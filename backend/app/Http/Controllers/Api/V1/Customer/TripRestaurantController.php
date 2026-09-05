@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Api\V1\Customer;
 
 use App\Http\Responses\ApiResponse;
 use App\Models\User;
+use App\Services\Discovery\DiscoveryQuery;
+use App\Services\Discovery\DiscoveryRefiner;
 use App\Services\Discovery\RestaurantDiscoveryService;
 use App\Services\Trip\TripService;
 use Carbon\CarbonImmutable;
@@ -23,9 +25,13 @@ use Illuminate\Http\Request;
  *
  * Note what is **not** a parameter. The route is not: it is whichever route the
  * customer selected, read from their own trip, so there is no route id to
- * substitute for somebody else's. Filters and sort orders are not: they belong
- * to Module 08, and adding them here would fix their shape before that module
- * has been designed.
+ * substitute for somebody else's.
+ *
+ * Module 08 added search, filters, a sort and pagination — all of them optional,
+ * all of them validated by {@see DiscoveryQuery} before any work begins, and all
+ * of them applied by {@see DiscoveryRefiner} to a set Module 07 has already
+ * decided the customer may see. A search cannot reach the database, so a search
+ * cannot resurrect a suspended restaurant.
  *
  * `GET` rather than `POST` even though it can reach a billed provider. Discovery
  * is a read — it writes nothing, and a customer reopening it expects what they
@@ -37,6 +43,7 @@ final class TripRestaurantController
     public function __construct(
         private readonly TripService $trips,
         private readonly RestaurantDiscoveryService $discovery,
+        private readonly DiscoveryRefiner $refiner,
     ) {}
 
     public function index(Request $request, string $trip): JsonResponse
@@ -46,8 +53,21 @@ final class TripRestaurantController
 
         $found = $this->trips->ownedByOrFail($customer, $trip);
 
-        $result = $this->discovery->discover($found, CarbonImmutable::now());
+        // Read and validated before anything expensive happens, so a malformed
+        // filter costs a 422 rather than a corridor search.
+        $query = DiscoveryQuery::fromRequest($request);
 
-        return ApiResponse::ok($result->toApiArray());
+        // The expensive half, cached per route and **not** per filter: changing
+        // a cuisine or a sort reuses this entirely and calls no provider. That
+        // is the module's central cost guarantee, and it is a consequence of
+        // the two calls being separate rather than of anything either one does.
+        $discovered = $this->discovery->discover($found, CarbonImmutable::now());
+
+        // The cheap half: search, filter, sort, paginate — over a set that is
+        // already eligible, in memory, touching neither the database nor a
+        // provider.
+        $refined = $this->refiner->refine($discovered, $query);
+
+        return ApiResponse::ok($refined->toApiArray());
     }
 }
