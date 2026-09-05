@@ -309,6 +309,64 @@ void main() {
     });
   });
 
+  group('a filter the server never applied', () {
+    test('the chips snap back when the request fails offline', () async {
+      await openTrip();
+
+      discovery.nextError = ApiException(
+        code: ApiErrorCode.network,
+        message: 'offline',
+      );
+
+      controller().applyQuery(
+        const DiscoveryQuery(facilities: <String>{'parking'}),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      // A customer offline, looking at cached stops under a chip saying
+      // "Parking", would believe the server had confirmed that filter against
+      // them. It never ran.
+      expect(state().query.hasFilters, isFalse);
+      expect(state().isOffline, isTrue);
+      expect(state().hasResults, isTrue);
+    });
+
+    test('the typed search survives a failure', () async {
+      await openTrip();
+
+      discovery.nextError = ApiException(
+        code: ApiErrorCode.serverError,
+        message: 'boom',
+      );
+
+      controller().searchChanged('spice');
+      controller().submitSearch();
+      await Future<void>.delayed(Duration.zero);
+
+      // Pulling the text out from under somebody mid-search is worse than the
+      // disagreement it would resolve.
+      expect(state().searchText, 'spice');
+      expect(state().failure, DiscoveryFailure.serverError);
+    });
+
+    test(
+      'nothing snaps back on a first load, which has nothing to snap to',
+      () async {
+        discovery = FakeDiscoveryRepository()
+          ..nextError = ApiException(
+            code: ApiErrorCode.discoveryFailed,
+            message: 'nope',
+          );
+        container = build(discovery);
+
+        await controller().open('trip-1');
+
+        expect(state().hasResults, isFalse);
+        expect(state().failure, DiscoveryFailure.discoveryFailed);
+      },
+    );
+  });
+
   group('paging', () {
     FakeDiscoveryRepository paged() => FakeDiscoveryRepository(
       responder: (DiscoveryQuery query) => sampleDiscovery(

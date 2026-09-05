@@ -1175,12 +1175,12 @@ Screenshots: `evidence/module-08/state-01..28-*.png`.
 | Suite | Result |
 | --- | --- |
 | Backend (PHPUnit) | **741 passed**, 3 049 assertions, 0 failed, 0 skipped |
-| Flutter | **536 passed**, 0 failed, 0 skipped |
+| Flutter | **539 passed**, 0 failed, 0 skipped |
 | Laravel Pint | clean |
 | `flutter analyze --fatal-infos` | no issues |
 | `dart format` | clean |
 
-New in Module 08: 106 backend test methods and 87 Flutter test cases, measured
+New in Module 08: 106 backend test methods and 90 Flutter test cases, measured
 against the Module 07 commit.
 
 | File | Tests |
@@ -1191,7 +1191,7 @@ against the Module 07 commit.
 | `tests/Feature/DiscoveryRefinerTest.php` | 30 |
 | `tests/Feature/Api/Customer/TripRestaurantFilterApiTest.php` | 37 |
 | `mobile/test/discovery_query_test.dart` | 21 |
-| `mobile/test/discovery_refine_controller_test.dart` | 25 |
+| `mobile/test/discovery_refine_controller_test.dart` | 28 |
 | `mobile/test/discovery_filters_screen_test.dart` | 34 |
 
 ## Integration run — real backend, real MySQL, real route geometry

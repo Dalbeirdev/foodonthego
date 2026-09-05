@@ -497,6 +497,13 @@ customer is still looking at. Clearing the search is the field's own button.
 | A new result set arriving | Selection cleared, so no card survives for a restaurant that is no longer shown |
 | A different trip | Cleared — the controller is `autoDispose` and the screen is per-trip |
 | Signing out | Cleared with the provider container |
+| A refine that failed | **Reverted** to the query the visible results came from |
+
+That last row is the one that is easy to get wrong. A customer offline, looking
+at cached stops under a chip saying "Parking", would read that as "the server
+checked, and these have parking". It never ran. The chips revert; the typed
+search text does not, because pulling text out from under somebody mid-search is
+worse than the disagreement it resolves.
 
 Filters are never persisted to disk. A "next 25 km" filter silently applied to
 a different journey would be worse than no memory at all, and there is nothing

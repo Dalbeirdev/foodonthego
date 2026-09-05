@@ -539,7 +539,7 @@ cannot call a routing provider. None of those are rules anyone has to remember.
   counted badge, sort sheet, live result count, and three distinct empty
   screens.
 - `mobile/tool/discovery_filters_smoke.dart` — 28 checks against a live server.
-- 106 new backend test methods, 87 new Flutter test cases.
+- 106 new backend test methods, 90 new Flutter test cases.
 
 ### Changed — and one of these changes Module 07's behaviour
 
@@ -560,7 +560,7 @@ cannot call a routing provider. None of those are rules anyone has to remember.
 
 ### Fixed
 
-Four defects, none left open, none Critical. The interesting one: the ranking
+Five defects, none left open, none Critical. The interesting one: the ranking
 terms were written as an array keyed by weight, PHP cast the float keys to
 `int`, they all collapsed to key `0`, and **every restaurant scored zero**. See
 M08-B01 in `13-known-issues.md`.

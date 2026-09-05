@@ -606,7 +606,7 @@ Screenshot names refer to the Module 08 live-view run recorded in
 | M08-049 | iOS runtime verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ✅ | **PENDING — environment unavailable** | KI-002 |
 | M08-050 | Accessibility | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | M08-B02 fixed; 1.6× text; chip and badge names |
 | M08-051 | Backend unit and API tests | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 741 passing; 106 new test methods |
-| M08-052 | Flutter unit and widget tests | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 536 passing; 87 new test cases |
+| M08-052 | Flutter unit and widget tests | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 539 passing; 90 new test cases |
 | M08-053 | Integration test, no mocks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `tool/discovery_filters_smoke.dart`, 28 checks |
 | M08-054 | Live-view inspection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 28 states, no application errors |
 | M08-055 | Performance measured | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Refine: 0.15–0.6 ms, **0 queries**, at 8 and at 5 008 rows |
@@ -615,6 +615,7 @@ Screenshot names refer to the Module 08 live-view run recorded in
 | M08-058 | Module 09 handoff | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Route data survives every filter and sort; documented in `23-*.md` |
 | M08-059 | Facet metadata, route-specific | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Added during implementation. Counts before filters; no hard-coded client list |
 | M08-060 | Stale-response cancellation under real latency | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Added during implementation. Generation check, tested with scripted delays |
+| M08-061 | Offline behaviour: filters never claim a server confirmation that did not happen | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Added during implementation (M08-B05). Chips revert to the query the visible results came from |
 
 ### Requirements that are not a plain PASS, and why
 

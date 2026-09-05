@@ -227,6 +227,14 @@ class DiscoveryController extends Notifier<DiscoveryState> {
 
   Timer? _debounce;
 
+  /// The query the results currently on screen actually came from.
+  ///
+  /// Not the same as `state.query`, which is what the customer has asked for.
+  /// The two diverge while a request is in flight, and they must be brought
+  /// back together if it fails: chips describing a filter the server never
+  /// applied are a lie about what is on screen.
+  DiscoveryQuery _appliedQuery = DiscoveryQuery.unfiltered;
+
   late final DiscoveryRepository _discovery;
 
   @override
@@ -402,6 +410,8 @@ class DiscoveryController extends Notifier<DiscoveryState> {
 
       final RestaurantDiscovery? current = state.discovery;
 
+      _appliedQuery = next;
+
       state = state.copyWith(
         discovery: current == null
             ? page
@@ -456,6 +466,8 @@ class DiscoveryController extends Notifier<DiscoveryState> {
       // a search the customer has already moved on from.
       if (_disposed || generation != _generation) return;
 
+      _appliedQuery = query;
+
       state = state.copyWith(
         discovery: found,
         isLoading: false,
@@ -477,6 +489,13 @@ class DiscoveryController extends Notifier<DiscoveryState> {
         // Losing the restaurants a customer already has because a refresh
         // failed punishes them for our outage.
         isOffline: error.code == ApiErrorCode.network && state.hasResults,
+        // The filters snap back to the ones the visible results came from.
+        // A customer offline, looking at cached stops under a chip saying
+        // "Parking", would believe the server had confirmed that filter
+        // against them. It never ran. The search text is left alone: that
+        // is the customer's own typing, and pulling it out from under them
+        // is worse than the disagreement it would resolve.
+        query: state.hasResults ? _appliedQuery : state.query,
       );
     } finally {
       if (generation == _generation) _inFlight = false;

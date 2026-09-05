@@ -17,7 +17,7 @@ Laravel Pint: passed
 ==============================================================================
 2. FLUTTER TEST SUITE
 ==============================================================================
-536 tests passed, 0 failed, 0 skipped.
+539 tests passed, 0 failed, 0 skipped.
 flutter analyze --fatal-infos: No issues found.
 dart format: clean.
 
@@ -28,7 +28,7 @@ Module 08 test files:
   backend/tests/Feature/DiscoveryRefinerTest.php                30 tests
   backend/tests/Feature/Api/Customer/TripRestaurantFilterApiTest.php  37 tests
   mobile/test/discovery_query_test.dart                         21 tests
-  mobile/test/discovery_refine_controller_test.dart             25 tests
+  mobile/test/discovery_refine_controller_test.dart             28 tests
   mobile/test/discovery_filters_screen_test.dart                34 tests
 
 ==============================================================================

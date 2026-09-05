@@ -168,12 +168,12 @@ Module 08 has **not** been started, per the one-module-at-a-time rule.
 | iOS runtime | **PENDING** | KI-002 — no macOS host |
 | Live map render | **PENDING** | KI-011 — no Maps key |
 
-**1 277 automated tests pass** (741 backend, 536 Flutter), plus a 28-check
+**1 280 automated tests pass** (741 backend, 539 Flutter), plus a 28-check
 integration run against a live server and real MySQL rows, 28 live states
 inspected in a rendered release build, and Modules 01–07 regression green
 (13 + 24 + 31 + 21 + 22 integration checks across five smoke runs).
 
-Four defects were found and fixed; none left open. Two of them — a ranking score
+Five defects were found and fixed; none left open. Two of them — a ranking score
 that was silently zero for every restaurant, and a filter button that announced
 a bare "Filters" over a filtered list — could only be found by running the thing
 and reading what it actually produced.
