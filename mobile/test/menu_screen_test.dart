@@ -28,6 +28,10 @@ void main() {
 
     final FakeMenuRepository repository = menus ?? FakeMenuRepository();
 
+    // Module 11's screen is what a tapped dish opens now, so the fake needs
+    // something configurable to serve it.
+    repository.previewToReturn ??= sampleItemPreview();
+
     await tester.pumpWidget(
       MediaQuery(
         data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
@@ -343,8 +347,8 @@ void main() {
     });
   });
 
-  group('the item preview', () {
-    testWidgets('opens read-only, with no way to order', (
+  group('tapping a dish', () {
+    testWidgets('opens the item screen where it can be configured', (
       WidgetTester tester,
     ) async {
       await open(tester);
@@ -352,23 +356,9 @@ void main() {
       await tester.tap(find.text('Paneer Tikka'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Ordering opens soon'), findsOneWidget);
-
-      // Module 10 ends at browsing. Not a disabled button — no button.
-      expect(find.textContaining('Add to cart'), findsNothing);
-      expect(find.textContaining('Add to bag'), findsNothing);
-      expect(find.byType(Stepper), findsNothing);
-    });
-
-    testWidgets('shows the description in full where the card clipped it', (
-      WidgetTester tester,
-    ) async {
-      await open(tester);
-
-      await tester.tap(find.text('Paneer Tikka'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Cottage cheese in the tandoor.'), findsWidgets);
+      // Module 11 replaced Module 10's read-only sheet with the real thing.
+      expect(find.text('Choose a size'), findsOneWidget);
+      expect(find.text('Spice level'), findsOneWidget);
     });
 
     testWidgets('asks the server rather than echoing the card', (
@@ -381,7 +371,7 @@ void main() {
 
       // A customer may have had the menu open for ten minutes.
       expect(menus.itemCalls, 1);
-      expect(menus.itemRequests.single, 'item-1');
+      expect(menus.itemRequests.first, 'item-1');
     });
 
     testWidgets('an item withdrawn since the list was drawn says so', (
@@ -400,6 +390,21 @@ void main() {
 
       expect(find.text('No longer on the menu'), findsOneWidget);
       expect(find.text('Try again'), findsNothing);
+    });
+
+    testWidgets('the menu is still there when the customer comes back', (
+      WidgetTester tester,
+    ) async {
+      await open(tester);
+
+      await tester.tap(find.text('Paneer Tikka'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Starters'), findsWidgets);
+      expect(find.text('Paneer Tikka'), findsOneWidget);
     });
   });
 
@@ -575,6 +580,7 @@ void main() {
       await tester.tap(find.text('Paneer Tikka'));
       await tester.pumpAndSettle();
 
+      // On the item screen now, where there is room for the full sentence.
       expect(
         find.bySemanticsLabel(RegExp('not a pickup time')),
         findsOneWidget,

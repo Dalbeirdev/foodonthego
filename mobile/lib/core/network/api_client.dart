@@ -46,11 +46,23 @@ class ApiClient {
   Future<Map<String, dynamic>> get(String path, {bool authenticated = false}) =>
       _send('GET', path, authenticated: authenticated);
 
+  /// [headers] carries the few request headers a caller genuinely needs to
+  /// set — today only `Idempotency-Key`, which is what makes a retry after a
+  /// lost response safe. Deliberately not a general escape hatch: it cannot
+  /// overwrite `Authorization`, `Accept` or `Content-Type`, so a caller cannot
+  /// accidentally send a request unauthenticated or as the wrong media type.
   Future<Map<String, dynamic>> post(
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = false,
-  }) => _send('POST', path, body: body, authenticated: authenticated);
+    Map<String, String> headers = const <String, String>{},
+  }) => _send(
+    'POST',
+    path,
+    body: body,
+    authenticated: authenticated,
+    headers: headers,
+  );
 
   Future<Map<String, dynamic>> patch(
     String path, {
@@ -104,12 +116,14 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = false,
+    Map<String, String> headers = const <String, String>{},
   }) async {
     final Object? data = await _sendRaw(
       method,
       path,
       body: body,
       authenticated: authenticated,
+      extraHeaders: headers,
     );
 
     return data is Map<String, dynamic> ? data : <String, dynamic>{};
@@ -122,10 +136,14 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = false,
+    Map<String, String> extraHeaders = const <String, String>{},
   }) async {
     final Uri uri = ApiConfig.uri(path);
 
     final Map<String, String> headers = <String, String>{
+      // The caller's first, so the three below always win. Nothing a caller
+      // passes can make a request anonymous or change its media type.
+      ...extraHeaders,
       'Accept': 'application/json',
       'Content-Type': 'application/json',
     };

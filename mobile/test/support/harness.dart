@@ -27,6 +27,8 @@ import 'package:foodonthego/domain/repositories/auth_repository.dart';
 import 'package:foodonthego/domain/repositories/customer_repository.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
 import 'package:foodonthego/domain/repositories/place_repository.dart';
+import 'package:foodonthego/domain/models/cart.dart';
+import 'package:foodonthego/domain/models/menu_customization.dart';
 import 'package:foodonthego/domain/models/money.dart';
 import 'package:foodonthego/domain/models/restaurant_detail.dart';
 import 'package:foodonthego/domain/models/restaurant_menu.dart';
@@ -1667,6 +1669,9 @@ class FakeMenuRepository implements MenuRepository {
 
   MenuItemPreview Function(String itemId)? itemResponder;
 
+  /// One preview for every item, for the Module 11 screen tests.
+  MenuItemPreview? previewToReturn;
+
   @override
   Future<RestaurantMenu> menu({
     required String tripId,
@@ -1698,6 +1703,109 @@ class FakeMenuRepository implements MenuRepository {
     return search == null ? whole : searchedMenu(whole, search);
   }
 
+  // --- the cart (Module 11) -------------------------------------------------
+
+  int addCalls = 0;
+
+  /// Every add, with the key it carried — which is what the idempotency tests
+  /// read.
+  final List<
+    ({
+      String itemId,
+      String? variantId,
+      List<String> optionIds,
+      int quantity,
+      String? note,
+      int? quotedUnitPriceMinor,
+      String? idempotencyKey,
+    })
+  >
+  addRequests = [];
+
+  ApiException? nextAddError;
+
+  /// A failure chosen per attempt, so a test can make the *first* add fail and
+  /// the retry succeed.
+  ApiException? Function(int attempt)? addErrorFor;
+
+  Duration addDelay = Duration.zero;
+
+  CartSummary cartToReturn = const CartSummary.empty();
+
+  /// Stands in for the server's arithmetic, so a test can assert the screen
+  /// shows what the server said rather than what the client guessed.
+  int Function(int attempt)? serverUnitPriceMinor;
+
+  @override
+  Future<CartAddition> addToCart({
+    required String tripId,
+    required String restaurantId,
+    required String itemId,
+    required int quantity,
+    String? variantId,
+    List<String> optionIds = const <String>[],
+    String? specialInstructions,
+    int? quotedUnitPriceMinor,
+    String? idempotencyKey,
+  }) async {
+    addCalls++;
+    addRequests.add((
+      itemId: itemId,
+      variantId: variantId,
+      optionIds: optionIds,
+      quantity: quantity,
+      note: specialInstructions,
+      quotedUnitPriceMinor: quotedUnitPriceMinor,
+      idempotencyKey: idempotencyKey,
+    ));
+
+    if (addDelay > Duration.zero) await Future<void>.delayed(addDelay);
+
+    final ApiException? scripted = addErrorFor?.call(addCalls);
+    if (scripted != null) throw scripted;
+
+    final ApiException? error = nextAddError;
+
+    if (error != null) {
+      nextAddError = null;
+      throw error;
+    }
+
+    final int unit =
+        serverUnitPriceMinor?.call(addCalls) ?? (quotedUnitPriceMinor ?? 24900);
+
+    final Money unitPrice = Money(amountMinor: unit, currency: 'INR');
+    final Money lineTotal = Money(
+      amountMinor: unit * quantity,
+      currency: 'INR',
+    );
+
+    cartToReturn = CartSummary(
+      id: 'cart-1',
+      restaurantId: restaurantId,
+      restaurantName: 'Highway Spice Kitchen',
+      itemCount: cartToReturn.itemCount + quantity,
+      lineCount: cartToReturn.lineCount + 1,
+      subtotal: Money(
+        amountMinor: (cartToReturn.subtotal?.amountMinor ?? 0) +
+            lineTotal.amountMinor,
+        currency: 'INR',
+      ),
+    );
+
+    return CartAddition(
+      cartId: 'cart-1',
+      cartItemId: 'cart-item-$addCalls',
+      quantity: quantity,
+      unitPrice: unitPrice,
+      lineTotal: lineTotal,
+      cart: cartToReturn,
+    );
+  }
+
+  @override
+  Future<CartSummary> cart({required String tripId}) async => cartToReturn;
+
   @override
   Future<MenuItemPreview> item({
     required String tripId,
@@ -1719,6 +1827,8 @@ class FakeMenuRepository implements MenuRepository {
     if (itemResponder case final MenuItemPreview Function(String) build) {
       return build(itemId);
     }
+
+    if (previewToReturn case final MenuItemPreview preview) return preview;
 
     final RestaurantMenu menu = menuToReturn ?? sampleMenu();
 
@@ -1903,6 +2013,116 @@ RestaurantMenu sampleMenu({
     generatedAt: DateTime.now(),
   );
 }
+
+/// A fully configurable dish (Module 11).
+///
+/// Deliberately uneven: two sizes with a default and one sold out, one required
+/// single-select group, one optional multi-select group with paid options and
+/// one sold out. A fixture that only exercises the tidy case leaves every
+/// disabled branch unlooked-at.
+MenuItemCustomization sampleCustomization({
+  bool withVariants = true,
+  bool variantDefault = true,
+  bool requiresVariant = false,
+  List<MenuModifierGroup>? groups,
+}) => MenuItemCustomization(
+  variants: withVariants
+      ? <MenuItemVariant>[
+          MenuItemVariant(
+            id: 'variant-regular',
+            name: 'Regular',
+            price: const Money(amountMinor: 24900, currency: 'INR'),
+            isDefault: variantDefault,
+          ),
+          const MenuItemVariant(
+            id: 'variant-large',
+            name: 'Large',
+            price: Money(amountMinor: 32900, currency: 'INR'),
+            preparationMinutes: 20,
+          ),
+          const MenuItemVariant(
+            id: 'variant-family',
+            name: 'Family (serves 4)',
+            price: Money(amountMinor: 54900, currency: 'INR'),
+            isAvailable: false,
+          ),
+        ]
+      : const <MenuItemVariant>[],
+  modifierGroups: groups ??
+      const <MenuModifierGroup>[
+        MenuModifierGroup(
+          id: 'group-spice',
+          name: 'Spice level',
+          minSelect: 1,
+          maxSelect: 1,
+          options: <MenuModifierOption>[
+            MenuModifierOption(
+              id: 'option-mild',
+              name: 'Mild',
+              priceDelta: Money(amountMinor: 0, currency: 'INR'),
+            ),
+            MenuModifierOption(
+              id: 'option-medium',
+              name: 'Medium',
+              priceDelta: Money(amountMinor: 0, currency: 'INR'),
+            ),
+            MenuModifierOption(
+              id: 'option-hot',
+              name: 'Hot',
+              priceDelta: Money(amountMinor: 0, currency: 'INR'),
+            ),
+          ],
+        ),
+        MenuModifierGroup(
+          id: 'group-extras',
+          name: 'Add extras',
+          minSelect: 0,
+          maxSelect: 2,
+          options: <MenuModifierOption>[
+            MenuModifierOption(
+              id: 'option-cheese',
+              name: 'Extra Cheese',
+              priceDelta: Money(amountMinor: 4000, currency: 'INR'),
+            ),
+            MenuModifierOption(
+              id: 'option-jalapeno',
+              name: 'Jalapeños',
+              priceDelta: Money(amountMinor: 2000, currency: 'INR'),
+            ),
+            MenuModifierOption(
+              id: 'option-paneer',
+              name: 'Extra Paneer',
+              priceDelta: Money(amountMinor: 6000, currency: 'INR'),
+            ),
+            MenuModifierOption(
+              id: 'option-cashew',
+              name: 'Extra Cashew',
+              priceDelta: Money(amountMinor: 8000, currency: 'INR'),
+              isAvailable: false,
+            ),
+          ],
+        ),
+      ],
+  requiresVariant: requiresVariant,
+);
+
+/// One dish, ready to configure.
+MenuItemPreview sampleItemPreview({
+  MenuItem? item,
+  MenuItemCustomization? customization,
+  RestaurantOrderingState ordering = RestaurantOrderingState.openAccepting,
+}) => MenuItemPreview(
+  item: item ?? sampleMenuItem(),
+  restaurant: MenuRestaurantHeader(
+    id: 'restaurant-1',
+    name: 'Highway Spice Kitchen',
+    ordering: ordering,
+    canOrder: ordering == RestaurantOrderingState.openAccepting,
+  ),
+  categoryName: 'Starters',
+  customization: customization ?? sampleCustomization(),
+  generatedAt: DateTime.now(),
+);
 
 /// A restaurant that has published nothing.
 RestaurantMenu emptyMenu({String restaurantName = 'Bare Bones Stop'}) =>

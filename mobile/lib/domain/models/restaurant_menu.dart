@@ -1,3 +1,4 @@
+import 'menu_customization.dart';
 import 'money.dart';
 import 'restaurant_detail.dart' show RestaurantOrderingState;
 
@@ -383,12 +384,19 @@ class MenuItemPreview {
     required this.restaurant,
     required this.categoryName,
     required this.generatedAt,
+    this.customization = const MenuItemCustomization(),
   });
 
   final MenuItem item;
   final MenuRestaurantHeader restaurant;
   final String categoryName;
   final DateTime generatedAt;
+
+  /// The sizes and questions, if the dish has any (Module 11).
+  ///
+  /// Empty rather than null when it has none: a dish with no sizes is an
+  /// ordinary dish, not a missing field the screen has to guess about.
+  final MenuItemCustomization customization;
 
   static MenuItemPreview? fromJson(Map<String, dynamic> data) {
     final Object? rawItem = data['item'];
@@ -411,6 +419,7 @@ class MenuItemPreview {
       item: item,
       restaurant: restaurant,
       categoryName: name,
+      customization: MenuItemCustomization.fromJson(data['customization']),
       generatedAt:
           DateTime.tryParse(
             (data['generated_at'] as String?) ?? '',

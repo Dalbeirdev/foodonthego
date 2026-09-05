@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
+import '../../core/routing/routes.dart';
 import '../../core/theme/tokens.dart';
 import '../../domain/models/restaurant_detail.dart' show RestaurantOrderingState;
 import '../../domain/models/restaurant_menu.dart';
 import '../../shared/state/menu_controller.dart';
 import 'widgets/menu_category_selector.dart';
 import 'widgets/menu_item_card.dart';
-import 'widgets/menu_item_sheet.dart';
 
 /// A restaurant's menu, on this customer's route.
 ///
@@ -221,6 +222,8 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
             scroll: _scroll,
             sectionKeys: _sectionKeys,
             onJumpTo: _jumpTo,
+            tripId: widget.tripId,
+            restaurantId: widget.restaurantId,
           ),
         },
       ),
@@ -242,12 +245,18 @@ class _Loaded extends ConsumerWidget {
     required this.scroll,
     required this.sectionKeys,
     required this.onJumpTo,
+    required this.tripId,
+    required this.restaurantId,
   });
 
   final MenuState state;
   final ScrollController scroll;
   final Map<String, GlobalKey> sectionKeys;
   final ValueChanged<String> onJumpTo;
+
+  /// Carried only so a tapped dish can be opened at the right URL.
+  final String tripId;
+  final String restaurantId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -305,6 +314,8 @@ class _Loaded extends ConsumerWidget {
                 state: state,
                 scroll: scroll,
                 sectionKeys: sectionKeys,
+                tripId: tripId,
+                restaurantId: restaurantId,
               ),
             ),
           },
@@ -335,11 +346,15 @@ class _MenuList extends ConsumerWidget {
     required this.state,
     required this.scroll,
     required this.sectionKeys,
+    required this.tripId,
+    required this.restaurantId,
   });
 
   final MenuState state;
   final ScrollController scroll;
   final Map<String, GlobalKey> sectionKeys;
+  final String tripId;
+  final String restaurantId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -361,7 +376,13 @@ class _MenuList extends ConsumerWidget {
         ),
         final _ItemRow row => MenuItemCard(
           item: row.item,
-          onTap: () => MenuItemSheet.show(context, ref, row.item),
+          // Module 11 replaced the read-only sheet with the real thing: a
+          // customer taps a dish and configures it. The name travels so the
+          // next screen's app bar is not blank while it loads.
+          onTap: () => context.push(
+            Routes.menuItemPath(tripId, restaurantId, row.item.id),
+            extra: row.item.name,
+          ),
         ),
       },
     );

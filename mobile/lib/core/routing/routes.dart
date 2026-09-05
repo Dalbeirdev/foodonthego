@@ -84,6 +84,17 @@ class Routes {
   static String restaurantMenuPath(String tripId, String restaurantId) =>
       '/trips/$tripId/route/restaurants/$restaurantId/menu';
 
+  /// One dish, configurable (Module 11). Nested under the menu, so Android
+  /// back and the iOS swipe land on the menu the customer came from — with its
+  /// search and its scroll position still in place.
+  static const String menuItem = 'items/:itemId';
+
+  static String menuItemPath(
+    String tripId,
+    String restaurantId,
+    String itemId,
+  ) => '/trips/$tripId/route/restaurants/$restaurantId/menu/items/$itemId';
+
   /// The controlled destination for anything not built yet. Takes the feature
   /// name and owning module as query parameters so one screen serves them all.
   static const String comingSoon = '/coming-soon';

@@ -135,6 +135,33 @@ enum ApiErrorCode {
   itemNotFound('ITEM_NOT_FOUND'),
   itemUnavailable('ITEM_UNAVAILABLE'),
 
+  /// Module 11. Every way a configuration can be refused, named separately,
+  /// because a customer who cannot add a dish deserves to be told which part
+  /// of their choice is the problem — and a screen can only scroll to the
+  /// right group if the server names it.
+  itemSoldOut('ITEM_SOLD_OUT'),
+  variantRequired('VARIANT_REQUIRED'),
+  variantInvalid('VARIANT_INVALID'),
+  variantUnavailable('VARIANT_UNAVAILABLE'),
+  modifierRequired('MODIFIER_REQUIRED'),
+  modifierMinNotMet('MODIFIER_MIN_NOT_MET'),
+  modifierMaxExceeded('MODIFIER_MAX_EXCEEDED'),
+  modifierInvalid('MODIFIER_INVALID'),
+  modifierUnavailable('MODIFIER_UNAVAILABLE'),
+  quantityInvalid('QUANTITY_INVALID'),
+  quantityLimitExceeded('QUANTITY_LIMIT_EXCEEDED'),
+  specialInstructionsTooLong('SPECIAL_INSTRUCTIONS_TOO_LONG'),
+  restaurantNotAcceptingOrders('RESTAURANT_NOT_ACCEPTING_ORDERS'),
+  cartRestaurantConflict('CART_RESTAURANT_CONFLICT'),
+  cartTripConflict('CART_TRIP_CONFLICT'),
+  cartLineLimitReached('CART_LINE_LIMIT_REACHED'),
+  cartNotFound('CART_NOT_FOUND'),
+
+  /// Not an error so much as a change of facts: the dish costs more than the
+  /// customer was shown, so the add is refused until they have looked at the
+  /// new figure.
+  priceUpdated('PRICE_UPDATED'),
+
   /// The request never reached the server, or never came back.
   network('NETWORK'),
 

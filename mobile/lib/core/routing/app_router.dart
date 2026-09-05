@@ -13,6 +13,7 @@ import '../../features/placeholder/coming_soon_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../domain/models/discovered_restaurant.dart';
 import '../../features/discovery/discovery_screen.dart';
+import '../../features/item/item_detail_screen.dart';
 import '../../features/menu/menu_screen.dart';
 import '../../features/restaurant/restaurant_detail_screen.dart';
 import '../../features/routes/route_screen.dart';
@@ -200,6 +201,32 @@ GoRouter createRouter({
                                               ? state.extra as String
                                               : null,
                                         ),
+                                    routes: <RouteBase>[
+                                      GoRoute(
+                                        path: Routes.menuItem,
+                                        builder:
+                                            (
+                                              BuildContext context,
+                                              GoRouterState state,
+                                            ) => ItemDetailScreen(
+                                              tripId:
+                                                  state.pathParameters['tripId'] ??
+                                                  '',
+                                              restaurantId:
+                                                  state.pathParameters['restaurantId'] ??
+                                                  '',
+                                              itemId:
+                                                  state.pathParameters['itemId'] ??
+                                                  '',
+                                              // What the menu card already
+                                              // knew, so the app bar is not
+                                              // blank during the first request.
+                                              itemName: state.extra is String
+                                                  ? state.extra as String
+                                                  : null,
+                                            ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),

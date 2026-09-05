@@ -1,4 +1,5 @@
 import '../../core/network/api_client.dart';
+import '../../domain/models/cart.dart';
 import '../../domain/models/restaurant_menu.dart';
 import '../../domain/repositories/menu_repository.dart';
 
@@ -62,6 +63,62 @@ class ApiMenuRepository implements MenuRepository {
     }
 
     return preview;
+  }
+
+  @override
+  Future<CartAddition> addToCart({
+    required String tripId,
+    required String restaurantId,
+    required String itemId,
+    required int quantity,
+    String? variantId,
+    List<String> optionIds = const <String>[],
+    String? specialInstructions,
+    int? quotedUnitPriceMinor,
+    String? idempotencyKey,
+  }) async {
+    final String note = (specialInstructions ?? '').trim();
+
+    final Map<String, dynamic> body = <String, dynamic>{
+      'item_id': itemId,
+      'quantity': quantity,
+      'variant_id': ?variantId,
+      if (optionIds.isNotEmpty) 'modifier_option_ids': optionIds,
+      if (note.isNotEmpty) 'special_instructions': note,
+
+      // What the screen showed, so the server can refuse to charge more than
+      // the customer saw. Not a price to charge — the server uses its own.
+      'quoted_unit_price_minor': ?quotedUnitPriceMinor,
+    };
+
+    final Map<String, dynamic> data = await _client.post(
+      '/customer/trips/${Uri.encodeComponent(tripId)}'
+      '/restaurants/${Uri.encodeComponent(restaurantId)}/cart/items',
+      body: body,
+      authenticated: true,
+      headers: <String, String>{'Idempotency-Key': ?idempotencyKey},
+    );
+
+    final CartAddition? addition = CartAddition.fromJson(data);
+
+    if (addition == null) {
+      // A 2xx whose body cannot be read. The item may or may not be in the
+      // cart; the caller retries with the same key, which is exactly what the
+      // key is for.
+      throw StateError('add to cart response could not be read');
+    }
+
+    return addition;
+  }
+
+  @override
+  Future<CartSummary> cart({required String tripId}) async {
+    final Map<String, dynamic> data = await _client.get(
+      '/customer/trips/${Uri.encodeComponent(tripId)}/cart',
+      authenticated: true,
+    );
+
+    return CartSummary.fromJson(data);
   }
 
   String _base(String tripId, String restaurantId) =>

@@ -836,6 +836,99 @@ class AppStrings {
       "You can browse the full menu. Choosing options and ordering aren't "
       'available yet.';
 
+  // --- item customization and the cart (Module 11) --------------------------
+  //
+  // Two rules run through all of it. A rule is stated before the customer can
+  // break it, not after — "Required · choose 1" above the options rather than
+  // an error below them. And nothing here promises the kitchen will do
+  // something: a note is a request, and the wording says so.
+
+  String get itemDetailTitle => 'Item';
+
+  // Sizes.
+  String get itemChooseSize => 'Choose a size';
+  String get itemSizeRequired => 'Required';
+  String itemSizeSemantics(String name, String price) => '$name. $price';
+  String get itemUnavailableOption => 'Unavailable';
+
+  // Modifier groups. The rule is spelled out under the heading, in words, so a
+  // customer never has to discover it by being refused.
+  String get itemRequired => 'Required';
+  String get itemOptional => 'Optional';
+  String itemChooseExactly(int n) => n == 1 ? 'Choose 1' : 'Choose $n';
+  String itemChooseUpTo(int n) => n == 1 ? 'Choose 1' : 'Choose up to $n';
+  String itemChooseBetween(int min, int max) => 'Choose $min to $max';
+  String itemGroupSemantics(String name, String rule) => '$name. $rule';
+  String itemOptionSemantics(String name, String price, bool selected) =>
+      '$name. $price. ${selected ? 'Selected' : 'Not selected'}';
+  String get itemNoExtraCharge => 'No extra charge';
+  String itemAddsPrice(String price) => 'Adds $price';
+  String itemGroupFull(int max) =>
+      max == 1 ? 'You can choose 1.' : 'You can choose up to $max.';
+  String itemChooseToContinue(int min) => min == 1
+      ? 'Choose 1 option to continue.'
+      : 'Choose $min options to continue.';
+
+  // Quantity.
+  String get itemQuantity => 'Quantity';
+  String itemQuantitySemantics(int n) => 'Quantity, $n';
+  String get itemQuantityIncrease => 'Add one more';
+  String get itemQuantityDecrease => 'Remove one';
+  String itemQuantityMax(int max) => 'Up to $max at a time.';
+
+  // Special instructions. Deliberately not a promise.
+  String get itemNoteLabel => 'Special instructions';
+  String get itemNoteHint => 'Add a note for the restaurant';
+  String get itemNoteOptional => 'Optional';
+  String get itemNoteCaveat =>
+      "The kitchen will see this and will do what they can.";
+  String itemNoteRemaining(int n) => '$n characters left';
+
+  // The sticky bar.
+  String itemAddToCart(String total) => 'Add to cart · $total';
+  String get itemAddChooseOptions => 'Choose required options';
+  String get itemAdding => 'Adding…';
+  String get itemSoldOut => 'Sold out';
+  String get itemRestaurantPaused => 'Not taking orders right now';
+  String get itemRestaurantClosed => 'Closed right now';
+
+  // What happened.
+  String get itemAddedToCart => 'Added to cart';
+  String itemAddedToCartCount(int items) =>
+      items == 1 ? '1 item in your cart' : '$items items in your cart';
+  String get itemViewCart => 'View cart';
+  String get itemViewCartSoon => 'Your cart opens in the next release.';
+
+  // Failures, each with the move that fixes it.
+  String get itemAddFailedTitle => "We couldn't add this";
+  String get itemAddFailedBody => 'Please try again in a moment.';
+  String get itemAddRetry => 'Try again';
+  String get itemOfflineTitle => "You're offline";
+  String get itemOfflineBody =>
+      'Connect to the internet to add this to your cart. Your choices are kept.';
+  String get itemSoldOutTitle => 'Just sold out';
+  String get itemSoldOutBody =>
+      'The kitchen has run out while you were choosing. Review your selection.';
+  String get itemNotAcceptingTitle => 'Not taking orders';
+  String get itemNotAcceptingBody =>
+      "This restaurant isn't accepting orders right now. You can still browse.";
+
+  String get itemCartConflictTitle => 'Your cart has other items';
+  String itemCartConflictBody(String restaurant) =>
+      'Your cart has items from $restaurant. Finish or empty that order before '
+      'starting a new one.';
+
+  /// The price-change refusal. The old and the new figure are both shown,
+  /// because "the price changed" without saying to what is not information.
+  String get itemPriceChangedTitle => 'The price changed';
+  String itemPriceChangedBody(String from, String to) =>
+      'This item was $from and is now $to. Review the new price before adding.';
+  String itemPriceChangedAccept(String price) => 'Add at $price';
+  String get itemPriceChangedCancel => 'Not now';
+
+  String get itemLoadFailedTitle => "We couldn't load this item";
+  String get itemGoneTitle => 'No longer on the menu';
+
   // --- home: the current journey -------------------------------------------
   String get homeCurrentJourney => 'Your journey';
   String get homeJourneyViewAll => 'All journeys';
