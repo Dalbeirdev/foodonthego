@@ -179,3 +179,45 @@ a bare "Filters" over a filtered list — could only be found by running the thi
 and reading what it actually produced.
 
 Module 09 has **not** been started, per the one-module-at-a-time rule.
+
+---
+
+## Module 09 — Restaurant Details, Facilities, Availability & Customer Preview
+
+**Status: COMPLETE**, with two runtime verifications honestly pending.
+
+| Item | Status | Note |
+| --- | --- | --- |
+| Detail API, route-aware | **PASS** | Nested under the trip; no route id to substitute |
+| Eligibility on a direct uuid | **PASS** | Suspended, pending, disabled, permanently closed all 404 |
+| Suspended and missing share a status | **PASS** | So a uuid list cannot enumerate suspensions |
+| Outside-route told apart | **PASS** | 409, because the customer's next move differs |
+| Customer-safe response | **PASS** | Raw-body assertion over 16 needles |
+| Read-only | **PASS** | Four verbs, none accepted |
+| Media, with moderation gate | **PASS** | `is_active` defaults false; relation filters it |
+| Gallery, fallback, load failure | **PASS** | Branded stand-in, never a broken icon |
+| Description / facilities / price / rating | **PASS** | Each omitted where absent; **New**, never 0.0 |
+| Availability: open, paused, closed, gone, unknown | **PASS** | Five states, five buttons |
+| Opening hours: normal, split, overnight, closed day | **PASS** | Overnight at 01:00 verified live |
+| Timezone, and DST-capable zones | **PASS** | Restaurant's zone from server time |
+| Next opening | **PASS** | Eight-day lookahead; silent rather than guessing |
+| Route context reuse | **PASS** | Same objects as the card; 10 of 10 opens from cache |
+| No provider call on open | **PASS** | Structural — the only caller is already cached |
+| No N+1 | **PASS** | Query count unchanged by 20 photographs and 15 more restaurants |
+| Discovery state on return | **PASS** | Search, filters, sort, view — and zero requests |
+| Request race | **PASS** | Generation-checked; the newest wins |
+| Offline, with real age | **PASS** | Except a withdrawn restaurant, which loses its page |
+| Android runtime | **PENDING** | KI-001 — no Android SDK |
+| iOS runtime | **PENDING** | KI-002 — no macOS host |
+| Live map render | **PENDING** | KI-011 — no Maps key |
+
+**1 414 automated tests pass** (801 backend, 613 Flutter), plus a 25-check
+integration run against a live server, 25 live states inspected in a rendered
+release build, and Modules 01–08 regression green across six smoke runs.
+
+One defect was found and fixed, and it could only have been found by reading the
+running app's semantics tree: the discovery card was a single merged node, so
+the **View** button had no node at all and a screen-reader user could not open a
+restaurant's page.
+
+Module 10 has **not** been started, per the one-module-at-a-time rule.

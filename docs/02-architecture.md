@@ -198,3 +198,45 @@ New collaborators, all under `app/Services/Discovery/`:
 Ranking weights moved out of `DiscoveryRankingService` into
 `config/foodonthego.php`; the service now takes them as a constructor argument.
 See `23-restaurant-search-filters-ranking.md`.
+
+---
+
+## Module 09 — one restaurant, on one route
+
+Module 09 adds no provider and no second source of route truth. It adds a
+service that *asks* Module 07:
+
+```
+TripRestaurantDetailController
+  ├─ TripService::ownedByOrFail()          the customer's own journey
+  └─ RestaurantDetailService::detail()
+        ├─ RestaurantDiscoveryService::discover()   Module 07. Cached. The only
+        │                                           thing that can reach a provider
+        ├─ (find this uuid in the result)           eligibility, for free
+        ├─ Restaurant::with(cuisines, facilities,
+        │        openingHours, media)                the profile half
+        ├─ RestaurantAvailabilityService             re-read, never remembered
+        └─ RestaurantHoursService                    today, the week, next opening
+```
+
+Looking the restaurant up *inside* the discovery result rather than querying for
+it is the whole design. Eligibility cannot be bypassed because there is no
+second query with its own `where` clauses; the route figures cannot disagree
+with the card because they are the same objects; and no provider is called
+because the only thing that can call one is already cached.
+
+New collaborators:
+
+| Class | Role |
+| --- | --- |
+| `RestaurantDetailService` | Assembles the two halves, and refuses |
+| `RestaurantDetail` | The customer-safe DTO |
+| `RestaurantHoursService` | Today, the week, the current window, the next opening |
+| `RestaurantOrderingState` (enum) | The five things a detail screen has to say |
+| `RestaurantMedia` (model) | Photographs, gated on moderation |
+
+`RestaurantAvailability` is **not** replaced. Modules 07 and 08 speak that
+vocabulary and go on speaking it; `RestaurantOrderingState` is the derived
+rollup, and a response carries both.
+
+See `24-restaurant-details.md`.

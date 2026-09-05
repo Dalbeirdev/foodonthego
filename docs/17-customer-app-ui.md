@@ -504,3 +504,54 @@ them re-fetches nothing; markers for filtered-out restaurants are gone because
 they are not in the list either, and a selection is cleared whenever a new
 result set arrives rather than surviving as a card for a restaurant no longer
 shown.
+
+---
+
+## The restaurant page (Module 09)
+
+Reached only from discovery, and it keeps the journey in the URL. The customer's
+question is narrow — *is this the right place for me to stop?* — and everything
+on the screen serves it. No favourite button, no share sheet, no reviews list.
+
+### Down the page
+
+| Element | Notes |
+| --- | --- |
+| Hero gallery | Swipeable with a counter; a branded placeholder where there are no photographs |
+| Name | Wraps rather than truncating. A restaurant's own name is the last thing to cut |
+| Cuisines · price | Price announced as a word, not as rupee symbols |
+| Rating | A score with its review count, or **New** — never `0.0` |
+| Availability chip | Icon and word as well as colour |
+| Availability banner | Full width, for any state that blocks ordering |
+| **On your route** card | Distance ahead, time ahead, detour, distance off route |
+| About | Only where the operator wrote one |
+| Facilities | Only where declared. Icon, label and semantics for each |
+| Opening hours | Today, then the week on request, then the timezone |
+| Location | City, the published phone if there is one, and a way back to the map |
+| Sticky button | Pinned above the safe area |
+
+### Loading
+
+A skeleton in the shape of the answer, not a spinner — and where the customer
+came from a card, that card's real name is drawn immediately while the rest
+loads. The transition has something in it from the first frame.
+
+### The three refusals
+
+| State | Words | Action |
+| --- | --- | --- |
+| Withdrawn | "This restaurant is no longer available" | Back to restaurants |
+| On another road | "Not on this journey" | Back to restaurants |
+| Outage | "We couldn't load this restaurant" | Try again |
+
+A withdrawn restaurant gets no "Try again": it will not come back because the
+customer pressed a button, and offering the button implies it might.
+
+### Offline
+
+The page stays, with a banner carrying the real age of what is shown — "Last
+updated 12 min ago. Opening times may have changed." Never a fabricated
+timestamp, and never a claim that the open sign is live.
+
+The one exception: a refresh that finds the restaurant *withdrawn* takes the
+page away. Leaving it up would present a suspended business as trading.

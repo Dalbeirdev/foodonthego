@@ -581,3 +581,34 @@ receives:
 What Module 09 must not assume: that a restaurant on screen is still open. The
 availability in a discovery response is a snapshot re-checked on each request,
 and a details screen opened five minutes later has to ask again.
+
+---
+
+## Opening a result (Module 09)
+
+Tapping a card opens `/trips/{trip}/route/restaurants/{restaurant}` — a route
+nested **under** discovery. That nesting is what preserves everything this
+module holds:
+
+| On the way back | State |
+| --- | --- |
+| Search term | Still typed |
+| Filter chips | Still on |
+| Sort | Still chosen |
+| Map/list toggle | Still where it was |
+| Requests spent restoring them | **None** |
+
+`push` and back never leave the discovery route, so its controller is never
+rebuilt and never re-searches. Asserted in
+`discovery_filters_screen_test.dart::coming_back_keeps_the_search_and_the_filters`,
+which counts the discovery calls across the round trip.
+
+The restaurant travels to the detail screen as `extra` so the transition has a
+name and a detour in its first frame. It is a preview and never authoritative:
+the screen asks the server and replaces it, because a preview left in place
+would go on claiming a restaurant is open long after it stopped being.
+
+One defect this uncovered: the discovery card was a single merged semantics
+node, which took the **View** button's node with it — so a screen-reader user
+could select a restaurant and had no way at all to open its page. Fixed in
+Module 09; see M09-B01.

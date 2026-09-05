@@ -533,3 +533,39 @@ artefact of unrealistic test data — every synthetic restaurant placed along th
 one corridor, which makes a latitude range non-selective by construction. The
 plans for both data shapes are in
 `docs/evidence/module-08-verification-run.txt`.
+
+---
+
+## Bug register — Module 09
+
+Environment: PHP 8.4.19 / Laravel 12.69.1 / MySQL 8.0.46 / Redis 7.0.15 /
+Flutter 3.47.2, Ubuntu 24.04.
+
+| ID | Requirement | Description | Severity | Steps | Expected | Actual | Root cause | Fix | Retest | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| M09-B01 | M09-001, M09-046 | **A screen-reader user could not open a restaurant's page at all** | **High** | Turn on a screen reader, open discovery, try to reach a restaurant's detail | A "View Highway Spice Kitchen" button, focusable and activatable | The card was a single merged node whose only action selected it. The View button had **no semantics node whatsoever** — nothing to focus, nothing to activate | Module 07's card wraps everything in `Semantics(..., excludeSemantics: true)`, which was right when the card's only job was to be read as one sentence. Module 09 made opening the page the primary action, and `excludeSemantics` was swallowing the control that does it | `explicitChildNodes: true` on the card, with `ExcludeSemantics` around the descriptive column only. The card keeps its one-sentence label; the button keeps its own node, named with the restaurant — a row of twelve buttons all called "View" is a list nobody can navigate | Two widget tests (`the View button has a name of its own`, `the card still reads as one sentence`); re-verified in the live semantics tree | **Fixed** |
+
+No Module 09 issue was left open. No Critical defect was found.
+
+**It could only have been found by reading the running app's semantics tree.**
+Every widget test passed, the button was on screen and worked under a finger,
+and a screenshot showed nothing wrong. What the live driver could not do was
+tap it — which is exactly what a customer using a screen reader could not do
+either.
+
+### Two things the live driver got wrong, and what they taught
+
+Neither is a product defect; both are recorded because the next person writing
+one of these will hit them.
+
+- The driver asserted on the gallery counter "1 / 3" and could not find it. The
+  counter is **deliberately** excluded from the semantics tree, so a screen
+  reader hears the position once — on the image, as "photograph 1 of 3" — rather
+  than twice in two different forms. The assertion moved to the photograph's own
+  accessible name.
+
+- The driver asserted the **About** section was absent on a restaurant with no
+  description, and saw it. The route card says "About 2 hr ahead", and the
+  driver reads the semantics tree by substring. The section's absence is
+  asserted where a heading can be told from a sentence: the widget tests and the
+  integration run.

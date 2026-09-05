@@ -1335,3 +1335,165 @@ the filter sheet still reaches its apply button.
 | Android | **PENDING — environment unavailable.** No Android SDK; `dl.google.com` is blocked by the egress policy. `flutter doctor`: "[✗] Android toolchain — Unable to locate Android SDK." (KI-001) |
 | iOS | **PENDING — environment unavailable.** No macOS host. (KI-002) |
 | Live Google map render | **PENDING** — no Maps SDK key. (KI-011) |
+
+---
+
+# Module 09 — Restaurant details, facilities, availability and customer preview
+
+Recorded against PHP 8.4.19 / Laravel 12.69.1 / MySQL 8.0.46 / Redis 7.0.15 /
+Flutter 3.47.2 on Ubuntu 24.04. Providers: `ROUTE_PROVIDER=development`,
+`PLACES_PROVIDER=development`, `OTP_PROVIDER=log`.
+
+Full run output: [`evidence/module-09-verification-run.txt`](evidence/module-09-verification-run.txt).
+Screenshots: `evidence/module-09/state-01..25-*.png`.
+
+## Automated tests
+
+| Suite | Result |
+| --- | --- |
+| Backend (PHPUnit) | **801 passed**, 3 319 assertions, 0 failed, 0 skipped |
+| Flutter | **613 passed**, 0 failed, 0 skipped |
+| Laravel Pint | clean |
+| `flutter analyze --fatal-infos` | no issues |
+| `dart format` | clean |
+
+New in Module 09: 60 backend test methods and 74 Flutter test cases.
+
+| File | Tests |
+| --- | --- |
+| `tests/Unit/RestaurantHoursTest.php` | 19 |
+| `tests/Unit/RestaurantOrderingStateTest.php` | 8 |
+| `tests/Feature/Api/Customer/RestaurantDetailApiTest.php` | 30 |
+| `tests/Feature/RestaurantDetailPerformanceTest.php` | 3 |
+| `mobile/test/restaurant_detail_models_test.dart` | 19 |
+| `mobile/test/restaurant_detail_controller_test.dart` | 17 |
+| `mobile/test/restaurant_detail_screen_test.dart` | 34 |
+
+## Integration run — real backend, real MySQL, real route geometry
+
+`mobile/tool/restaurant_detail_smoke.dart`: **25 passed, 0 failed.**
+
+Rahul signs in, plans Green Park → Jaipur airport, Module 06 calculates the
+route, Module 07 finds the stops, and every check runs against one of them.
+
+What the run opened:
+
+```
+name          : [TEST] Highway Spice Kitchen
+cuisines      : North Indian, Vegetarian
+facilities    : Parking, Restroom, Seating
+price level   : 2
+rating        : none
+photographs   : 3
+ordering      : OPEN_ACCEPTING
+timezone      : Asia/Kolkata
+distance ahead: 66 304 m
+detour        : 1 s
+off route     : 900 m
+route cached  : true
+```
+
+Selected checks:
+
+| Check | Result |
+| --- | --- |
+| The route figures equal the card's, field for field | PASS |
+| Suspended restaurant by uuid | `RESTAURANT_UNAVAILABLE`, and the body names nothing |
+| Unverified restaurant by uuid | Same |
+| A restaurant outside the corridor | `RESTAURANT_OUTSIDE_ROUTE` |
+| An unknown uuid | `RESTAURANT_NOT_FOUND` |
+| Overnight kitchen (18:00–02:00) | One window a day, flagged overnight |
+| Split service | Two windows on Tuesday; Monday closed |
+| Everything optional missing | description, phone, media, facilities and price all absent |
+| Private data in the raw body | None of 11 needles; the published phone is present |
+| `PUT`/`PATCH`/`DELETE`/`POST` | 404 or 405 |
+| Ten opens | `route_from_cache: true` on every one |
+| Pause applied after discovery | Page reads `OPEN_PAUSED` |
+| Suspension applied after discovery | Page withdrawn |
+| Rahul on Ananya's trip | `TRIP_NOT_FOUND` |
+
+Two things the run reports as **NOT APPLICABLE** rather than passing: ratings
+(no reviews module) and detour *magnitude* (KI-012, straight-line road network).
+
+## Regression — Modules 01–08
+
+| Module | Run | Result |
+| --- | --- | --- |
+| 01–03 | `tool/integration_smoke.dart` | 13 passed, 0 failed |
+| 04 | `tool/profile_addresses_smoke.dart` | 24 passed, 0 failed |
+| 05 | `tool/trip_planner_smoke.dart` | 31 passed, 0 failed |
+| 06 | `tool/route_smoke.dart` | 21 passed, 0 failed |
+| 07 | `tool/discovery_smoke.dart` | 22 passed, 0 failed |
+| 08 | `tool/discovery_filters_smoke.dart` | 28 passed, 0 failed |
+
+Module 08's run expects eight eligible restaurants rather than five, because
+Module 09 added three fixtures to the same road. Two assertions were updated to
+match; neither is a behaviour change.
+
+## Performance — measured
+
+| Operation | Result |
+| --- | --- |
+| Cold discovery (8 eligible) | 54 ms, 9 queries |
+| Open a restaurant | **14–20 ms, 14 queries** |
+| …with 23 photographs, 12 cuisines, 13 facilities | **14 queries** — unchanged |
+| …with 15 more restaurants on the route | **14 queries** — unchanged |
+| Route context across ten opens | **10 of 10 from cache** |
+
+Nine of the fourteen queries are the discovery half — validating the route and
+rebuilding the cached selection against live rows, which is what makes a
+suspension take effect immediately. Five are the profile: one restaurant row and
+four eager loads.
+
+**No N+1**, and asserted rather than reviewed: `RestaurantDetailPerformanceTest`
+adds twenty photographs and asserts the query count is identical.
+
+**No routing provider call**, and it is structural: the only thing in the
+application that can reach one is `discover()`, which is already cached before
+the detail service is asked.
+
+## Live view — 25 states in a running release build
+
+Release web build on `:5173` against the same Laravel backend on `:8000`, driven
+with Playwright through the app's own semantics tree. **No problems found; no
+console errors.**
+
+| # | State |
+| --- | --- |
+| 01 | The full restaurant page, from a card |
+| 02 | The route summary — ahead, detour, off route |
+| 03 | Open · Accepting orders, with a live **View menu** |
+| 04 | A three-photograph gallery |
+| 05 | **New**, with no fabricated score |
+| 06 | About and Facilities |
+| 07 | Opening hours, collapsed |
+| 08 | Opening hours, expanded, with the timezone |
+| 09 | Location, and the way back to the map |
+| 10 | Back to discovery — the search still typed |
+| 11 | Open · paused, with its banner and no order button |
+| 12 | Closed, and when it opens again |
+| 13 | An overnight kitchen, marked overnight |
+| 14 | A split service, and a day marked Closed |
+| 15 | A restaurant with nothing optional — placeholder, no About, no Facilities |
+| 16 | The same, further down |
+| 17 | Withdrawn between the list and the tap |
+| 18 | On a different road |
+| 19 | Load failure, with **Try again** |
+| 20 | Offline, showing what was last loaded |
+| 21 | The loading skeleton |
+| 22 | 320 dp |
+| 23 | 360 dp |
+| 24 | 430 dp |
+| 25 | Dark mode |
+
+States 23–25 were re-run after the OTP per-IP budget was exhausted mid-run — a
+known limit of this environment, not a product behaviour.
+
+## Runtime coverage
+
+| Runtime | Result |
+| --- | --- |
+| Web (Chromium, release build) | **PASS** — 25 states, no console errors |
+| Android | **PENDING — environment unavailable.** No Android SDK; `dl.google.com` is blocked by the egress policy. (KI-001) |
+| iOS | **PENDING — environment unavailable.** No macOS host. (KI-002) |
+| Live Google map render | **PENDING** — no Maps SDK key. (KI-011) |

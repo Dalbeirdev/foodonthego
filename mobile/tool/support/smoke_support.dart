@@ -17,6 +17,7 @@ import 'package:foodonthego/data/repositories/api_auth_repository.dart';
 import 'package:foodonthego/data/repositories/api_customer_repository.dart';
 import 'package:foodonthego/data/repositories/api_place_repository.dart';
 import 'package:foodonthego/data/repositories/api_discovery_repository.dart';
+import 'package:foodonthego/data/repositories/api_restaurant_repository.dart';
 import 'package:foodonthego/data/repositories/api_route_repository.dart';
 import 'package:foodonthego/data/repositories/api_trip_repository.dart';
 import 'package:foodonthego/domain/models/auth_models.dart';
@@ -45,6 +46,7 @@ class Session {
   ApiPlaceRepository? _places;
   ApiRouteRepository? _routes;
   ApiDiscoveryRepository? _discovery;
+  ApiRestaurantRepository? _restaurants;
 
   ApiCustomerRepository get customer =>
       _customer ??= ApiCustomerRepository(client);
@@ -57,6 +59,10 @@ class Session {
 
   ApiDiscoveryRepository get discovery =>
       _discovery ??= ApiDiscoveryRepository(client);
+
+  /// One restaurant, in full (Module 09).
+  ApiRestaurantRepository get restaurants =>
+      _restaurants ??= ApiRestaurantRepository(client);
 
   void close() => client.close();
 }

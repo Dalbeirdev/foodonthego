@@ -229,3 +229,42 @@ index, so it was reverted.
 The measurement is kept in `docs/evidence/module-08-verification-run.txt` so the
 next person does not repeat the experiment. **An index nobody has measured is a
 write cost with a hypothesis attached.**
+
+---
+
+## A moderation gate is a default, not a check (Module 09)
+
+`restaurant_media.is_active` defaults to **false**.
+
+Photographs will arrive from an operator dashboard a later module builds. A
+column defaulting to true means every code path that inserts one has to remember
+to withhold it; a column defaulting to false means the one path that publishes
+has to remember to say so. The second is the direction a forgotten line should
+fall.
+
+The relation enforces it too:
+
+```php
+public function media(): HasMany
+{
+    return $this->hasMany(RestaurantMedia::class)
+        ->where('is_active', true)
+        ->orderBy('position')->orderBy('id');
+}
+```
+
+A query that forgets a scope still cannot reach an unmoderated image.
+
+### Two columns, not one flag
+
+`restaurants.public_phone` is separate from `restaurants.owner_phone`. A single
+"phone" column with a visibility boolean is one forgotten `where` clause away
+from publishing somebody's personal mobile; two columns cannot make that
+mistake, because the private one is on `privateColumns()` and the customer
+projection never mentions it.
+
+### A gallery is a relation
+
+Module 07 stored `logo_url` and `cover_image_url` on the restaurant row, which
+is enough for a list card. `image_1_url` through `image_5_url` is a schema that
+runs out; `restaurant_media` is not.

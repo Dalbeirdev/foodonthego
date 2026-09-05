@@ -656,3 +656,99 @@ Screenshot names refer to the Module 08 live-view run recorded in
   set demonstrably drives both views from one piece of state, and the map view
   reports its own count. What cannot be inspected is markers on a rendered
   Google map — KI-011, no Maps SDK key.
+
+---
+
+## Module 09 — Restaurant details, facilities, availability and customer preview
+
+Screenshot names refer to the Module 09 live-view run recorded in
+[15-test-evidence.md](15-test-evidence.md) and captured under
+`docs/evidence/module-09/`.
+
+| ID | Feature | FE | BE | API | DB | Sec | Tests | Android | iOS | Docs | Status | Evidence |
+| --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
+| M09-001 | Detail navigation from a discovery result | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-01`; the Module 09 placeholder is gone |
+| M09-002 | Restaurant detail API, route-aware | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `RestaurantDetailApiTest` (30); integration run |
+| M09-003 | Authentication required | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 401 with and without `Accept: application/json` |
+| M09-004 | Trip ownership | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `ownedByOrFail()`; 404, and the body says nothing |
+| M09-005 | Module 07 eligibility, unbypassable | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Structural: the lookup is inside the discovery result |
+| M09-006 | Suspended direct access blocked | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 404, same status as a missing one; integration run |
+| M09-007 | Pending direct access blocked | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Same; disabled and permanently closed too |
+| M09-008 | Customer-safe response | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Raw-body assertion, 16 needles, in both suites |
+| M09-009 | Restaurant name, including long ones | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Wraps; 60-character name tested at 320 dp |
+| M09-010 | Description, only where real | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-06`; omitted entirely for `Bare Bones Stop` |
+| M09-011 | Hero image | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-04` |
+| M09-012 | Image gallery | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Counter and swipe; not offered for a single image |
+| M09-013 | Image fallback and load failure | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-15`; branded, never a broken icon |
+| M09-014 | Cuisines, as declared | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-01`; never inferred |
+| M09-015 | Rating summary | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | **NOT APPLICABLE — no rating data** | Field is null; parser and widget tested with controlled data |
+| M09-016 | No-rating state | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-05`: **New**, never `0.0` |
+| M09-017 | Price level | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Real metadata; announced as a word |
+| M09-018 | No-price state | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `Bare Bones Stop` shows no price at all |
+| M09-019 | Availability, backend-authoritative | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `RestaurantOrderingState`, five cases |
+| M09-020 | Accepting-orders state | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-03`; live CTA only here |
+| M09-021 | Paused state | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-11`; open, and not orderable |
+| M09-022 | Closed state | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-12`, with the next opening |
+| M09-023 | Opening hours, today and the week | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-07/08`; closed days included |
+| M09-024 | Multiple opening windows | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-14`; the gap is shut |
+| M09-025 | Overnight hours | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-13`; open at 01:00, asserted at a fixed clock |
+| M09-026 | Timezone handling | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Restaurant's zone from server time; DST zone tested |
+| M09-027 | Facilities, as declared | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-06`; icon, label and semantics each |
+| M09-028 | Route distance ahead | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-02`; identical to the card's |
+| M09-029 | Route time ahead | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Same |
+| M09-030 | Detour duration | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE (arithmetic) | Magnitude not meaningful under KI-012 |
+| M09-031 | Detour distance | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Carried; the card shows time, which is the signal |
+| M09-032 | Route data reuse — no provider call | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 10 of 10 opens from cache; measured |
+| M09-033 | Route change invalidation | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Cache keyed per route; stale endpoints 409 |
+| M09-034 | Location preview | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE (map render pending) | `state-09`; returns to the discovery map. KI-011 |
+| M09-035 | View Menu CTA | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | State is the ordering state; Module 10 placeholder behind it |
+| M09-036 | Loading skeleton | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-21`; the card's name drawn immediately |
+| M09-037 | Error states, told apart | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-17/18/19` |
+| M09-038 | Offline cache, with an honest age | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-20`; real `generated_at`, never fabricated |
+| M09-039 | Pull to refresh | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | And a withdrawn restaurant loses its page |
+| M09-040 | Discovery state restoration | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-10`; search, filters, sort, and zero requests |
+| M09-041 | Media security | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Delivery URLs only; unmoderated images unreachable |
+| M09-042 | API privacy inspection | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Raw body, both suites |
+| M09-043 | Request race handling | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Generation check, tested with scripted delays |
+| M09-044 | Android runtime verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ➖ | ✅ | **PENDING — environment unavailable** | KI-001 |
+| M09-045 | iOS runtime verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ✅ | **PENDING — environment unavailable** | KI-002 |
+| M09-046 | Accessibility | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | M09-B01 fixed; 1.6× text; per-day nodes |
+| M09-047 | Backend unit and API tests | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 801 passing; 60 new test methods |
+| M09-048 | Flutter unit and widget tests | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 613 passing; 74 new test cases |
+| M09-049 | Integration test, no mocks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `tool/restaurant_detail_smoke.dart`, 25 checks |
+| M09-050 | Live-view inspection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 25 states, no application errors |
+| M09-051 | Performance measured | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 14 ms per open; 14 queries, constant |
+| M09-052 | Cost control | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | No provider call; asserted, not assumed |
+| M09-053 | Documentation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `24-*.md` created + 13 documents updated |
+| M09-054 | Modules 01–08 regression | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | PASS | Full suites plus six integration runs |
+| M09-055 | Module 10 handoff | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `can_order` / `can_browse_menu`; documented |
+| M09-056 | Read-only customer access | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Added during implementation. Four verbs, none accepted |
+| M09-057 | Unsafe text rendered as text | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Added during implementation. Verbatim, never mangled |
+| M09-058 | N+1 review, as an assertion | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Added during implementation. Query count unchanged by 20 photographs |
+
+### Requirements that are not a plain PASS, and why
+
+- **M09-015 Rating summary = NOT APPLICABLE.** No restaurant has a rating,
+  because there is no reviews module. The field is null, the parser and the
+  widget are tested against controlled data, and the screen shows **New**.
+  Nothing is fabricated to make the section look populated — that is the
+  requirement, not a shortfall against it.
+
+- **M09-030 Detour duration: arithmetic verified, magnitude not meaningful.**
+  Under `ROUTE_PROVIDER=development` (KI-012) the road network is a straight
+  line, so every in-corridor detour is a second or two. What this module
+  establishes about detour is the part it owns: the page shows the *same* figure
+  the card did, and reached it without calling a provider again.
+
+- **M09-034 Location preview: PASSED, map render pending.** The section shows
+  the address, the published phone where there is one, and a control that
+  returns to the discovery map, which already draws this restaurant against the
+  route. What cannot be inspected is markers on a rendered Google map — KI-011,
+  no Maps SDK key. A second full map on this screen was rejected as the same
+  screen twice.
+
+- **M09-044 / M09-045 Android and iOS runtime verification = PENDING —
+  environment unavailable.** KI-001: no Android SDK, and `dl.google.com` is
+  blocked by the egress policy. KI-002: no macOS host. Verification was done
+  against a release **web** build of the same Flutter code, driven through its
+  real semantics tree. That is a real runtime and it is not an Android device.

@@ -290,3 +290,91 @@ rating filter.
 - Price is announced in words ("Moderate"), never as rupee symbols alone.
 - The refining indicator is a 2 dp bar with a live-region label, not a spinner
   over the list — the results underneath are still the last honest answer.
+
+---
+
+## The restaurant page (Module 09)
+
+```
+┌──────────────────────────────────────┐
+│ ←  Highway Spice Kitchen             │
+├──────────────────────────────────────┤
+│                                      │
+│          [ hero gallery ]      1 / 3 │
+│                                      │
+│ Highway Spice Kitchen                │
+│ North Indian · Vegetarian · ₹₹       │
+│ ★ 4.3 (214)      or      [ New ]     │
+│ ✓ Open · Accepting orders            │
+│ ┌──────────────────────────────────┐ │
+│ │ On your route                    │ │
+│ │ 68 km ahead                      │ │
+│ │ About 1 hr ahead                 │ │
+│ │ 4 min detour                     │ │
+│ │ 900 m off your route             │ │
+│ └──────────────────────────────────┘ │
+│ About · Facilities · Opening hours   │
+│ Location                             │
+├──────────────────────────────────────┤
+│          [   View menu   ]           │
+└──────────────────────────────────────┘
+```
+
+### The route card comes before the description
+
+A generic restaurant page leads with the business. This one leads with the
+journey, because the customer is deciding whether to *stop*, not whether to
+visit. Distance ahead first, then detour: that is the order a driver decides in.
+
+### Sections that are not there
+
+Every section omits itself when the restaurant declared nothing — no
+description, no facilities, no price in the header, no gallery. An empty card
+with a heading over blank space reads as a bug, and inventing content to fill it
+would be worse. `[TEST] Bare Bones Stop` exists so all four omissions are a
+state somebody can look at.
+
+### Availability gets a chip *and* a banner
+
+A customer who scrolled past a small amber pill to the button has been failed by
+the screen, so any state that blocks ordering also gets a full-width band. The
+chip carries an icon and a word as well as a colour: somebody who cannot
+distinguish the green from the amber must not read "open" off a chip that says
+paused.
+
+### The button's state is the ordering state
+
+| State | Button |
+| --- | --- |
+| Open, accepting | **View menu**, live |
+| Open, paused | Browse the menu |
+| Closed | Browse the menu |
+| Permanently closed | Unavailable, disabled |
+| Unknown hours | Unavailable, disabled |
+
+Pinned above the safe area rather than at the end of the scroll, so large text
+cannot push it off the bottom.
+
+### The gallery
+
+No photographs → a branded placeholder with the app's own storefront mark.
+Never a broken image icon, and never a stock photograph of somebody else's
+dining room: a picture under a business's name is a claim about premises nobody
+has seen. One photograph → no counter and no swipe, because "1 / 1" promises
+something that is not there. A photograph that fails to load → the same branded
+stand-in.
+
+### Accessibility
+
+- The **View** button on a discovery card is named with its restaurant. A list
+  of twelve buttons all called "View" is a list a screen-reader user cannot
+  navigate — and before Module 09 that button had no node at all, so the page
+  could not be reached without sight. See M09-B01.
+- Each day of the week is its own semantics node ("Tuesday, 11:00 AM – 3:00 PM,
+  6:00 PM – 11:00 PM"), so the schedule can be stepped through a day at a time
+  rather than heard as one blob.
+- A photograph is announced with the operator's caption where there is one, and
+  with its position otherwise. Never an invented description of the picture.
+- Price is announced as a word. "₹₹" is a visual convention.
+- An overnight window says "(overnight)" — "6:00 PM – 2:00 AM" read quickly
+  looks like a typo.

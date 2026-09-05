@@ -562,6 +562,13 @@ class AppStrings {
 
   String get discoveryViewRestaurant => 'View';
 
+  /// The accessible name of a card's View button.
+  ///
+  /// A list of twelve buttons all called "View" is a list a screen-reader user
+  /// cannot navigate: they have to leave the button, find the card's label,
+  /// and come back.
+  String discoveryViewNamed(String name) => 'View $name';
+
   /// Price level, spelled out. The rupee symbols alone are a visual convention
   /// a screen reader cannot convey.
   String priceLevelLabel(int level) => switch (level) {

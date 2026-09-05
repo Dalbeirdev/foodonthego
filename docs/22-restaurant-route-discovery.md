@@ -590,3 +590,30 @@ caches are exactly as this document describes them. Module 08 reads the result
 and narrows it; it does not participate in producing it.
 
 See `23-restaurant-search-filters-ranking.md`.
+
+---
+
+## What Module 09 took from here
+
+`RestaurantDetailService` calls `discover()` and looks for one uuid in its
+result. That single decision gives Module 09 its eligibility, its route context
+and its cost guarantee without reimplementing any of them, and it means a
+restaurant's detour on the detail screen is the same object the card rendered.
+
+Two small additions, both non-breaking:
+
+- `DiscoveredRestaurant::withRestaurant()` — the same place on the route,
+  described by a freshly read row. The detail screen re-reads the restaurant for
+  its profile and therefore also has the newer answer to "are you still taking
+  orders". The route geometry is kept: where a restaurant sits on a road does
+  not change because somebody paused their kitchen.
+- `DiscoveredRestaurant::withAvailability()` — the same restaurant, re-evaluated
+  against the clock.
+
+Nothing about the corridor, the projection, the detour budget, the ranking or
+the caches changed.
+
+The seeded fixtures grew by three: an overnight kitchen, a split service with a
+day off, and one with no optional metadata at all. They are eligible, so they
+appear in discovery too — which is why the Module 08 integration run's expected
+counts were updated alongside them.

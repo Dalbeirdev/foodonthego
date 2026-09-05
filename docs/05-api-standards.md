@@ -315,3 +315,36 @@ client can tell "nothing here" from "your filters hid everything".
 **Facets travel with the results.** Filter options for the current context are
 part of the response rather than a second endpoint, when they are computed from
 the same set and cost nothing extra.
+
+---
+
+## Sub-resources, and telling refusals apart (Module 09)
+
+`GET /customer/trips/{trip}/restaurants/{restaurant}` is the first
+sub-resource of a nested collection, and it sets two conventions.
+
+**A sub-resource keeps its parent in the path.** The restaurant's figures on
+this screen were measured against one particular route, so the journey stays in
+the URL rather than being inferred from a session or a header. A detail endpoint
+that answered without one would be a different product.
+
+**Refusals that a prober could use are made identical.** A restaurant that does
+not exist and one that has been suspended both answer `404`. A `403` on the
+second would let anyone holding a list of uuids discover which businesses this
+platform has suspended. Where the distinction is *not* dangerous — a restaurant
+that is trading but on a different road — it is made, because the customer's
+next move differs:
+
+| Situation | Code | Status |
+| --- | --- | --- |
+| No such restaurant | `RESTAURANT_NOT_FOUND` | 404 |
+| Real, and withdrawn | `RESTAURANT_UNAVAILABLE` | 404 |
+| Real, trading, elsewhere | `RESTAURANT_OUTSIDE_ROUTE` | 409 |
+
+**A derived field never renames the one it derives from.** The response carries
+both `availability` (Module 07's vocabulary, unchanged) and `ordering.state`
+(Module 09's rollup). Two names for one concept would be a bug; one name for
+two concepts is worse.
+
+**Freshness travels with the payload.** `generated_at` lets an offline client
+say how old what it is showing is, rather than implying the data is live.

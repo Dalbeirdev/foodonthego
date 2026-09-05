@@ -581,3 +581,82 @@ M08-B01 in `13-known-issues.md`.
 - **The distance-ahead filter has no control in the sheet.** The backend is
   complete and tested; the UI would be a sixth near-duplicate distance control
   in an MVP sheet that already has five groups.
+
+---
+
+## Module 09 — Restaurant Details, Facilities, Availability & Customer Preview
+
+A restaurant's page, on the route the customer is actually driving.
+
+### The shape of it
+
+`RestaurantDetailService` asks Module 07 what is on the route and looks for the
+requested restaurant in the answer:
+
+```php
+$result = $this->discovery->discover($trip, $now);       // cached, and the only
+foreach ($result->restaurants as $found) {               // thing that can reach
+    if ($found->restaurant->uuid === $uuid) return $found; // a provider
+}
+```
+
+Eligibility cannot be bypassed, the route figures cannot disagree with the card,
+and no provider is called — none of which is a rule anybody has to remember.
+
+### Added
+
+- **`GET /customer/trips/{trip}/restaurants/{restaurant}`**, sharing discovery's
+  throttle.
+- **`RestaurantHoursService`** — today, the whole week including its shut days,
+  the current window, and when a closed restaurant opens again. Overnight
+  windows belong to the day they open, so a dhaba trading 18:00–02:00 is open at
+  one in the morning.
+- **`RestaurantOrderingState`** — five cases rolling up business status and
+  availability. `availability` keeps Module 07's meaning; this is the derived
+  one, and a response carries both.
+- **`restaurant_media`**, plus `description` and `public_phone`. `is_active`
+  defaults to false and the relation filters on it, so an unmoderated image is
+  unreachable rather than merely unrequested.
+- **The detail screen**: hero gallery with a branded fallback, header,
+  availability chip and banner, the route card, description, facilities, hours,
+  location, and a sticky button whose state is the ordering state and nothing
+  else.
+- Three fixtures whose whole purpose is this screen: an overnight kitchen, a
+  split service with a day off, and one with no optional metadata at all.
+- `tool/restaurant_detail_smoke.dart` — 25 checks against a live server.
+- 60 new backend test methods, 74 new Flutter test cases.
+
+### Changed
+
+- `DiscoveredRestaurant` gained `withRestaurant()` and `withAvailability()`, so
+  the detail screen can describe the same place on the route with a freshly read
+  row. The route geometry is kept: where a restaurant sits does not change
+  because somebody paused their kitchen.
+- The discovery card's **View** button became its own semantics node, named with
+  its restaurant. It previously had no node at all — see M09-B01.
+- The discovery card's `excludeSemantics` became `explicitChildNodes` plus an
+  inner `ExcludeSemantics`, preserving the one-sentence label.
+- Module 08's integration run now expects eight eligible restaurants rather than
+  five, because Module 09's fixtures are on the same road.
+
+### Fixed
+
+One defect, High, none left open: a screen-reader user could not open a
+restaurant's page at all.
+
+### Not done, and said plainly
+
+- **Ratings are absent, not zero.** No reviews module exists, so `rating` is
+  null and the screen shows **New**. The parser, the widget and the filter are
+  all tested against controlled data and switch themselves on the day a rating
+  is written.
+- **Android and iOS runtime verification are pending** — no Android SDK
+  (KI-001), no macOS host (KI-002). Verification was done against a release web
+  build of the same Flutter code.
+- **The location section is not a map.** It shows the address, the published
+  phone where there is one, and a control that returns to the discovery map,
+  which already draws this restaurant against the route. A second full map here
+  would be the same screen twice, and FoodOnTheGo is not a navigation app.
+- **Detour magnitude is not meaningful** under `ROUTE_PROVIDER=development`
+  (KI-012). What this module establishes is that the page shows the same figure
+  the card did, without calling a provider again.

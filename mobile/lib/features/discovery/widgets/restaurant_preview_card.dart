@@ -81,7 +81,12 @@ class RestaurantPreviewCard extends StatelessWidget {
         ),
       ),
       onTap: onSelect,
-      excludeSemantics: true,
+      // Not `excludeSemantics`. That collapsed the whole card into one node
+      // and took the "View" button's node with it — so a screen-reader user
+      // could select a restaurant and had no way at all to open its page,
+      // which from Module 09 on is the primary thing to do with a card. The
+      // description is excluded below instead, leaving the button its own node.
+      explicitChildNodes: true,
       child: Card(
         margin: const EdgeInsets.symmetric(vertical: FotgSpacing.x1),
         elevation: isSelected ? 3 : 0,
@@ -105,89 +110,109 @@ class RestaurantPreviewCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        restaurant.displayName,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
+                // Everything the card's own one-sentence label already says.
+                // Left in the tree it would be read twice, once as nine
+                // fragments.
+                ExcludeSemantics(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              restaurant.displayName,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: FotgSpacing.x2),
+                          AvailabilityChip(
+                            availability: restaurant.availability,
+                          ),
+                        ],
+                      ),
+
+                      if (_supporting(strings).isNotEmpty) ...<Widget>[
+                        const SizedBox(height: FotgSpacing.x1),
+                        Text(
+                          _supporting(strings),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                      ],
+
+                      const SizedBox(height: FotgSpacing.x3),
+
+                      // The two figures the decision turns on. A `Wrap`, because at
+                      // 320dp with a long duration these do not fit on one line and a
+                      // `Row` would overflow rather than reflow.
+                      Wrap(
+                        spacing: FotgSpacing.x2,
+                        runSpacing: FotgSpacing.x2,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: <Widget>[
+                          _Fact(
+                            icon: Icons.straighten_rounded,
+                            label: ahead,
+                            emphasised: true,
+                          ),
+                          if (detour != null)
+                            _Fact(icon: Icons.alt_route_rounded, label: detour)
+                          else
+                            // Said plainly rather than left blank, so the absence
+                            // reads as "we could not work it out" rather than as a
+                            // missing part of the card.
+                            _Fact(
+                              icon: Icons.help_outline_rounded,
+                              label: strings.discoveryDetourUnknown,
+                            ),
+                          _Fact(
+                            icon: Icons.near_me_outlined,
+                            label: strings.discoveryOffRoute(
+                              JourneyMeasures.distance(
+                                restaurant.route.proximityMetres,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: FotgSpacing.x2),
-                    AvailabilityChip(availability: restaurant.availability),
-                  ],
-                ),
 
-                if (_supporting(strings).isNotEmpty) ...<Widget>[
-                  const SizedBox(height: FotgSpacing.x1),
-                  Text(
-                    _supporting(strings),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-
-                const SizedBox(height: FotgSpacing.x3),
-
-                // The two figures the decision turns on. A `Wrap`, because at
-                // 320dp with a long duration these do not fit on one line and a
-                // `Row` would overflow rather than reflow.
-                Wrap(
-                  spacing: FotgSpacing.x2,
-                  runSpacing: FotgSpacing.x2,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: <Widget>[
-                    _Fact(
-                      icon: Icons.straighten_rounded,
-                      label: ahead,
-                      emphasised: true,
-                    ),
-                    if (detour != null)
-                      _Fact(icon: Icons.alt_route_rounded, label: detour)
-                    else
-                      // Said plainly rather than left blank, so the absence
-                      // reads as "we could not work it out" rather than as a
-                      // missing part of the card.
-                      _Fact(
-                        icon: Icons.help_outline_rounded,
-                        label: strings.discoveryDetourUnknown,
-                      ),
-                    _Fact(
-                      icon: Icons.near_me_outlined,
-                      label: strings.discoveryOffRoute(
-                        JourneyMeasures.distance(
-                          restaurant.route.proximityMetres,
+                      if (restaurant.facilities.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: FotgSpacing.x2),
+                        Text(
+                          restaurant.facilities.take(3).join(' · '),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                if (restaurant.facilities.isNotEmpty) ...<Widget>[
-                  const SizedBox(height: FotgSpacing.x2),
-                  Text(
-                    restaurant.facilities.take(3).join(' · '),
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                      ],
+                    ],
                   ),
-                ],
+                ),
 
                 if (onView != null) ...<Widget>[
                   const SizedBox(height: FotgSpacing.x2),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: onView,
-                      child: Text(strings.discoveryViewRestaurant),
+                    // Named with the restaurant. A row of buttons all called
+                    // "View" is a list a screen-reader user cannot navigate.
+                    child: Semantics(
+                      button: true,
+                      label: strings.discoveryViewNamed(restaurant.displayName),
+                      excludeSemantics: true,
+                      onTap: onView,
+                      child: TextButton(
+                        onPressed: onView,
+                        child: Text(strings.discoveryViewRestaurant),
+                      ),
                     ),
                   ),
                 ],

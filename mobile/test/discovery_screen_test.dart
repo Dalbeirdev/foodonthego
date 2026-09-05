@@ -42,6 +42,41 @@ void main() {
     return repository;
   }
 
+  group('reaching a restaurant without sight', () {
+    testWidgets('the View button has a name of its own', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+
+      await openDiscovery(tester);
+
+      // The card was one merged node, which took this button's node with it —
+      // so a screen-reader user could select a restaurant and had no way at
+      // all to open it. Found by reading the live semantics tree.
+      expect(
+        find.bySemanticsLabel('View Highway Spice Kitchen'),
+        findsOneWidget,
+      );
+
+      handle.dispose();
+    });
+
+    testWidgets('the card still reads as one sentence, not nine fragments', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+
+      await openDiscovery(tester);
+
+      expect(
+        find.bySemanticsLabel(RegExp('^Highway Spice Kitchen, .*68 km ahead')),
+        findsOneWidget,
+      );
+
+      handle.dispose();
+    });
+  });
+
   group('a route with stops on it', () {
     testWidgets('lists the restaurants it found', (WidgetTester tester) async {
       await openDiscovery(tester);
@@ -570,8 +605,10 @@ void main() {
     ) async {
       await openDiscovery(tester);
 
+      // Anchored on the card's own summary: since Module 09 the View button
+      // has a node of its own, and its name contains the restaurant too.
       final SemanticsNode node = tester.getSemantics(
-        find.bySemanticsLabel(RegExp('Highway Spice Kitchen')),
+        find.bySemanticsLabel(RegExp('^Highway Spice Kitchen, ')),
       );
 
       // The Module 05 lesson: a labelled row that cannot be activated announces

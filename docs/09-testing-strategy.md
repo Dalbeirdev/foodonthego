@@ -304,3 +304,75 @@ pagination, validation, injection, the cost guarantee and ownership.
 It clears the rate limiter's own buckets between sections — it makes far more
 calls in a minute than any customer would — and says so. The limiter itself is
 asserted separately, at its configured value, in the API tests.
+
+---
+
+## Module 09 — testing a screen whose worst failure is a lie
+
+The consequential mistake on a restaurant page is not a crash. It is a live
+"View menu" button on a kitchen that has stopped cooking, or a photograph of
+somewhere else under a business's name. Both look fine in a screenshot.
+
+### Clocks are always fixed
+
+Every opening-hours test states the moment it is asking about:
+
+```php
+$this->at('2026-09-08 01:00')   // Tuesday, 1am, Asia/Kolkata
+```
+
+A test about opening hours that depends on the hour it runs is a test that
+fails once a day and gets deleted.
+
+### The cases that earn their own tests
+
+| Test | What it catches |
+| --- | --- |
+| `test_an_overnight_window_is_open_after_midnight` | The classic: reading today's rows at 1am and calling a 18:00–02:00 dhaba shut |
+| `test_the_gap_in_a_split_service_is_shut` | Treating two windows as one long one |
+| `test_the_opening_minute_is_open_and_the_closing_minute_is_not` | Off-by-one at both ends |
+| `test_a_restaurant_open_only_today_wraps_to_next_week` | Why the lookahead is eight days, not seven |
+| `test_the_restaurants_timezone_decides_not_the_servers` | A Goa restaurant on Delhi's schedule |
+| `test_a_timezone_that_observes_dst_is_handled_by_the_library` | India does not observe DST; this platform will not stay in India |
+| `test_the_two_services_agree_about_being_open` | Two implementations of the same rule drifting apart |
+| `test_a_permanently_closed_business_is_never_open` | The business state losing to the clock |
+| `test_no_undiscoverable_status_can_produce_an_orderable_state` | Every status × every availability, exhaustively |
+
+### The negative claims
+
+| Test | Claim |
+| --- | --- |
+| `test_a_suspended_restaurant_cannot_be_opened_by_its_uuid` | A uuid is not a key |
+| `test_a_missing_restaurant_and_a_withdrawn_one_answer_the_same_status` | A prober cannot enumerate suspensions |
+| `test_a_restaurant_withdrawn_between_the_list_and_the_tap` | The race the module has to survive |
+| `test_the_response_carries_no_private_restaurant_data` | Raw-body assertion over 16 needles |
+| `test_an_unmoderated_image_never_reaches_a_customer` | The moderation default |
+| `test_a_customer_has_no_way_to_change_a_restaurant` | Four verbs, none accepted |
+| `test_opening_a_restaurant_is_served_from_the_discovery_cache` | The cost guarantee |
+
+### Performance is asserted, not measured and forgotten
+
+`RestaurantDetailPerformanceTest` adds twenty photographs, ten cuisines and ten
+facilities to a restaurant and asserts the **query count is unchanged** — then
+puts fifteen more restaurants on the route and asserts it again. An N+1 review
+that lives in a document rots; one that lives in an assertion does not.
+
+### Where each layer is tested
+
+| Layer | File | Tests |
+| --- | --- | --- |
+| Opening hours | `tests/Unit/RestaurantHoursTest.php` | 19 |
+| Ordering state | `tests/Unit/RestaurantOrderingStateTest.php` | 8 |
+| HTTP contract | `tests/Feature/Api/Customer/RestaurantDetailApiTest.php` | 30 |
+| Query cost | `tests/Feature/RestaurantDetailPerformanceTest.php` | 3 |
+| Client model | `mobile/test/restaurant_detail_models_test.dart` | 19 |
+| Client state | `mobile/test/restaurant_detail_controller_test.dart` | 17 |
+| Client widgets | `mobile/test/restaurant_detail_screen_test.dart` | 34 |
+
+### Integration
+
+`mobile/tool/restaurant_detail_smoke.dart` — 25 checks through this app's own
+network layer against a live Laravel backend and real MySQL rows. It reads
+fixture uuids **straight from the database** for the direct-id tests, because
+the point is that an identifier obtained from outside the API buys nothing, and
+taking it from an API response would not test that.

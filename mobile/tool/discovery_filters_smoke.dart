@@ -53,6 +53,12 @@ const String _closed = '[TEST] Closed Route Cafe';
 const String _behind = '[TEST] Behind You Diner';
 const String _paused = '[TEST] Paused Highway Grill';
 
+// Module 09 added three fixtures to this road, for the detail screen's sake.
+// They are eligible, so Module 08 sees them too.
+const String _nightOwl = '[TEST] Night Owl Dhaba';
+const String _split = '[TEST] Midday Break Kitchen';
+const String _bare = '[TEST] Bare Bones Stop';
+
 /// Everything Module 07 says is on this road. Nothing Module 08 does may add
 /// to this list or subtract from it other than by hiding part of it.
 const List<String> _eligible = <String>[
@@ -61,6 +67,9 @@ const List<String> _eligible = <String>[
   _closed,
   _behind,
   _paused,
+  _nightOwl,
+  _split,
+  _bare,
 ];
 
 void main(List<String> args) async {
@@ -272,10 +281,14 @@ void main(List<String> args) async {
   });
 
   await checkAsync('a price filter keeps only the levels asked for', () async {
-    expectValue(
-      _joined(await names(const DiscoveryQuery(priceLevels: <int>{1}))),
-      _further,
+    final List<String> cheap = await names(
+      const DiscoveryQuery(priceLevels: <int>{1}),
     );
+
+    // Two fixtures declare level 1 and nothing else does.
+    expectValue(cheap.contains(_further), true);
+    expectValue(cheap.contains(_nightOwl), true);
+    expectValue(cheap.contains(_near), false);
     expectValue(
       (await names(const DiscoveryQuery(priceLevels: <int>{3})))
           .contains(_closed),
@@ -374,8 +387,14 @@ void main(List<String> args) async {
 
     expectValue(cuisines.contains('north_indian'), true);
     expectValue(cuisines.contains('rajasthani'), true);
-    // On the road but suspended, so its cuisine is not on offer either.
-    expectValue(cuisines.contains('south_indian'), false);
+    // "Bakery" belongs only to Closed Route Cafe, which is on the road and
+    // shut — a shut restaurant is still a restaurant, and its cuisine is
+    // still an option.
+    expectValue(cuisines.contains('bakery'), true);
+    // Chinese belongs only to the paused grill, which is likewise still here.
+    expectValue(cuisines.contains('chinese'), true);
+    // Nothing eligible on this road serves Continental, so nothing offers it.
+    expectValue(cuisines.contains('continental'), false);
 
     expectValue(facets.ratingAvailable, false);
 

@@ -371,3 +371,76 @@ debounce exists partly to keep an ordinary customer well clear of it.
 
 No search term, no filter selection, no coordinates. Filter usage is preference
 data and this module builds no behavioural history from it.
+
+---
+
+## Module 09 — a uuid is not a key
+
+The restaurant detail endpoint takes an identifier in the path, which is the
+shape of every IDOR bug ever written. Here it cannot be one, because the
+identifier is never used to *fetch* anything the customer was not already
+entitled to: it is used to *find* an entry in a result Module 07 produced.
+
+```php
+$result = $this->discovery->discover($trip, $now);   // eligibility, corridor, route
+foreach ($result->restaurants as $found) {
+    if ($found->restaurant->uuid === $restaurantUuid) return $found;
+}
+throw $this->absent($restaurantUuid);
+```
+
+| Attack | Why it fails |
+| --- | --- |
+| Detail on a suspended restaurant's uuid | Not in the discovery result. 404 `RESTAURANT_UNAVAILABLE`, and the body names nothing |
+| Detail on an unverified or disabled uuid | Same |
+| Detail on a permanently closed uuid | Same |
+| Detail on a restaurant in another city | 409 `RESTAURANT_OUTSIDE_ROUTE` — trading, and not on this journey |
+| Detail on somebody else's trip | `ownedByOrFail()` — 404, and the body says nothing about their journey |
+| Detail with no calculated route | 409 `ROUTE_NOT_READY`, before the restaurant is even looked at |
+| A malformed uuid | Matches nothing. Answered identically, so the shape of a guess tells a prober nothing |
+| `PUT`/`PATCH`/`DELETE`/`POST` on the path | 404 or 405. There is no customer-facing write route for a restaurant |
+
+### Why suspended and missing share a status
+
+A `403` on a suspended restaurant and a `404` on a missing one lets anybody
+holding a list of uuids enumerate exactly which businesses this platform has
+suspended — commercially sensitive information about somebody else's business.
+Both answer `404`. The distinction survives in the error *code* so the client
+can choose its words, and the code says nothing a prober did not already
+supply.
+
+### What a detail response may contain
+
+Built from `Restaurant::toDiscoveryArray()` plus the profile fields Module 09
+added, and asserted against the **raw body** — a leak nested three levels down
+inside a relation would still be a leak, and a structural assertion would not
+see it.
+
+Absent: owner name, owner phone, owner email, tax identifier, bank reference,
+commission rate, internal notes, verification status, discoverability flag,
+soft-delete timestamps, and the sequential primary key.
+
+`public_phone` is a different column from `owner_phone` and is the only contact
+detail a customer ever sees.
+
+### Media URLs
+
+The API returns delivery URLs and never composes a storage path. Nothing in the
+customer projection reveals bucket structure, and an unmoderated image is
+unreachable because the relation itself filters it.
+
+### Text an operator typed
+
+Restaurant names and descriptions are stored and returned verbatim, as data.
+Flutter draws text and cannot execute it. A future React surface must not hand
+these values to `dangerouslySetInnerHTML`. Silently stripping markup on the way
+out was rejected: it hides the problem from whoever eventually finds it, and
+`RestaurantDetailApiTest::test_markup_in_a_restaurants_own_text_comes_back_as_text`
+locks the behaviour down either way.
+
+### Rate limiting
+
+The detail endpoint shares the discovery throttle (`RATE_LIMIT_DISCOVERY`, 30
+a minute). Opening a page calls no provider, but it does reach `discover()`,
+and a cold cache there costs what the list costs. Sharing the budget is what
+stops a loop over restaurant uuids from being a cheaper way to spend it.
