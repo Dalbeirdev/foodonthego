@@ -200,7 +200,6 @@ class GroupHeading extends StatelessWidget {
   );
 }
 
-
 /// One tappable choice: a mark, a name, a price.
 ///
 /// Hand-drawn rather than a `RadioListTile` or `CheckboxListTile` so the row is
@@ -230,7 +229,9 @@ class _OptionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
-    final Color foreground = enabled ? FotgColors.neutral900 : FotgColors.neutral400;
+    final Color foreground = enabled
+        ? FotgColors.neutral900
+        : FotgColors.neutral400;
 
     return InkWell(
       onTap: onTap,
@@ -258,7 +259,9 @@ class _OptionRow extends StatelessWidget {
                 children: <Widget>[
                   Text(
                     title,
-                    style: theme.textTheme.bodyLarge?.copyWith(color: foreground),
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: foreground,
+                    ),
                   ),
                   if (subtitle case final String text) ...<Widget>[
                     const SizedBox(height: 2),

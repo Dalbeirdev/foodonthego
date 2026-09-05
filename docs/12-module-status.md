@@ -272,4 +272,59 @@ running the thing rather than by reading it:
 - and the menu card's merged semantics label omitted the dietary type, so a
   screen-reader user could not hear which dishes were vegetarian.
 
-Module 11 has **not** been started, per the one-module-at-a-time rule.
+---
+
+## Module 11 — Menu Item Details, Variants, Addons, Customization & Add to Cart
+
+**Status: COMPLETE**, with the same two runtime verifications honestly pending.
+
+| Item | Status | Note |
+| --- | --- | --- |
+| Item detail with customization | **PASS** | 3 queries for it, flat at 1 group or 10 |
+| Variants, absolute price | **PASS** | Regular ₹249, Large ₹329 — not ₹578 |
+| Configured default honoured | **PASS** | Never "the first row" |
+| Unavailable default is no default | **PASS** | The screen asks rather than quoting |
+| Variant availability | **PASS** | Withdrawn absent, sold-out shown disabled |
+| Modifier groups with numeric rules | **PASS** | min/max on the wire, not prose |
+| Required, optional, single, multi, range | **PASS** | All four shapes exercised |
+| Min and max enforced server-side | **PASS** | And on the client, as a courtesy |
+| **Addon architecture: one system** | **PASS** | Add-ons are modifier groups; documented |
+| Paid option never auto-selected | **PASS** | Enforced in the model, not just the UI |
+| Dynamic price preview | **PASS** | Moves instantly; server's figure replaces it |
+| **Authoritative backend pricing** | **PASS** | `MenuItemPricingService`, integer minor units |
+| **Client price ignored** | **PASS** | 8 tampered fields in one body; charged the real price |
+| **Price-increase policy** | **PASS** | Refused with both figures; decrease charged silently |
+| Quantity 1..20, tamper-proof | **PASS** | 0, −1, 999999, "two", 2.5, `true` all refused |
+| Special instructions, 300 chars | **PASS** | Counted in characters; markup stored as text |
+| Item sold-out race | **PASS** | Refused; nothing added |
+| Variant sold-out race | **PASS** | Refused |
+| Modifier sold-out race | **PASS** | Refused, naming the option |
+| Restaurant paused / suspended | **PASS** | 409 and 404 respectively |
+| Cart model, scoped three ways | **PASS** | Customer, trip, restaurant — all enforced |
+| One active cart per trip | **PASS** | Unique index on a generated column |
+| One restaurant per cart | **PASS** | Conflict, named, with nothing mutated |
+| Modifier snapshots | **PASS** | Names and deltas at the moment of adding |
+| Cart-line matching | **PASS** | Option order canonical; note is part of identity |
+| **Idempotency, lost-response retry** | **PASS** | One line at the quantity asked for once |
+| Rapid double tap | **PASS** | Guarded twice — in flight, and by the key |
+| Foreign trip / foreign cart | **PASS** | 404; the cart is reached *through* the trip |
+| Cross-item variant, cross-group option | **PASS** | 422, and impossible in the schema |
+| No private fields | **PASS** | 9 needles, raw body, both endpoints |
+| Atomic write | **PASS** | One transaction; no half-configured line |
+| **No provider call on any of it** | **PASS** | Stub count and real provider log both flat |
+| Android runtime | **PENDING** | KI-001 — no Android SDK |
+| iOS runtime | **PENDING** | KI-002 — no macOS host |
+
+**1,729 automated tests pass** (957 backend, 772 Flutter), plus a 48-check
+integration run against a live server, **34 live states** inspected in a
+rendered release build (61 assertions, 36 screenshots, no problems found), and
+Modules 01–10 regression green — **244 integration checks across ten modules,
+none failing**.
+
+Four defects were found and fixed; none left open. All four came from running
+the thing: three layout overflows at 320 dp, and a disabled quantity button that
+had no accessible name — a tooltip becomes a name only on an *enabled* control,
+so at quantity one a screen-reader user met an anonymous disabled thing at
+exactly the moment they needed to know what it was.
+
+Module 12 has **not** been started, per the one-module-at-a-time rule.

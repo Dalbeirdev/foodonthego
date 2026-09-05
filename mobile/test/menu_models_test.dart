@@ -132,10 +132,7 @@ void main() {
     });
 
     test('an item with no readable price is dropped, not shown at zero', () {
-      expect(
-        MenuItem.fromJson(json(<String, dynamic>{'price': null})),
-        isNull,
-      );
+      expect(MenuItem.fromJson(json(<String, dynamic>{'price': null})), isNull);
     });
 
     test('a missing description is null and never generated', () {
@@ -185,16 +182,16 @@ void main() {
 
     test('a spice level outside the scale is withheld', () {
       expect(
-        MenuItem.fromJson(json(<String, dynamic>{'spice_level': 9}))?.spiceLevel,
+        MenuItem.fromJson(json(<String, dynamic>{'spice_level': 9}))
+            ?.spiceLevel,
         isNull,
       );
     });
 
     test('a zero or negative preparation time is withheld', () {
       expect(
-        MenuItem.fromJson(
-          json(<String, dynamic>{'preparation_minutes': 0}),
-        )?.preparationMinutes,
+        MenuItem.fromJson(json(<String, dynamic>{'preparation_minutes': 0}))
+            ?.preparationMinutes,
         isNull,
       );
     });
@@ -218,7 +215,10 @@ void main() {
 
       // No photograph at all. The card draws a monogram rather than somebody
       // else's food.
-      expect(MenuItem.fromJson(json(<String, dynamic>{}))?.listImageUrl, isNull);
+      expect(
+        MenuItem.fromJson(json(<String, dynamic>{}))?.listImageUrl,
+        isNull,
+      );
     });
   });
 
@@ -229,21 +229,21 @@ void main() {
       int visibleItemCount = 0,
       String? search,
     }) => <String, dynamic>{
-        'restaurant': <String, dynamic>{
-          'id': 'restaurant-1',
-          'name': 'Highway Spice Kitchen',
-          'ordering': <String, dynamic>{
-            'state': 'OPEN_ACCEPTING',
-            'can_order': true,
-            'can_browse_menu': true,
-          },
+      'restaurant': <String, dynamic>{
+        'id': 'restaurant-1',
+        'name': 'Highway Spice Kitchen',
+        'ordering': <String, dynamic>{
+          'state': 'OPEN_ACCEPTING',
+          'can_order': true,
+          'can_browse_menu': true,
         },
-        'categories': categories,
-        'meta': <String, dynamic>{
-          'item_count': itemCount,
-          'visible_item_count': visibleItemCount,
-          'applied': <String, dynamic>{'search': search},
-        },
+      },
+      'categories': categories,
+      'meta': <String, dynamic>{
+        'item_count': itemCount,
+        'visible_item_count': visibleItemCount,
+        'applied': <String, dynamic>{'search': search},
+      },
     };
 
     Map<String, dynamic> category(String id, String name, int items) =>

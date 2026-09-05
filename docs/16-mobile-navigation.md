@@ -230,3 +230,42 @@ widget stack without telling go_router — leaving the router with an empty matc
 list and the customer with a blank screen. Every screen from Module 09 onwards
 uses an explicit `BackButton` that routes through `context.pop()`. The menu is no
 exception.
+
+---
+
+## One dish, nested under the menu (Module 11)
+
+```
+/trips/:tripId/route/restaurants/:restaurantId/menu/items/:itemId
+```
+
+Five levels, and each one earns its place. Android back and the iOS swipe land
+on the menu the customer came from — with its search and its scroll position
+intact — which lands on the restaurant page, which lands on the discovery list
+with its filters, which lands on the route.
+
+The dish's name travels as `extra`, so the app bar has a title during the first
+request rather than a blank space. Never authoritative: the server's answer
+replaces it, exactly as the menu's restaurant name is replaced.
+
+### The screen was a route, not a sheet
+
+Module 10's read-only preview was a modal bottom sheet, and that was right for a
+glance. Configuring a dish is not a glance: it has required choices, a keyboard,
+a scroll and a submit, and losing it to an accidental swipe-down would lose all
+of that. It gets a URL and a back stack entry.
+
+The **item preview sheet is gone** — deleted, not left behind a flag. A
+placeholder that no route reaches is dead code that the next reader has to work
+out is dead.
+
+### Leaving with unsaved choices
+
+Back discards, with no confirmation. A dialogue on every back press would fire on
+the customer who opened a dish, glanced at the price and left — which is most of
+them — and asking somebody to confirm they meant to press back is how a screen
+teaches people to dismiss dialogues without reading.
+
+The cost of being wrong is one re-tap of a few options; the cost of the dialogue
+is friction on every exit. If a later module adds something genuinely expensive
+to lose here, that trade changes.

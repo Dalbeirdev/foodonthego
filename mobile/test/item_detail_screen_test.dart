@@ -184,9 +184,7 @@ void main() {
       expect(find.text('Required · Choose 1'), findsOneWidget);
     });
 
-    testWidgets('an optional group says how many', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('an optional group says how many', (WidgetTester tester) async {
       await open(tester);
 
       await scrollTo(tester, find.text('Add extras'));
@@ -250,9 +248,7 @@ void main() {
       expect(find.text('+₹0'), findsNothing);
     });
 
-    testWidgets('a paid one is never preselected', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('a paid one is never preselected', (WidgetTester tester) async {
       await open(tester);
       await answerRequired(tester);
 
@@ -328,10 +324,7 @@ void main() {
       await scrollTo(tester, find.text('Special instructions'));
 
       expect(find.text('Optional'), findsWidgets);
-      expect(
-        find.textContaining('will do what they can'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('will do what they can'), findsOneWidget);
 
       // Never a promise the platform cannot keep.
       expect(find.textContaining('will definitely'), findsNothing);
@@ -480,10 +473,7 @@ void main() {
       await tapAdd(tester);
 
       expect(find.text('Your cart has other items'), findsOneWidget);
-      expect(
-        find.textContaining('Highway Spice Kitchen'),
-        findsWidgets,
-      );
+      expect(find.textContaining('Highway Spice Kitchen'), findsWidgets);
     });
 
     testWidgets('a price rise shows both figures and asks', (
@@ -602,9 +592,7 @@ void main() {
       await scrollTo(tester, find.text('Extra Cheese'));
 
       expect(
-        find.bySemanticsLabel(
-          'Extra Cheese. Adds 40 rupees. Not selected',
-        ),
+        find.bySemanticsLabel('Extra Cheese. Adds 40 rupees. Not selected'),
         findsOneWidget,
       );
     });

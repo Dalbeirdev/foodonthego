@@ -439,3 +439,76 @@ against a live Laravel backend and real MySQL rows. Like Module 09's, it reads
 fixture uuids **straight from the database** for the direct-id tests. It also
 changes a price behind the API's back and re-reads the item, which is the only
 honest way to prove the preview is fetched rather than echoed.
+
+---
+
+## Module 11 — testing a screen where the worst failure is a wrong price
+
+Module 09's worst failure was a lie about a restaurant; Module 10's was a lie
+about a dish. Module 11's is a customer being charged something they did not
+agree to, and the tests are shaped accordingly.
+
+### The three that matter most
+
+| Test | What it proves |
+| --- | --- |
+| `test_a_client_supplied_price_changes_nothing` | Eight money-shaped fields in one body; the cart line stores the real price. |
+| `test_a_price_that_rose_since_the_screen_loaded_is_refused` | The customer is never charged more than they saw — and nothing is added while they have not agreed. |
+| `test_a_retry_with_the_same_key_adds_nothing_twice` | A lost response on a motorway connection is one cart line, not two. |
+
+### Testing an absence
+
+Most of `CustomizationPricingTest` asserts a refusal, and the assertions are
+deliberately on the **specific** error code rather than "it threw". A screen can
+only scroll to an unanswered group if the server distinguishes
+`MODIFIER_REQUIRED` from `MODIFIER_MAX_EXCEEDED`, so a test that accepted either
+would let that distinction rot.
+
+`expectApiError` compares `ApiErrorCode` values and prints both when they differ,
+which is the difference between a five-second diagnosis and a five-minute one.
+
+### N+1 is measured on reads, not on queries
+
+`test_adding_to_a_cart_reads_no_more_for_a_larger_customization` counts `SELECT`
+statements and ignores `INSERT`s. Writing five modifier rows is five inserts —
+rows being written, not a query being repeated — and an assertion on the total
+would either fail on a legitimate write or be loosened until it caught nothing.
+
+### The fixture is deliberately uneven
+
+`configurableItem()` gives two sizes with a default and one sold out, one
+required single-select group, and one optional multi-select group with paid
+options. A fixture that only exercises the tidy case leaves every disabled
+branch unlooked-at — and three of this module's four defects were in exactly
+those branches.
+
+### What the widget tests could not see, again
+
+Module 10 learned that fixture-built widget tests never cross the JSON boundary.
+Module 11 learned the sibling lesson: they also do not *lay out at every width*.
+Three layout overflows at 320 dp were found by a widget test that ran the screen
+at 320 dp, and would not have been found by one that ran it at 390.
+
+**Every screen from here gets a 320 dp test**, and it asserts
+`tester.takeException()` is null rather than only that some text is present — an
+overflow is an exception, and a test that only looks for text sails past it.
+
+### Where each layer is tested
+
+| Layer | File | Tests |
+| --- | --- | --- |
+| Validation and pricing | `tests/Feature/CustomizationPricingTest.php` | 30 |
+| Item detail contract | `tests/Feature/Api/Customer/ItemCustomizationApiTest.php` | 15 |
+| Add to cart contract | `tests/Feature/Api/Customer/AddToCartApiTest.php` | 39 |
+| Query cost and cost control | `tests/Feature/CartPerformanceTest.php` | 9 |
+| Client models | `mobile/test/item_customization_models_test.dart` | 15 |
+| Client state | `mobile/test/item_customization_controller_test.dart` | 34 |
+| Client widgets | `mobile/test/item_detail_screen_test.dart` | 37 |
+
+### Integration
+
+`mobile/tool/cart_smoke.dart` — 48 checks through this app's own network layer
+against a live Laravel backend and real MySQL rows. It provokes every race by
+changing rows behind the API's back, which is exactly what a restaurant
+dashboard will do to those columns, and it reads the written cart rows back out
+of MySQL to check the stored price, the snapshots and the modifier records.

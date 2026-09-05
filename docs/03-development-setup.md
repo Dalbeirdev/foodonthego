@@ -148,3 +148,53 @@ the same time.** `restaurant_detail_smoke` re-seeds the discovery fixtures,
 which recreates the restaurant rows — and menu rows cascade-delete with their
 restaurant. Running both at once will empty a menu underneath a driver that is
 halfway through asserting on it.
+
+---
+
+## Seeding customization and carts (Module 11)
+
+The same seeder does it. `MenuTestDataSeeder` now also creates the variants,
+modifier groups and options Module 11 needs:
+
+```bash
+php artisan db:seed --class=DiscoveryTestRestaurantSeeder --force
+php artisan db:seed --class=MenuTestDataSeeder --force
+```
+
+What it gives you, and why each one exists:
+
+| Fixture | Shape | What it is there to prove |
+| --- | --- | --- |
+| Paneer Tikka | Regular ₹249 (default), Large ₹329, Family ₹549 (unavailable) | A default size; a sold-out size that must still be visible and inert |
+| Masala Chai | 150 ml ₹49, 250 ml ₹69, **no default** | The dish that opens with the button reading *"Choose required options"* |
+| Spice level | 1–1, Mild (free, default), Medium, Hot | A required question whose configured default costs nothing |
+| Add extras | 0–2, Extra Paneer ₹60, Extra Cheese ₹40, Jalapeños ₹20, Extra Cashew ₹80 (unavailable) | Optional, a ceiling to hit, and a sold-out option |
+| Pick your sides | 2–4, attached to no dish | A group whose minimum is above one, for the API tests |
+| Papad | no variants, no groups | A dish that adds in one tap |
+
+Clearing is ordered: pivot → options → groups → variants → items → categories.
+Anything else trips the composite foreign keys, which is the point of them.
+
+Carts are not seeded. A cart belongs to a customer and a trip, and both of those
+come from signing in and planning a journey — a seeded cart would be a cart
+nobody's phone knows about. To clear them between runs:
+
+```bash
+mysql -N -B foodonthego_local -e 'DELETE FROM carts;'
+```
+
+Cart items and their modifier snapshots cascade with the cart.
+
+### Reading a cart back
+
+The rows a driver writes are worth looking at directly, because they are the
+proof that the server priced the line rather than the phone:
+
+```bash
+mysql -N -B --default-character-set=utf8mb4 foodonthego_local \
+  -e 'SELECT quantity, unit_price_minor, line_total_minor, special_instructions FROM cart_items;'
+```
+
+`--default-character-set=utf8mb4` is not optional. A special instruction can
+contain Devanagari or an emoji, and without it `mysql` hands back bytes that
+decode to a `FormatException` rather than the note the customer typed.

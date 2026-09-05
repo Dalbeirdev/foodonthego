@@ -192,7 +192,8 @@ GoRouter createRouter({
                                               state.pathParameters['tripId'] ??
                                               '',
                                           restaurantId:
-                                              state.pathParameters['restaurantId'] ??
+                                              state
+                                                  .pathParameters['restaurantId'] ??
                                               '',
                                           // The name the previous screen
                                           // already had, so the app bar is not
@@ -210,13 +211,16 @@ GoRouter createRouter({
                                               GoRouterState state,
                                             ) => ItemDetailScreen(
                                               tripId:
-                                                  state.pathParameters['tripId'] ??
+                                                  state
+                                                      .pathParameters['tripId'] ??
                                                   '',
                                               restaurantId:
-                                                  state.pathParameters['restaurantId'] ??
+                                                  state
+                                                      .pathParameters['restaurantId'] ??
                                                   '',
                                               itemId:
-                                                  state.pathParameters['itemId'] ??
+                                                  state
+                                                      .pathParameters['itemId'] ??
                                                   '',
                                               // What the menu card already
                                               // knew, so the app bar is not

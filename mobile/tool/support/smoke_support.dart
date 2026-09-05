@@ -66,7 +66,7 @@ class Session {
   ApiRestaurantRepository get restaurants =>
       _restaurants ??= ApiRestaurantRepository(client);
 
-  /// That restaurant's menu (Module 10).
+  /// That restaurant's menu, and the cart (Modules 10 and 11).
   ApiMenuRepository get menus => _menus ??= ApiMenuRepository(client);
 
   void close() => client.close();

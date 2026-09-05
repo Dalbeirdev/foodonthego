@@ -421,9 +421,8 @@ class MenuItemPreview {
       categoryName: name,
       customization: MenuItemCustomization.fromJson(data['customization']),
       generatedAt:
-          DateTime.tryParse(
-            (data['generated_at'] as String?) ?? '',
-          )?.toLocal() ??
+          DateTime.tryParse((data['generated_at'] as String?) ?? '')
+              ?.toLocal() ??
           DateTime.now(),
     );
   }

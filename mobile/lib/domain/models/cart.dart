@@ -101,7 +101,8 @@ class PriceBreakdown {
         for (final Object? raw
             in (json['additions'] as List<Object?>? ?? const []))
           if (raw is Map<String, dynamic>)
-            if (PriceBreakdownLine.fromJson(raw) case final PriceBreakdownLine l)
+            if (PriceBreakdownLine.fromJson(raw)
+                case final PriceBreakdownLine l)
               l,
       ],
       unitPrice: unit,

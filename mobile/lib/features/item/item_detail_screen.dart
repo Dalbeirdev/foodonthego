@@ -84,7 +84,9 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
 
     if (!mounted) return;
 
-    final CustomizationState state = ref.read(itemCustomizationControllerProvider);
+    final CustomizationState state = ref.read(
+      itemCustomizationControllerProvider,
+    );
 
     // An unanswered question is scrolled to rather than described. "Choose 1
     // option to continue" halfway up a screen the customer cannot see is not
@@ -133,9 +135,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
             // half-built one would not be.
             onPressed: () => ScaffoldMessenger.of(context)
               ..clearSnackBars()
-              ..showSnackBar(
-                SnackBar(content: Text(strings.itemViewCartSoon)),
-              ),
+              ..showSnackBar(SnackBar(content: Text(strings.itemViewCartSoon))),
           ),
         ),
       );
@@ -264,7 +264,9 @@ class _Loaded extends ConsumerWidget {
     final MenuItemCustomization customization = state.customization;
 
     final Set<String> unsatisfied = state.showValidation
-        ? <String>{for (final MenuModifierGroup g in state.unsatisfiedGroups) g.id}
+        ? <String>{
+            for (final MenuModifierGroup g in state.unsatisfiedGroups) g.id,
+          }
         : const <String>{};
 
     return ListView(
@@ -285,9 +287,8 @@ class _Loaded extends ConsumerWidget {
             children: <Widget>[
               Text(
                 item.name,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: Theme.of(context).textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: FotgSpacing.x2),
 
@@ -299,9 +300,8 @@ class _Loaded extends ConsumerWidget {
                 excludeSemantics: true,
                 child: Text(
                   item.price.format(),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ),
 
@@ -309,9 +309,8 @@ class _Loaded extends ConsumerWidget {
                 const SizedBox(height: FotgSpacing.x3),
                 Text(
                   item.description!,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: FotgColors.neutral600,
-                  ),
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(color: FotgColors.neutral600),
                 ),
               ],
 
@@ -381,7 +380,8 @@ class _Loaded extends ConsumerWidget {
                 remaining: state.noteRemaining,
               ),
 
-              if (state.failure case final AddToCartFailure failure) ...<Widget>[
+              if (state.failure
+                  case final AddToCartFailure failure) ...<Widget>[
                 const SizedBox(height: FotgSpacing.x5),
                 _FailureNotice(failure: failure, state: state),
               ],
@@ -531,7 +531,8 @@ class _LoadFailure extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AppStrings strings = AppStrings.of(context);
-    final bool gone = failure == AddToCartFailure.notFound ||
+    final bool gone =
+        failure == AddToCartFailure.notFound ||
         failure == AddToCartFailure.soldOut;
 
     return Center(
@@ -557,9 +558,8 @@ class _LoadFailure extends ConsumerWidget {
             Text(
               gone ? strings.menuItemGoneBody : strings.itemAddFailedBody,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: FotgColors.neutral600,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: FotgColors.neutral600),
             ),
             const SizedBox(height: FotgSpacing.x5),
             if (gone)

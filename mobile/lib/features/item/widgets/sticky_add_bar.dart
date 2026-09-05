@@ -16,11 +16,7 @@ import '../../../shared/state/item_customization_controller.dart';
 /// with no explanation is a customer wondering what they did wrong; this one
 /// takes the tap and scrolls them to the question they have not answered.
 class StickyAddBar extends StatelessWidget {
-  const StickyAddBar({
-    required this.state,
-    required this.onAdd,
-    super.key,
-  });
+  const StickyAddBar({required this.state, required this.onAdd, super.key});
 
   final CustomizationState state;
   final VoidCallback onAdd;

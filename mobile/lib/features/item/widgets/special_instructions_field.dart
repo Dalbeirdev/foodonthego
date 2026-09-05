@@ -94,13 +94,12 @@ class _SpecialInstructionsFieldState extends State<SpecialInstructionsField> {
           // Stops at what the server accepts, so a customer cannot type their
           // way into an error.
           maxLength: widget.maxLength,
-          buildCounter:
-              (
-                _, {
-                required int currentLength,
-                required bool isFocused,
-                required int? maxLength,
-              }) => null,
+          buildCounter: (
+            _, {
+            required int currentLength,
+            required bool isFocused,
+            required int? maxLength,
+          }) => null,
           decoration: InputDecoration(
             hintText: strings.itemNoteHint,
             border: const OutlineInputBorder(

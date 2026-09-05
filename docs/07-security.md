@@ -506,3 +506,68 @@ Module 09 chose this deliberately: the customer's next move genuinely differs,
 and the wording on screen differs with it. Module 10 inherits rather than
 diverging. Recorded here as a known trade-off; if it is ever judged wrong, the
 fix is in `RestaurantDetailService::absent()` and changes both modules at once.
+
+---
+
+## Module 11 — the client cannot decide what anything costs
+
+### The strongest form of "do not trust the client"
+
+Not validation. **Absence.** `CustomizationSelection` has no price field, no
+total, no discount and no tax, so there is nothing in the request for a modified
+client to lie about and nothing a reviewer has to remember not to read.
+
+An integration check sends `unit_price_minor`, `unit_price`, `line_total_minor`,
+`subtotal`, `discount`, `tax`, `final_total` and `price` in a single body, and
+the cart line stores ₹329 — which is what the dish costs.
+
+### Every id in the request is proved, not assumed
+
+| Claim in the request | How it is checked |
+| --- | --- |
+| "This variant is for this dish" | Looked up in the dish's **own** variant collection |
+| "This option is in this group" | Looked up in a map built from the dish's own groups |
+| "This option belongs to that group" | The client's pairing is **ignored**; the option knows |
+| "This dish is at this restaurant" | `where('restaurant_id', …)` on the lookup |
+| "This trip is mine" | `TripService::ownedByOrFail()` — not found, not refused |
+
+And beneath all of it, seven composite foreign keys mean the wrong relationship
+cannot be *stored* even if a future service forgets to check it. See
+[06-database-conventions.md](06-database-conventions.md).
+
+### The cart is reached through the trip
+
+There is no `/carts/{id}` endpoint. A customer's cart is found by looking up
+their journey and reading the active cart on it, so "another customer's cart"
+is not an authorisation failure — it is a lookup that returns nothing, because
+the journey was never theirs.
+
+### Races are closed inside the request that writes
+
+Everything is re-read at the moment of adding: the dish, the size, every option,
+the restaurant's ordering state. The customer's screen may be ten minutes old
+and the kitchen may have run out of mushrooms since. Five separate refusals
+exist for the five ways that can go, so the client can say which.
+
+### Notes are stored exactly as written
+
+Markup, quotes, emoji, Devanagari and line breaks all go in verbatim. Escaping
+on the way in would double-escape on the way out, and the place to make markup
+safe is where it is rendered.
+
+**A note that reaches the restaurant dashboard is untrusted text written by a
+member of the public.** That dashboard is a later module; this is recorded here
+so its author does not have to rediscover it.
+
+### One thing a free-text field is not
+
+An allergen control. The note's caption says the kitchen will see it and do what
+they can, and the screen never suggests it is a way to declare an allergy. When
+structured allergen data exists it will be a field with a schema, not a sentence
+somebody typed.
+
+### The residual disclosure, still inherited
+
+Suspended and nonexistent restaurants both answer 404 with different error
+codes, as documented in Module 09 and again in Module 10. Module 11 inherits it
+rather than diverging.

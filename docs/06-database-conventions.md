@@ -320,3 +320,54 @@ the schema can say so.
 One consequence worth knowing: deletion order matters. `MenuTestDataSeeder`
 clears items before categories, because the composite key is what holds them
 together.
+
+---
+
+## The composite-key pattern, six more times (Module 11)
+
+Module 10 introduced `UNIQUE(id, parent_id)` plus a composite foreign key to
+make "these two must belong to the same third thing" a constraint rather than a
+check. Module 11 applied it wherever that sentence was true:
+
+| Constraint | The sentence it enforces |
+| --- | --- |
+| `menu_item_variants_item_same_restaurant` | A size belongs to a dish **of its own restaurant** |
+| `menu_modifier_options_group_same_restaurant` | An option belongs to a group **of its own restaurant** |
+| `menu_item_modifier_group_item_same_restaurant` | A dish is asked a question **of its own restaurant** |
+| `menu_item_modifier_group_group_same_restaurant` | …and the question belongs there too |
+| `cart_items_cart_same_restaurant` | A line's dish comes from **its cart's** restaurant |
+| `cart_items_item_same_restaurant` | …and that restaurant actually sells it |
+| `cart_items_variant_same_item` | A line's size belongs to **its line's** dish |
+| `cart_item_modifiers_option_same_group` | A line's option belongs to the group it is recorded under |
+
+The last one is the clearest illustration of why this is worth the redundant
+column: without it a cart line could store "Spice level: Extra Cheese", and every
+downstream check would validate cleanly on data that is nonsense.
+
+### A partial index, in a database that has none
+
+At most one **active** cart per customer per journey:
+
+```sql
+active_flag AS (CASE WHEN status = 'ACTIVE' THEN 1 ELSE NULL END) STORED,
+UNIQUE (customer_id, trip_id, active_flag)
+```
+
+NULLs do not collide in a unique index, so any number of closed carts may exist
+and exactly one active one. Two simultaneous taps cannot create two carts —
+which matters because the service's own read-then-write would otherwise have a
+window between them.
+
+**One gotcha worth writing down:** MySQL refuses a cascading foreign key on a
+column used in a generated column's expression. The obvious version of this flag
+(`CASE WHEN status='ACTIVE' THEN trip_id ELSE NULL END`) therefore cannot
+coexist with `trip_id` cascading on delete — and a deleted trip must take its
+carts with it. The flag is derived from `status` alone and `trip_id` goes in the
+index instead, which is equivalent and legal.
+
+### Delete order follows the keys
+
+`MenuTestDataSeeder` clears pivot rows, then options, then groups, then variants,
+then items, then categories. Every one of those tables is held to the next by a
+composite key, and deleting upwards fails. Any script that empties menu data has
+to follow the same order.

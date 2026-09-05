@@ -70,8 +70,7 @@ class ModifierGroupSection extends StatelessWidget {
 
             // At the ceiling, an unchosen option is disabled rather than
             // silently swapping one of the customer's earlier choices out.
-            final bool enabled =
-                option.isAvailable && (selected || !full);
+            final bool enabled = option.isAvailable && (selected || !full);
 
             return Semantics(
               container: true,

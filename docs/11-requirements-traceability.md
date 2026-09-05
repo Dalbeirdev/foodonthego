@@ -854,3 +854,105 @@ Screenshot names refer to the Module 10 live-view run recorded in
   egress policy. KI-002: no macOS host. Verification was done against a release
   **web** build of the same Flutter code, driven through its real semantics
   tree. That is a real runtime and it is not an Android device.
+
+---
+
+## Module 11 — Menu item details, variants, addons, customization and Add to Cart
+
+Screenshot names refer to the Module 11 live-view run recorded in
+[15-test-evidence.md](15-test-evidence.md) and captured under
+`docs/evidence/module-11/`.
+
+| ID | Feature | FE | BE | API | DB | Sec | Tests | Android | iOS | Docs | Status | Evidence |
+| --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
+| M11-001 | Item detail navigation from a real menu item | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-01`; Module 10's sheet deleted |
+| M11-002 | Item detail API with customization | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `ItemCustomizationApiTest` (15) |
+| M11-003 | Variant model, absolute price | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | ₹329 is the price, not the increment |
+| M11-004 | Variant selection changes the price | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-13` |
+| M11-005 | Default variant, configured not guessed | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-02`; unavailable default is no default |
+| M11-006 | Variant availability | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-03`, `state-14` |
+| M11-007 | Modifier group model | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Restaurant-scoped, item-attached |
+| M11-008 | Modifier option model | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Unsigned delta |
+| M11-009 | Required group | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-04` |
+| M11-010 | Optional group | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-05` |
+| M11-011 | Minimum selection enforced | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Two codes: required vs min-not-met |
+| M11-012 | Maximum selection enforced | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-11` |
+| M11-013 | Single select | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-09` — replaces, never adds |
+| M11-014 | Multi select | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-10`, `state-11` |
+| M11-015 | **Addon architecture decided and documented** | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Modifier groups only; rationale in `26-…md` |
+| M11-016 | Paid modifiers | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-10`; never auto-selected |
+| M11-017 | Dynamic price preview | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-10`–`state-16` |
+| M11-018 | **Backend pricing service** | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `MenuItemPricingService`; the only pricer |
+| M11-019 | Money safety | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Integer minor units throughout; no float |
+| M11-020 | Quantity selector | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-15`, `state-16` |
+| M11-021 | Quantity validation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 0, −1, 999999, "two", 2.5, `true` refused |
+| M11-022 | Special instructions | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-17`, `state-18` |
+| M11-023 | Note validation and safety | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 300 chars, counted in characters; stored verbatim |
+| M11-024 | Item availability before adding | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Re-read in the writing request |
+| M11-025 | **Variant unavailable race** | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Smoke check; row changed behind the API |
+| M11-026 | **Modifier unavailable race** | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Refused, naming the option |
+| M11-027 | **Item sold-out race** | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-26`; nothing added |
+| M11-028 | Restaurant pause handling | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-25`; browsing unaffected |
+| M11-029 | **Price-change handling** | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-28`; both figures shown |
+| M11-030 | Cart model | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Customer, trip, restaurant, currency |
+| M11-031 | Cart item model | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Server prices only |
+| M11-032 | Modifier snapshots | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Names and deltas at the moment of adding |
+| M11-033 | **Cart customer ownership** | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Reached through the trip; no `/carts/{id}` |
+| M11-034 | Trip–cart association | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Unique index on a generated column |
+| M11-035 | **One restaurant per cart** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-27`; nothing mutated |
+| M11-036 | Add to Cart API | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-19` |
+| M11-037 | **Server price authority** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | No price field exists in the request |
+| M11-038 | **Price tamper protection** | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 8 money fields in one body; real price charged |
+| M11-039 | Duplicate tap protection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Guarded in flight *and* by the key |
+| M11-040 | Idempotency | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Module 01's middleware, per attempt |
+| M11-041 | **Lost-response retry** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | One line at the quantity asked for once |
+| M11-042 | Identical configuration merges | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Options sorted before hashing |
+| M11-043 | Different configuration separates | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Size, options and note all part of identity |
+| M11-044 | Restaurant cart conflict | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Named, and nothing destroyed |
+| M11-045 | Trip cart conflict | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Refused, not silently reused |
+| M11-046 | Cart badge foundation | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Count and subtotal; no cart screen |
+| M11-047 | Offline item read | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PARTIAL — see note | Detail is not cached; see below |
+| M11-048 | **Offline add blocked** | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-29`; no fake success |
+| M11-049 | Request race handling | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Generation-checked; the newest wins |
+| M11-050 | Android testing | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ⛔ | ✅ | PENDING — environment | KI-001 |
+| M11-051 | iOS testing | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ⛔ | ✅ | PENDING — environment | KI-002 |
+| M11-052 | Accessibility | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Sentences, not controls; M11-B04 fixed |
+| M11-053 | Backend tests | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 93 new; 957 total |
+| M11-054 | Flutter tests | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 86 new; 772 total |
+| M11-055 | Integration test | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 48 checks against a live server |
+| M11-056 | Database verification | ➖ | ➖ | ➖ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Rows read back out of MySQL |
+| M11-057 | Security review | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Checklist in the completion report |
+| M11-058 | Performance | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 3 customization queries at 1 group or 10 |
+| M11-059 | **Cost control** | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 0 provider calls; stub and real log |
+| M11-060 | Live view | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 30 states in a release build |
+| M11-061 | Documentation | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ✅ | COMPLETE | `26-…md` created; 12 updated |
+| M11-062 | Regression, Modules 01–10 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | All smoke runs green |
+| M11-063 | Module 12 handoff | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ✅ | COMPLETE | Recorded at the end of `26-…md` |
+
+### Notes on the entries that are not a plain PASS
+
+- **M11-047 Offline item read = PARTIAL.** The item detail is **not** cached, so
+  a customer who opens a dish with no connection sees the load-failure state and
+  a retry rather than a stale copy. What the requirement asks for — that
+  configuring works offline and only the *add* is blocked — is half met: the
+  add is blocked honestly and every selection survives the failure
+  (`state-29`), but there is nothing to configure if the page never loaded.
+
+  This is a deliberate omission rather than an oversight. Caching a dish means
+  caching its **prices and its availability**, and a customer who configured a
+  cached dish would be quoted figures the server has since changed — the exact
+  problem `PRICE_UPDATED` exists to prevent, reintroduced one layer down. The
+  menu list already caches (Module 10) because a name and a price shown with an
+  explicit "offline" banner is honest; a *configurator* built on stale prices is
+  not. Revisit when the cart screen exists to explain a stale configuration.
+
+- **M11-050 / M11-051 Android and iOS runtime = PENDING — environment
+  unavailable.** KI-001: no Android SDK, and `dl.google.com` is blocked by the
+  egress policy. KI-002: no macOS host. Verification was done against a release
+  **web** build of the same Flutter code, driven through its real semantics
+  tree. That is a real runtime and it is not an Android device.
+
+- **M11-015 Addon architecture = one system, deliberately.** Add-ons are
+  modifier groups. The decision, and the one thing that would justify reversing
+  it (per-add-on quantities), are recorded in
+  [26-menu-item-customization.md](26-menu-item-customization.md).

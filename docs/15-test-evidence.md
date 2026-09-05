@@ -1655,3 +1655,176 @@ restaurant.
 | Web (Chromium, release build) | **PASS** — 30 states |
 | Android | **PENDING — environment unavailable.** No Android SDK; `dl.google.com` is blocked by the egress policy. (KI-001) |
 | iOS | **PENDING — environment unavailable.** No macOS host. (KI-002) |
+
+---
+
+# Module 11 — Menu item details, variants, addons, customization and Add to Cart
+
+Full log: [`evidence/module-11-verification-run.txt`](evidence/module-11-verification-run.txt).
+Screenshots: [`evidence/module-11/`](evidence/module-11/).
+
+## Suites
+
+| Suite | Result |
+| --- | --- |
+| Backend, PHPUnit | **957 passed** (3,982 assertions), 39.7s |
+| Backend, Laravel Pint | **passed** |
+| Mobile, `flutter analyze --fatal-infos` | **No issues found** |
+| Mobile, `dart format --set-exit-if-changed` | **clean** (0 changed on the second pass) |
+| Mobile, `flutter test` | **772 passed** |
+
+New in Module 11: 93 backend test methods and 86 Flutter test cases.
+
+| Backend file | Methods | What it holds the line on |
+| --- | --- | --- |
+| `Feature/CustomizationPricingTest.php` | 30 | Every price the server computes, in integer minor units |
+| `Feature/Api/Customer/ItemCustomizationApiTest.php` | 15 | What the item endpoint will and will not show |
+| `Feature/Api/Customer/AddToCartApiTest.php` | 39 | Every way an add can be refused, and every way it can be raced |
+| `Feature/CartPerformanceTest.php` | 9 | Query counts, and zero routing-provider calls |
+
+| Flutter file | Cases | What it holds the line on |
+| --- | --- | --- |
+| `test/item_customization_models_test.dart` | 15 | Parsing, and the rules a group's two numbers imply |
+| `test/item_customization_controller_test.dart` | 34 | Selection, idempotency, and every failure the screen can show |
+| `test/item_detail_screen_test.dart` | 37 | What the screen says, and what it refuses to say |
+
+## The one number that matters
+
+The live run's state 19 records two lines the rest of this module exists to
+produce:
+
+```
+cart rows: 1
+unit price: 38900
+```
+
+The phone was showing **Add to cart · ₹778** and sent no price at all. The row
+the server wrote is **₹389** a unit — ₹329 for the Large size, ₹40 for Extra
+Cheese, ₹20 for Jalapeños — times two. Every one of those numbers came out of
+the restaurant's menu.
+
+There is no assertion here that the client sent the right price, because there
+is no field in which it could send one. `CustomizationSelection` has no price,
+no subtotal, no discount and no total; a request carrying them parses to the
+same object as a request without them.
+
+## Integration — `tool/cart_smoke.dart`
+
+```
+dart run --define=FOTG_API_BASE_URL=http://127.0.0.1:8000 tool/cart_smoke.dart
+48 passed, 0 failed
+```
+
+It drives this app's own `ApiClient` against the running Laravel backend and a
+real MySQL database — not a mock, not a fixture. Among the 48: the
+price-tampering attempt (`unit_price_minor: 1`, `discount: 999999`) landing at
+the correct price anyway, the duplicate tap producing one line, the lost
+response producing one line, a modifier borrowed from another dish being
+refused, and another customer's trip returning the same 404 a nonexistent one
+does.
+
+## Live view — 34 states
+
+| # | State |
+| --- | --- |
+| 01 | The dish, as it opens |
+| 02 | Sizes, with the configured default chosen |
+| 03 | A sold-out size, shown and inert |
+| 04 | A required group, stating its rule |
+| 05 | An optional group, stating its ceiling |
+| 06 | A paid option, showing what it adds |
+| 07 | **No paid option preselected** |
+| 08 | The free default, already chosen, priced |
+| 09 | Single-select replaces rather than adds |
+| 10 | A paid option moves the price |
+| 11 | Multi-select, and the ceiling reached |
+| 12 | A sold-out option, shown and inert |
+| 13 | A size changes the price **absolutely** |
+| 14 | The sold-out size still cannot be chosen |
+| 15 | Quantity at one |
+| 16 | Quantity at two, and the line total |
+| 17 | The note, and what it does not promise |
+| 18 | The note, filled |
+| 19 | **Added to cart** |
+| 20 | A dish with no default: *"Choose required options"* |
+| 21 | Tapping it marks the unanswered question |
+| 22 | Answering it prices the button |
+| 23 | A dish with nothing to choose |
+| 24 | A sold-out dish, with no button at all |
+| 25 | The kitchen stopped taking orders |
+| 26 | It sold out between opening and adding |
+| 27 | The cart already holds another restaurant |
+| 28 | **The price changed** |
+| 29 | Offline, with every choice kept |
+| 30 | Loading |
+| 31 | 320 dp |
+| 32 | 430 dp |
+| 33 | Dark mode |
+| 34 | 200% text |
+
+**61 assertions across those states, none failing.**
+
+States 25–28 are provoked by intercepting the add and returning the error the
+server would return, because provoking them for real would mean racing a
+restaurant edit against a tap. The refusals themselves — every one of those four
+codes — are asserted against the real backend in `AddToCartApiTest` and
+`cart_smoke`.
+
+### Three assertions that are worth reading as sentences
+
+**State 07** is asserted with Extra Cheese on screen and unticked. A test that
+merely failed to find *"Extra Cheese. Adds 40 rupees. Selected"* would pass just
+as well on a screen that had not rendered the option at all.
+
+**State 13** expects ₹389, not ₹638. A variant is the price, not a surcharge; if
+it were ever added to the base price instead of replacing it, this is the state
+that says so.
+
+**State 17** asserts two absences — *"guarantee"* and *"will definitely"*. The
+note field is allowed to say the kitchen *will do what they can*, and is not
+allowed to promise anything, because a customer with an allergy reads that
+sentence differently from everyone else.
+
+### What the screenshots can and cannot show
+
+As in Modules 09 and 10: Flutter web paints text to a canvas this headless
+Chromium does not capture, so the screenshots carry layout, colour, icons,
+badges and structure — and no words. Text is verified through the semantics
+tree, which is real DOM and is what a screen reader reads.
+
+Two things the pictures do show, and both matter: at 320 dp and at 200% text
+there is **no overflow stripe anywhere**, which is the defect three of this
+module's four bugs were.
+
+## Regression, Modules 01–10
+
+| Run | Result |
+| --- | --- |
+| `integration_smoke` (M01–04) | 13 passed, 0 failed |
+| `profile_addresses_smoke` (M04) | 24 passed, 0 failed |
+| `trip_planner_smoke` (M05) | 31 passed, 0 failed |
+| `route_smoke` (M06) | 21 passed, 0 failed |
+| `discovery_smoke` (M07) | 22 passed, 0 failed |
+| `discovery_filters_smoke` (M08) | 28 passed, 0 failed |
+| `restaurant_detail_smoke` (M09) | 25 passed, 0 failed |
+| `menu_smoke` (M10) | 32 passed, 0 failed |
+| `cart_smoke` (M11) | 48 passed, 0 failed |
+
+**244 integration checks across ten modules, none failing.**
+
+Run in three batches with `redis-cli FLUSHALL` between them: every driver signs
+a persona in, and a full pass exhausts the OTP per-IP budget. A 429 from it is
+the rate limiter doing its job, and is a limit of this environment rather than a
+product behaviour.
+
+Module 11's own run goes last, because `restaurant_detail_smoke` re-seeds the
+discovery fixtures and the menu, variant, modifier and cart rows all
+cascade-delete with their restaurant.
+
+## Runtime coverage
+
+| Runtime | Result |
+| --- | --- |
+| Web (Chromium, release build) | **PASS** — 34 states |
+| Android | **PENDING — environment unavailable.** No Android SDK; `dl.google.com` is blocked by the egress policy. (KI-001) |
+| iOS | **PENDING — environment unavailable.** No macOS host. (KI-002) |

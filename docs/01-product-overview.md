@@ -66,3 +66,37 @@ without a description gets none. A dish nobody photographed gets a monogram, not
 somebody else's curry. A dish nobody declared vegetarian is not marked
 vegetarian, however obvious the name makes it — because the one time that guess
 is wrong, it is wrong on somebody's plate.
+
+---
+
+## Where Module 11 leaves the customer
+
+A customer can now open a dish, choose its size, answer the questions the
+kitchen asks about it, add extras, set a quantity, say what they would prefer —
+and put it in a cart that lives on the server.
+
+What they still cannot do is see that cart as a screen, change what is in it, or
+pay for anything. Module 11 stops at the moment the line exists: the add returns
+a small badge ("1 item · ₹778") and the cart screen, price revalidation and
+order summary are Module 12's.
+
+Three product decisions underneath it are worth stating plainly, because they
+are the ones a customer would notice if we got them wrong:
+
+**The app never decides what anything costs.** The phone shows a price so the
+customer knows what they are agreeing to, but the number that reaches the cart
+is computed on the server from the restaurant's own menu. If the kitchen changes
+a price while the dish is open, the add stops and says *"The price changed"* with
+the new figure — it never quietly charges the old one, and it never quietly
+charges the new one either.
+
+**A paid extra is never ticked for you.** A restaurant can configure a default,
+and where it does — Mild, on the spice question — that default is free. Nothing
+that costs money arrives pre-selected. The bill at the bottom only grows because
+the customer made it grow.
+
+**Special instructions are a request, not a promise.** The field says the
+kitchen *"will do what they can"*, and it never says *guarantee*. Anything that
+has to be true — what a dish contains, whether it is vegetarian — is structured
+data or it is absent; it is not something a customer types into a free-text box
+and hopes somebody reads.

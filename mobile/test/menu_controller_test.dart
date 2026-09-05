@@ -226,9 +226,7 @@ void main() {
 
       await opened(container);
 
-      container
-          .read(menuControllerProvider.notifier)
-          .searchChanged('a' * 120);
+      container.read(menuControllerProvider.notifier).searchChanged('a' * 120);
 
       await Future<void>.delayed(
         MenuScreenController.searchDebounce + const Duration(milliseconds: 80),
@@ -329,10 +327,7 @@ void main() {
       await opening;
 
       // The fresh copy wins. A price may have changed since the list was drawn.
-      expect(
-        container.read(menuControllerProvider).preview.preview,
-        isNotNull,
-      );
+      expect(container.read(menuControllerProvider).preview.preview, isNotNull);
     });
 
     test('an item withdrawn since the list was drawn loses its copy', () async {
@@ -397,31 +392,38 @@ void main() {
   });
 
   group('the section selector', () {
-    test('a search that removes the selected section moves the highlight', () async {
-      final FakeMenuRepository menus = FakeMenuRepository();
-      final ProviderContainer container = containerWith(menus);
+    test(
+      'a search that removes the selected section moves the highlight',
+      () async {
+        final FakeMenuRepository menus = FakeMenuRepository();
+        final ProviderContainer container = containerWith(menus);
 
-      await opened(container);
+        await opened(container);
 
-      final MenuScreenController controller = container.read(
-        menuControllerProvider.notifier,
-      )..categorySelected('category-3');
+        final MenuScreenController controller = container.read(
+          menuControllerProvider.notifier,
+        )..categorySelected('category-3');
 
-      expect(container.read(menuControllerProvider).selectedCategoryId, 'category-3');
+        expect(
+          container.read(menuControllerProvider).selectedCategoryId,
+          'category-3',
+        );
 
-      controller.searchChanged('Paneer');
-      await Future<void>.delayed(
-        MenuScreenController.searchDebounce + const Duration(milliseconds: 80),
-      );
+        controller.searchChanged('Paneer');
+        await Future<void>.delayed(
+          MenuScreenController.searchDebounce +
+              const Duration(milliseconds: 80),
+        );
 
-      // Beverages is not in the results, so the highlight cannot stay on it.
-      final MenuState state = container.read(menuControllerProvider);
+        // Beverages is not in the results, so the highlight cannot stay on it.
+        final MenuState state = container.read(menuControllerProvider);
 
-      expect(state.selectedCategoryId, isNot('category-3'));
-      expect(
-        state.categories.map((MenuCategory c) => c.id),
-        contains(state.selectedCategoryId),
-      );
-    });
+        expect(state.selectedCategoryId, isNot('category-3'));
+        expect(
+          state.categories.map((MenuCategory c) => c.id),
+          contains(state.selectedCategoryId),
+        );
+      },
+    );
   });
 }

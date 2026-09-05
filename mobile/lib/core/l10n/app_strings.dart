@@ -758,8 +758,7 @@ class AppStrings {
   String get menuSearchHint => 'Search this menu';
   String get menuSearchClear => 'Clear search';
   String get menuSearchLabel => 'Search the menu';
-  String menuSearchResults(int count) =>
-      count == 1 ? '1 item' : '$count items';
+  String menuSearchResults(int count) => count == 1 ? '1 item' : '$count items';
   String menuCategoryItemCount(int count) =>
       count == 1 ? '1 item' : '$count items';
 

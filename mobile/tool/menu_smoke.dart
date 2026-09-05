@@ -77,7 +77,13 @@ void main(List<String> args) async {
       };
 
   check('the restaurants this module needs are on the route', () {
-    for (final String name in <String>[_spice, _bites, _bare, _paused, _closed]) {
+    for (final String name in <String>[
+      _spice,
+      _bites,
+      _bare,
+      _paused,
+      _closed,
+    ]) {
       expectValue(byName.containsKey(name), true);
     }
   });
@@ -110,10 +116,7 @@ void main(List<String> args) async {
 
     expectValue(names.contains('Starters'), true);
     expectValue(names.contains('Main Course'), true);
-    expectValue(
-      names.indexOf('Starters') < names.indexOf('Main Course'),
-      true,
-    );
+    expectValue(names.indexOf('Starters') < names.indexOf('Main Course'), true);
   });
 
   check('a dish carries what the restaurant published', () {
@@ -250,34 +253,37 @@ void main(List<String> args) async {
     expectValue(kebab.hasItems, false);
   });
 
-  await checkAsync('an injection string is a search term and nothing more', () async {
-    for (final String probe in <String>[
-      "' OR '1'='1",
-      "'; DROP TABLE menu_items; --",
-      '<script>alert(1)</script>',
-      'UNION SELECT uuid FROM menu_items',
-    ]) {
-      final RestaurantMenu result = await rahul.menus.menu(
+  await checkAsync(
+    'an injection string is a search term and nothing more',
+    () async {
+      for (final String probe in <String>[
+        "' OR '1'='1",
+        "'; DROP TABLE menu_items; --",
+        '<script>alert(1)</script>',
+        'UNION SELECT uuid FROM menu_items',
+      ]) {
+        final RestaurantMenu result = await rahul.menus.menu(
+          tripId: trip.id,
+          restaurantId: card.id,
+          search: probe,
+        );
+
+        // Matched against dish names in memory, where there is no query for it
+        // to become part of. An injection that ran would return something
+        // stranger than nothing.
+        expectValue(result.hasItems, false);
+        expectValue(result.appliedSearch, probe);
+      }
+
+      // And the table is still there.
+      final RestaurantMenu after = await rahul.menus.menu(
         tripId: trip.id,
         restaurantId: card.id,
-        search: probe,
       );
 
-      // Matched against dish names in memory, where there is no query for it
-      // to become part of. An injection that ran would return something
-      // stranger than nothing.
-      expectValue(result.hasItems, false);
-      expectValue(result.appliedSearch, probe);
-    }
-
-    // And the table is still there.
-    final RestaurantMenu after = await rahul.menus.menu(
-      tripId: trip.id,
-      restaurantId: card.id,
-    );
-
-    expectValue(after.hasItems, true);
-  });
+      expectValue(after.hasItems, true);
+    },
+  );
 
   await checkAsync('a punctuation-only search is not reported as a search', () async {
     for (final String probe in <String>['%%', '__', '...', '@@']) {
@@ -322,23 +328,26 @@ void main(List<String> args) async {
     expectValue(preview.restaurant.id, card.id);
   });
 
-  await checkAsync('the preview reflects a price that has since changed', () async {
-    await _setPrice('Paneer Tikka', 27_900);
+  await checkAsync(
+    'the preview reflects a price that has since changed',
+    () async {
+      await _setPrice('Paneer Tikka', 27_900);
 
-    try {
-      final MenuItemPreview preview = await rahul.menus.item(
-        tripId: trip.id,
-        restaurantId: card.id,
-        itemId: paneer.id,
-      );
+      try {
+        final MenuItemPreview preview = await rahul.menus.item(
+          tripId: trip.id,
+          restaurantId: card.id,
+          itemId: paneer.id,
+        );
 
-      // The customer may have had the menu open for ten minutes. Echoing the
-      // payload it was opened from would quote a price the kitchen has left.
-      expectValue(preview.item.price.amountMinor, 27900);
-    } finally {
-      await _setPrice('Paneer Tikka', 24_900);
-    }
-  });
+        // The customer may have had the menu open for ten minutes. Echoing the
+        // payload it was opened from would quote a price the kitchen has left.
+        expectValue(preview.item.price.amountMinor, 27900);
+      } finally {
+        await _setPrice('Paneer Tikka', 24_900);
+      }
+    },
+  );
 
   // --- 6. what a known id does not buy -------------------------------------
   final RestaurantMenu bitesMenu = await rahul.menus.menu(
@@ -374,19 +383,15 @@ void main(List<String> args) async {
     ApiErrorCode.itemNotFound,
   );
 
-  await expectRefused(
-    'a withdrawn item is not reachable by id',
-    () async {
-      final String kebab = await _uuidOf('Discontinued Kebab');
+  await expectRefused('a withdrawn item is not reachable by id', () async {
+    final String kebab = await _uuidOf('Discontinued Kebab');
 
-      return rahul.menus.item(
-        tripId: trip.id,
-        restaurantId: card.id,
-        itemId: kebab,
-      );
-    },
-    ApiErrorCode.itemNotFound,
-  );
+    return rahul.menus.item(
+      tripId: trip.id,
+      restaurantId: card.id,
+      itemId: kebab,
+    );
+  }, ApiErrorCode.itemNotFound);
 
   await expectRefused(
     "another customer's trip does not open this menu",
@@ -418,15 +423,18 @@ void main(List<String> args) async {
   });
 
   // --- 7. the empty menu ---------------------------------------------------
-  await checkAsync('a restaurant with no menu says so, rather than failing', () async {
-    final RestaurantMenu nothing = await rahul.menus.menu(
-      tripId: trip.id,
-      restaurantId: byName[_bare]!.id,
-    );
+  await checkAsync(
+    'a restaurant with no menu says so, rather than failing',
+    () async {
+      final RestaurantMenu nothing = await rahul.menus.menu(
+        tripId: trip.id,
+        restaurantId: byName[_bare]!.id,
+      );
 
-    expectValue(nothing.isMenuEmpty, true);
-    expectValue(nothing.categories.isEmpty, true);
-  });
+      expectValue(nothing.isMenuEmpty, true);
+      expectValue(nothing.categories.isEmpty, true);
+    },
+  );
 
   // --- 8. a closed kitchen still has a menu --------------------------------
   await checkAsync('a closed restaurant still serves its menu', () async {

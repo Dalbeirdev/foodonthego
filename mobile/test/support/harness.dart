@@ -1787,8 +1787,8 @@ class FakeMenuRepository implements MenuRepository {
       itemCount: cartToReturn.itemCount + quantity,
       lineCount: cartToReturn.lineCount + 1,
       subtotal: Money(
-        amountMinor: (cartToReturn.subtotal?.amountMinor ?? 0) +
-            lineTotal.amountMinor,
+        amountMinor:
+            (cartToReturn.subtotal?.amountMinor ?? 0) + lineTotal.amountMinor,
         currency: 'INR',
       ),
     );
@@ -2048,7 +2048,8 @@ MenuItemCustomization sampleCustomization({
           ),
         ]
       : const <MenuItemVariant>[],
-  modifierGroups: groups ??
+  modifierGroups:
+      groups ??
       const <MenuModifierGroup>[
         MenuModifierGroup(
           id: 'group-spice',

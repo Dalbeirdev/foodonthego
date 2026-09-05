@@ -415,3 +415,50 @@ still needs while deciding whether to wait for the kitchen to restock.
 `Money.format()` is the only place a price becomes text. No widget concatenates
 a symbol, and no design token holds one — the symbol comes from the customer's
 locale through `intl`. See [02-architecture.md](02-architecture.md).
+
+---
+
+## Module 11 — a control that is disabled still has to say what it is
+
+Three components, and one rule that runs through them: **the whole row is one
+semantics node with a sentence of its own.**
+
+| Component | Notes |
+| --- | --- |
+| `OptionRow` | A mark, a name, an optional subtitle, a trailing price. Hand-drawn rather than `RadioListTile`/`CheckboxListTile` |
+| `QuantityStepper` | 48 dp targets; the number is its own live region |
+| `SpecialInstructionsField` | Three lines, a caveat, a counter that appears only near the limit |
+| `StickyAddBar` | Pinned above the safe area, carrying the running total |
+
+### Why the list tiles were replaced
+
+Material's `RadioListTile` and `CheckboxListTile` announce the control and the
+label as **separate stops**. On a screen with twenty options that is forty things
+to swipe past, and none of them says the price. `OptionRow` produces one node
+reading *"Extra Cheese. Adds 40 rupees. Not selected"*.
+
+### Wrap, not Row, wherever two labels share a line
+
+Three overflows at 320 dp were found and fixed in this module — a group heading
+beside its rule chip, a field label beside "Optional", and a caveat beside a
+counter. All three were `Row`s that fitted at 390 dp.
+
+**The rule taken from it:** when a line holds two independent pieces of text and
+either can grow (a long group name, a long rule, large text), it is a `Wrap`.
+A `Row` is for things that are genuinely fixed beside each other.
+
+### A disabled control is still named
+
+`IconButton(tooltip:)` becomes an accessible name only when the button is
+**enabled**. At quantity one the minus button is disabled — which is exactly the
+moment a screen-reader user needs to hear what it is and why nothing happened.
+Every step button carries an explicit `Semantics(label:)` for that reason.
+
+The general form: **if a control can be disabled, name it explicitly rather than
+relying on a tooltip.**
+
+### Required is a word
+
+The rule chip beside a group name reads "Required" or "Optional" in the primary
+or neutral surface. Colour alone is not information, and an asterisk is a
+convention rather than a sentence.

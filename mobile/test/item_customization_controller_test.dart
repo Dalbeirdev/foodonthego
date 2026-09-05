@@ -64,9 +64,9 @@ void main() {
       .modifierGroups
       .firstWhere((MenuModifierGroup g) => g.name == name);
 
-  MenuModifierOption optionNamed(String group, String name) => groupNamed(group)
-      .options
-      .firstWhere((MenuModifierOption o) => o.name == name);
+  MenuModifierOption optionNamed(String group, String name) =>
+      groupNamed(group).options
+          .firstWhere((MenuModifierOption o) => o.name == name);
 
   group('opening', () {
     test('starts on the configured default size and free defaults', () async {
@@ -191,7 +191,10 @@ void main() {
       await openItem();
 
       final MenuModifierGroup extras = groupNamed('Add extras');
-      final MenuModifierOption cheese = optionNamed('Add extras', 'Extra Cheese');
+      final MenuModifierOption cheese = optionNamed(
+        'Add extras',
+        'Extra Cheese',
+      );
 
       controller().toggleOption(extras, cheese);
       expect(state().selectedOptionIds.contains('option-cheese'), isTrue);
@@ -224,7 +227,10 @@ void main() {
     test('removing an option brings the price back down', () async {
       await openItem();
 
-      final MenuModifierOption cheese = optionNamed('Add extras', 'Extra Cheese');
+      final MenuModifierOption cheese = optionNamed(
+        'Add extras',
+        'Extra Cheese',
+      );
 
       controller()
         ..toggleOption(groupNamed('Add extras'), cheese)
@@ -233,29 +239,32 @@ void main() {
       expect(state().previewUnitPrice?.amountMinor, 24900);
     });
 
-    test('the ceiling refuses a third rather than dropping the first', () async {
-      await openItem();
+    test(
+      'the ceiling refuses a third rather than dropping the first',
+      () async {
+        await openItem();
 
-      final MenuModifierGroup extras = groupNamed('Add extras');
+        final MenuModifierGroup extras = groupNamed('Add extras');
 
-      controller()
-        ..toggleOption(extras, optionNamed('Add extras', 'Extra Cheese'))
-        ..toggleOption(extras, optionNamed('Add extras', 'Jalapeños'));
+        controller()
+          ..toggleOption(extras, optionNamed('Add extras', 'Extra Cheese'))
+          ..toggleOption(extras, optionNamed('Add extras', 'Jalapeños'));
 
-      expect(state().isFull(extras), isTrue);
+        expect(state().isFull(extras), isTrue);
 
-      controller().toggleOption(
-        extras,
-        optionNamed('Add extras', 'Extra Paneer'),
-      );
+        controller().toggleOption(
+          extras,
+          optionNamed('Add extras', 'Extra Paneer'),
+        );
 
-      // A customer who tapped three things and saw two should be told which
-      // two, not left to work out which one silently went.
-      expect(state().selectedOptionIds, <String>{
-        'option-cheese',
-        'option-jalapeno',
-      });
-    });
+        // A customer who tapped three things and saw two should be told which
+        // two, not left to work out which one silently went.
+        expect(state().selectedOptionIds, <String>{
+          'option-cheese',
+          'option-jalapeno',
+        });
+      },
+    );
 
     test('a sold-out option cannot be chosen', () async {
       await openItem();

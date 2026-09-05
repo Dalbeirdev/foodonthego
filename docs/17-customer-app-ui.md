@@ -646,3 +646,121 @@ same reason a withdrawn restaurant loses its page.
 The menu stays, with a banner. Prices from a failed refresh are still worth
 showing — but never silently, because a price from an hour ago presented as
 current is the kind of thing a customer discovers at the counter.
+
+---
+
+## Configuring a dish (Module 11)
+
+Reached by tapping a dish on the menu. Module 10's read-only sheet is gone; this
+replaced it.
+
+### Down the screen
+
+| Element | Notes |
+| --- | --- |
+| Hero | The dish's own photograph, or nothing. No stock imagery, ever |
+| Name and base price | The price before any choices; the running total lives on the button |
+| Description | The operator's words, in full. Never generated |
+| Badges | Diet, spice, cooking time — each only where published |
+| Sold-out / paused notice | Prominent, above the choices, so nobody configures something they cannot have |
+| Size selector | Radios. Absent where the dish has no sizes |
+| Modifier groups | One per question, each with its rule stated |
+| Quantity stepper | −, the number, + |
+| Special instructions | Optional, with a caveat and no promise |
+| Sticky button | Pinned above the safe area, carrying the running total |
+
+### Rules are stated, not discovered
+
+"Required · Choose 1" and "Optional · Choose up to 2" sit **above** the options.
+A customer should not have to be refused to learn what was being asked of them,
+and a validation message is a poor place to explain a rule for the first time.
+
+Required is a word and a colour, never a colour alone and never a bare asterisk.
+
+### The button never goes dead without saying why
+
+| State | Label | Enabled |
+| --- | --- | --- |
+| Everything answered | **Add to cart · ₹778** | yes |
+| Something missing | **Choose required options** | **yes** |
+| Submitting | Adding… | no |
+| Dish sold out | Sold out | no |
+| Kitchen paused | Not taking orders right now | no |
+
+The second row is the interesting one. A disabled button with no explanation is
+a customer wondering what they did wrong; this one takes the tap, scrolls to the
+first unanswered question and marks it.
+
+Nothing is marked until they have tried. A screen that opens covered in red is
+telling somebody off for not having started.
+
+### The price moves as they choose, and is a preview
+
+It updates on every tap, because a total that lags feels broken. It is replaced
+by the server's figure on every add. The two disagree only when the menu changed
+underneath the customer — and then both are shown:
+
+> **The price changed.** This item was ₹249 and is now ₹269. Review the new
+> price before adding.
+>
+> [ Add at ₹269 ] [ Not now ]
+
+"The price changed" without saying to what is not information.
+
+### At the ceiling, options disable rather than swap
+
+A customer who taps a third extra when two are allowed keeps their two, sees the
+others go quiet, and reads *"You can choose up to 2."* Silently dropping their
+first choice would leave them to work out which one went.
+
+### Unavailable is shown, not hidden
+
+A sold-out size stays on the list, dimmed, with **Unavailable** where its price
+would be. Hiding it leaves somebody who came for the family portion wondering
+whether they misremembered the menu.
+
+### The note is a request, not an instruction
+
+> Special instructions · Optional
+> *Add a note for the restaurant*
+> The kitchen will see this and will do what they can.
+
+Never "the restaurant will follow this", and never presented as a way to declare
+an allergy. The counter appears only in the last forty characters — a counter
+that is always on turns a note into a test.
+
+### Adding
+
+A quiet snackbar — *"Added to cart · 2 items in your cart"* — and the customer
+stays where they are. No full-screen celebration; they are mid-task and may want
+a second dish. The **View cart** action says the cart screen arrives in the next
+release rather than opening a half-built one.
+
+### Failures, each with the move that fixes it
+
+| State | Words | Action |
+| --- | --- | --- |
+| Offline | "You're offline. Connect to the internet to add this to your cart. Your choices are kept." | Try again |
+| Sold out mid-choice | "Just sold out — the kitchen has run out while you were choosing." | none |
+| Kitchen paused | "Not taking orders — you can still browse." | none |
+| Cart holds another restaurant | "Your cart has items from Highway Spice Kitchen." | none yet — Module 12 |
+| Price rose | Both figures, and a choice | Add at the new price / Not now |
+
+A network failure keeps every selection. The customer does not customize their
+dinner again because our request failed.
+
+### Accessibility
+
+Every control is named as a sentence rather than as a control plus a label:
+
+- *"Regular. 249 rupees. Selected"*
+- *"Extra Cheese. Adds 40 rupees. Not selected"*
+- *"Mild. No extra charge. Not selected"* — a screen reader cannot see that the
+  trailing column is empty, so "free" is said out loud
+- *"Quantity, 2"* — a bare "2" between two buttons counts nothing
+- *"Add to cart · ₹778"* on the button
+
+The quantity buttons are named even when **disabled**: a tooltip becomes an
+accessible name only on an enabled control, so at quantity one the minus button
+would otherwise be an anonymous disabled thing at exactly the moment a
+screen-reader user needs to know what it is. See M11-B04.

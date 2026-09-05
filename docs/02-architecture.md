@@ -275,3 +275,42 @@ The one new structural idea is in the schema rather than the services: a
 **composite foreign key** makes a cross-restaurant menu item impossible to
 store, rather than merely unlikely. See
 [06-database-conventions.md](06-database-conventions.md).
+
+---
+
+## Module 11 — who decides what something costs
+
+Module 10 established that money is an integer count of minor units. Module 11
+establishes the rule that makes that worth anything:
+
+> **The customer says what they want. The server decides what it costs.**
+
+There is no price field in the add-to-cart request — not one that is ignored,
+one that does not exist. `CustomizationSelection` carries selections and nothing
+else, and `MenuItemPricingService` is the single place in the application that
+turns a configuration into a figure. The controller does not price. The model
+does not price. The client shows a preview so the screen feels responsive, and
+that preview is replaced by the server's answer on every add.
+
+The one number the client sends that looks like money is not one:
+`quoted_unit_price_minor` is *what the customer was shown*, and the server uses
+it only to refuse charging more than that. Sending a high figure gets the real
+price; sending a low one gets a refusal.
+
+### The pattern this module adds to the codebase
+
+**A value object that cannot carry the dangerous thing.** The safest way to stop
+a field being trusted is for it not to exist. `CustomizationSelection` has no
+price, no total and no discount, so no reviewer has to remember not to read one.
+
+**Two counts of the same idea, again.** Module 08 needed `visible` vs `matched`;
+Module 10 needed `visible_item_count` vs `item_count`; Module 11 needs
+`item_count` vs `line_count` on a cart. The shape recurs because a customer's
+question and a database's answer are rarely the same number.
+
+### What it reuses rather than rebuilding
+
+Eligibility still goes through Module 09's `orderingContext()`, which still goes
+through Module 07's cached corridor read. Adding to a cart therefore calls no
+routing provider, for the same structural reason opening a menu does not — and
+without anybody having written a rule about carts.

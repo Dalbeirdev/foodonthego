@@ -5,7 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/routing/routes.dart';
 import '../../core/theme/tokens.dart';
-import '../../domain/models/restaurant_detail.dart' show RestaurantOrderingState;
+import '../../domain/models/restaurant_detail.dart'
+    show RestaurantOrderingState;
 import '../../domain/models/restaurant_menu.dart';
 import '../../shared/state/menu_controller.dart';
 import 'widgets/menu_category_selector.dart';
@@ -136,7 +137,8 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
     if (target < 0) return;
 
     final int from = categories.indexWhere(
-      (MenuCategory c) => c.id == ref.read(menuControllerProvider).selectedCategoryId,
+      (MenuCategory c) =>
+          c.id == ref.read(menuControllerProvider).selectedCategoryId,
     );
 
     ref.read(menuControllerProvider.notifier).categorySelected(categoryId);
@@ -202,7 +204,9 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
     final MenuState state = ref.watch(menuControllerProvider);
 
     final String title =
-        state.menu?.restaurant.name ?? widget.restaurantName ?? strings.menuTitle;
+        state.menu?.restaurant.name ??
+        widget.restaurantName ??
+        strings.menuTitle;
 
     return Scaffold(
       appBar: AppBar(
@@ -267,7 +271,8 @@ class _Loaded extends ConsumerWidget {
 
     return Column(
       children: <Widget>[
-        if (state.isOffline) _OfflineBanner(generatedAt: state.menu?.generatedAt),
+        if (state.isOffline)
+          _OfflineBanner(generatedAt: state.menu?.generatedAt),
 
         if (_orderingNotice(strings) case final String notice)
           _OrderingBanner(text: notice),
@@ -521,13 +526,12 @@ class _MenuSearchFieldState extends State<_MenuSearchField> {
       // The server refuses anything longer; stopping at the same number means
       // a customer cannot type their way into an error.
       maxLength: 100,
-      buildCounter:
-          (
-            _, {
-            required int currentLength,
-            required bool isFocused,
-            required int? maxLength,
-          }) => null,
+      buildCounter: (
+        _, {
+        required int currentLength,
+        required bool isFocused,
+        required int? maxLength,
+      }) => null,
       decoration: InputDecoration(
         isDense: true,
         hintText: strings.menuSearchHint,
@@ -629,7 +633,8 @@ class _Failure extends ConsumerWidget {
       body: body,
       action: state.isRetryable
           ? FilledButton(
-              onPressed: () => ref.read(menuControllerProvider.notifier).retry(),
+              onPressed: () =>
+                  ref.read(menuControllerProvider.notifier).retry(),
               child: Text(strings.menuTryAgain),
             )
           : TextButton(
@@ -714,9 +719,8 @@ class _OfflineBanner extends StatelessWidget {
       ),
       child: Text(
         strings.menuOfflineCached,
-        style: Theme.of(
-          context,
-        ).textTheme.labelMedium?.copyWith(color: FotgColors.warning),
+        style: Theme.of(context).textTheme.labelMedium
+            ?.copyWith(color: FotgColors.warning),
       ),
     );
   }
@@ -748,9 +752,8 @@ class _OrderingBanner extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(color: FotgColors.neutral800),
+            style: Theme.of(context).textTheme.labelMedium
+                ?.copyWith(color: FotgColors.neutral800),
           ),
         ),
       ],

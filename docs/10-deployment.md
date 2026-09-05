@@ -86,3 +86,64 @@ and adds nothing to the deployment surface.
 - **Routing-provider call volume.** It must not move when menu traffic moves.
   The menu is the most-opened screen in the product after discovery, and it is
   the one that must stay free.
+
+---
+
+## Module 11 release notes
+
+Additive again, and larger: six new tables (`menu_item_variants`,
+`menu_modifier_groups`, `menu_modifier_options`, `menu_item_modifier_group`,
+`carts`, `cart_items`, `cart_item_modifiers` — seven, counting the pivot) plus
+one altered table.
+
+**The altered table is `menu_items`, and it is the one to read before
+deploying.** The migration adds `UNIQUE (id, restaurant_id)` to it. That index
+is redundant on its own — `id` is already unique — and exists solely so that
+`menu_item_variants` can hold a composite foreign key into it and make a variant
+belonging to one restaurant's item and another restaurant's row unwritable.
+Adding a unique index to a populated table takes a lock proportional to its
+size; on a menu table of any realistic size that is milliseconds, but it is a
+DDL lock and it belongs in a maintenance window rather than mid-service.
+
+**Order matters, in both directions.** The dependency chain is:
+
+```
+menu_items ──► menu_item_variants ──┐
+menu_modifier_groups ──► menu_modifier_options ──┐
+                                    ├──► cart_items ──► cart_item_modifiers
+carts ──────────────────────────────┘
+```
+
+Migrations are numbered to run in that order and the `down()` methods reverse
+it. Rolling back drops every cart, which is correct for a release that
+introduced them — but it also drops the composite index on `menu_items`, so a
+rollback that is later rolled forward re-takes the same DDL lock.
+
+**One generated column.** `carts.active_flag` is
+`CASE WHEN status = 'ACTIVE' THEN 1 ELSE NULL END STORED`, and it exists to make
+`UNIQUE (customer_id, trip_id, active_flag)` a *partial* unique index: two
+abandoned carts for the same trip both store `NULL` and do not collide, one
+active cart does. MySQL will not accept a cascading foreign key on a column that
+appears in a generated column's expression, which is why the flag derives from
+`status` alone and `trip_id` is a plain member of the index.
+
+No new environment variable, no new external service, no new queue worker, no
+new scheduled job, and — this is the one that matters for cost — **no new
+routing-provider call**. Opening a dish and adding it to a cart reuses the
+ordering context Module 07 already cached.
+
+### What to watch after release
+
+- **Query count on the add path.** Reads are flat at the time of writing; the
+  inserts grow with the number of chosen options, which is legitimate. A jump in
+  *reads* proportional to options means an N+1 was reintroduced.
+- **`PRICE_UPDATED` rate.** A trickle is the feature working — a restaurant
+  changed a price while somebody had the dish open. A spike means either a
+  restaurant is editing prices in bulk during service, or a client is caching a
+  dish longer than it should.
+- **Unique-index violations on `cart_items.configuration_hash`.** These are
+  caught and merged, so they never surface as errors; they surface as a counter.
+  A rising counter means duplicate taps are reaching the server, which is the
+  race the index exists to lose safely.
+- **Routing-provider call volume.** Still must not move. Ordering is now the
+  deepest funnel in the product and it is still free.

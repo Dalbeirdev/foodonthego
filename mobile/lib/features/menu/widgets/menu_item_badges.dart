@@ -11,11 +11,7 @@ import '../../../domain/models/restaurant_menu.dart';
 /// because a customer who cannot eat egg needs the absence of a badge to mean
 /// "nobody said", not "we checked".
 class MenuItemBadges extends StatelessWidget {
-  const MenuItemBadges({
-    required this.item,
-    super.key,
-    this.compact = false,
-  });
+  const MenuItemBadges({required this.item, super.key, this.compact = false});
 
   final MenuItem item;
 
@@ -169,10 +165,8 @@ class _Badge extends StatelessWidget {
           ],
           Text(
             label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: foreground,
-              fontWeight: FontWeight.w600,
-            ),
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: foreground, fontWeight: FontWeight.w600),
           ),
         ],
       ),

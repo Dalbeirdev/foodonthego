@@ -15,16 +15,14 @@ void main() {
         ...overrides,
       };
 
-  Map<String, dynamic> optionJson(Map<String, dynamic> overrides) =>
-      <String, dynamic>{
-        'id': 'option-1',
-        'name': 'Extra Cheese',
-        'price_delta': <String, dynamic>{
-          'amount_minor': 4000,
-          'currency': 'INR',
-        },
-        ...overrides,
-      };
+  Map<String, dynamic> optionJson(
+    Map<String, dynamic> overrides,
+  ) => <String, dynamic>{
+    'id': 'option-1',
+    'name': 'Extra Cheese',
+    'price_delta': <String, dynamic>{'amount_minor': 4000, 'currency': 'INR'},
+    ...overrides,
+  };
 
   Map<String, dynamic> groupJson(Map<String, dynamic> overrides) =>
       <String, dynamic>{

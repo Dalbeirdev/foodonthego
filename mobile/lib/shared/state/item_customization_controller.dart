@@ -226,11 +226,17 @@ class CustomizationState {
     specialInstructions: specialInstructions ?? this.specialInstructions,
     isSubmitting: isSubmitting ?? this.isSubmitting,
     failure: clearFailure ? null : (failure ?? this.failure),
-    failureMessage: clearFailure ? null : (failureMessage ?? this.failureMessage),
-    invalidGroupId: clearFailure ? null : (invalidGroupId ?? this.invalidGroupId),
+    failureMessage: clearFailure
+        ? null
+        : (failureMessage ?? this.failureMessage),
+    invalidGroupId: clearFailure
+        ? null
+        : (invalidGroupId ?? this.invalidGroupId),
     addition: clearAddition ? null : (addition ?? this.addition),
     cart: cart ?? this.cart,
-    priceChangedTo: clearFailure ? null : (priceChangedTo ?? this.priceChangedTo),
+    priceChangedTo: clearFailure
+        ? null
+        : (priceChangedTo ?? this.priceChangedTo),
     showValidation: showValidation ?? this.showValidation,
   );
 }
@@ -280,9 +286,8 @@ class ItemCustomizationController extends Notifier<CustomizationState> {
     required String restaurantId,
     required String itemId,
   }) async {
-    final bool same = _tripId == tripId &&
-        _restaurantId == restaurantId &&
-        _itemId == itemId;
+    final bool same =
+        _tripId == tripId && _restaurantId == restaurantId && _itemId == itemId;
 
     if (same && (state.hasLoaded || state.isLoading)) return;
 
@@ -375,10 +380,7 @@ class ItemCustomizationController extends Notifier<CustomizationState> {
     // added, this is the line that has to revalidate.
     _configurationChanged();
 
-    state = state.copyWith(
-      selectedVariantId: variantId,
-      clearFailure: true,
-    );
+    state = state.copyWith(selectedVariantId: variantId, clearFailure: true);
   }
 
   /// Taps an option. Radios replace, checkboxes toggle.

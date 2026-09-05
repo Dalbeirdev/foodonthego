@@ -677,3 +677,115 @@ needs a `BuildContext` and an unbuilt row has none. A section selector that
 works only for the sections already on screen is useless on precisely the menus
 it exists for. `_jumpTo` now steps towards the target a screen at a time until
 the builder has made the heading.
+
+---
+
+## Module 11 — item customization and the cart
+
+### M11-B01, B02, B03 — three layout overflows at 320 dp — **Medium** — FIXED
+
+Three `Row`s that fitted at 390 dp and did not at 320:
+
+| Where | The two things sharing a line |
+| --- | --- |
+| `variant_selector.dart` — `GroupHeading` | A group name and its rule chip ("Spice level" + "Required · Choose 1 to 3") |
+| `special_instructions_field.dart` — the label | "Special instructions" + "Optional" |
+| `special_instructions_field.dart` — the footer | The caveat sentence + the character counter |
+
+Each threw a `RenderFlex overflowed` assertion and clipped text mid-word. All
+three are now `Wrap`s.
+
+**Why they were not found earlier.** The widget tests ran at 390 dp, which is a
+recent iPhone. A 320 dp test was added, and it asserts
+`tester.takeException()` is null rather than only that some text is present — an
+overflow *is* an exception, and a test that merely looks for text sails straight
+past one.
+
+The general rule taken from it is in
+[08-design-system.md](08-design-system.md): when a line holds two independent
+pieces of text and either can grow, it is a `Wrap`.
+
+### M11-B04 — a disabled quantity button had no accessible name — **Medium** — FIXED
+
+`IconButton(tooltip: 'Remove one')` becomes an accessible name only when the
+button is **enabled**. At quantity one the minus button is disabled — which is
+precisely the moment a screen-reader user needs to hear what it is and why
+nothing happened. They met an anonymous disabled control instead.
+
+Found by a widget test that could not tap `find.bySemanticsLabel('Remove one')`,
+which is the same thing a screen reader could not do.
+
+Fixed with an explicit `Semantics(button:, enabled:, label:)` around each step
+button. The general form — **if a control can be disabled, name it explicitly
+rather than relying on a tooltip** — is recorded in the design-system doc.
+
+No Module 11 issue was left open. No Critical defect was found.
+
+### Three things the harness got wrong, and what they taught
+
+**Eight widget assertions were wrong about the app, not the other way round.**
+The button correctly says "Choose required options" while a required group is
+unanswered, so every test that expected "Add to cart · ₹249" without answering
+one was asserting a state that should not exist. `₹249` also legitimately appears
+twice — the dish's base price and the Regular variant's own price. Both were
+tightened rather than loosened: the tests now answer the group first, and assert
+the exact count.
+
+**The live driver assumed the seeded data was less complete than it is.** Its
+first run expected Paneer Tikka to open with an unanswered required group; the
+seeder marks "Mild" as a configured free default, so the dish opens ready to
+add. That is the behaviour the default feature exists for. The driver now uses
+Masala Chai — two sizes, no default — to reach the "Choose required options"
+state, which is the honest way to see it.
+
+**MySQL output needs its encoding stated.** A stored note holding Devanagari and
+an emoji came back through `Process.run('mysql', …)` as a `FormatException:
+Unexpected extension byte`, because the platform default decoder is not UTF-8.
+The row was correct; the read was not. `stdoutEncoding: utf8` and
+`--default-character-set=utf8mb4` fixed it. Worth knowing for any future driver
+that reads text back out of the database.
+
+### Four more things the live-view harness got wrong
+
+These cost most of a day and none of them was a product defect, so they are
+written down rather than repeated.
+
+**A driver that reads the semantics tree must query every element, not just
+`flt-semantics`.** Flutter web renders a control's name as an `aria-label` on an
+`<flt-semantics>` element, but renders a *plain piece of text* — a group's
+description, a stepper's "Quantity, 1", a section's caption — as a bare `<span>`
+with no label of its own. A query written against the semantics tag alone cannot
+see those at all, and reports them missing from a screen that is showing them.
+Three states were "failing" for an hour on that basis. The fix is one character:
+query `*` inside `flt-semantics-host` and filter to leaves and labelled nodes.
+
+**Presence is not position.** Flutter copies every heading onto the *screen's*
+group label, so "Choose a size" is in the semantics tree at any scroll offset.
+A helper that scrolled until a string appeared therefore never scrolled, and the
+screenshots for four consecutive states were the same picture of the top of the
+page. Scrolling has to be steered by an element's `getBoundingClientRect()`, and
+a match taller than the viewport has to be discarded as a container — steering
+by the container's box walks the page back to the top one notch at a time.
+
+**Clicking a disabled control through the DOM does not stay put.** Dispatching
+`element.click()` at a *disabled* semantics node — it has no handler of its own —
+was observed opening the discovery screen's filter sheet on top of the dish. A
+real `page.mouse.click()` at the control's real coordinates cannot do that, and
+is also closer to what the state claims to be testing.
+
+**A focused text field eats the first tap — on the web.** With the note field
+focused, Flutter web holds a real `<textarea>` over the canvas, and the first
+click outside it is spent taking focus away, so the Add button needs a second
+tap. On a phone the field is a canvas widget and the tap lands on the button.
+This is a browser artefact of the harness rather than a defect, but it is the
+kind of thing that reads like one at 2am, so: the driver blurs first and
+verifies the consequence before believing a tap landed.
+
+### The regression suite needs its base URL stated
+
+`dart run tool/<driver>.dart` with no `--define` uses the app's compiled-in
+default, `http://10.0.2.2:8000` — the Android emulator's alias for the host. On
+this machine that is not routable and every driver fails at sign-in with
+`ApiException(NETWORK)`, which looks exactly like a broken backend. Every smoke
+run needs `--define=FOTG_API_BASE_URL=http://127.0.0.1:8000`, as the header
+comment in each driver says.

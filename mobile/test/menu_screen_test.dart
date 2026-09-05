@@ -43,8 +43,7 @@ void main() {
           ),
           routes: FakeRouteRepository(calculated: true),
           menus: repository,
-          initialLocation:
-              '/trips/trip-1/route/restaurants/restaurant-1/menu',
+          initialLocation: '/trips/trip-1/route/restaurants/restaurant-1/menu',
         ),
       ),
     );
@@ -216,9 +215,7 @@ void main() {
       await open(
         tester,
         menus: FakeMenuRepository(
-          menuToReturn: sampleMenu(
-            ordering: RestaurantOrderingState.closed,
-          ),
+          menuToReturn: sampleMenu(ordering: RestaurantOrderingState.closed),
         ),
       );
 
@@ -297,10 +294,7 @@ void main() {
     testWidgets('a restaurant with no menu says so, without an error', (
       WidgetTester tester,
     ) async {
-      await open(
-        tester,
-        menus: FakeMenuRepository(menuToReturn: emptyMenu()),
-      );
+      await open(tester, menus: FakeMenuRepository(menuToReturn: emptyMenu()));
 
       expect(find.text('No menu yet'), findsOneWidget);
       expect(find.textContaining("hasn't published"), findsOneWidget);
@@ -488,10 +482,7 @@ void main() {
     testWidgets('a twenty-section menu builds only what is on screen', (
       WidgetTester tester,
     ) async {
-      await open(
-        tester,
-        menus: FakeMenuRepository(menuToReturn: largeMenu()),
-      );
+      await open(tester, menus: FakeMenuRepository(menuToReturn: largeMenu()));
 
       // Five hundred dishes in the menu; a dozen cards built. A screen that
       // built all five hundred would take seconds to open on the phone this
@@ -537,10 +528,7 @@ void main() {
 
       // Vegetarian to a reader, unknown to this app. The sentence goes
       // straight from the name to the price.
-      expect(
-        find.bySemanticsLabel('Dal Makhani. 299 rupees'),
-        findsOneWidget,
-      );
+      expect(find.bySemanticsLabel('Dal Makhani. 299 rupees'), findsOneWidget);
     });
 
     testWidgets('a declared spice level is announced, and only then', (

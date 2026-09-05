@@ -57,3 +57,28 @@ locale.
 `production`. That is the only environment-sensitive thing the module adds, and
 it is a refusal rather than a configuration knob: there is no value of any
 variable that makes it seed a production database.
+
+---
+
+## Module 11 adds no environment variable either
+
+Customization and the cart read and write only this application's own database.
+No pricing service, no tax service, no payment provider, no cart store — the
+cart is MySQL rows, and every price on them is computed by
+`MenuItemPricingService` from the restaurant's own menu.
+
+Two things are configuration rather than environment, and both live in
+`config/foodonthego.php` under `cart`:
+
+| Key | Default | What it bounds |
+| --- | --- | --- |
+| `max_quantity_per_line` | 20 | One line of one dish |
+| `max_special_instructions` | 300 | Characters in a note |
+| `max_lines` | 50 | Distinct configurations in one cart |
+| `ttl_seconds` | 604800 | How long an untouched cart is meaningful (7 days) |
+
+They are limits, not feature flags: raising one changes what a customer may do,
+so they are versioned with the code rather than set per environment.
+
+`MenuTestDataSeeder` still refuses to run when `APP_ENV=production`, and the
+customization fixtures it now creates are covered by the same refusal.

@@ -274,6 +274,15 @@ available.
 Where Module 10 stops is visible here — a sentence, *"Ordering opens soon"*, and
 no button at all.
 
+> **Superseded by Module 11.** The bottom sheet described above no longer
+> exists; tapping a dish now pushes the full item screen documented in
+> [26 — Menu item customization](26-menu-item-customization.md). The reasoning
+> in this section survived the replacement intact — the screen is still fetched
+> fresh rather than echoed from the list, still draws what it already knows
+> under a progress bar, and still empties that copy if the dish has been
+> withdrawn — but *"Ordering opens soon"* is gone, and in its place is a button
+> that says what the dish costs.
+
 ---
 
 ## Security
@@ -344,3 +353,23 @@ is never used for a load measurement.
 Variants, add-ons, customisation, the cart, checkout, payment and order
 creation. `is_orderable` is on the wire and drives what the screen *says*, not
 what it lets a customer do — Module 10 places no orders.
+
+---
+
+## What Module 11 changed here
+
+Nothing in the menu list itself: the same endpoint, the same visibility rules,
+the same seventeen queries, the same zero routing-provider calls.
+
+Two things did change, and both are downstream of the tap:
+
+**The preview sheet was deleted, not kept alongside.**
+`lib/features/menu/widgets/menu_item_sheet.dart` is gone and the menu card now
+navigates to `items/:itemId`. A sheet that showed a dish and a screen that
+showed the same dish would have been two places to fix every future change to
+how a dish is presented, and they would have drifted.
+
+**`is_orderable` now has consequences.** In Module 10 it decided what the sheet
+*said*. It now decides whether the item screen offers a button at all — a dish
+that is sold out, or a restaurant that has stopped taking orders, reaches the
+screen and shows no way to add it, rather than a button that fails on tap.

@@ -565,6 +565,13 @@ terms were written as an array keyed by weight, PHP cast the float keys to
 `int`, they all collapsed to key `0`, and **every restaurant scored zero**. See
 M08-B01 in `13-known-issues.md`.
 
+### One housekeeping change outside the module
+
+`dart format` under Dart 3.13.2 reformats 21 files written under an earlier SDK
+— whitespace only, no behaviour, and it puts `dart format
+--set-exit-if-changed` back to clean. Twelve of them are Module 10 and Module 11
+sources; the rest are their tests and the smoke drivers.
+
 ### Not done, and said plainly
 
 - **Rating filter and highest-rated sort are deferred.** No reviews module
@@ -739,3 +746,84 @@ left open — see [13-known-issues.md](13-known-issues.md):
   the error *codes* differ, which is Module 09's documented trade-off. Recorded
   in [25-customer-menu-browsing.md](25-customer-menu-browsing.md) rather than
   silently changed here.
+
+---
+
+## Module 11 — Menu item details, variants, add-ons, customization and Add to Cart
+
+### Added
+
+- **`menu_item_variants`.** Sizes, with an **absolute** price — "Large ₹329" is
+  what the dish costs, not what it costs extra.
+- **`menu_modifier_groups`, `menu_modifier_options`, and the item pivot.** The
+  questions a kitchen asks and their answers, with the rule stored as two
+  numbers (`min_select`, `max_select`) rather than a flag.
+- **`carts`, `cart_items`, `cart_item_modifiers`.** The minimum that makes Add
+  to Cart mean something. No cart screen.
+- **`CustomizationSelection`** — a value object with no price, no total and no
+  discount, so there is nothing in an add-to-cart request to tamper with.
+- **`CustomizationValidator`** — ownership, then availability, then the rules,
+  all against rows read in the request that writes.
+- **`MenuItemPricingService`** — the only thing in the application that decides
+  what a configuration costs.
+- **`CartService`** — one active cart per customer per journey, one restaurant
+  per cart, one transaction per line.
+- **The Flutter item detail screen**, its controller, and the components behind
+  it: variant selector, modifier sections, quantity stepper, note field, sticky
+  bar with the running total.
+- **Six more composite foreign keys**, so a size cannot belong to another
+  restaurant's dish and a cart line cannot claim "Spice level: Extra Cheese".
+- **`cart.max_quantity_per_line` (20), `max_special_instructions` (300),
+  `max_lines` (50), `ttl_seconds` (7 days)** in config — nothing compares
+  against a literal.
+
+### Changed
+
+- The item detail response gained a `customization` block carrying sizes,
+  groups, rules and **the server's own limits**, so the stepper and the note
+  counter cannot drift from what the server accepts.
+- `menu_items` gained `UNIQUE(id, restaurant_id)`, so variants can reference it
+  compositely.
+- `ApiClient.post` can carry an `Idempotency-Key`. It cannot overwrite
+  `Authorization`, `Accept` or `Content-Type` — a caller cannot accidentally
+  send a request unauthenticated.
+- `MenuTestDataSeeder` gained sizes and questions, deliberately uneven.
+
+### Removed
+
+- **Module 10's read-only item sheet.** The configurable screen replaced it
+  entirely; leaving a placeholder no route reaches is dead code the next reader
+  has to work out is dead.
+
+### Fixed
+
+Four defects, none left open — see
+[13-known-issues.md](13-known-issues.md). All four came from running the thing:
+
+- **M11-B01/B02/B03 (Medium).** Three layout overflows at 320 dp — a group
+  heading beside its rule, a field label beside "Optional", and a caveat beside
+  a counter. All fitted at 390 dp, which is what the tests had been running at.
+- **M11-B04 (Medium).** The disabled quantity button had no accessible name. A
+  tooltip becomes a name only on an *enabled* control, so at quantity one a
+  screen-reader user met an anonymous disabled thing at exactly the moment they
+  needed to know what it was.
+
+### Not done, and said plainly
+
+- **Nothing can be ordered.** No cart screen, no editing a line, no promo codes,
+  no taxes, no fees, no pickup time, no payment, no order. Module 12.
+- **No cart cleanup runs.** `expires_at` is written and nothing deletes on it. A
+  scheduled job that silently empties carts before the screen explaining it
+  exists would ship the consequence without the explanation.
+- **Add-ons are modifier groups.** There is no separate addon model, deliberately
+  — one customization system rather than two doing the same job. Per-add-on
+  quantities are the one thing that would justify a second model, and no real
+  configuration here needs them.
+- **A note is not an allergen control.** The caption says the kitchen will do
+  what they can. When structured allergen data exists it will be a field with a
+  schema, not a sentence somebody typed.
+- **Android and iOS runtime verification are pending** — no Android SDK
+  (KI-001), no macOS host (KI-002). Verification was against a release web build
+  of the same Flutter code.
+- **The suspended-versus-missing distinction is still inherited** from Module 09
+  and still documented rather than silently changed.

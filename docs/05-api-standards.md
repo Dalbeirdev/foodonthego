@@ -387,3 +387,65 @@ needs both to tell "there is nothing here" from "your search found nothing" —
 two different problems whose answers are opposite: leave, or clear the box. An
 endpoint that returned only the first forces the client to guess, and it guesses
 wrong on exactly the day a restaurant has no menu.
+
+---
+
+## A request carries intent, not conclusions (Module 11)
+
+The add-to-cart endpoint takes selections — which dish, which size, which
+options, how many — and **no money at all**. There is no `unit_price`, no
+`subtotal`, no `discount` and no `total`, because a field that does not exist
+cannot be trusted by mistake.
+
+This is the rule for every endpoint in this product that results in a charge:
+
+- **The client sends what the customer chose.** The server reads the rows and
+  decides what that costs.
+- **A price in the body is not validated, it is absent.** An integration test
+  sends eight money-shaped fields in one request and is charged the real price,
+  because nothing reads them.
+- **Relationships in the body are advisory.** The grouped shape
+  (`modifier_groups: [{group_id, option_ids}]`) reads well, and the `group_id`
+  is *ignored* — an option knows its own group. Trusting the client's pairing
+  would let a request claim "Spice level: Extra Cheese" and have the stored
+  record agree.
+
+### The exception, and why it is not one
+
+`quoted_unit_price_minor` is a number the client sends that looks like money.
+It is a statement about **what the customer was shown**, used for exactly one
+comparison:
+
+| Server's figure vs the quote | Behaviour |
+| --- | --- |
+| Higher | `409 PRICE_UPDATED`, with the new figure. Nothing added. |
+| Equal or lower | Added, at the **server's** figure. |
+| Quote absent | Added, at the server's figure. |
+
+An attacker who inflates it pays the real price; one who deflates it is refused.
+An honest client that shows no price simply omits it.
+
+---
+
+## Errors name the part of the request that failed (Module 11)
+
+A customer who cannot add a dish deserves to know *which* choice is the problem,
+and a screen can only scroll to the unanswered question if the server names it:
+
+```json
+{
+  "error": {
+    "code": "MODIFIER_REQUIRED",
+    "message": "Choose an option under Spice level to continue.",
+    "details": { "group_id": "…", "min_select": 1, "selected": 0 }
+  }
+}
+```
+
+Two conventions here are worth keeping:
+
+- **422 is "your choice does not work"; 409 is "the world moved".** A customer
+  fixes the first on screen and the second by looking again. `MODIFIER_REQUIRED`
+  is 422; `MODIFIER_UNAVAILABLE` — chosen a minute ago, sold out now — is 409.
+- **`details` carries identifiers, never prose the client parses.** The message
+  is for a person; the `group_id` is for the scroll.
