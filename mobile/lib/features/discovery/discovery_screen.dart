@@ -426,15 +426,29 @@ class _FilterButton extends StatelessWidget {
       child: const Icon(Icons.tune_rounded, size: 20),
     );
 
-    return Tooltip(
-      message: label,
-      child: compact
-          ? IconButton(onPressed: onPressed, icon: icon)
-          : TextButton.icon(
-              onPressed: onPressed,
-              icon: icon,
-              label: Text(strings.discoveryFilters),
-            ),
+    if (compact) {
+      // An icon button's tooltip *is* its accessible name, so the count is
+      // announced without any extra wrapping.
+      return IconButton(onPressed: onPressed, icon: icon, tooltip: label);
+    }
+
+    // A `Tooltip` around a labelled button does not become that button's name:
+    // it lands in the tree as a separate node, and the button goes on
+    // announcing a bare "Filters" over a filtered list. Measured in the live
+    // semantics tree, and fixed by naming the button itself.
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      onTap: onPressed,
+      child: Tooltip(
+        message: label,
+        child: TextButton.icon(
+          onPressed: onPressed,
+          icon: icon,
+          label: Text(strings.discoveryFilters),
+        ),
+      ),
     );
   }
 }

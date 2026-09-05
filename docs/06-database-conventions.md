@@ -189,3 +189,43 @@ Two rules the pruner follows, both worth copying when the next such table appear
 `phpunit.xml` pins `DB_CONNECTION=mysql`. The schema uses MySQL types (`ENUM`, `utf8mb4` collation)
 and later modules will use MySQL locking semantics — a SQLite test run would pass against a schema
 production cannot create.
+
+---
+
+## Generated columns for stable identifiers (Module 08)
+
+`restaurant_cuisines.slug` and `restaurant_facilities.slug` are **stored
+generated columns**:
+
+```sql
+slug VARCHAR(60) AS (LOWER(REGEXP_REPLACE(TRIM(cuisine), '[^a-zA-Z0-9]+', '_'))) STORED
+```
+
+The rule they exist to enforce: **a customer filters by an identifier, never by
+a display label.** Deriving the identifier in PHP would mean two places that
+must agree about what "North Indian" becomes, and one of them eventually
+wouldn't. The database maintains it, on write, for every row, including rows
+written by a migration or by hand.
+
+Stored rather than virtual because it is indexed and read on every discovery
+request; the write cost is paid once by an operator editing a menu.
+
+Indexes added alongside them:
+
+| Index | Columns | For |
+| --- | --- | --- |
+| `restaurant_cuisines_slug_index` | `(slug, restaurant_id)` | "which restaurants serve this" |
+| `restaurant_facilities_slug_index` | `(slug, restaurant_id)` | the same, for facilities |
+| `restaurants_name_index` | `(name)` | name search, and operator lookup |
+
+### An index that was measured and then removed
+
+A composite `(status, verification_status, is_discoverable, latitude)` index was
+built to serve the corridor query. With 5,008 restaurants spread across India it
+read 554 rows; the existing `restaurants_position_index` on `(latitude,
+longitude)` read 585 for the same query. That is not a difference worth an
+index, so it was reverted.
+
+The measurement is kept in `docs/evidence/module-08-verification-run.txt` so the
+next person does not repeat the experiment. **An index nobody has measured is a
+write cost with a hypothesis attached.**

@@ -161,3 +161,40 @@ both modules can be trusted about the figures they *do* report.
 No authentication, no domain tables beyond `users`, no feature endpoints. Module-specific migrations
 belong to the modules that own them — creating thirty half-designed tables now would fix decisions
 before the features that depend on them are understood.
+
+---
+
+## Module 08 — refining a discovery result
+
+Module 08 adds no data source, no provider and no table. It adds one service
+between the discovery result and the response:
+
+```
+TripRestaurantController
+  ├─ RestaurantDiscoveryService::discover()   Module 07. Database, provider, cache.
+  └─ DiscoveryRefiner::refine()               Module 08. Pure computation.
+```
+
+The split is the design. `discover()` is the only half that can spend money or
+touch the database; `refine()` receives what it returns and narrows it. So
+"changing a filter never calls the routing provider" is not a rule anyone has to
+remember — it is a consequence of the refiner having no repository, no query
+builder and no connection.
+
+The same shape is what makes route eligibility unbypassable. A search string
+never reaches SQL because there is no SQL below the refiner to reach.
+
+New collaborators, all under `app/Services/Discovery/`:
+
+| Class | Role |
+| --- | --- |
+| `DiscoveryQuery` | The request, validated once and normalised. A readonly value object |
+| `SearchMatcher` | Normalisation and scored relevance tiers |
+| `AvailabilityFilter` | The two availability questions, kept apart |
+| `DiscoveryRefiner` | Search, filter, sort, paginate, and compute facets |
+| `RefinedDiscovery` | One page, plus the two totals the empty screens turn on |
+| `DiscoverySort` (enum) | The sort allow-list, with per-case availability |
+
+Ranking weights moved out of `DiscoveryRankingService` into
+`config/foodonthego.php`; the service now takes them as a constructor argument.
+See `23-restaurant-search-filters-ranking.md`.

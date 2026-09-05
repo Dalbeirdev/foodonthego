@@ -247,6 +247,29 @@ void main() {
     });
   });
 
+  group('one vocabulary', () {
+    testWidgets('the sheet and the chip call an availability filter the same '
+        'thing', (WidgetTester tester) async {
+      await openDiscovery(tester);
+
+      await tester.tap(find.byTooltip('Filter these stops'));
+      await tester.pumpAndSettle();
+
+      // The server calls it "Accepting orders". The app calls it "Taking
+      // orders" on the chip, so it must call it that here too — one thing with
+      // two names reads as two filters.
+      expect(find.text('Taking orders (2)'), findsOneWidget);
+      expect(find.text('Accepting orders (2)'), findsNothing);
+
+      await tester.tap(find.text('Taking orders (2)'));
+      await tester.pump();
+      await tester.tap(find.text('Show results'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(InputChip, 'Taking orders'), findsOneWidget);
+    });
+  });
+
   group('the chips', () {
     Future<void> applyCuisines(WidgetTester tester) async {
       await tester.tap(find.byTooltip('Filter these stops'));
@@ -307,6 +330,25 @@ void main() {
 
       expect(repository.lastQuery!.hasFilters, isFalse);
       expect(find.byType(InputChip), findsNothing);
+    });
+
+    testWidgets('a screen reader hears the count, not a bare "Filters"', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+
+      await openDiscovery(tester);
+      await applyCuisines(tester);
+
+      // A `Tooltip` around a labelled button lands in the semantics tree as a
+      // node of its own rather than naming the button, so the button went on
+      // announcing "Filters" over a filtered list. Found in the live tree.
+      expect(
+        find.bySemanticsLabel('Filter these stops, 2 filters'),
+        findsOneWidget,
+      );
+
+      handle.dispose();
     });
 
     testWidgets('the filter button carries a count', (
@@ -526,13 +568,113 @@ void main() {
     });
   });
 
-  group('narrow screens', () {
-    testWidgets('the controls fit at 320dp', (WidgetTester tester) async {
-      await openDiscovery(tester, size: const Size(320, 720));
+  group('narrow screens, long labels and large text', () {
+    testWidgets('the controls fit at every width we support', (
+      WidgetTester tester,
+    ) async {
+      for (final Size size in <Size>[
+        Size(320, 720),
+        Size(360, 740),
+        Size(375, 812),
+        Size(390, 844),
+        Size(412, 892),
+        Size(430, 932),
+      ]) {
+        await openDiscovery(tester, size: size);
+
+        expect(tester.takeException(), isNull, reason: 'overflow at $size');
+        expect(find.byType(TextField), findsOneWidget);
+        expect(find.byTooltip('Filter these stops'), findsOneWidget);
+      }
+    });
+
+    testWidgets('a long facility name wraps rather than overflowing', (
+      WidgetTester tester,
+    ) async {
+      await openDiscovery(
+        tester,
+        size: const Size(320, 720),
+        discovery: FakeDiscoveryRepository(
+          facets: const DiscoveryFacets(
+            facilities: <FilterOption>[
+              FilterOption(
+                slug: 'wheelchair_accessible',
+                label: 'Wheelchair Accessible',
+                count: 1,
+              ),
+              FilterOption(
+                slug: 'electric_vehicle_charging',
+                label: 'Electric Vehicle Charging Point',
+                count: 1,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.tap(find.byTooltip('Filter these stops'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Electric Vehicle Charging Point (1)'), findsOneWidget);
+    });
+
+    testWidgets('a long restaurant name does not break the count row', (
+      WidgetTester tester,
+    ) async {
+      await openDiscovery(
+        tester,
+        size: const Size(320, 720),
+        discovery: FakeDiscoveryRepository(
+          facets: facets,
+          restaurants: <DiscoveredRestaurant>[
+            sampleRestaurant(
+              name:
+                  'Shri Rajasthani Highway Family Dhaba and '
+                  'Vegetarian Restaurant',
+              cuisines: const <String>[
+                'North Indian',
+                'Rajasthani Thali and Sweets',
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('1 stop on your route'), findsOneWidget);
+    });
+
+    testWidgets('the controls survive 1.6x text', (WidgetTester tester) async {
+      usePhoneSurface(tester, size: const Size(360, 740));
+
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(1.6)),
+          child: wrapApp(
+            repository: StubHomeRepository.value(
+              const HomeDashboard(
+                customer: CustomerSummary(fullName: 'Rahul Sharma'),
+              ),
+            ),
+            routes: FakeRouteRepository(calculated: true),
+            discovery: FakeDiscoveryRepository(facets: facets),
+            initialLocation: '/trips/trip-1/route/restaurants',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
       expect(find.byType(TextField), findsOneWidget);
-      expect(find.byTooltip('Filter these stops'), findsOneWidget);
+
+      // And the sheet still reaches its own apply button, which is the control
+      // a customer is stranded without.
+      await tester.tap(find.byTooltip('Filter these stops'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Show results'), findsOneWidget);
     });
   });
 }

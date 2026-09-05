@@ -1158,3 +1158,180 @@ a test that cannot fail is worse than no test.
   (KI-001, KI-002.)
 
 None is a code failure, and none is reported as a pass.
+
+---
+
+# Module 08 — Restaurant search, filters, sorting and discovery ranking
+
+Recorded against PHP 8.4.19 / Laravel 12.69.1 / MySQL 8.0.46 / Redis 7.0.15 /
+Flutter 3.47.2 on Ubuntu 24.04. Providers: `ROUTE_PROVIDER=development`,
+`PLACES_PROVIDER=development`, `OTP_PROVIDER=log`.
+
+Full run output: [`evidence/module-08-verification-run.txt`](evidence/module-08-verification-run.txt).
+Screenshots: `evidence/module-08/state-01..28-*.png`.
+
+## Automated tests
+
+| Suite | Result |
+| --- | --- |
+| Backend (PHPUnit) | **741 passed**, 3 049 assertions, 0 failed, 0 skipped |
+| Flutter | **536 passed**, 0 failed, 0 skipped |
+| Laravel Pint | clean |
+| `flutter analyze --fatal-infos` | no issues |
+| `dart format` | clean |
+
+New in Module 08: 106 backend test methods and 87 Flutter test cases, measured
+against the Module 07 commit.
+
+| File | Tests |
+| --- | --- |
+| `tests/Unit/DiscoveryQueryTest.php` | 22 |
+| `tests/Unit/SearchMatcherTest.php` | 14 |
+| `tests/Unit/DiscoveryRankingTest.php` | 14 |
+| `tests/Feature/DiscoveryRefinerTest.php` | 30 |
+| `tests/Feature/Api/Customer/TripRestaurantFilterApiTest.php` | 37 |
+| `mobile/test/discovery_query_test.dart` | 21 |
+| `mobile/test/discovery_refine_controller_test.dart` | 25 |
+| `mobile/test/discovery_filters_screen_test.dart` | 34 |
+
+## Integration run — real backend, real MySQL, real route geometry
+
+`mobile/tool/discovery_filters_smoke.dart`: **28 passed, 0 failed.**
+
+Rahul signs in, plans Green Park → Jaipur airport, calculates a route through
+Module 06, and then every check runs against what Module 07 actually found on
+it.
+
+What the route offered:
+
+```
+eligible stops : 5
+cuisines       : bakery(1) cafe(1) chinese(1) fast_food(1)
+                 north_indian(2) rajasthani(1) vegetarian(1)
+facilities     : parking(4) restroom(2) seating(2) takeaway(1)
+price levels   : 1(1) 2(3) 3(1)
+rating filter  : false
+detour ceiling : 900s
+```
+
+Selected checks:
+
+| Check | Result |
+| --- | --- |
+| Searching "Suspended Dhaba" | 0 results |
+| Searching "Pending Restaurant" | 0 results |
+| Searching "Far Away Kitchen" (outside the corridor) | 0 results |
+| Eleven filter shapes against ineligible restaurants | none reachable |
+| `cuisines=rajasthani,chinese` (OR) | 2 of 5 |
+| `facilities=parking,restroom` (AND) | excludes the parking-only fixture |
+| `availability=open_now` vs `accepting_orders` | the paused grill is in the first, not the second |
+| `price_levels=1` | exactly the level-1 fixture |
+| `min_rating=4` | 0 results, `rating_available: false` |
+| Eight malformed filters | each a 422 naming its own field |
+| `sort=highest_rated` | 422, not a silent downgrade |
+| `search='; DROP TABLE restaurants; --` | empty page; the table is intact |
+| Seven filter/sort/page variations after one warm call | `from_cache: true` on every one |
+| Suspending a restaurant mid-session | gone from the very next filtered call |
+
+Two things the run reports as **NOT APPLICABLE** rather than passing:
+
+- Detour-ceiling exclusion — a straight-line road network cannot produce a stop
+  above any ceiling the filter can set (KI-012).
+- The rating filter against real data — no restaurant has a rating, because
+  there is no reviews module.
+
+## Regression — Modules 01–07
+
+| Module | Run | Result |
+| --- | --- | --- |
+| 01–03 | `tool/integration_smoke.dart` | 13 passed, 0 failed |
+| 04 | `tool/profile_addresses_smoke.dart` | 24 passed, 0 failed |
+| 05 | `tool/trip_planner_smoke.dart` | 31 passed, 0 failed |
+| 06 | `tool/route_smoke.dart` | 21 passed, 0 failed |
+| 07 | `tool/discovery_smoke.dart` | 22 passed, 0 failed |
+
+One Module 07 assertion was updated rather than fixed: the unfiltered default
+order is now recommended rather than journey order, so the run asks for journey
+order by name. The eligible universe is unchanged. See `14-change-log.md`.
+
+## Performance — measured
+
+Refining is pure computation, and the measurement says so:
+
+| Operation | 8 restaurants | 5 008 restaurants |
+| --- | --- | --- |
+| Cold discovery | 27 ms, 5 eligible | 73 ms, 258 eligible |
+| Warm discovery | 9 ms | 70 ms |
+| Refine, unfiltered | 0.46 ms, **0 queries** | 6.5 ms, **0 queries** |
+| Refine, search | 0.61 ms, **0 queries** | 12.8 ms, **0 queries** |
+| Refine, one cuisine | 0.21 ms, **0 queries** | 6.9 ms, **0 queries** |
+| Refine, two facilities | 0.20 ms, **0 queries** | — |
+| Refine, sort | 0.15 ms, **0 queries** | — |
+| Refine, page 2 | 0.20 ms, **0 queries** | — |
+
+Eleven combinations, zero database queries each. Provider calls: unchanged
+across all of them, counted directly in
+`test_changing_a_filter_never_calls_the_routing_provider`.
+
+Detours evaluated stayed at **17** whether the table held 8 restaurants or
+5 008 — the billed-call budget bounds it, not the corpus. Bounding-box
+candidates are capped at `DISCOVERY_MAX_CANDIDATES` (300), so the cached payload
+cannot grow without limit.
+
+The warm path is only slightly cheaper than the cold one at scale, because only
+the *selection* is cached: eligibility and availability are re-checked on every
+hit by design, which is why a suspension takes effect immediately.
+
+Query plans, and the index that was measured and then removed, are in the
+evidence file.
+
+## Live view — 28 states in a running release build
+
+Release web build on `:5173` against the same Laravel backend on `:8000`,
+driven with Playwright through the app's own semantics tree. Every state was
+reached by clicking through the app as a signed-in customer with a real
+calculated route. **No problems found; no console errors.**
+
+| # | State |
+| --- | --- |
+| 01 | Search field above the route's stops |
+| 02 | Search narrowed the list |
+| 03 | Result count reads "of 5 stops" |
+| 04 | Search matched nothing — its own words, not "empty road" |
+| 05 | Search cleared, results restored |
+| 06 | A suspended restaurant is not findable by exact name |
+| 07 | Filter sheet, offering only what this route has |
+| 08 | "Any of these" / "All of these" spelled out |
+| 09 | No rating control, because nothing is rated |
+| 10 | Detour options, from the server's ceiling |
+| 11 | Draft state — choosing does not apply |
+| 12 | Applying does |
+| 13 | Active chip with its own remove action |
+| 14 | Filter badge showing "1 filter" |
+| 15 | Two cuisines are an OR |
+| 16 | Removing one chip leaves the other |
+| 17 | Clear all restores all 5 stops |
+| 18 | Filtered empty — "There are 5 stops", with Clear filters |
+| 19 | Recovered from the empty state |
+| 20 | Sort sheet |
+| 21 | "Highest rated" shown, disabled, with the server's reason |
+| 22 | Sort applied — "Sorted by Soonest on your route" |
+| 23 | Map view keeps the filtered set |
+| 24 | "Taking orders" excludes the paused and closed stops |
+| 25 | 320 dp — controls fit |
+| 26 | 360 dp |
+| 27 | 430 dp |
+| 28 | Dark mode filter sheet |
+
+Responsive widths were additionally verified in widget tests at 320, 360, 375,
+390, 412 and 430 dp with no overflow, and at 1.6× text scaling — including that
+the filter sheet still reaches its apply button.
+
+## Runtime coverage
+
+| Runtime | Result |
+| --- | --- |
+| Web (Chromium, release build) | **PASS** — 28 states, no console errors |
+| Android | **PENDING — environment unavailable.** No Android SDK; `dl.google.com` is blocked by the egress policy. `flutter doctor`: "[✗] Android toolchain — Unable to locate Android SDK." (KI-001) |
+| iOS | **PENDING — environment unavailable.** No macOS host. (KI-002) |
+| Live Google map render | **PENDING** — no Maps SDK key. (KI-011) |

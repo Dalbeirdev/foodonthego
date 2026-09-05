@@ -480,3 +480,55 @@ No Module 02 issue was left open.
 | R-11 | `fontFamily: 'Roboto'` named but not bundled | Roboto is a system font on Android but **not** on iOS, so iOS fell back silently; on web the engine fetched it from a CDN | Use the platform font (`null`), documented; component themes now derive from the themed `TextTheme` so a future bundled font actually applies |
 | R-12 | Favicon 404 in both shells | No favicon asset | Added an SVG favicon to each app |
 | R-13 | Flutter web fetched CanvasKit from `gstatic.com` | Default loader behaviour | Custom `web/flutter_bootstrap.js` points at the locally-emitted `canvaskit/`. Better practice regardless: no third-party CDN at runtime |
+
+---
+
+## Bug register — Module 08
+
+All found during Module 08, all fixed and retested. Environment: PHP 8.4.19 /
+Laravel 12.69.1 / MySQL 8.0.46 / Redis 7.0.15 / Flutter 3.47.2, Ubuntu 24.04.
+
+| ID | Requirement | Description | Severity | Steps | Expected | Actual | Root cause | Fix | Retest | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| M08-B01 | M08-035 | **Every restaurant scored 0.0000** — the recommended ranking was returning the same score for everything | **High** | Rank any set of restaurants and read the scores | Distinct scores reflecting detour, availability, proximity and rating | Every score `0.0000`; the order was decided entirely by tie-breakers, which put "Behind You Diner" first | The four ranking terms were written as a map **keyed by weight**: `[$weights['detour'] => …, 0.30 => …]`. PHP casts float array keys to `int`, so `0.45`, `0.30`, `0.15` and `0.10` all became key `0`. Three terms were silently discarded, the weight sum became `0`, and the division produced `0` for every restaurant | The terms are a **list of `[weight, value]` pairs**, iterated with a destructuring `foreach`. There is no key to collapse | `test_every_weight_actually_reaches_the_score` varies each factor in isolation and asserts the score moves; 14 ranking tests | **Fixed** |
+| M08-B02 | M08-024, M08-050 | **A screen reader heard a bare "Filters" over a filtered list** — the active-filter count was not in the button's accessible name | Medium | Apply two filters, then read the live semantics tree | A button named "Filter these stops, 2 filters" | Two separate nodes: a non-focusable one labelled "Filter these stops" and a button whose only text was "Filters". The count reached nobody using a screen reader | A `Tooltip` wrapped around a **labelled** button does not become that button's name — it lands in the tree as a sibling node. It does work for an `IconButton`, whose `tooltip:` parameter *is* its semantic label, which is why the compact variant was correct and the wide one was not | The wide variant is wrapped in `Semantics(button: true, label: …, excludeSemantics: true, onTap: …)`, so one node carries the name, the role and the action. The compact variant keeps `IconButton(tooltip:)` | `test_a_screen_reader_hears_the_count_not_a_bare_Filters` asserts `find.bySemanticsLabel('Filter these stops, 2 filters')`; re-verified in the live tree | **Fixed** |
+| M08-B03 | M08-011, M08-021 | **One filter, two names** — the sheet called it "Accepting orders" and the chip called it "Taking orders" | Low | Open the filter sheet, select the availability option, apply, read the chip | One name for one thing | The sheet rendered the **server's** label and the chip rendered the app's. A customer picking "Accepting orders" got a chip saying "Taking orders" and could reasonably read it as a second filter | The sheet passed `option.label` straight through for availability, while every other user-facing string in the module is owned by `AppStrings`. The server's label is meant as a fallback, not as the wording | The sheet maps the availability **value** to the app's own string, with the server's label as the fallback for a case this build has never heard of | `test_the_sheet_and_the_chip_call_an_availability_filter_the_same_thing`; live run asserts "Taking orders (3)" | **Fixed** |
+| M08-B04 | M08-030, M08-034 | **A stop behind the customer sorted first** under a price sort | Medium | Sort by price when every restaurant declares the same level | The backtracking stop anywhere but the top | It was first. With no difference in the primary key, the order was decided entirely by whatever came next | The comparators carried `requiresBacktracking` only in journey order, not in the sorts a customer selects. This is M07-B01 arriving through a different door: any sort whose primary key ties degenerates to its tie-breakers | **Every** comparator now carries `requiresBacktracking` immediately after its primary key, then `alongRouteMetres`, then the uuid — so the order is total and no tie can promote a stop behind the driver | `test_a_stop_behind_the_customer_is_never_first` walks all four sorts; the integration run does the same against the real route | **Fixed** |
+
+No Module 08 issue was left open. No Critical defect was found.
+
+**Three of the four could only be found by running the thing.** B01 presented
+as a plausible-looking list in the wrong order — every unit test on the
+comparators passed, because the comparators were correct and their input was
+zero. B02 required reading the semantics tree of a rendered build, not the
+widget code. B03 required the sheet and the chip to be on screen in the same
+session.
+
+### Two problems in the test surface, fixed alongside
+
+Neither is a product defect, but both would have let a real one through.
+
+- `SearchMatcher::normalise()` used `iconv('UTF-8', 'ASCII//TRANSLIT')`, which
+  turns `शर्मा ढाबा` into `????? ?????` — every Devanagari restaurant name
+  collapsing to the same string of question marks, and matching each other.
+  Replaced with `Normalizer::FORM_D` plus removal of combining marks, which
+  handles `Café` → `cafe` without destroying non-Latin scripts.
+
+- `FakeDiscoveryRepository::$nextError` fires for whichever request resolves
+  first, which is the *wrong* request when the test's whole point is that an
+  earlier, slower one failed. An `errorFor(query)` callback was added so the
+  stale-failure test actually tests what it claims to.
+
+### A measurement recorded so it is not repeated
+
+A composite index `(status, verification_status, is_discoverable, latitude)` was
+added to serve the corridor query, measured, and **removed**. Against 5 008
+restaurants spread realistically across India it read 554 rows; the existing
+`restaurants_position_index` read 585 for the same query. That is not a
+difference worth an index's write cost.
+
+An earlier measurement that appeared to show a 5 006-row table scan was an
+artefact of unrealistic test data — every synthetic restaurant placed along the
+one corridor, which makes a latitude range non-selective by construction. The
+plans for both data shapes are in
+`docs/evidence/module-08-verification-run.txt`.

@@ -123,8 +123,15 @@ class _DiscoveryFilterSheetState extends State<DiscoveryFilterSheet> {
                                   // "open" and "taking orders" answer the same
                                   // question, and selecting both would mean
                                   // nothing.
+                                  //
+                                  // The app's own wording, not the server's:
+                                  // the chip that appears after this is
+                                  // written here too, and a customer who picks
+                                  // "Accepting orders" and gets a chip saying
+                                  // "Taking orders" has been shown two names
+                                  // for one thing.
                                   label: strings.discoveryFilterOption(
-                                    option.label,
+                                    _availabilityLabel(strings, option),
                                     option.count,
                                   ),
                                   selected: _draft.availability == option.value,
@@ -281,6 +288,17 @@ class _DiscoveryFilterSheetState extends State<DiscoveryFilterSheet> {
       ),
     );
   }
+
+  /// The app's word for an availability filter, with the server's label as the
+  /// fallback for a case this build has never heard of.
+  static String _availabilityLabel(
+    AppStrings strings,
+    AvailabilityOption option,
+  ) => switch (option.value) {
+    AvailabilityFilter.openNow => strings.discoveryFilterOpenNow,
+    AvailabilityFilter.acceptingOrders =>
+      strings.discoveryFilterAcceptingOrders,
+  };
 
   /// Detour options up to whatever the server's ceiling is.
   ///

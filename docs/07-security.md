@@ -323,3 +323,51 @@ Named rather than implied:
 Composer's dist downloads resolve to GitHub zipball URLs, which that environment's egress policy
 denies. Static analysis for PHP is therefore **not** in CI yet. Laravel Pint (code style) runs in its
 place. This is a real gap, tracked in [13-known-issues.md](13-known-issues.md).
+
+---
+
+## Module 08 — filters that cannot become an attack surface
+
+A filter set is user input that historically becomes SQL. Here it cannot,
+because there is no SQL beneath it.
+
+`DiscoveryRefiner` receives a `DiscoveryResult` — restaurants already selected,
+already eligible, already in memory — and a validated `DiscoveryQuery`. It has
+no repository, no query builder and no connection. Every claim below follows
+from that rather than from a check somebody has to remember.
+
+| Attack | Why it fails |
+| --- | --- |
+| `?search='; DROP TABLE restaurants; --` | The term is matched in PHP against strings already loaded. It never reaches a driver. Returns an empty page |
+| `?cuisines=' OR 1=1 --` | Refused at the shape: a slug is `^[a-z0-9_]{1,60}$`. 422 before anything is built |
+| `?sort=commission_rate desc` | A sort value's only destination is an enum case. Unknown value, 422 |
+| `?search=<100 KB>` | 100-character limit, 422 |
+| `?cuisines=<200 values>` | 25 values per group, 422 |
+| `?max_detour_seconds=-500` | Bounded integer, 422 |
+| Searching a suspended restaurant by exact name | The row was removed before the refiner ran. 0 results |
+| Filtering to reach an unverified restaurant | Same. Seven filter shapes are asserted against it |
+| A filtered call on somebody else's trip | `ownedByOrFail()` — 404, not 403, and the body says nothing about their journey |
+
+### What a filter response may contain
+
+Unchanged from Module 07: the body is built from
+`Restaurant::toDiscoveryArray()`, an allow-list, and the test asserts against
+the **raw response body** rather than parsed keys — a leak three levels down
+inside a relation would still be a leak, and a structural assertion would not
+see it.
+
+Owner name, owner phone, owner email, tax identifier, bank reference, commission
+rate and internal notes are absent from a filtered response for the same reason
+they are absent from an unfiltered one.
+
+### Rate limiting
+
+`RATE_LIMIT_DISCOVERY` (30/min) applies to filtered calls exactly as to
+unfiltered ones. A filter is cheap to serve and is not a way around the budget
+on the most expensive endpoint in the application. The client's 350 ms search
+debounce exists partly to keep an ordinary customer well clear of it.
+
+### What is not logged
+
+No search term, no filter selection, no coordinates. Filter usage is preference
+data and this module builds no behavioural history from it.

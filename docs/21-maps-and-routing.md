@@ -355,3 +355,31 @@ A route is a statement about where somebody is going.
 The privacy sweep in `docs/evidence/module-06-verification-run.txt` searches the
 day's log for thirteen needles — place names, the four test coordinates, polyline
 markers, key prefixes and phone numbers — and finds none.
+
+---
+
+## What Module 08 took from here
+
+Nothing new. That is the point.
+
+Module 08 adds search, filters, sorting and pagination on top of Module 07's
+discovery result, and reaches a routing provider **zero** additional times to do
+it. The detour figures it filters and sorts on are the ones Module 06's provider
+produced and Module 07 cached; a customer toggling "Parking" is not a routing
+question.
+
+Measured across eleven filter, search, sort and page combinations: zero database
+queries and zero provider calls each. See
+`docs/evidence/module-08-verification-run.txt`.
+
+The one thing Module 08 reads from this module's configuration is
+`discovery.max_detour_duration_seconds` (900 s), which becomes the ceiling of
+the customer's detour filter and is published in the response's facets. A
+customer cannot ask for a detour limit above the business maximum, because
+above it there is nothing to find.
+
+KI-012 still applies. With `ROUTE_PROVIDER=development` the road network is a
+straight line, so every in-corridor detour is a few seconds and a detour ceiling
+cannot exclude anything at runtime. The detour filter is therefore tested with
+detours the test controls, and the integration run reports it as NOT APPLICABLE
+rather than letting a reader assume it was exercised.

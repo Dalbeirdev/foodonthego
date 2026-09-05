@@ -140,3 +140,42 @@ chosen, and a fixture placed so far from the route that the rule it existed to
 prove never ran.
 
 Module 08 has **not** been started, per the one-module-at-a-time rule.
+
+---
+
+## Module 08 — Restaurant Search, Filters, Sorting & Discovery Ranking
+
+**Status: COMPLETE**, with two runtime verifications honestly pending.
+
+| Item | Status | Note |
+| --- | --- | --- |
+| Search (name, cuisine, city) | **PASS** | Scored relevance tiers, Unicode-safe normalisation |
+| Cuisine / facility / price / availability filters | **PASS** | Slug-based, OR within cuisine and price, AND within facilities |
+| Maximum detour filter | **PASS** (arithmetic) | Cannot exclude at runtime under `ROUTE_PROVIDER=development` — KI-012 |
+| Distance-ahead filter | **PASS** | |
+| Rating filter | **DEFERRED, honestly** | No reviews module; `rating_available: false`, no control rendered, nothing invented |
+| `highest_rated` sort | **NOT AVAILABLE** | Refused with a reason rather than silently downgraded |
+| Recommended / lowest detour / soonest / price sorts | **PASS** | |
+| Ranking weights centralised | **PASS** | `config/foodonthego.php`, env-overridable |
+| Filter draft state, chips, badge, clear-all | **PASS** | |
+| Filtered-empty vs search-empty vs empty-road | **PASS** | Three screens, three ways out |
+| Map/list consistency | **PASS** | One result set drives both |
+| Pagination and reset-on-change | **PASS** | |
+| Cache keyed on route, normalised, invalidated on status change | **PASS** | |
+| Cost control — no provider call on a filter change | **PASS** | Counted, not assumed |
+| SQL injection, validation, sort allow-list, array limits | **PASS** | |
+| Android runtime | **PENDING** | KI-001 — no Android SDK; `dl.google.com` blocked |
+| iOS runtime | **PENDING** | KI-002 — no macOS host |
+| Live map render | **PENDING** | KI-011 — no Maps key |
+
+**1 277 automated tests pass** (741 backend, 536 Flutter), plus a 28-check
+integration run against a live server and real MySQL rows, 28 live states
+inspected in a rendered release build, and Modules 01–07 regression green
+(13 + 24 + 31 + 21 + 22 integration checks across five smoke runs).
+
+Four defects were found and fixed; none left open. Two of them — a ranking score
+that was silently zero for every restaurant, and a filter button that announced
+a bare "Filters" over a filtered list — could only be found by running the thing
+and reading what it actually produced.
+
+Module 09 has **not** been started, per the one-module-at-a-time rule.

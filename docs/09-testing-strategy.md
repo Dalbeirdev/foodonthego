@@ -233,3 +233,74 @@ map-unavailable state at 320dp.
   with. That arrives with the module that gives them a sign-in.
 - **No Android instrumentation or iOS UI test** — see [13-known-issues.md](13-known-issues.md).
 - **No PHP static analysis** — PHPStan could not be installed; see the same document.
+
+---
+
+## Module 08 — testing a thing that must only ever remove
+
+Module 08's central claim is negative: *no filter can add a restaurant.* A
+negative claim needs tests that try to break it rather than tests that confirm
+it.
+
+### The tests that exist to fail
+
+| Test | What it tries |
+| --- | --- |
+| `test_a_search_cannot_resurrect_a_restaurant_eligibility_removed` | Searches a suspended restaurant by its exact name |
+| `test_no_filter_combination_reaches_an_unverified_restaurant` | Walks seven filter shapes against a pending restaurant |
+| `test_an_injection_string_is_refused_and_changes_nothing` | Three SQL payloads, then counts the table |
+| `test_filtering_sees_the_whole_eligible_set_not_a_page_of_it` | 29 restaurants; only the 29th has the filtered facility |
+| `test_a_stop_behind_the_customer_is_never_first` | Every sort, including the one where tie-breaks decide everything |
+| `test_every_weight_actually_reaches_the_score` | That each ranking weight has a measurable effect |
+| `test_changing_a_filter_never_calls_the_routing_provider` | Counts provider calls across eight variations |
+
+The last one is the module's cost guarantee, and it is asserted by *counting*,
+not by reading the code: `StubDetourProvider::$calls` before and after.
+
+### Where each layer is tested
+
+| Layer | File | Tests |
+| --- | --- | --- |
+| Query validation | `tests/Unit/DiscoveryQueryTest.php` | 22 |
+| Search normalisation and tiers | `tests/Unit/SearchMatcherTest.php` | 14 |
+| Ranking | `tests/Unit/DiscoveryRankingTest.php` | 14 |
+| Refinement | `tests/Feature/DiscoveryRefinerTest.php` | 30 |
+| HTTP contract | `tests/Feature/Api/Customer/TripRestaurantFilterApiTest.php` | 37 |
+| Client query model | `mobile/test/discovery_query_test.dart` | 21 |
+| Client state | `mobile/test/discovery_refine_controller_test.dart` | 25 |
+| Client widgets | `mobile/test/discovery_filters_screen_test.dart` | 34 |
+
+### Race conditions get real tests, not comments
+
+Two things in this module are timing bugs waiting to happen, so both are tested
+with controlled latency rather than reasoned about:
+
+- **Stale search responses.** The fake repository takes a per-query delay, so a
+  request for `"spi"` can be made to finish *after* one for `"spice"`. The test
+  asserts the later answer survives.
+- **Stale failures.** The same, with an error scripted for the earlier query
+  only, asserting that an error the customer has moved on from does not land on
+  top of a good list.
+
+A fake that could only fail "the next call" was not enough for the second one:
+it fires for whichever request resolves first, which is the wrong one. The fake
+takes an `errorFor(query)` callback for exactly this.
+
+### What the fake deliberately does not do
+
+`FakeDiscoveryRepository` does **not** re-implement filtering. A fake that
+filtered by itself would let a test pass while the real request carried no
+filters at all — the assertion would be on the fake's arithmetic. What the
+client is responsible for is *which query it sends*, so the fake records every
+query and the tests assert on those.
+
+### Integration
+
+`mobile/tool/discovery_filters_smoke.dart` — 28 checks through this app's own
+network layer against a live Laravel backend, real MySQL rows and real Module 06
+route geometry. It walks eligibility, search, every filter, sorting, facets,
+pagination, validation, injection, the cost guarantee and ownership.
+
+It clears the rate limiter's own buckets between sections — it makes far more
+calls in a minute than any customer would — and says so. The limiter itself is
+asserted separately, at its configured value, in the API tests.

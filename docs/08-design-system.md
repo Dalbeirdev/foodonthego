@@ -225,3 +225,68 @@ text, and being read on a phone 320 logical pixels wide.
 - Disabled controls keep a legible label — Material's default disabled opacity rendered button text
   effectively invisible, which is fixed in the Flutter theme
 - Body contrast ≥ 4.5:1 in both themes, asserted by test
+
+---
+
+## Filter surfaces (Module 08)
+
+### The controls, in order down the screen
+
+```
+Search field                     full width, rounded, clear button when non-empty
+Active filter chips              horizontally scrollable · "Clear all" pinned right
+Result count      Filters (2)  ⇅ sort
+Sorted by …                              Map | List
+```
+
+Four rows sounds like a lot; measured at 320 dp it is 168 dp, leaving the list
+the majority of a small screen. The count and the sort share a row with their
+own controls rather than each taking one.
+
+### Chips
+
+`InputChip` with a delete affordance for an applied filter; each removes **its
+own value**, not its group. Removing "North Indian" from "North Indian, Cafe"
+leaves "Cafe".
+
+"Clear all" is a `TextButton` pinned outside the scrolling row, not the last
+chip in it. Three filters already push a trailing chip off the side of a 390 dp
+phone, and the customer who most needs that control is the one whose filters
+left them with an empty screen.
+
+### The filter sheet
+
+Drag handle, title, "Clear all" in the header when anything is on, scrollable
+groups, and an apply button pinned at the bottom inside the safe area. Capped at
+85% of screen height so the list stays visible behind it.
+
+Groups say what they mean: **Any of these** under cuisine and price, **All of
+these** under facilities. A customer who assumes the wrong one is sent to a
+restaurant without the thing they stopped for.
+
+Each option carries its count for this route — `North Indian (2)` — and options
+this route cannot satisfy are simply absent.
+
+### Controls that are not offered
+
+A rating control is not rendered at all while nothing on the route is rated —
+not greyed out, not showing zero stars. A disabled control implies the data
+exists and the restaurants fall short of it.
+
+A sort that cannot work yet is the opposite case: it stays in the sheet,
+disabled, with the server's own reason underneath. A missing row reads as a lost
+feature; a greyed-out row with no explanation reads as a bug. The difference is
+that the customer went looking for the sort and did not go looking for the
+rating filter.
+
+### Accessibility
+
+- The filter button's accessible name carries the count — "Filter these stops,
+  2 filters" — not a bare "Filters" over a filtered list. A `Tooltip` around a
+  labelled button does **not** name it: it lands in the semantics tree as a
+  separate node. Found in the live tree; see M08-B02.
+- Each chip's delete button has its own name ("Remove this filter").
+- The result count is a live region, so applying a filter is announced.
+- Price is announced in words ("Moderate"), never as rupee symbols alone.
+- The refining indicator is a 2 dp bar with a live-region label, not a spinner
+  over the list — the results underneath are still the last honest answer.

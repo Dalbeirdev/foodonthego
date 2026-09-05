@@ -544,3 +544,114 @@ requirements covered two or three distinguishable things each — the live
 provider versus the threshold rule it exercises, offline-with-results versus
 offline-without, the map render versus the marker layer — and splitting them
 keeps each row independently verifiable. Nothing was removed.
+
+---
+
+## Module 08 — Restaurant search, filters, sorting and discovery ranking
+
+Screenshot names refer to the Module 08 live-view run recorded in
+[15-test-evidence.md](15-test-evidence.md) and captured under
+`docs/evidence/module-08/`.
+
+| ID | Feature | FE | BE | API | DB | Sec | Tests | Android | iOS | Docs | Status | Evidence |
+| --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
+| M08-001 | Search field on discovery | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-01`; `discovery_filters_screen_test.dart` |
+| M08-002 | Restaurant-name search | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-02`; `SearchMatcherTest`; integration run |
+| M08-003 | Cuisine search | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `SearchMatcherTest`; integration run |
+| M08-004 | Search debounce (350 ms) and stale-request cancellation | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `discovery_refine_controller_test.dart`: one word = one request |
+| M08-005 | Search clear | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-05`; clear button appears only when there is something to clear |
+| M08-006 | Search empty state, distinct from the others | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-04`; names the term, offers Clear search |
+| M08-007 | Search combined with filters | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `DiscoveryRefinerTest`; integration run |
+| M08-008 | Cuisine filter, by slug | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-12`; generated slug column |
+| M08-009 | Multi-cuisine filter is an OR | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-15`; documented in `23-*.md` |
+| M08-010 | Availability filter — Open now | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `AvailabilityFilter::matches()`; integration run |
+| M08-011 | Availability filter — Taking orders, distinct from Open | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-24`: a paused restaurant is open and excluded |
+| M08-012 | Rating filter | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | **DEFERRED — no real rating data** | `rating_available: false`; no control rendered (`state-09`); nothing invented |
+| M08-013 | Price filter, on normalised levels 1–4 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Integration run: level 1 returns exactly one fixture |
+| M08-014 | Facility filter, by slug | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Generated slug column; integration run |
+| M08-015 | Multiple facilities are an AND | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-18`; documented; integration run |
+| M08-016 | Maximum-detour filter, in seconds | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE (arithmetic) | `state-10`; cannot exclude at runtime under KI-012 |
+| M08-017 | Distance-ahead filter | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE (backend) | `DiscoveryRefinerTest`; API test. Not surfaced in the sheet — see note below |
+| M08-018 | Filter bottom sheet | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-07/08/09/10` |
+| M08-019 | Draft filter state | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-11`; two taps, zero requests |
+| M08-020 | Apply filters | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-12`; re-applying an unchanged query costs no request |
+| M08-021 | Active filter chips | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (device pending) | `state-13`; labels, never slugs |
+| M08-022 | Remove a single filter | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-16`; removes its value, not its group |
+| M08-023 | Clear all (keeps the search) | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-17`; documented |
+| M08-024 | Filter badge with a count | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-14`; counts values, not groups; in the accessible name |
+| M08-025 | Result count | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-03`: "3 of 12 stops" only while something is filtering |
+| M08-026 | Filtered empty state, distinct from an empty road | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-18`; `eligible_total` and `filtered_empty` |
+| M08-027 | Map/list filter synchronisation | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PASSED (map render pending) | `state-23`; one result set drives both; KI-011 |
+| M08-028 | Selected marker cleared when it is filtered out | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `clearSelection` on every new result set |
+| M08-029 | Filter state persistence across map/list | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | A toggle never re-searches; state lives in the controller |
+| M08-030 | Recommended sort (default) | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `DiscoveryRankingTest` (14) |
+| M08-031 | Lowest-detour sort | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-20`; integration run |
+| M08-032 | Soonest-along-route sort | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-22`; integration run asserts ascending |
+| M08-033 | Highest-rated sort | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | **NOT AVAILABLE — no rating data** | `state-21`; refused with a reason, never silently downgraded |
+| M08-034 | Price low-to-high sort | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Integration run asserts ascending price levels |
+| M08-035 | Ranking model | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Four normalised terms, weighted mean; `DiscoveryRankingTest` |
+| M08-036 | Ranking weights centralised in configuration | ➖ | ✅ | ➖ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `config/foodonthego.php`; five `DISCOVERY_WEIGHT_*` env keys |
+| M08-037 | Search relevance in the ranking | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `test_an_exact_name_match_outranks_a_more_convenient_stop` |
+| M08-038 | Backend query validation | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 12 malformed shapes, each a 422 naming its field |
+| M08-039 | Pagination | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `meta.page/per_page/last_page/has_more`; append + de-duplicate |
+| M08-040 | Pagination resets on any query change | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `DiscoveryQuery.copyWith` returns to page 1 |
+| M08-041 | Cache key covers the route | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Two customers on different roads, integration + API tests |
+| M08-042 | Cache normalisation of equivalent filters | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `facilities=restroom,parking` → `[parking, restroom]` |
+| M08-043 | Cache invalidation on a status change | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Integration run suspends a restaurant mid-session |
+| M08-044 | Search security | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Three injection payloads; the table is intact afterwards |
+| M08-045 | Filter security | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Shape-checked slugs, bounded integers, enum sorts |
+| M08-046 | Rate limiting on filtered calls | ➖ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | The fourth call is 429, filter or no filter |
+| M08-047 | Provider cost protection | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Eight variations, zero extra provider calls; zero queries measured |
+| M08-048 | Android runtime verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ➖ | ✅ | **PENDING — environment unavailable** | KI-001 |
+| M08-049 | iOS runtime verification | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ✅ | **PENDING — environment unavailable** | KI-002 |
+| M08-050 | Accessibility | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | M08-B02 fixed; 1.6× text; chip and badge names |
+| M08-051 | Backend unit and API tests | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | 741 passing; 106 new test methods |
+| M08-052 | Flutter unit and widget tests | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 536 passing; 87 new test cases |
+| M08-053 | Integration test, no mocks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `tool/discovery_filters_smoke.dart`, 28 checks |
+| M08-054 | Live-view inspection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 28 states, no application errors |
+| M08-055 | Performance measured | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Refine: 0.15–0.6 ms, **0 queries**, at 8 and at 5 008 rows |
+| M08-056 | Documentation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | COMPLETE | `23-*.md` created + 13 documents updated |
+| M08-057 | Modules 01–07 regression | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | PASS | Full suites plus five integration runs |
+| M08-058 | Module 09 handoff | ➖ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ | ➖ | ✅ | COMPLETE | Route data survives every filter and sort; documented in `23-*.md` |
+| M08-059 | Facet metadata, route-specific | ✅ | ✅ | ✅ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Added during implementation. Counts before filters; no hard-coded client list |
+| M08-060 | Stale-response cancellation under real latency | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Added during implementation. Generation check, tested with scripted delays |
+
+### Requirements that are not a plain PASS, and why
+
+- **M08-012 Rating filter = DEFERRED.** There is no reviews module and
+  `rating_average` is null for every row. The filter is implemented, validated
+  and tested against controlled data; at runtime the facets report
+  `rating_available: false` and the client renders no rating control at all. It
+  switches itself on the day a rating is written. **Nothing is fabricated to
+  make it look functional** — that is the requirement, not a shortfall against
+  it.
+
+- **M08-033 Highest-rated sort = NOT AVAILABLE** for the same reason. It is
+  advertised in the facets with `available: false` and a reason, and a request
+  for it is refused with a 422 rather than silently downgraded to recommended.
+
+- **M08-016 Maximum-detour filter: arithmetic verified, runtime exclusion NOT
+  APPLICABLE.** Under `ROUTE_PROVIDER=development` (KI-012) the road network is
+  a straight line, so no in-corridor stop can exceed any ceiling the filter can
+  set. The comparison is tested with detours the test controls
+  (`DiscoveryRefinerTest`), and the integration run says so in its output rather
+  than letting a reader assume it was exercised.
+
+- **M08-017 Distance-ahead filter: backend complete, not surfaced in the sheet.**
+  The parameter is implemented, validated, tested and documented. It is not
+  offered as a control because the sheet already carries five groups and the
+  spec's own guidance is to avoid cluttering the MVP with near-duplicate
+  distance controls — extra travel time is the signal a traveller acts on. A
+  client can send it today; adding the control is UI work, not backend work.
+
+- **M08-048 / M08-049 Android and iOS runtime verification = PENDING —
+  environment unavailable.** KI-001: no Android SDK, and `dl.google.com` is
+  blocked by the egress policy, so it cannot be installed. KI-002: no macOS
+  host. Verification was done against a release **web** build of the same
+  Flutter code, driven through its real semantics tree. That is a real runtime,
+  and it is not an Android device; calling it one would be a false claim.
+
+- **M08-027 Map/list synchronisation: PASSED, map render pending.** The filtered
+  set demonstrably drives both views from one piece of state, and the map view
+  reports its own count. What cannot be inspected is markers on a rendered
+  Google map — KI-011, no Maps SDK key.

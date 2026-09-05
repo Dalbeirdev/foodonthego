@@ -32,6 +32,7 @@ import 'dart:io';
 import 'package:foodonthego/core/config/api_config.dart';
 import 'package:foodonthego/core/network/api_error_code.dart';
 import 'package:foodonthego/domain/models/discovered_restaurant.dart';
+import 'package:foodonthego/domain/models/discovery_query.dart';
 import 'package:foodonthego/domain/models/place.dart';
 import 'package:foodonthego/domain/models/trip.dart';
 import 'package:foodonthego/domain/models/trip_route.dart';
@@ -131,8 +132,18 @@ void main(List<String> args) async {
     expectValue(names.last, _behind);
   });
 
-  check('the stops ahead are listed in journey order', () {
-    final List<int> ahead = found.restaurants
+  // Module 08 took ownership of the default order: an unfiltered call now
+  // comes back in *recommended* order — availability and route convenience —
+  // rather than in journey order, which is one of the orders a customer can
+  // ask for by name. The eligible universe is unchanged, which is what the
+  // checks above establish; this one asks for journey order explicitly.
+  await checkAsync('the stops ahead can be read in journey order', () async {
+    final RestaurantDiscovery inOrder = await rahul.discovery.discover(
+      trip.id,
+      query: const DiscoveryQuery(sort: DiscoverySort.soonestAlongRoute),
+    );
+
+    final List<int> ahead = inOrder.restaurants
         .where((DiscoveredRestaurant r) => !r.route.requiresBacktracking)
         .map((DiscoveredRestaurant r) => r.route.distanceAheadMetres)
         .toList();

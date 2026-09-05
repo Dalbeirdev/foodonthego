@@ -549,3 +549,44 @@ Left deliberately unbuilt, with the fields ready:
 - **Clustering** — the map draws one marker per result. With a result limit of 25
   that is legible; the marker layer is built so clustering can be introduced
   without changing the data.
+
+---
+
+## What Module 08 changed here
+
+Two changes, both in `RestaurantDiscoveryService`.
+
+**The result limit moved.** `discover()` used to `array_slice()` the eligible set
+to `DISCOVERY_RESULT_LIMIT` before returning. It no longer does: it returns every
+eligible restaurant, and the limit is applied by Module 08's pagination, after
+the filters.
+
+The reason is a bug that would otherwise be invisible. With the limit applied
+first, a "Parking" filter over the top 25 by relevance would silently hide the
+26th restaurant on the route — which might be the only one with parking. The
+customer would see "no stops match your filters" on a road that has one.
+`DiscoveryRefinerTest::test_filtering_sees_the_whole_eligible_set_not_a_page_of_it`
+puts 29 restaurants on a route, gives only the last one a charging point, and
+asserts the filter finds it.
+
+`DISCOVERY_MAX_CANDIDATES` (300) still bounds the set, so the cached payload
+cannot grow without limit.
+
+**The default order changed.** An unfiltered call now returns *recommended*
+order — availability and route convenience — rather than journey order. Journey
+order is still available, by name, as `sort=soonest_along_route`, and it is what
+`orderForReading()` still produces internally.
+
+The eligible universe is identical either way; only the order differs. The
+Module 07 integration run was updated to ask for journey order explicitly rather
+than assuming it is the default, and the change is recorded in
+`14-change-log.md`.
+
+### What did not change
+
+Eligibility, the corridor, proximity, the detour budget, distance ahead,
+backtracking detection, availability evaluation, the privacy allow-list and both
+caches are exactly as this document describes them. Module 08 reads the result
+and narrows it; it does not participate in producing it.
+
+See `23-restaurant-search-filters-ranking.md`.

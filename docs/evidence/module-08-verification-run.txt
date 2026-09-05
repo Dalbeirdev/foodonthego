@@ -1,0 +1,292 @@
+FoodOnTheGo — Module 08 verification run
+Restaurant search, filters, sorting and discovery ranking
+Recorded: 2026-09-05 10:28 UTC
+Host: Linux 6.18.44-fc-v24 · PHP 8.4.19 · MySQL 8.0.46 · Flutter 3.47.2
+Providers: ROUTE_PROVIDER=development · PLACES_PROVIDER=development · OTP_PROVIDER=log
+
+==============================================================================
+1. BACKEND TEST SUITE
+==============================================================================
+
+  Tests:    741 passed (3049 assertions)
+  Duration: 24.11s
+
+
+Laravel Pint: passed
+
+==============================================================================
+2. FLUTTER TEST SUITE
+==============================================================================
+536 tests passed, 0 failed, 0 skipped.
+flutter analyze --fatal-infos: No issues found.
+dart format: clean.
+
+Module 08 test files:
+  backend/tests/Unit/DiscoveryQueryTest.php                     22 tests
+  backend/tests/Unit/SearchMatcherTest.php                      14 tests
+  backend/tests/Unit/DiscoveryRankingTest.php                   14 tests
+  backend/tests/Feature/DiscoveryRefinerTest.php                30 tests
+  backend/tests/Feature/Api/Customer/TripRestaurantFilterApiTest.php  37 tests
+  mobile/test/discovery_query_test.dart                         21 tests
+  mobile/test/discovery_refine_controller_test.dart             25 tests
+  mobile/test/discovery_filters_screen_test.dart                34 tests
+
+==============================================================================
+3. INTEGRATION RUN — Flutter network layer against a live Laravel backend
+==============================================================================
+
+--- Module 08: tool/discovery_filters_smoke.dart ---
+   Woah! You appear to be trying to run flutter as root.
+   We strongly recommend running the flutter tool without superuser privileges.
+  /
+📎
+Running build hooks...Running build hooks...FoodOnTheGo — Module 08 integration run
+Backend: http://127.0.0.1:8000
+
+  PASS  Module 07 still returns the stops on this route
+  PASS  the unfiltered page reports itself as unfiltered
+  PASS  searching for a suspended restaurant finds nothing
+  PASS  searching for an unverified restaurant finds nothing
+  PASS  searching beyond the corridor finds nothing
+  PASS  no filter combination reaches an ineligible restaurant
+  PASS  a search by name finds the restaurant
+  PASS  a search by cuisine finds what serves it
+  PASS  a search that matches nothing is an empty page, not an error
+  PASS  a search ignores case and punctuation
+  PASS  a cuisine filter uses the slug
+  PASS  several cuisines are an OR
+  PASS  several facilities are an AND
+  PASS  filters of different kinds are an AND
+  PASS  open now and taking orders are different questions
+  PASS  a price filter keeps only the levels asked for
+  PASS  a rating filter matches nothing while nothing is rated
+  PASS  journey order is journey order
+  PASS  price low to high is exactly that
+  PASS  a stop behind the customer is never first, in any order
+  PASS  the options offered are the ones this route has
+  PASS  a page is a page, and it says where it is
+  PASS  a malformed filter is refused, and says which one
+  PASS  a sort that exists but cannot work yet is refused
+  PASS  an injection string changes nothing
+  PASS  changing a filter never re-runs the expensive search
+  PASS  a filter cannot keep a suspended restaurant visible
+  PASS  a filtered call on a foreign trip is still not found
+
+  ── what this route offered ──
+     eligible stops : 5
+     cuisines       : bakery(1), cafe(1), chinese(1), fast_food(1), north_indian(2), rajasthani(1), vegetarian(1)
+     facilities     : parking(4), restroom(2), seating(2), takeaway(1)
+     price levels   : 1(1), 2(3), 3(1)
+     rating filter  : false
+     detour ceiling : 900s
+
+  NOTE  Detour-ceiling exclusion = NOT APPLICABLE for this run — the
+        configured provider models the road network as a straight line,
+        so no in-corridor stop can exceed any ceiling this filter can
+        set. Covered by DiscoveryRefinerTest with controlled detours.
+  NOTE  Rating filter = NOT APPLICABLE — no restaurant has a rating,
+        because there is no reviews module. The server advertises the
+        filter as unavailable rather than matching against nothing.
+
+28 passed, 0 failed
+
+==============================================================================
+4. REGRESSION — Modules 01-07 integration runs, unchanged
+==============================================================================
+
+  Modules 01-03 (foundation, shell, auth)                    13 passed, 0 failed
+  Module 04 (profile, addresses)                             24 passed, 0 failed
+  Module 05 (trip planner, places)                           31 passed, 0 failed
+  Module 06 (routes, maps)                                   21 passed, 0 failed
+  Module 07 (route discovery)                                22 passed, 0 failed
+
+The one Module 07 assertion that changed is recorded in 14-change-log.md:
+Module 08 owns the default order, so an unfiltered call now returns
+recommended order rather than journey order. The eligible universe is
+identical; journey order is one of the orders a customer can now ask for
+by name (sort=soonest_along_route), and the smoke asks for it.
+
+==============================================================================
+5. PERFORMANCE — measured, not estimated
+==============================================================================
+
+route            : 2fd46028-19cc-46b3-8aa0-f180fe6167a0
+restaurants      : 8
+
+cold discovery   :   27.36 ms   9 queries  5 eligible
+  box candidates : 6   within corridor: 5   detours evaluated: 5
+warm discovery   :    8.91 ms   9 queries  from_cache=yes
+
+refine unfiltered         :   0.460 ms   0 queries  5 of 5
+refine search=spice       :   0.608 ms   0 queries  1 of 5
+refine cuisine            :   0.206 ms   0 queries  2 of 5
+refine two cuisines       :   0.246 ms   0 queries  3 of 5
+refine two facilities     :   0.201 ms   0 queries  2 of 5
+refine availability       :   0.151 ms   0 queries  4 of 5
+refine price              :   0.181 ms   0 queries  4 of 5
+refine detour             :   0.165 ms   0 queries  5 of 5
+refine sort=lowest_detour :   0.154 ms   0 queries  5 of 5
+refine search+filter+sort :   0.313 ms   0 queries  2 of 5
+refine page 2             :   0.199 ms   0 queries  5 of 5
+
+--- with 5,000 more restaurants in the table ---
+restaurants      : 5008
+cold discovery   :   72.79 ms   9 queries  258 eligible
+  box candidates : 281   within corridor: 258   detours evaluated: 17
+warm discovery   :   69.69 ms   9 queries
+refine unfiltered         :   6.453 ms   0 queries  258 of 258
+refine search=load        :  12.815 ms   0 queries  253 of 258
+refine cuisine            :   6.924 ms   0 queries  255 of 258
+
+--- the plan for the query the service actually issues ---
+  select * from `restaurants` where `status` = ? and `verification_status` = ? and `is_discoverable` = ? and `latitude` is not null and `longitude` is n
+    table=restaurants            type=range  key=restaurants_position_index         rows=585    filtered=0.99930119514465
+  select * from `restaurant_cuisines` where `restaurant_cuisines`.`restaurant_id` in (30113, 30114, 30115, 30118, 30119, 30120, 30121, 30141, 30161, 301
+    table=restaurant_cuisines    type=ALL    key=NULL                               rows=5011   filtered=61.6842918396
+  select * from `restaurant_facilities` where `restaurant_facilities`.`restaurant_id` in (30113, 30114, 30115, 30118, 30119, 30120, 30121, 30141, 30161,
+    table=restaurant_facilities  type=ALL    key=NULL                               rows=11     filtered=100
+
+cleaned up       : 5000 rows removed, 8 restaurants remain
+
+Read this way:
+
+  * refine issues ZERO database queries in every case. Search, filters,
+    sort and paging run over a set already in memory, which is the same
+    fact as "changing a filter never calls the routing provider".
+  * detours evaluated stays at 17 whether the table holds 8 restaurants
+    or 5,008: the billed-call budget bounds it, not the corpus.
+  * box candidates is capped at DISCOVERY_MAX_CANDIDATES (300), so the
+    eligible set — and therefore the cached payload the warm path
+    re-validates — cannot grow without limit.
+  * the warm path is only slightly cheaper than the cold one at scale
+    (70 ms vs 73 ms). Only the *selection* is cached; eligibility and
+    availability are re-checked on every hit, by design, so a suspension
+    takes effect immediately. With 258 restaurants that re-check is the
+    bulk of the request.
+  * the corridor query is a range scan on restaurants_position_index,
+    reading 585 rows to return 281. No new index was warranted: a
+    composite (status, verification_status, is_discoverable, latitude)
+    index was built, measured, and REMOVED — it read 554 rows against
+    the position index's 585, which is not a difference worth an index.
+    The plan is recorded here so the next person does not repeat the
+    experiment.
+  * the restaurant_cuisines eager load is one query, not N. MySQL scans
+    it rather than seeking when the id list is large relative to the
+    table; at 5,011 rows that costs under a millisecond. It is a single
+    query either way, which is the N+1 question.
+
+The 5,000 scale rows are inserted by the measurement script, labelled
+[PERF], and deleted before it returns. They are never partners.
+
+==============================================================================
+6. LIVE VIEW — the running app, driven through its own semantics tree
+==============================================================================
+
+Release web build of the Flutter customer app on :5173, against the same
+Laravel backend on :8000, driven with Playwright/Chromium. Every state
+below was reached by clicking through the real app as a signed-in
+customer who planned Green Park -> Jaipur airport and calculated a route.
+
+Driving the live app at http://localhost:5173/ as +919999900401
+  ok    search: "Search stops on your route"
+  ok    search: "Highway Spice Kitchen"
+  captured state-01-search-field
+  ok    search-hit: "Highway Spice Kitchen"
+  ok    search-hit: no "Rajasthan Highway Bites"
+  captured state-02-search-narrowed
+  ok    search-count: "of 5 stops"
+  captured state-03-filtered-count
+  ok    search-empty: "Nothing matched your search"
+  ok    search-empty: no "No stops on this route yet"
+  captured state-04-search-empty
+  ok    search-empty-escape: "Search stops on your route"
+  ok    search-cleared: "Rajasthan Highway Bites"
+  captured state-05-search-cleared
+  ok    eligibility: no "Suspended Dhaba, "
+  ok    eligibility: "Nothing matched your search"
+  captured state-06-suspended-not-findable
+  ok    sheet: "North Indian (2)"
+  ok    sheet: "Rajasthani (1)"
+  ok    sheet: no "South Indian"
+  captured state-07-filter-sheet
+  ok    sheet-semantics: "Any of these"
+  ok    sheet-semantics: "All of these"
+  captured state-08-filter-group-semantics
+  ok    sheet-rating: no "4.0+"
+  ok    sheet-rating: no "4.5+"
+  captured state-09-no-rating-filter
+  ok    sheet-detour: "Any detour"
+  ok    sheet-detour: "Under 15 min"
+  captured state-10-detour-options
+  ok    draft: "Show results"
+  ok    draft: "Clear all"
+  captured state-11-draft-not-applied
+  ok    applied: "Highway Spice Kitchen"
+  ok    applied: no "Rajasthan Highway Bites"
+  captured state-12-filter-applied
+  ok    chips: "North Indian"
+  ok    chips: "Remove this filter"
+  captured state-13-active-chip
+  ok    badge: "1 filter"
+  captured state-14-filter-badge
+  ok    or: "Highway Spice Kitchen"
+  ok    or: "Rajasthan Highway Bites"
+  captured state-15-cuisines-are-or
+  ok    chip-removal: "1 filter"
+  captured state-16-one-chip-removed
+  ok    clear-all: "2 filters"
+  ok    clear-all: "5 stops on your route"
+  captured state-17-filters-cleared
+  ok    filtered-empty: "No stops match your filters"
+  ok    filtered-empty: "There are 5 stops"
+  ok    filtered-empty: no "No stops on this route yet"
+  ok    filtered-empty: "Clear filters"
+  captured state-18-filtered-empty
+  ok    recovered: "Highway Spice Kitchen"
+  captured state-19-recovered-from-empty
+  ok    sort-sheet: "Shortest detour"
+  ok    sort-sheet: "Highest rated"
+  ok    sort-sheet: "rating"
+  captured state-20-sort-sheet
+  ok    sort-disabled: "Highest rated"
+  captured state-21-unavailable-sort
+  ok    sort-applied: "Sorted by Soonest on your route"
+  captured state-22-sort-applied
+  ok    map: "stops on your route"
+  captured state-23-map-with-filters
+  ok    availability: no "Paused Highway Grill"
+  ok    availability: no "Closed Route Cafe"
+  captured state-24-accepting-orders-only
+  ok    controls-320: "Search stops on your route"
+  ok    controls-320: "Filter these stops"
+  captured state-25-320-filters
+  ok    controls-360: "Search stops on your route"
+  ok    controls-360: "Filter these stops"
+  captured state-26-360-filters
+  ok    controls-430: "Search stops on your route"
+  ok    controls-430: "Filter these stops"
+  captured state-27-430-filters
+  ok    dark: "North Indian (2)"
+  captured state-28-dark-filter-sheet
+
+No problems found.
+
+Screenshots: docs/evidence/module-08/state-01..28-*.png
+
+==============================================================================
+7. RUNTIME COVERAGE
+==============================================================================
+
+  Web (Chromium, release build)   PASS — 28 states, no console errors
+  Android                          PENDING — no Android SDK in this
+                                   environment (KI-001); dl.google.com is
+                                   blocked by the egress policy, so the SDK
+                                   cannot be installed. flutter doctor:
+                                   "[X] Android toolchain — Unable to
+                                   locate Android SDK."
+  iOS                              PENDING — no macOS host (KI-002).
+
+Responsive widths verified live at 320, 360 and 430 dp, and in widget
+tests at 320, 360, 375, 390, 412 and 430 dp with no overflow.
+Text scaling verified at 1.6x in widget tests, including that the filter
+sheet still reaches its apply button.

@@ -436,3 +436,71 @@ to disagree.
 A floating control (development builds only) that switches persona, forces offline, and forces a
 failure — so the loading, error and offline states can be *inspected in a running app*, not merely
 asserted in tests. It renders `child` untouched when the environment forbids fixtures.
+
+---
+
+## Discovery, refined (Module 08)
+
+The discovery screen keeps everything above and adds four controls between the
+app bar and the results.
+
+```
+┌──────────────────────────────────────────────┐
+│ ← Food on your route                         │
+│   New Delhi → Jaipur International Airport   │
+├──────────────────────────────────────────────┤
+│ 🔍 Search stops on your route            ✕   │
+│ ⟨ North Indian ✕ ⟩ ⟨ Parking ✕ ⟩   Clear all │
+│ 3 of 12 stops        ⚙ Filters②      ⇅       │
+│ Sorted by Recommended            [Map│List]  │
+├──────────────────────────────────────────────┤
+│ … restaurant cards …                         │
+└──────────────────────────────────────────────┘
+```
+
+### Search
+
+Debounced at 350 ms. One character is treated as no search rather than as an
+error — a customer mid-keystroke should not be shown a validation message
+between the first letter and the second. A clear button appears only when there
+is something to clear.
+
+While a search runs, the previous results stay on screen under a 2 dp progress
+bar. A list that empties on every keystroke cannot be read while typing.
+
+### Filters
+
+A bottom sheet that edits a **draft**. Nothing is applied until *Show results*;
+dismissing discards. Applying each checkbox as it was ticked would send a
+request per tap and re-sort the list under the customer's finger.
+
+Applied filters become chips above the results, each removing its own value. The
+filter button carries a badge with the count, and announces it — "Filter these
+stops, 2 filters".
+
+### Sort
+
+A sheet listing the orders the *server* says this route can support. "Highest
+rated" appears, disabled, with the server's own reason under it, because a
+missing row reads as a lost feature. The current order is named in text under
+the count, so a customer never has to open the sheet to find out what they are
+looking at.
+
+### The three empty screens
+
+| State | Words | Button |
+| --- | --- | --- |
+| Nothing on this road | "No stops on this route yet" | Back to journey |
+| Filters hid everything | "No stops match your filters" — and how many there are | Clear filters |
+| Search matched nothing | "Nothing matched your search" — and the term | Clear search |
+
+The search field and the chips stay on screen through all three. A screen that
+swaps its whole body for an empty state takes away the only way out of it.
+
+### Map and list
+
+The same filtered set drives both, from one piece of state. Switching between
+them re-fetches nothing; markers for filtered-out restaurants are gone because
+they are not in the list either, and a selection is cleared whenever a new
+result set arrives rather than surviving as a card for a restaurant no longer
+shown.

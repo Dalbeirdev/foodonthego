@@ -496,3 +496,88 @@ customer-chosen sort can replace without touching the pipeline.
 `time_ahead_seconds` is the route's own duration scaled by how far along the stop
 is — an interpolation of a real number, shown as "About 1 hr ahead". It is not a
 pickup time, and `default_preparation_minutes` is stored but never added to it.
+
+---
+
+## Module 08 — Restaurant Search, Filters, Sorting & Discovery Ranking
+
+Search, filters, a sort and pagination over the set Module 07 already decided
+the customer may see.
+
+### The shape of it
+
+One new service sits between the discovery result and the response:
+
+```
+RestaurantDiscoveryService::discover()   database · provider · cache
+DiscoveryRefiner::refine()               pure computation
+```
+
+Everything else follows from that split. The refiner has no repository, no
+query builder and no connection, so a filter cannot reach a restaurant
+eligibility removed, a search string cannot become SQL, and changing a filter
+cannot call a routing provider. None of those are rules anyone has to remember.
+
+### Added
+
+- **Search** over name, cuisine and city, with scored relevance tiers that feed
+  the recommended ranking. Unicode-safe normalisation; apostrophes elided so
+  `rajeshs` finds `Rajesh's Dhaba`. 350 ms debounce, generation-checked
+  responses.
+- **Filters** for cuisine, facilities, price level, availability, maximum
+  detour and distance ahead. Slug-based, validated, bounded. OR within cuisine
+  and price, **AND** within facilities, AND across groups.
+- **Sorts**: recommended (default), lowest detour, soonest along route, price
+  low to high. `highest_rated` exists and is advertised as unavailable with a
+  reason.
+- **Facets** — the filter options this route can actually satisfy, with counts,
+  in the discovery response. No hard-coded cuisine list in the client.
+- **Pagination** with `total`, `eligible_total`, `filtered_empty`, `has_more`,
+  and a reset to page 1 on any query change.
+- **Ranking weights** in `config/foodonthego.php`, five env-overridable keys.
+- Client: search field, filter sheet with draft state, removable chips, a
+  counted badge, sort sheet, live result count, and three distinct empty
+  screens.
+- `mobile/tool/discovery_filters_smoke.dart` — 28 checks against a live server.
+- 106 new backend test methods, 87 new Flutter test cases.
+
+### Changed — and one of these changes Module 07's behaviour
+
+- **`RestaurantDiscoveryService::discover()` no longer truncates.** The result
+  limit moved from discovery to pagination, so filters see the whole eligible
+  set. Without this, a "Parking" filter over the top 25 by relevance would
+  silently hide the 26th restaurant on the route.
+- **The default order is now `recommended`, not journey order.** An unfiltered
+  discovery call returns restaurants ranked by availability and route
+  convenience. Journey order is still available and unchanged, by name, as
+  `sort=soonest_along_route`. The eligible universe is identical either way.
+  `tool/discovery_smoke.dart` was updated to ask for journey order explicitly
+  rather than assuming it is the default.
+- `DiscoveryRankingService` takes its weights as a constructor argument instead
+  of holding constants.
+- `restaurant_cuisines` and `restaurant_facilities` gained stored generated
+  `slug` columns and indexes; `restaurants` gained a `name` index.
+
+### Fixed
+
+Four defects, none left open, none Critical. The interesting one: the ranking
+terms were written as an array keyed by weight, PHP cast the float keys to
+`int`, they all collapsed to key `0`, and **every restaurant scored zero**. See
+M08-B01 in `13-known-issues.md`.
+
+### Not done, and said plainly
+
+- **Rating filter and highest-rated sort are deferred.** No reviews module
+  exists, so no restaurant has a rating. The client renders no rating control;
+  the sort is refused with a reason. Nothing is fabricated to make either look
+  functional.
+- **Android and iOS runtime verification are pending** — no Android SDK
+  (KI-001), no macOS host (KI-002). Verification was done against a release web
+  build of the same Flutter code.
+- **The detour filter's runtime exclusion is not applicable** under
+  `ROUTE_PROVIDER=development` (KI-012): with a straight-line road network no
+  in-corridor stop can exceed any ceiling the filter can set. The comparison is
+  tested with controlled detours.
+- **The distance-ahead filter has no control in the sheet.** The backend is
+  complete and tested; the UI would be a sixth near-duplicate distance control
+  in an MVP sheet that already has five groups.
