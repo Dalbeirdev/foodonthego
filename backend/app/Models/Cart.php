@@ -93,6 +93,30 @@ final class Cart extends Model
         return $expiry->isBefore($now ?? now());
     }
 
+    /**
+     * Finishes with this cart, without destroying what the customer chose.
+     *
+     * The first thing in the project to write `CLOSED`. Module 11 created the
+     * status and deliberately never used it, so that the "one active cart per
+     * journey" index would have an off state to move a cart into rather than a
+     * row to delete.
+     *
+     * Deleting would lose the record of what was chosen, and Module 13's orders
+     * will point at these rows. Closing frees the index slot and keeps the
+     * history, which is the whole reason the status exists.
+     */
+    public function close(): void
+    {
+        if (! $this->isActive()) {
+            return;
+        }
+
+        $this->forceFill([
+            'status' => CartStatus::Closed,
+            'last_activity_at' => now(),
+        ])->save();
+    }
+
     /** Records that the customer did something, and pushes the expiry out. */
     public function touchActivity(): void
     {

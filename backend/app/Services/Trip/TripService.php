@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Services\Trip;
 
 use App\Enums\ApiErrorCode;
+use App\Enums\CartStatus;
 use App\Enums\LocationSourceType;
 use App\Enums\RouteStatus;
 use App\Enums\TripStatus;
 use App\Exceptions\ApiException;
+use App\Models\Cart;
 use App\Models\Trip;
 use App\Models\User;
 use App\Services\Address\CustomerAddressService;
@@ -188,14 +190,45 @@ final class TripService
             );
         }
 
-        $trip->status = TripStatus::Cancelled;
-        $trip->cancelled_at = $now;
-        $trip->save();
+        $closed = DB::transaction(function () use ($trip, $now): ?string {
+            $trip->status = TripStatus::Cancelled;
+            $trip->cancelled_at = $now;
+            $trip->save();
+
+            // The cart goes with the journey it belonged to (KI-014).
+            //
+            // Leaving it active was a dead end with no way out: the customer had
+            // explicitly cancelled the journey, the cart stayed ACTIVE on a trip
+            // no screen could reach, and every later add — on any journey — was
+            // refused with CART_TRIP_CONFLICT naming a cart they could not see.
+            // Module 11 found it on the first device run that got as far as
+            // adding to a cart; docs/27-cart-management.md has the four requests
+            // that reproduce it.
+            //
+            // This is not "silently deleting a cart". The customer cancelled the
+            // journey in this same request, the cart belonged to that journey,
+            // and the rows survive — only the status moves. Leaving it active is
+            // what surprised them.
+            //
+            // In the transaction with the cancellation, so a journey can never
+            // end up cancelled with its cart still holding the one active slot.
+            $cart = Cart::query()
+                ->where('trip_id', $trip->id)
+                ->where('status', CartStatus::Active)
+                ->lockForUpdate()
+                ->first();
+
+            $cart?->close();
+
+            return $cart?->uuid;
+        });
+
         $trip->refresh();
 
         Log::info('trip.discarded', [
             'actor_id' => $customer->uuid,
             'trip_uuid' => $trip->uuid,
+            'cart_closed_uuid' => $closed,
         ]);
 
         return $trip;
