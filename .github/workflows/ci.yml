@@ -44,13 +44,20 @@ jobs:
           extensions: pdo_mysql, redis, mbstring, intl, zip, bcmath
           coverage: none
 
+      # Before composer, not after. `composer install` runs
+      # `artisan package:discover` in its post-autoload-dump hook, and with no
+      # .env present Laravel reads APP_ENV as "production" — at which point
+      # ProductionConfigGuard correctly refuses to boot an app configured with a
+      # log OTP provider and no APP_KEY. The guard is right; the order was wrong.
+      - name: Write the environment file
+        run: cp .env.example .env
+
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
 
-      - name: Prepare environment
-        run: |
-          cp .env.example .env
-          php artisan key:generate
+      # Needs vendor/, so it cannot move up with the file itself.
+      - name: Generate the application key
+        run: php artisan key:generate
 
       - name: Code style (Pint)
         run: vendor/bin/pint --test
@@ -213,6 +220,11 @@ jobs:
           extensions: pdo_mysql, redis, mbstring, intl, zip, bcmath
           coverage: none
 
+      # See the backend job: the .env has to exist before composer runs
+      # package:discover, or the production guard stops the install.
+      - name: Write the environment file
+        run: cp backend/.env.example backend/.env
+
       - name: Install backend dependencies
         working-directory: backend
         run: composer install --prefer-dist --no-interaction --no-progress
@@ -296,6 +308,11 @@ jobs:
           php-version: '8.4'
           extensions: pdo_mysql, redis, mbstring, intl, zip, bcmath
           coverage: none
+
+      # See the backend job: the .env has to exist before composer runs
+      # package:discover, or the production guard stops the install.
+      - name: Write the environment file
+        run: cp backend/.env.example backend/.env
 
       - name: Install backend dependencies
         working-directory: backend
