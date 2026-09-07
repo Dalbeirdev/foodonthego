@@ -125,7 +125,7 @@ final class CartService
                 ? $this->createLine($cart, $resolved, $priced)
                 : $this->increaseLine($existing, $resolved, $priced);
 
-            $cart->touchActivity();
+            $cart->recordContentChange();
 
             return new CartAddition(
                 // Reloaded with the restaurant, so the response's name and
@@ -383,7 +383,7 @@ final class CartService
                 'line_total_minor' => $priced->lineTotal->minor,
             ])->save();
 
-            $locked->touchActivity();
+            $locked->recordContentChange();
 
             return $this->reload($locked);
         });
@@ -413,7 +413,7 @@ final class CartService
             if ($remaining === 0) {
                 $locked->close();
             } else {
-                $locked->touchActivity();
+                $locked->recordContentChange();
             }
 
             return $this->reload($locked);

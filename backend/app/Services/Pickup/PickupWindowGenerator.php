@@ -6,6 +6,7 @@ namespace App\Services\Pickup;
 
 use App\Models\Restaurant;
 use App\Models\RestaurantOpeningHour;
+use App\Services\Discovery\RestaurantAvailabilityService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -66,6 +67,10 @@ final class PickupWindowGenerator
                 $interval,
             );
 
+            // The horizon binds the START of a window, not its end. A window
+            // that begins four hours from now and runs ten minutes past the
+            // line is within how far ahead the customer may plan; truncating it
+            // would drop the last option for no reason anybody could see.
             while ($cursor <= $lastPickupAt && $cursor <= $horizonAt->setTimezone($zone)) {
                 $endAt = $cursor->addMinutes($duration);
 
@@ -84,7 +89,21 @@ final class PickupWindowGenerator
             static fn (PickupWindow $a, PickupWindow $b): int => $a->startAt <=> $b->startAt,
         );
 
-        return $windows;
+        // One window per start, however many opening rows produced it.
+        //
+        // Overlapping rows are legitimate data — somebody enters 09:00-14:00
+        // and then 12:00-22:00 rather than editing the first — and every hour
+        // they share generates the same window twice. Offering a customer
+        // "1:00 PM" twice in a list of eight is a bug with no cause they could
+        // ever guess at, and it silently halves how far ahead the options
+        // reach.
+        $unique = [];
+
+        foreach ($windows as $window) {
+            $unique[$window->startAt->getTimestamp().'-'.$window->endAt->getTimestamp()] = $window;
+        }
+
+        return array_values($unique);
     }
 
     /**
@@ -176,10 +195,18 @@ final class PickupWindowGenerator
         return $day->setTime($h, $m, $s);
     }
 
-    /** Carbon counts Sunday as 0, and so does the schema. */
+    /**
+     * 0 = Monday .. 6 = Sunday, matching the column's documented meaning and
+     * {@see RestaurantAvailabilityService}.
+     *
+     * NOT Carbon's `dayOfWeek`, which counts Sunday as 0. Reading the column
+     * that way shifts every restaurant's whole schedule by one day, so the same
+     * row would say "open Monday" to pickup planning and "open Tuesday" to
+     * discovery. There is one convention in this schema and this is it.
+     */
     private function dayOfWeek(CarbonImmutable $day): int
     {
-        return (int) $day->dayOfWeek;
+        return $day->dayOfWeekIso - 1;
     }
 
     private function zone(Restaurant $restaurant): string

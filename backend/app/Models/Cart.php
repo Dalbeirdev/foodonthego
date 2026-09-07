@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\CartStatus;
+use App\Enums\PickupSelectionStatus;
 use App\Services\Cart\CartTotals;
 use App\Services\Cart\CartTotalsService;
 use Illuminate\Database\Eloquent\Model;
@@ -32,6 +33,11 @@ final class Cart extends Model
             'status' => CartStatus::class,
             'last_activity_at' => 'datetime',
             'expires_at' => 'datetime',
+            'version' => 'integer',
+            'pickup_selection_status' => PickupSelectionStatus::class,
+            'requested_pickup_start_at' => 'immutable_datetime',
+            'requested_pickup_end_at' => 'immutable_datetime',
+            'pickup_selected_at' => 'immutable_datetime',
         ];
     }
 
@@ -119,15 +125,32 @@ final class Cart extends Model
         ])->save();
     }
 
-    /** Records that the customer did something, and pushes the expiry out. */
-    public function touchActivity(): void
+    /**
+     * Records that the cart's CONTENTS changed, and pushes the expiry out.
+     *
+     * The version bump is what Module 13's pickup planning hangs on. A window
+     * chosen for a cart of one quick dish is not a window that survives a slow
+     * one being added, so every content change invalidates the plan — and the
+     * counter is how the plan finds out.
+     *
+     * Deliberately a content counter rather than an activity counter. Reading
+     * the cart, or a price being corrected underneath it, changes nothing about
+     * how long the kitchen needs; invalidating a perfectly good pickup window
+     * over either would be caution the customer experiences as breakage.
+     *
+     * One atomic statement — `version = version + 1` in SQL, not read-then-write
+     * in PHP. Two taps that arrive together must produce two increments, and a
+     * counter that can lose one is a counter that can leave a stale plan
+     * looking current.
+     */
+    public function recordContentChange(): void
     {
         $ttl = (int) config('foodonthego.cart.ttl_seconds');
 
-        $this->forceFill([
+        $this->increment('version', 1, [
             'last_activity_at' => now(),
             'expires_at' => now()->addSeconds($ttl),
-        ])->save();
+        ]);
     }
 
     /** How many individual things are in the cart, counting quantities. */

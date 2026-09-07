@@ -128,16 +128,55 @@ final class PickupWindowGeneratorTest extends TestCase
         $this->assertNotContains('02:00-02:10', $windows);
     }
 
-    public function test_a_closed_day_offers_nothing(): void
+    /**
+     * A closed day offers nothing — and an open day offers something.
+     *
+     * Both halves, deliberately. The first version of this test asserted only
+     * the empty case, and it passed against a generator that read `day_of_week`
+     * with Carbon's convention (Sunday 0) instead of the column's documented one
+     * (Monday 0). Every restaurant's schedule was shifted a day, and a test that
+     * only ever asked "is this empty?" agreed with the mistake: under the wrong
+     * convention the open day looked closed, which is exactly what it asserted.
+     *
+     * Pinning both directions is what makes the convention testable. Shift the
+     * reading by a day either way and one of these two assertions fails.
+     */
+    public function test_a_closed_day_offers_nothing_and_an_open_day_offers_windows(): void
     {
         $restaurant = $this->restaurant();
 
-        // Monday only. 2026-09-08 is a Tuesday.
-        RestaurantFixtures::openOn($restaurant, 1, '09:00:00', '22:00:00');
+        // 0 is MONDAY in this column. 2026-09-07 is a Monday, 2026-09-08 a
+        // Tuesday.
+        RestaurantFixtures::openOn($restaurant, 0, '09:00:00', '22:00:00');
 
-        $windows = $this->windows($restaurant, CarbonImmutable::parse('2026-09-08T06:30:00Z'));
+        $this->assertNotEmpty(
+            $this->windows($restaurant, CarbonImmutable::parse('2026-09-07T06:30:00Z')),
+            'day_of_week 0 is Monday, and Monday is open',
+        );
 
-        $this->assertSame([], $windows);
+        $this->assertSame(
+            [],
+            $this->windows($restaurant, CarbonImmutable::parse('2026-09-08T06:30:00Z')),
+            'Tuesday has no hours on file',
+        );
+    }
+
+    public function test_overlapping_opening_rows_offer_each_window_once(): void
+    {
+        $restaurant = $this->restaurant();
+
+        // Legitimate data. An operator adds a second window rather than editing
+        // the first, and the two share the middle of the day.
+        RestaurantFixtures::openDaily($restaurant, '09:00:00', '14:00:00');
+        RestaurantFixtures::openDaily($restaurant, '12:00:00', '22:00:00');
+
+        $windows = $this->windows($restaurant, CarbonImmutable::parse('2026-09-07T06:30:00Z'));
+
+        // Noon to two is covered by both rows. Offering "12:30" twice is a bug
+        // a customer could never guess the cause of, and it quietly halves how
+        // far ahead a capped list of options reaches.
+        $this->assertContains('12:30-12:40', $windows);
+        $this->assertSame(array_values(array_unique($windows)), $windows);
     }
 
     public function test_a_restaurant_with_no_hours_on_file_offers_nothing(): void

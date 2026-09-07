@@ -178,7 +178,12 @@ enum ApiErrorCode: string
     // A pickup window is a claim about time, and every way a claim about time
     // can go wrong gets its own code: the customer's next move is different for
     // each, and "something went wrong with your pickup time" is not a move.
-    case PreparationDataUnavailable = 'PREPARATION_DATA_UNAVAILABLE';
+    // No PREPARATION_DATA_UNAVAILABLE. It was declared here and then removed
+    // before anything raised it, because it could not honestly be raised: a
+    // dish with no preparation time falls to its variant's, its restaurant's,
+    // and finally the platform's, so an estimate always exists. A code the API
+    // documents and never returns is a promise to clients that nothing keeps.
+    case CartEmpty = 'CART_EMPTY';
     case PickupOptionsUnavailable = 'PICKUP_OPTIONS_UNAVAILABLE';
     case PickupOptionNotFound = 'PICKUP_OPTION_NOT_FOUND';
     case PickupOptionExpired = 'PICKUP_OPTION_EXPIRED';
@@ -306,7 +311,7 @@ enum ApiErrorCode: string
             // 409 for "the world moved", 422 for "your request does not work",
             // 404 for "no such thing", 403 for "not yours" — the same split
             // Module 11 established.
-            self::PreparationDataUnavailable => 409,
+            self::CartEmpty => 422,
             self::PickupOptionsUnavailable => 409,
             self::PickupOptionNotFound => 404,
             self::PickupOptionExpired => 409,
