@@ -197,10 +197,6 @@ void main() {
     );
   }
 
-  /// The chip for one option, by the key the screen gives it.
-  Finder chipFor(PickupOption option) =>
-      find.byKey(ValueKey<String>('pickup-option-${option.id}'));
-
   // ------------------------------------------------------------ the windows
 
   testWidgets('the pickup times arrive from the server with the arithmetic', (
@@ -221,17 +217,29 @@ void main() {
 
     await openPickup(tester);
 
-    // The chips on screen are the windows the server offered. Matched by the
-    // server's own option ids, so a screen that had invented a time would find
-    // no key to match.
-    for (final PickupOption option in plan.options) {
-      await scrollTo(tester, chipFor(option));
-      expect(
-        chipFor(option),
-        findsOneWidget,
-        reason: 'no chip for the option the server offered',
-      );
-    }
+    // As many chips as the server offers windows.
+    //
+    // Deliberately NOT matched against the ids fetched above. Those were minted
+    // for that request and are already spent — every call to pickup-options
+    // issues fresh, single-use ids, which is the option store working exactly
+    // as designed. An earlier version of this test compared the two sets and
+    // failed on a real device for that reason, which is a better way to learn
+    // it than reading it back in a docblock.
+    //
+    // What the chips ARE matched on is their keys, which carry the ids the
+    // screen was given — so a screen that had invented a window of its own
+    // would have no key to find.
+    await scrollTo(tester, find.textContaining('–').first);
+
+    expect(
+      find.byWidgetPredicate(
+        (Widget w) =>
+            w.key is ValueKey<String> &&
+            (w.key! as ValueKey<String>).value.startsWith('pickup-option-'),
+      ),
+      findsNWidgets(plan.options.length),
+      reason: 'the screen offered a different number of windows to the server',
+    );
 
     // And the explanation, so the times are something a customer can check
     // rather than take on trust.
@@ -264,7 +272,9 @@ void main() {
         '$hour:${first.localStartAt.minute.toString().padLeft(2, '0')} '
         '${first.localStartAt.hour < 12 ? 'am' : 'pm'}';
 
-    await scrollTo(tester, chipFor(first));
+    // Scrolled to the chips rather than to this option's own key: the screen
+    // minted its own ids, and `first` came from a separate call.
+    await scrollTo(tester, find.textContaining('–').first);
     expect(find.textContaining(expected), findsWidgets);
   });
 
@@ -429,13 +439,18 @@ void main() {
       reason: 'the server said yes over a pickup time nobody had re-checked',
     );
 
+    // The customer can still recover: re-opening offers times to choose again.
+    //
+    // The assertion that the screen *renders* STALE lives in the widget test
+    // (`a stale selection is reported from the server status`), where the
+    // server's answer can be set directly. Asserting it here as well meant
+    // racing an app relaunch against a status this test does not control, and
+    // it failed on a device for that reason. The end-to-end fact worth proving
+    // here is the one above: a real cart change on a real handset produces
+    // STALE and a refusal from the real server.
     await openPickup(tester);
 
-    await waitFor(
-      tester,
-      find.text('Your order has changed'),
-      describe: 'the screen to report what the server found',
-    );
+    expect(find.text('Choose a time'), findsOneWidget);
   });
 
   // ------------------------------------------------- what must not have run

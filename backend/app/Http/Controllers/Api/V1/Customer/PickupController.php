@@ -277,16 +277,39 @@ final class PickupController
      */
     private function selectionArray(Cart $cart, PickupSelectionStatus $status): array
     {
+        // Expressed on the counter's clock, like every other instant in this
+        // response.
+        //
+        // The column holds UTC, and serialising it as stored would put the
+        // selection in a different zone from the options beside it — a client
+        // rendering both shows "12:50 am" for the window it chose and
+        // "6:20 am" for the identical window in the list. Same moment, two
+        // clock faces, and no way for a customer to tell which one the
+        // restaurant means.
+        //
+        // Found by the on-device test, which is the first thing to render both
+        // halves of this response on one screen.
+        $zone = (string) ($cart->pickup_timezone ?: '');
+
+        $local = static function (?CarbonImmutable $instant) use ($zone): ?string {
+            if ($instant === null) {
+                return null;
+            }
+
+            return ($zone === '' ? $instant : $instant->setTimezone($zone))
+                ->toIso8601String();
+        };
+
         return [
             // The DERIVED status, not the stored column. A cart reading
             // SELECTED while the restaurant has since edited its hours is not
             // wrong because a job failed to run — a column cannot know. See
             // {@see PickupSelectionEvaluator}.
             'status' => $status->value,
-            'start_at' => $cart->requested_pickup_start_at?->toIso8601String(),
-            'end_at' => $cart->requested_pickup_end_at?->toIso8601String(),
+            'start_at' => $local($cart->requested_pickup_start_at),
+            'end_at' => $local($cart->requested_pickup_end_at),
             'timezone' => $cart->pickup_timezone,
-            'selected_at' => $cart->pickup_selected_at?->toIso8601String(),
+            'selected_at' => $local($cart->pickup_selected_at),
         ];
     }
 

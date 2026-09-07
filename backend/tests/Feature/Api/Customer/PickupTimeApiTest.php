@@ -334,6 +334,35 @@ final class PickupTimeApiTest extends TestCase
 
     // --- timezones -----------------------------------------------------------
 
+    public function test_the_chosen_window_is_reported_on_the_same_clock_as_the_options(): void
+    {
+        $option = $this->pickup()['options'][0];
+
+        $this->as($this->rahul)
+            ->putJson($this->selectUrl(), ['pickup_option_id' => $option['id']])
+            ->assertOk();
+
+        $selection = $this->pickup()['selection'];
+
+        // Same moment, and the same clock face.
+        //
+        // The column holds UTC. Serialising it as stored put the selection in a
+        // different zone from the options beside it, so a screen showed
+        // "12:50 am" for the window a customer had chosen and "6:20 am" for the
+        // identical window in the list below. Found on a real device, which is
+        // the first place both halves of this response are rendered together.
+        $this->assertSame(
+            $option['start_at'],
+            $selection['start_at'],
+            'the chosen window is reported on a different clock from the options',
+        );
+        $this->assertSame($option['end_at'], $selection['end_at']);
+
+        // Not merely equal strings — both actually carry the restaurant's
+        // offset rather than Greenwich's.
+        $this->assertStringEndsWith('+05:30', $selection['start_at']);
+    }
+
     public function test_a_pickup_survives_a_round_trip_through_a_dst_jump(): void
     {
         // The bug this test exists for stored a 1:40 PM Kolkata window as 13:40
