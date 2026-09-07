@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Services\Cart\CartRevalidationService;
 use App\Services\Discovery\RestaurantDiscoveryEligibilityService;
 use App\Services\Discovery\RestaurantDiscoveryService;
 use App\Services\Pickup\ArrivalEstimateProvider;
 use App\Services\Pickup\PickupOptionSelectionService;
 use App\Services\Pickup\PickupOptionStore;
 use App\Services\Pickup\PickupPlanningService;
+use App\Services\Pickup\PickupSelectionEvaluator;
 use App\Services\Pickup\PickupWindowGenerator;
 use App\Services\Pickup\PlannedRouteArrivalEstimateProvider;
+use App\Services\Pickup\PreCheckoutValidationService;
 use App\Services\Pickup\PreparationEstimateService;
 use Illuminate\Support\ServiceProvider;
 
@@ -69,6 +72,20 @@ final class PickupServiceProvider extends ServiceProvider
             fn (): PickupOptionSelectionService => new PickupOptionSelectionService(
                 planning: $this->app->make(PickupPlanningService::class),
                 store: $this->app->make(PickupOptionStore::class),
+            ),
+        );
+
+        $this->app->singleton(
+            PickupSelectionEvaluator::class,
+            fn (): PickupSelectionEvaluator => new PickupSelectionEvaluator,
+        );
+
+        $this->app->singleton(
+            PreCheckoutValidationService::class,
+            fn (): PreCheckoutValidationService => new PreCheckoutValidationService(
+                revalidation: $this->app->make(CartRevalidationService::class),
+                planning: $this->app->make(PickupPlanningService::class),
+                evaluator: $this->app->make(PickupSelectionEvaluator::class),
             ),
         );
     }

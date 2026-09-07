@@ -291,6 +291,23 @@ Route::prefix('v1')->group(function (): void {
 
                 Route::put('/{trip}/cart/pickup-selection', [PickupController::class, 'select'])
                     ->name('api.v1.customer.trips.cart.pickup.select');
+
+                /*
+                 | Pre-checkout validation.
+                 |
+                 | A POST that writes nothing, which is the one place in this
+                 | file the verb is not about side effects. It renders a
+                 | point-in-time judgement — may this be paid for — and a GET
+                 | invites a client, a proxy or a browser to reuse a yes that
+                 | was true a minute ago. Module 12's revalidate reports facts
+                 | and is a GET; a stale fact is a fact, and a stale judgement
+                 | is somebody at a payment screen for a kitchen that has shut.
+                 |
+                 | Nothing is created here and nothing is reserved. Module 14
+                 | will check all of it again.
+                 */
+                Route::post('/{trip}/cart/pre-checkout-validate', [PickupController::class, 'preCheckout'])
+                    ->name('api.v1.customer.trips.cart.precheckout');
             });
         });
 });

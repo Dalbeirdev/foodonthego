@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Customer;
 
 use App\Enums\ApiErrorCode;
+use App\Enums\PickupSelectionStatus;
 use App\Exceptions\ApiException;
 use App\Http\Responses\ApiResponse;
 use App\Models\Cart;
@@ -15,6 +16,8 @@ use App\Services\Pickup\PickupOptionSelectionService;
 use App\Services\Pickup\PickupOptionStore;
 use App\Services\Pickup\PickupPlan;
 use App\Services\Pickup\PickupPlanningService;
+use App\Services\Pickup\PickupSelectionEvaluator;
+use App\Services\Pickup\PreCheckoutValidationService;
 use App\Services\Trip\TripService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -51,6 +54,8 @@ final class PickupController
         private readonly PickupPlanningService $planning,
         private readonly PickupOptionStore $options,
         private readonly PickupOptionSelectionService $selection,
+        private readonly PickupSelectionEvaluator $evaluator,
+        private readonly PreCheckoutValidationService $preCheckout,
     ) {}
 
     /**
@@ -121,6 +126,62 @@ final class PickupController
         return ApiResponse::ok(
             $this->payload($reloaded, $this->planning->plan($reloaded, CarbonImmutable::now())),
         );
+    }
+
+    /**
+     * Whether this cart could be paid for, if there were anywhere to pay.
+     *
+     * Module 12's revalidation and Module 13's pickup layer, in one answer,
+     * with `ready_for_checkout` computed by the server and every reason it is
+     * not listed beside it.
+     *
+     * **A POST, and it writes nothing.** The verb is not about side effects
+     * here — it is about caching: this is a point-in-time go/no-go, and a GET
+     * invites a client, a proxy or a browser to reuse a yes that was true a
+     * minute ago. Module 12's `revalidate` reports facts and is a GET; this
+     * renders a judgement, and a stale judgement is the one that gets somebody
+     * to a payment screen for a kitchen that has closed.
+     *
+     * No order is created, no payment is created, nothing is reserved, and the
+     * cart's stored selection is not corrected on the customer's behalf.
+     *
+     * @throws ApiException
+     */
+    public function preCheckout(Request $request, string $trip): JsonResponse
+    {
+        /** @var User $customer */
+        $customer = $request->user();
+
+        $found = $this->trips->ownedByOrFail($customer, $trip);
+
+        $cart = $this->carts->activeCartWithLines($customer, $found);
+
+        if ($cart === null) {
+            throw new ApiException(
+                ApiErrorCode::CartNotFound,
+                'You do not have a cart on this journey.',
+            );
+        }
+
+        $cart->setRelation('trip', $found);
+        $cart->loadMissing(['restaurant.openingHours', 'customer']);
+
+        $now = CarbonImmutable::now();
+
+        $validation = $this->preCheckout->validate($found, $cart, $now);
+
+        return ApiResponse::ok([
+            'cart' => $cart->toCustomerArray($this->totals->totalsFor($cart)),
+            'revalidation' => $validation->revalidation->toApiArray(),
+            'pickup' => [
+                ...$validation->plan->toApiArray(),
+                'selection' => $this->selectionArray($cart, $validation->selectionStatus),
+            ],
+
+            // The authoritative answer, and the whole reason this endpoint
+            // exists. A client must render it, never derive its own.
+            ...$validation->toApiArray(),
+        ]);
     }
 
     /**
@@ -195,7 +256,10 @@ final class PickupController
             'cart' => $cart->toCustomerArray($this->totals->totalsFor($cart)),
             'pickup' => [
                 ...$plan->toApiArray(),
-                'selection' => $this->selectionArray($cart),
+                'selection' => $this->selectionArray(
+                    $cart,
+                    $this->evaluator->statusFor($cart, $plan, $plan->serverNow),
+                ),
                 'recommended_option_id' => $recommended,
                 'options' => $options,
             ],
@@ -211,10 +275,14 @@ final class PickupController
      *
      * @return array<string, mixed>
      */
-    private function selectionArray(Cart $cart): array
+    private function selectionArray(Cart $cart, PickupSelectionStatus $status): array
     {
         return [
-            'status' => $cart->pickup_selection_status?->value,
+            // The DERIVED status, not the stored column. A cart reading
+            // SELECTED while the restaurant has since edited its hours is not
+            // wrong because a job failed to run — a column cannot know. See
+            // {@see PickupSelectionEvaluator}.
+            'status' => $status->value,
             'start_at' => $cart->requested_pickup_start_at?->toIso8601String(),
             'end_at' => $cart->requested_pickup_end_at?->toIso8601String(),
             'timezone' => $cart->pickup_timezone,
