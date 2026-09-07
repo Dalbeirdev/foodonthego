@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\CustomerFactory;
 use Tests\Support\RestaurantFixtures;
+use Tests\Support\SettlesQueryCounts;
 use Tests\TestCase;
 
 /**
@@ -24,6 +25,7 @@ use Tests\TestCase;
 final class RestaurantDetailPerformanceTest extends TestCase
 {
     use RefreshDatabase;
+    use SettlesQueryCounts;
 
     private User $rahul;
 
@@ -79,7 +81,7 @@ final class RestaurantDetailPerformanceTest extends TestCase
             ->getJson('/api/v1/customer/trips/'.$this->trip->uuid.'/restaurants')
             ->assertOk();
 
-        [$bare] = $this->costOfOpening($restaurant->uuid);
+        $bare = $this->queriesTouching(fn () => $this->costOfOpening($restaurant->uuid), ['restaurants', 'restaurant_cuisines', 'restaurant_facilities', 'restaurant_opening_hours', 'restaurant_photos']);
 
         for ($i = 0; $i < 20; $i++) {
             RestaurantMedia::add($restaurant, [
@@ -94,7 +96,7 @@ final class RestaurantDetailPerformanceTest extends TestCase
             $restaurant->facilities()->create(['facility' => "Facility {$i}", 'position' => 10 + $i]);
         }
 
-        [$loaded] = $this->costOfOpening($restaurant->uuid);
+        $loaded = $this->queriesTouching(fn () => $this->costOfOpening($restaurant->uuid), ['restaurants', 'restaurant_cuisines', 'restaurant_facilities', 'restaurant_opening_hours', 'restaurant_photos']);
 
         // Eager loading, not a loop. Twenty more photographs is twenty more
         // rows in one query, not twenty more queries.
@@ -109,7 +111,7 @@ final class RestaurantDetailPerformanceTest extends TestCase
             ->getJson('/api/v1/customer/trips/'.$this->trip->uuid.'/restaurants')
             ->assertOk();
 
-        [$short] = $this->costOfOpening($first->uuid);
+        $short = $this->queriesTouching(fn () => $this->costOfOpening($first->uuid), ['restaurants', 'restaurant_cuisines', 'restaurant_facilities', 'restaurant_opening_hours', 'restaurant_photos']);
 
         Cache::flush();
 
@@ -121,7 +123,7 @@ final class RestaurantDetailPerformanceTest extends TestCase
             ->getJson('/api/v1/customer/trips/'.$this->trip->uuid.'/restaurants')
             ->assertOk();
 
-        [$long] = $this->costOfOpening($first->uuid);
+        $long = $this->queriesTouching(fn () => $this->costOfOpening($first->uuid), ['restaurants', 'restaurant_cuisines', 'restaurant_facilities', 'restaurant_opening_hours', 'restaurant_photos']);
 
         // The corridor query returns more rows; it is still one query, and the
         // eager loads are still one each.
@@ -145,7 +147,7 @@ final class RestaurantDetailPerformanceTest extends TestCase
         // session warms things that have nothing to do with the menu — the
         // token, the rate limiter's bucket — and counting them made this test
         // fail by exactly one, once, depending on what ran before it.
-        $this->costOfOpening($uuids[0]);
+        $this->settledQueryCount(fn (): array => $this->costOfOpening($uuids[0]));
 
         $counts = [];
 

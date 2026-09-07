@@ -46,5 +46,18 @@
         <env name="CACHE_STORE" value="array"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+
+        <!-- The suite declares its own providers rather than inheriting
+             whichever ones the developer happens to have in .env. Both are the
+             local stand-ins: deterministic, offline, and free.
+
+             This is not a convenience. Without it the suite quietly depends on
+             a variable it never states: .env.example ships
+             ROUTE_PROVIDER=unconfigured — correctly, because a fresh checkout
+             should not pretend to have routing — so a contributor whose .env
+             matched the example saw two failures that nobody else could
+             reproduce. CI found it on its first ever run. -->
+        <env name="ROUTE_PROVIDER" value="development"/>
+        <env name="PLACES_PROVIDER" value="development"/>
     </php>
 </phpunit>

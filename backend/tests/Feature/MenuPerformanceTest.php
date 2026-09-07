@@ -19,6 +19,7 @@ use Illuminate\Support\Str;
 use Tests\Support\CustomerFactory;
 use Tests\Support\MenuFixtures;
 use Tests\Support\RestaurantFixtures;
+use Tests\Support\SettlesQueryCounts;
 use Tests\TestCase;
 use Tests\Unit\StubDetourProvider;
 
@@ -38,6 +39,7 @@ use Tests\Unit\StubDetourProvider;
 final class MenuPerformanceTest extends TestCase
 {
     use RefreshDatabase;
+    use SettlesQueryCounts;
 
     private User $rahul;
 
@@ -166,19 +168,13 @@ final class MenuPerformanceTest extends TestCase
 
         $this->openTheList();
 
-        // One un-measured open first. The first request of a session warms
-        // things that have nothing to do with the menu — the token lookup, the
-        // rate limiter's bucket — and counting them makes a comparison of two
-        // requests wrong by exactly one.
-        $this->costOfOpeningTheMenu();
-
-        [$small] = $this->costOfOpeningTheMenu();
+        $small = $this->queriesTouching(fn () => $this->costOfOpeningTheMenu(), ['menu_categories', 'menu_items']);
 
         foreach (range(1, 60) as $n) {
             MenuFixtures::item($starters, "Dish {$n}", 20_000 + $n, ['order' => $n]);
         }
 
-        [$large] = $this->costOfOpeningTheMenu();
+        $large = $this->queriesTouching(fn () => $this->costOfOpeningTheMenu(), ['menu_categories', 'menu_items']);
 
         // Sixty more dishes are sixty more rows in the same query. If this ever
         // fails, something is reading a relation off an item in a loop.
@@ -190,13 +186,12 @@ final class MenuPerformanceTest extends TestCase
         MenuFixtures::ordinaryMenu($this->restaurant);
 
         $this->openTheList();
-        $this->costOfOpeningTheMenu();
 
-        [$three] = $this->costOfOpeningTheMenu();
+        $three = $this->queriesTouching(fn () => $this->costOfOpeningTheMenu(), ['menu_categories', 'menu_items']);
 
         $this->seedLargeMenu(categories: 17, itemsPerCategory: 4);
 
-        [$twenty] = $this->costOfOpeningTheMenu();
+        $twenty = $this->queriesTouching(fn () => $this->costOfOpeningTheMenu(), ['menu_categories', 'menu_items']);
 
         $this->assertSame($three, $twenty);
     }
@@ -272,10 +267,13 @@ final class MenuPerformanceTest extends TestCase
         $this->seedLargeMenu(categories: 20, itemsPerCategory: 25);
 
         $this->openTheList();
-        $this->costOfOpeningTheMenu();
 
-        [$whole] = $this->costOfOpeningTheMenu();
-        [$searched, $ms] = $this->costOfOpeningTheMenu('search=Dish+7');
+        $whole = $this->queriesTouching(fn () => $this->costOfOpeningTheMenu(), ['menu_categories', 'menu_items']);
+        $searched = $this->queriesTouching(
+            fn () => $this->costOfOpeningTheMenu('search=Dish+7'),
+            ['menu_categories', 'menu_items'],
+        );
+        [, $ms] = $this->costOfOpeningTheMenu('search=Dish+7');
 
         // The search narrows in memory over rows already fetched, so it costs
         // the same two queries rather than a third.
@@ -339,7 +337,7 @@ final class MenuPerformanceTest extends TestCase
         MenuFixtures::ordinaryMenu($this->restaurant);
 
         $this->openTheList();
-        $this->costOfOpeningTheMenu();
+        $this->settledQueryCount(fn (): array => $this->costOfOpeningTheMenu());
 
         $counts = [];
 

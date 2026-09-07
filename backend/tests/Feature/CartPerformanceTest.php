@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\Support\CustomerFactory;
 use Tests\Support\MenuFixtures;
 use Tests\Support\RestaurantFixtures;
+use Tests\Support\SettlesQueryCounts;
 use Tests\TestCase;
 use Tests\Unit\StubDetourProvider;
 
@@ -31,6 +32,7 @@ use Tests\Unit\StubDetourProvider;
 final class CartPerformanceTest extends TestCase
 {
     use RefreshDatabase;
+    use SettlesQueryCounts;
 
     private User $rahul;
 
@@ -151,16 +153,11 @@ final class CartPerformanceTest extends TestCase
     {
         $this->openTheList();
 
-        // One un-measured open first: the first request of a session warms the
-        // token lookup and the rate limiter's bucket, and counting those makes
-        // a comparison of two requests wrong by exactly one.
-        $this->costOfOpeningTheItem();
-
-        [$small] = $this->costOfOpeningTheItem();
+        $small = $this->queriesTouching(fn () => $this->costOfOpeningTheItem(), ['menu_items', 'menu_item_variants', 'menu_modifier_groups', 'menu_modifier_options', 'menu_item_modifier_group']);
 
         $this->seedLargeCustomization($this->menu['item'], groups: 1, optionsPerGroup: 40);
 
-        [$large] = $this->costOfOpeningTheItem();
+        $large = $this->queriesTouching(fn () => $this->costOfOpeningTheItem(), ['menu_items', 'menu_item_variants', 'menu_modifier_groups', 'menu_modifier_options', 'menu_item_modifier_group']);
 
         // Forty more options are forty more rows in the same query.
         $this->assertSame($small, $large);
@@ -169,13 +166,11 @@ final class CartPerformanceTest extends TestCase
     public function test_the_query_count_does_not_grow_with_the_number_of_groups(): void
     {
         $this->openTheList();
-        $this->costOfOpeningTheItem();
-
-        [$two] = $this->costOfOpeningTheItem();
+        $two = $this->queriesTouching(fn () => $this->costOfOpeningTheItem(), ['menu_items', 'menu_item_variants', 'menu_modifier_groups', 'menu_modifier_options', 'menu_item_modifier_group']);
 
         $this->seedLargeCustomization($this->menu['item'], groups: 8, optionsPerGroup: 5);
 
-        [$ten] = $this->costOfOpeningTheItem();
+        $ten = $this->queriesTouching(fn () => $this->costOfOpeningTheItem(), ['menu_items', 'menu_item_variants', 'menu_modifier_groups', 'menu_modifier_options', 'menu_item_modifier_group']);
 
         $this->assertSame($two, $ten);
     }
