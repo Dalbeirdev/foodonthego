@@ -132,9 +132,36 @@ final class RestaurantAvailabilityService
         return $window->day_of_week === $yesterday && $time < $this->time($window->closes_at);
     }
 
-    /** @param Collection<int, RestaurantOpeningHour> $windows */
+    /**
+     * Whether the restaurant will be **shut** within [$minutes].
+     *
+     * Not the same question as "does the window I am in end soon", which is
+     * what this used to ask. A window that hands straight over to another one
+     * is not closing at all, and the case that matters here is the one this
+     * product exists for: a highway dhaba open 00:00 to 23:59:59 every day
+     * would announce "Closing soon" for the last half hour of every night and
+     * then reopen one second later. A driver reading that at 23:40 would go
+     * somewhere else for no reason.
+     *
+     * It is also what broke CI. The test fixture's `openAllWeek` promises in
+     * its own comment that "a test never fails on the clock", and it did not:
+     * every assertion of OPEN against it failed between 18:00 and 18:29 UTC,
+     * which is 23:30 to 23:59 in Asia/Kolkata. A docs-only commit went red at
+     * 18:02 UTC. The fixture was honest about its intent and wrong about its
+     * effect, because the rule underneath it was wrong.
+     */
     private function closesWithin($windows, CarbonImmutable $local, int $minutes): bool
     {
+        $later = $local->addMinutes($minutes);
+
+        $stillOpenThen = $windows->contains(
+            fn (RestaurantOpeningHour $window): bool => $this->covers($window, $later),
+        );
+
+        if ($stillOpenThen) {
+            return false;
+        }
+
         foreach ($windows as $window) {
             if (! $this->covers($window, $local)) {
                 continue;

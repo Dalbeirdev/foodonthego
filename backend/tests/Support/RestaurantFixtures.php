@@ -125,7 +125,19 @@ final class RestaurantFixtures
         return $restaurant->load(['cuisines', 'facilities', 'openingHours']);
     }
 
-    /** Open every hour of every day, so a test never fails on the clock. */
+    /**
+     * Open every hour of every day, so a test never fails on the clock.
+     *
+     * That promise was false for half an hour a night until the availability
+     * rule was fixed. `23:59:59` is a closing time, and a restaurant within
+     * thirty minutes of closing reads CLOSING_SOON — so every assertion of OPEN
+     * against this fixture failed between 23:30 and 23:59 local, which is 18:00
+     * to 18:29 UTC. CI found it on a docs-only commit.
+     *
+     * It holds now because `closesWithin` asks whether the restaurant will be
+     * *shut* soon rather than whether the current window ends soon, and a
+     * window that hands straight over to the next one is not closing.
+     */
     public static function openAllWeek(Restaurant $restaurant): void
     {
         foreach (range(0, 6) as $day) {

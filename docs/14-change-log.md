@@ -860,3 +860,30 @@ to fail.
 The setup guide gains the two commands and the three traps that otherwise cost
 an afternoon: quote the token (it contains a `|`), give the device an address it
 can actually reach, and match chromedriver's major version to the browser's.
+
+---
+
+## A 24-hour restaurant announced "Closing soon" every night
+
+**Fixed.** `RestaurantAvailabilityService::closesWithin` asked whether the
+window the restaurant is *in* ends within thirty minutes. That is not the same
+question as whether the restaurant will be **shut** in thirty minutes, and for
+the case this product exists for — a highway dhaba open around the clock — the
+two answers differ. A restaurant open `00:00:00`–`23:59:59` every day read
+`CLOSING_SOON` from 23:30 until midnight and then reopened one second later. A
+driver reading that at 23:40 would have gone somewhere else for no reason.
+
+It now returns false when any window still covers the moment thirty minutes
+hence, so a window that hands straight over to another one is not closing.
+Back-to-back sittings (09:00–14:00 then 14:00–23:00) get the same correction.
+
+**Found by CI, on a commit that changed only documentation.** The Module 09 API
+test asserting `OPEN` went red at 18:02 UTC — 23:32 in Asia/Kolkata, 27.8
+minutes before the fixture's close. Every run earlier that day had passed. The
+test fixture's own comment promised "a test never fails on the clock" and had
+been wrong for half an hour a night since it was written.
+
+**Tests.** Two added, both pinned to explicit instants: the exact moment that
+turned CI red, and a pair of back-to-back windows. The genuine closing-soon case
+— one window, nothing after it — still reads `CLOSING_SOON`, unchanged. Backend
+suite 959 passed, 3980 assertions.

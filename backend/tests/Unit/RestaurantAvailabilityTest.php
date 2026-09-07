@@ -176,6 +176,47 @@ final class RestaurantAvailabilityTest extends TestCase
         );
     }
 
+    public function test_a_restaurant_open_around_the_clock_is_never_closing_soon(): void
+    {
+        $restaurant = $this->restaurant();
+        RestaurantFixtures::openAllWeek($restaurant);
+
+        // 18:02:13 UTC is 23:32:13 in Kolkata — twenty-eight minutes before the
+        // 23:59:59 that "open all week" writes, and so inside the thirty-minute
+        // closing-soon window. This exact instant turned CI red on a docs-only
+        // commit, and would have done so for half an hour every night.
+        //
+        // The restaurant is not closing. Tomorrow's window opens the moment
+        // tonight's ends, and a driver told "Closing soon" at 23:40 would drive
+        // past a place that is open all night.
+        $this->assertSame(
+            RestaurantAvailability::Open,
+            $this->availability->availabilityOf(
+                $restaurant->load('openingHours'),
+                CarbonImmutable::parse('2026-09-07 18:02:13', 'UTC'),
+            ),
+        );
+    }
+
+    public function test_back_to_back_windows_do_not_read_as_closing(): void
+    {
+        $restaurant = $this->restaurant();
+
+        // Lunch hands straight over to dinner at 14:00.
+        RestaurantFixtures::openDaily($restaurant, '09:00:00', '14:00:00');
+        RestaurantFixtures::openDaily($restaurant, '14:00:00', '23:00:00');
+
+        // 08:15 UTC is 13:45 local: fifteen minutes from the end of the lunch
+        // window, and not fifteen minutes from being shut.
+        $this->assertSame(
+            RestaurantAvailability::Open,
+            $this->availability->availabilityOf(
+                $restaurant->load('openingHours'),
+                CarbonImmutable::parse('2026-09-07 08:15:00', 'UTC'),
+            ),
+        );
+    }
+
     public function test_no_opening_hours_is_unknown_rather_than_open_or_closed(): void
     {
         $restaurant = $this->restaurant();
