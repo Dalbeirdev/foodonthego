@@ -8,21 +8,36 @@
 | 04 | Customer Profile & Saved Addresses | **COMPLETE (Android/iOS device verification pending)** | 99 backend + 68 mobile tests; real Flutter→Laravel→MySQL integration run; 24 states inspected live |
 | 05 | Trip Planner — Origin, Destination & Trip Creation | **COMPLETE (Android/iOS device verification pending; live Places verification pending)** | 408 backend + 312 mobile tests; real Flutter→Laravel→MySQL integration run (31 assertions); 28 states inspected live |
 | 06 | Maps, Route Calculation, Distance & Travel Time | **NOT COMPLETE — live routing provider verification unavailable** | 527 backend + 382 mobile + 29 web tests; integration run (21 assertions); 20 states inspected live. See below |
-| 07r | Restaurant Availability & Capacity (roadmap numbering) | NOT STARTED | |
-| 08 | Order Lifecycle | NOT STARTED | |
 | 07 | Restaurant Discovery Along the Selected Route | **NOT COMPLETE — live routing-provider detour figures unavailable** | 693 backend + 453 mobile + 29 web tests; integration run (22 assertions); 21 states inspected live. See below |
-| 08 | Restaurant Search, Filters, Sorting & Discovery Ranking | NOT STARTED | Next, on approval |
-| 09 | Route & Corridor Management | NOT STARTED | On-route restaurant search; the planner itself moved to 05 |
-| 10 | Notifications | NOT STARTED | |
-| 11 | Payments, Refunds & Settlements | NOT STARTED | |
-| 12 | Restaurant Analytics | NOT STARTED | |
-| 13 | Reviews & Ratings | NOT STARTED | |
-| 14 | Support | NOT STARTED | |
-| 15 | Platform Analytics | NOT STARTED | |
-| 16 | Promotions | NOT STARTED | |
-| 17 | Platform Configuration | NOT STARTED | |
-| 18 | Audit & Compliance | NOT STARTED | |
-| — | **ETA engine** | NOT STARTED | The core differentiator; scheduled with Module 08/09 |
+| 08 | Restaurant Search, Filters, Sorting & Discovery Ranking | **COMPLETE (Android/iOS device verification pending)** | See below |
+| 09 | Restaurant Details, Facilities, Availability & Customer Preview | **COMPLETE (Android/iOS device verification pending)** | See below |
+| 10 | Menu, Categories & Menu Item Browsing | **COMPLETE (Android/iOS device verification pending)** | See below |
+| 11 | Menu Item Details, Variants, Addons, Customization & Add to Cart | **COMPLETE** | 1,729 tests; 34 live states; **Android 8/8 and iOS 8/8 on real devices**. See below |
+| 12 | Cart Management, Price Revalidation & Order Summary | NOT STARTED | Next, on approval |
+
+## Roadmap numbering — not the delivery sequence above
+
+The table above numbers modules **as they are being built**. An earlier product
+roadmap numbered a different set of features, and the two collide: "Module 11"
+is Add to Cart in the sequence above and Payments in the list below. Nothing in
+this repository is built against the roadmap numbers; they are kept only so the
+older planning documents remain readable.
+
+| Roadmap # | Feature | Status |
+| --: | --- | --- |
+| 07r | Restaurant Availability & Capacity | NOT STARTED |
+| R-08 | Order Lifecycle | NOT STARTED |
+| R-09 | Route & Corridor Management | NOT STARTED |
+| R-10 | Notifications | NOT STARTED |
+| R-11 | Payments, Refunds & Settlements | NOT STARTED |
+| R-12 | Restaurant Analytics | NOT STARTED |
+| R-13 | Reviews & Ratings | NOT STARTED |
+| R-14 | Support | NOT STARTED |
+| R-15 | Platform Analytics | NOT STARTED |
+| R-16 | Promotions | NOT STARTED |
+| R-17 | Platform Configuration | NOT STARTED |
+| R-18 | Audit & Compliance | NOT STARTED |
+| — | **ETA engine** | NOT STARTED | 
 
 ## Module 01 detail
 
@@ -276,7 +291,9 @@ running the thing rather than by reading it:
 
 ## Module 11 — Menu Item Details, Variants, Addons, Customization & Add to Cart
 
-**Status: COMPLETE**, with the same two runtime verifications honestly pending.
+**Status: COMPLETE.** The first module with **no pending runtime row** — Android
+and iOS were both verified on real devices, which every module before this one
+had to leave open.
 
 | Item | Status | Note |
 | --- | --- | --- |
@@ -312,8 +329,8 @@ running the thing rather than by reading it:
 | No private fields | **PASS** | 9 needles, raw body, both endpoints |
 | Atomic write | **PASS** | One transaction; no half-configured line |
 | **No provider call on any of it** | **PASS** | Stub count and real provider log both flat |
-| Android runtime | **PENDING** | KI-001 — no Android SDK |
-| iOS runtime | **PENDING** | KI-002 — no macOS host |
+| **Android runtime** | **PASS** | **8 of 8** on an API 34 emulator, in CI |
+| **iOS runtime** | **PASS** | **8 of 8** on an iPhone simulator, in CI |
 
 **1,729 automated tests pass** (957 backend, 772 Flutter), plus a 48-check
 integration run against a live server, **34 live states** inspected in a
@@ -326,5 +343,34 @@ the thing: three layout overflows at 320 dp, and a disabled quantity button that
 had no accessible name — a tooltip becomes a name only on an *enabled* control,
 so at quantity one a screen-reader user met an anonymous disabled thing at
 exactly the moment they needed to know what it was.
+
+### The device runs
+
+The development machine has neither runtime (KI-001: no Android SDK,
+`dl.google.com` blocked by the egress policy; KI-002: no macOS host), so CI
+runs `integration_test/module_11_add_to_cart_test.dart` on both, each against a
+real Laravel server and MySQL brought up by `scripts/ci-backend-up.sh`. Eight of
+eight on both, on `c8c1161`, and again on `f3cf588`.
+
+Worth stating why this is believable, because an earlier claim of a green
+device run was **false and was withdrawn** (KI-013). These runs failed,
+specifically and informatively, across five heads before they passed — a
+mangled invocation, a tap on a control at y=977 in an 890-tall view, a
+`CART_TRIP_CONFLICT` the test setup manufactured itself, and twice a button
+sitting behind the confirmation snackbar. A harness that reports *that* is a
+harness whose green means something. [15-test-evidence.md](15-test-evidence.md)
+carries the table.
+
+Three of those four defects existed only because a real screen is 411x890 or
+402x874 and a browser window is not.
+
+### Handed to Module 12
+
+**KI-014** — a customer who cancels a journey holding a cart cannot add to any
+cart again, on any journey. `CartStatus::Closed` exists and nothing writes it.
+Found by the first device run that got as far as adding to a cart, and
+reproduced against a real backend in four requests. The refusal itself is
+correct; what is missing is the release, and cart lifecycle is Module 12's.
+Recorded in [13-known-issues.md](13-known-issues.md).
 
 Module 12 has **not** been started, per the one-module-at-a-time rule.
