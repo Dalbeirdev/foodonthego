@@ -12,6 +12,7 @@ import '../../data/auth/session_store.dart';
 import '../../data/fixtures/development_personas.dart';
 import '../../data/repositories/api_auth_repository.dart';
 import '../../data/repositories/api_cart_repository.dart';
+import '../../data/repositories/api_pickup_repository.dart';
 import '../../data/repositories/api_customer_repository.dart';
 import '../../data/repositories/api_menu_repository.dart';
 import '../../data/repositories/api_place_repository.dart';
@@ -24,6 +25,7 @@ import '../../data/repositories/unconfigured_home_repository.dart';
 import '../../domain/models/home_dashboard.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/cart_repository.dart';
+import '../../domain/repositories/pickup_repository.dart';
 import '../../domain/repositories/customer_repository.dart';
 import '../../domain/repositories/home_repository.dart';
 import '../../domain/repositories/menu_repository.dart';
@@ -259,6 +261,16 @@ final menuRepositoryProvider = Provider<MenuRepository>(
 /// is addressed by the journey alone. Nothing on this interface takes a price.
 final cartRepositoryProvider = Provider<CartRepository>(
   (Ref ref) => ApiCartRepository(ref.watch(apiClientProvider)),
+);
+
+/// Choosing when to collect (Module 13).
+///
+/// Addressed by the journey, like the cart it belongs to. **Nothing on this
+/// interface takes a time** — a selection sends one opaque id the server minted
+/// and the server resolves, so there is no parameter a modified client could
+/// name its own pickup time in.
+final pickupRepositoryProvider = Provider<PickupRepository>(
+  (Ref ref) => ApiPickupRepository(ref.watch(apiClientProvider)),
 );
 
 /// The device's position.

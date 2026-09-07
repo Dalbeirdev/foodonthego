@@ -107,6 +107,16 @@ class Routes {
 
   static String tripCartPath(String tripId) => '/trips/$tripId/cart';
 
+  /// Choosing when to collect (Module 13). Under the cart, because that is
+  /// what is being collected — and addressed by the journey for the same reason
+  /// the cart is.
+  ///
+  /// Reached from the cart, so back returns the customer to their order rather
+  /// than unwinding to the journey.
+  static const String tripPickup = 'pickup';
+
+  static String tripPickupPath(String tripId) => '/trips/$tripId/cart/pickup';
+
   /// The controlled destination for anything not built yet. Takes the feature
   /// name and owning module as query parameters so one screen serves them all.
   static const String comingSoon = '/coming-soon';

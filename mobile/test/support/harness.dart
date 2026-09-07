@@ -29,11 +29,14 @@ import 'package:foodonthego/domain/repositories/home_repository.dart';
 import 'package:foodonthego/domain/repositories/place_repository.dart';
 import 'package:foodonthego/domain/models/cart.dart';
 import 'package:foodonthego/domain/models/cart_revalidation.dart';
+import 'package:foodonthego/domain/models/pickup.dart';
+import 'package:foodonthego/domain/models/pre_checkout.dart';
 import 'package:foodonthego/domain/models/menu_customization.dart';
 import 'package:foodonthego/domain/models/money.dart';
 import 'package:foodonthego/domain/models/restaurant_detail.dart';
 import 'package:foodonthego/domain/models/restaurant_menu.dart';
 import 'package:foodonthego/domain/repositories/cart_repository.dart';
+import 'package:foodonthego/domain/repositories/pickup_repository.dart';
 import 'package:foodonthego/domain/repositories/menu_repository.dart';
 import 'package:foodonthego/domain/repositories/discovery_repository.dart';
 import 'package:foodonthego/domain/repositories/restaurant_repository.dart';
@@ -1503,6 +1506,7 @@ Widget wrapApp({
   FakeRestaurantRepository? restaurants,
   FakeMenuRepository? menus,
   FakeCartRepository? carts,
+  FakePickupRepository? pickup,
   bool signedIn = true,
 }) {
   final FakeAuthRepository authRepository = auth ?? FakeAuthRepository();
@@ -1539,6 +1543,9 @@ Widget wrapApp({
       ),
       menuRepositoryProvider.overrideWithValue(menus ?? FakeMenuRepository()),
       cartRepositoryProvider.overrideWithValue(carts ?? FakeCartRepository()),
+      pickupRepositoryProvider.overrideWithValue(
+        pickup ?? FakePickupRepository(),
+      ),
       locationServiceProvider.overrideWithValue(
         location ?? FakeLocationService(),
       ),
@@ -2490,3 +2497,193 @@ CartLine sampleCartLine({
   specialInstructions: specialInstructions,
   modifiers: modifiers,
 );
+
+/// Pickup times, without a server.
+///
+/// The fake mints its own option ids and remembers which one was asked for, so
+/// a test can assert that **the id the screen sent is the id the server issued**
+/// — not a time, not an index, not a value derived from a label on screen.
+///
+/// It also answers `readyForCheckout` explicitly rather than working it out
+/// from the issues it returns. That mirrors the server, and it is what lets a
+/// test set up the one case that matters most: a "yes" with an issue the client
+/// has never heard of, to prove the screen renders the server's answer rather
+/// than deriving its own.
+class FakePickupRepository implements PickupRepository {
+  FakePickupRepository({
+    List<PickupOption>? options,
+    this.timezone = 'Asia/Kolkata',
+    this.travelMinutes = 93,
+    this.preparationMinutes = 20,
+    this.bufferMinutes = 5,
+    this.minimumLeadMinutes = 10,
+    this.isFeasible = true,
+    this.requiresRouteRefresh = false,
+    this.reason,
+  }) : _options = <PickupOption>[...?options] {
+    if (_options.isEmpty && isFeasible) _options.addAll(_defaultOptions());
+  }
+
+  static final DateTime serverNow = DateTime.utc(2026, 9, 7, 6, 30);
+
+  final List<PickupOption> _options;
+
+  final String timezone;
+  final int travelMinutes;
+  final int preparationMinutes;
+  final int bufferMinutes;
+  final int minimumLeadMinutes;
+
+  bool isFeasible;
+  bool requiresRouteRefresh;
+  String? reason;
+
+  /// What the server currently says has become of the choice. Set directly, so
+  /// a test can produce STALE and INVALID without simulating the world moving.
+  PickupSelectionStatus selectionStatus = PickupSelectionStatus.none;
+
+  PickupOption? _chosen;
+
+  /// The server's verdict. Explicit, never derived from [preCheckoutIssues].
+  bool readyForCheckout = false;
+  List<PreCheckoutIssue> preCheckoutIssues = const <PreCheckoutIssue>[];
+
+  ApiException? nextOptionsError;
+  ApiException? nextSelectError;
+  ApiException? nextPreCheckoutError;
+
+  int optionsCalls = 0;
+  int selectCalls = 0;
+  int preCheckoutCalls = 0;
+
+  /// Exactly what was sent, in order. A test proving the client never sends a
+  /// time reads this.
+  final List<String> optionIdsSent = <String>[];
+  final List<String?> keysUsed = <String?>[];
+
+  List<PickupOption> get offered => List<PickupOption>.unmodifiable(_options);
+
+  PickupOption? get chosen => _chosen;
+
+  /// Built through the real parser, from strings shaped like the server's.
+  ///
+  /// Deliberately not constructed field by field. The server sends instants
+  /// carrying an offset — `+05:30` here — and the whole difficulty is that
+  /// `DateTime.parse` throws that offset away. A fake that handed the screen a
+  /// UTC `DateTime` would make the counter clock and the instant identical, and
+  /// a test asserting the right one is shown would pass either way.
+  static List<PickupOption> _defaultOptions() => <PickupOption>[
+    for (int i = 0; i < 4; i++)
+      PickupOption.fromJson(<String, dynamic>{
+        // Unguessable and structureless, like the server's.
+        'id': 'opt-${'a' * (i + 1)}${i}f3c',
+        'start_at': _kolkata(serverNow.add(Duration(minutes: 70 + i * 10))),
+        'end_at': _kolkata(serverNow.add(Duration(minutes: 80 + i * 10))),
+        'is_recommended': i == 0,
+      })!,
+  ];
+
+  /// A UTC instant, written the way the server writes it for Asia/Kolkata.
+  static String _kolkata(DateTime instant) {
+    final DateTime local = instant.add(const Duration(hours: 5, minutes: 30));
+
+    String two(int v) => v.toString().padLeft(2, '0');
+
+    return '${local.year}-${two(local.month)}-${two(local.day)}'
+        'T${two(local.hour)}:${two(local.minute)}:00+05:30';
+  }
+
+  @override
+  Future<PickupView> options({required String tripId}) async {
+    optionsCalls++;
+
+    final ApiException? error = nextOptionsError;
+
+    if (error != null) {
+      nextOptionsError = null;
+      throw error;
+    }
+
+    return PickupView(cart: const CartView.empty(), plan: _plan());
+  }
+
+  @override
+  Future<PickupView> selectOption({
+    required String tripId,
+    required String optionId,
+    String? idempotencyKey,
+  }) async {
+    selectCalls++;
+    optionIdsSent.add(optionId);
+    keysUsed.add(idempotencyKey);
+
+    final ApiException? error = nextSelectError;
+
+    if (error != null) {
+      nextSelectError = null;
+      throw error;
+    }
+
+    for (final PickupOption option in _options) {
+      if (option.id == optionId) {
+        _chosen = option;
+        selectionStatus = PickupSelectionStatus.selected;
+
+        return PickupView(cart: const CartView.empty(), plan: _plan());
+      }
+    }
+
+    // An id the fake never issued. The real server answers the same way, and a
+    // test that got a success here would be testing nothing.
+    throw ApiException(
+      code: ApiErrorCode.pickupOptionExpired,
+      message: 'That pickup time is no longer available.',
+    );
+  }
+
+  @override
+  Future<PreCheckoutResult> preCheckout({required String tripId}) async {
+    preCheckoutCalls++;
+
+    final ApiException? error = nextPreCheckoutError;
+
+    if (error != null) {
+      nextPreCheckoutError = null;
+      throw error;
+    }
+
+    return PreCheckoutResult(
+      cart: const CartView.empty(),
+      plan: _plan(),
+      readyForCheckout: readyForCheckout,
+      selectionStatus: selectionStatus,
+      issues: preCheckoutIssues,
+    );
+  }
+
+  PickupPlan _plan() => PickupPlan(
+    serverNow: serverNow,
+    isFeasible: isFeasible && _options.isNotEmpty,
+    requiresRouteRefresh: requiresRouteRefresh,
+    selection: PickupSelection(
+      status: selectionStatus,
+      startAt: _chosen?.startAt,
+      endAt: _chosen?.endAt,
+      timezone: _chosen == null ? null : timezone,
+    ),
+    timezone: timezone,
+    estimatedArrivalAt: serverNow.add(Duration(minutes: travelMinutes)),
+    travelMinutes: travelMinutes,
+    routeCalculatedAt: serverNow,
+    routeIsFresh: !requiresRouteRefresh,
+    preparationMinutes: preparationMinutes,
+    bufferMinutes: bufferMinutes,
+    minimumLeadMinutes: minimumLeadMinutes,
+    earliestReadyAt: serverNow.add(
+      Duration(minutes: preparationMinutes + bufferMinutes),
+    ),
+    reason: reason,
+    recommendedOptionId: _options.isEmpty ? null : _options.first.id,
+    options: List<PickupOption>.unmodifiable(_options),
+  );
+}

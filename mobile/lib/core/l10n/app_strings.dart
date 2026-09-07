@@ -1023,6 +1023,82 @@ class AppStrings {
   String get cartTripGoneBody =>
       'Plan a journey to start a cart along your route.';
 
+  // --- pickup time (Module 13) ---------------------------------------------
+  String get pickupTitle => 'When will you collect?';
+  String get pickupOpen => 'Choose a pickup time';
+
+  // The explanation beside the times. A list a customer has to take on trust
+  // loses them at the first one that looks wrong, so the arithmetic is shown --
+  // and every figure in it came from the server.
+  String get pickupExplanationTitle => 'How we worked this out';
+  String pickupTravelMinutes(int minutes) => minutes == 1
+      ? "You're about 1 minute away"
+      : "You're about $minutes minutes away";
+  String pickupPreparationMinutes(int minutes) =>
+      'The kitchen needs about $minutes minutes';
+  String pickupBufferMinutes(int minutes) =>
+      'Plus $minutes minutes to bag it up';
+  String pickupEarliestReady(String time) => 'Ready from $time';
+  String pickupArrivalEstimate(String time) => 'You arrive around $time';
+
+  // Deliberately hedged, every one of them. The platform has an estimate of a
+  // drive and an estimate of a kitchen, and "guaranteed ready at 3:30" is a
+  // promise neither of those can keep.
+  String get pickupEstimateNote =>
+      'These are estimates. Traffic and kitchens both vary.';
+
+  String get pickupChoose => 'Choose a time';
+  String get pickupRecommended => 'Recommended';
+  String pickupWindow(String from, String to) => '$from – $to';
+  String get pickupSelectedTitle => 'Your pickup time';
+  String pickupSelectedFor(String window) => 'Collecting between $window';
+  String get pickupChangeTime => 'Change time';
+  String pickupTimezoneNote(String zone) => 'Times shown in $zone';
+
+  // What has become of a choice. The wording follows the server's own reading:
+  // stale means nobody has checked, not that anything is wrong.
+  String get pickupStaleTitle => 'Your order has changed';
+  String get pickupStaleBody =>
+      'Choose your pickup time again so we can check it against your order.';
+  String get pickupInvalidTitle => 'That time has passed';
+  String get pickupInvalidBody => 'Pick another one below.';
+
+  // Nothing to offer, each with the move that fixes it.
+  String get pickupNoneTitle => 'No pickup times available';
+  String get pickupNoneBody =>
+      "This kitchen can't have your order ready before it closes.";
+  String get pickupRouteStaleTitle => 'Your journey needs refreshing';
+  String get pickupRouteStaleBody =>
+      "We worked out your travel time a while ago. Refresh it and we'll show current pickup times.";
+  String get pickupRefreshJourney => 'Refresh journey';
+  String get pickupKitchenClosedTitle =>
+      'This kitchen has stopped taking orders';
+  String get pickupKitchenClosedBody =>
+      'Your cart is safe. Try again later, or pick somewhere else on your route.';
+  String get pickupOffRouteTitle => 'No longer on your route';
+  String get pickupOffRouteBody =>
+      'This restaurant is not on the journey you are taking. Pick somewhere else along it.';
+
+  // Failures.
+  String get pickupLoadFailedTitle => "We couldn't work out pickup times";
+  String get pickupLoadFailedBody => 'Please try again in a moment.';
+  String get pickupOfflineTitle => "You're offline";
+  String get pickupOfflineBody =>
+      'These times were last checked when you had a connection.';
+  String get pickupRetry => 'Try again';
+  String get pickupChoiceFailed =>
+      "That time didn't take. Please choose again.";
+  String get pickupExpired =>
+      'Those times have expired. Here are current ones.';
+
+  // Pre-checkout. The answer is the server's; this screen renders it.
+  String get pickupCheckOrder => 'Check my order';
+  String get pickupReadyTitle => 'Your order is ready to go';
+  String get pickupReadyBody =>
+      'Everything checks out. Payment arrives in a later release.';
+  String get pickupNotReadyTitle => 'Not quite ready';
+  String get pickupCheckingOrder => 'Checking your order';
+
   // --- development scaffolding (never shown in production) -----------------
   String get notBuiltYet => 'Not built yet';
   String comingInModule(String module) => 'Arrives in $module.';

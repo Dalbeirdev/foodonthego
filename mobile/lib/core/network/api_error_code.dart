@@ -162,6 +162,33 @@ enum ApiErrorCode {
   /// new figure.
   priceUpdated('PRICE_UPDATED'),
 
+  // --- pickup time (Module 13) ---------------------------------------------
+  //
+  // A pickup window is a claim about time, and every way a claim about time can
+  // go wrong gets its own code: the customer's next move differs for each.
+
+  cartEmpty('CART_EMPTY'),
+
+  /// No windows could be offered at all.
+  pickupOptionsUnavailable('PICKUP_OPTIONS_UNAVAILABLE'),
+
+  /// The chosen id no longer resolves. Expired, never existed, or somebody
+  /// else's — the server deliberately does not say which, so neither does this.
+  pickupOptionExpired('PICKUP_OPTION_EXPIRED'),
+
+  /// The facts the plan was made under have moved. The window may still be
+  /// fine; nobody has checked it.
+  pickupOptionStale('PICKUP_OPTION_STALE'),
+
+  /// The id belongs to a different cart or journey.
+  pickupOptionForbidden('PICKUP_OPTION_FORBIDDEN'),
+
+  pickupTimeInvalid('PICKUP_TIME_INVALID'),
+  pickupOutsideHours('PICKUP_OUTSIDE_HOURS'),
+  pickupBeforeReady('PICKUP_BEFORE_READY'),
+  noFeasiblePickupWindow('NO_FEASIBLE_PICKUP_WINDOW'),
+  preCheckoutInvalid('PRECHECKOUT_INVALID'),
+
   /// The request never reached the server, or never came back.
   network('NETWORK'),
 

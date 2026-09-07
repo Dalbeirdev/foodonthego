@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
+import '../../core/routing/routes.dart';
 import '../../core/theme/tokens.dart';
 import '../../domain/models/cart.dart';
 import '../../domain/models/cart_revalidation.dart';
@@ -220,6 +222,25 @@ class _Loaded extends ConsumerWidget {
           const SizedBox(height: FotgSpacing.x4),
 
           FotgCard(child: OrderSummaryCard(totals: cart.totals)),
+
+          const SizedBox(height: FotgSpacing.x4),
+
+          // The way on to choosing a pickup time.
+          //
+          // Disabled while revalidation says the cart cannot be ordered — a
+          // customer sent to pick a time for a cart with a sold-out dish in it
+          // would choose one and be refused at the next screen. The server
+          // checks this again regardless; this only saves them the trip.
+          PrimaryButton(
+            key: const ValueKey<String>('cart-choose-pickup-time'),
+            label: strings.pickupOpen,
+            onPressed:
+                state.revalidation?.canProceed == true &&
+                    !state.isBusy &&
+                    cart.tripId != null
+                ? () => context.push(Routes.tripPickupPath(cart.tripId!))
+                : null,
+          ),
         ],
       ),
     );

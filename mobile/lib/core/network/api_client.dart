@@ -82,6 +82,22 @@ class ApiClient {
     headers: headers,
   );
 
+  /// PUT, for the endpoints where one thing is being replaced rather than
+  /// created or amended. Choosing a pickup time is the case: a cart has one,
+  /// and choosing again replaces it.
+  Future<Map<String, dynamic>> put(
+    String path, {
+    Map<String, dynamic>? body,
+    bool authenticated = false,
+    Map<String, String> headers = const <String, String>{},
+  }) => _send(
+    'PUT',
+    path,
+    body: body,
+    authenticated: authenticated,
+    headers: headers,
+  );
+
   Future<Map<String, dynamic>> delete(
     String path, {
     bool authenticated = false,

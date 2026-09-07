@@ -14,6 +14,7 @@ import '../../features/profile/profile_screen.dart';
 import '../../domain/models/discovered_restaurant.dart';
 import '../../features/discovery/discovery_screen.dart';
 import '../../features/cart/cart_screen.dart';
+import '../../features/pickup/pickup_time_screen.dart';
 import '../../features/item/item_detail_screen.dart';
 import '../../features/menu/menu_screen.dart';
 import '../../features/restaurant/restaurant_detail_screen.dart';
@@ -151,6 +152,21 @@ GoRouter createRouter({
                             CartScreen(
                               tripId: state.pathParameters['tripId'] ?? '',
                             ),
+                        routes: <RouteBase>[
+                          // Under the cart, because a pickup time is a fact
+                          // about an order rather than about a journey, and
+                          // back should return the customer to what they are
+                          // collecting.
+                          GoRoute(
+                            path: Routes.tripPickup,
+                            builder:
+                                (BuildContext context, GoRouterState state) =>
+                                    PickupTimeScreen(
+                                      tripId:
+                                          state.pathParameters['tripId'] ?? '',
+                                    ),
+                          ),
+                        ],
                       ),
                       GoRoute(
                         path: Routes.tripRoute,
