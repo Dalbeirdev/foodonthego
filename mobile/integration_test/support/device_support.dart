@@ -162,27 +162,84 @@ Future<void> waitFor(
   );
 }
 
-/// The item screen is a `ListView`; anything below the fold is never built, so
-/// a finder for it matches nothing until it has been scrolled to.
+/// Brings a control far enough into view that a thumb could actually reach it.
+///
+/// The item screen is a `ListView`, and the obvious test — "does a finder for
+/// it match anything?" — is the wrong one. A `ListView` builds a little beyond
+/// its viewport, so a control just below the fold is in the widget tree while
+/// being nowhere on the screen. On a desktop-sized browser window the whole
+/// screen fitted and the difference never showed; on a 411x890 handset it
+/// showed immediately. `Hot` was in the tree at y=977 in a render view 890
+/// tall, this returned without scrolling, and `tap` computed a centre outside
+/// the render view and quietly hit nothing — a miss that only became visible
+/// sixty seconds later, as a timeout waiting for the state the tap should have
+/// produced.
+///
+/// So the question asked here is whether the control is *hit testable*, which
+/// is the same question the tap will ask. Two steps, because they fail
+/// differently: `ensureVisible` handles the common case of something already
+/// built but scrolled past, and dragging handles something not built at all.
+/// The drag also polls hit testability rather than presence, so it does not
+/// stop one row short of a control the sticky bar is covering.
 Future<void> scrollTo(WidgetTester tester, Finder finder) async {
-  if (finder.evaluate().isNotEmpty) return;
+  final Finder reachable = finder.hitTestable();
 
-  await tester.scrollUntilVisible(
-    finder,
-    240,
-    scrollable: find.byType(Scrollable).first,
-    maxScrolls: 60,
-  );
+  if (reachable.evaluate().isNotEmpty) return;
+
+  if (finder.evaluate().isNotEmpty) {
+    await tester.ensureVisible(finder);
+    await tester.pump(const Duration(milliseconds: 400));
+    if (reachable.evaluate().isNotEmpty) return;
+  }
+
+  // `scrollUntilVisible` ends by resolving the finder itself, so running out
+  // of scrolls surfaces as `Bad state: No element` from deep inside
+  // flutter_test — which says nothing about which control was being looked
+  // for. Swallowed here so the caller can say it properly.
+  try {
+    await tester.scrollUntilVisible(
+      reachable,
+      240,
+      scrollable: find.byType(Scrollable).first,
+      maxScrolls: 60,
+    );
+  } on StateError {
+    // Reported by the caller, with the control's name in it.
+  }
   await tester.pump(const Duration(milliseconds: 300));
 }
 
 /// Scrolls to a control and taps it, the way a thumb would.
 Future<void> tapAt(WidgetTester tester, Finder finder) async {
   await scrollTo(tester, finder);
-  await tester.tap(finder);
+
+  // Deliberately the hit testable finder rather than the plain one. If the
+  // control still is not reachable, this fails here, naming the control, in
+  // the second it takes to find that out — where `tap` on the plain finder
+  // would print a warning, do nothing, and leave the failure to surface a
+  // minute later somewhere else entirely.
+  await tester.tap(reachableOrFail(finder));
 
   // Long enough for the controller to rebuild and for the semantics tree to
   // catch up. Callers that assert on the result should still use `waitFor`
   // rather than relying on this: it is a courtesy, not a guarantee.
   await tester.pump(const Duration(milliseconds: 800));
+}
+
+/// [finder] restricted to what a thumb could hit, or a legible failure.
+///
+/// `tap` on an unreachable finder would otherwise report "found 0 widgets",
+/// which is indistinguishable from the control not existing at all — and those
+/// two have very different causes.
+Finder reachableOrFail(Finder finder) {
+  final Finder reachable = finder.hitTestable();
+  if (reachable.evaluate().isNotEmpty) return reachable;
+
+  final bool built = finder.evaluate().isNotEmpty;
+  fail(
+    built
+        ? 'Scrolled as far as it goes and $finder is still not reachable: it is '
+              'built, but off screen or behind something.'
+        : 'Scrolled as far as it goes and $finder was never built at all.',
+  );
 }
