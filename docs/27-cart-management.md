@@ -129,13 +129,48 @@ Module 11 refuses a cross-restaurant or cross-journey add, names the other
 restaurant, and mutates nothing. That refusal was always half an answer: the
 other half is a screen where the customer chooses.
 
-Two choices, both explicit:
+Two choices, both explicit, offered on the dish the customer was trying to add:
 
-- **Keep what I have.** Nothing happens; the add is abandoned.
+- **Keep my cart.** Nothing happens; the add is abandoned and their
+  configuration stays on screen, because they may well go and finish the other
+  order first.
 - **Start a new cart.** The existing cart is `CLOSED` and the new item added.
 
 There is no third option in which the app decides. Emptying a cart to make an
 API call succeed is the customer's decision.
+
+"Keep my cart" comes first and is the plain button; the destructive one takes a
+deliberate reach and then a confirmation that says what will be lost — *"Everything
+from Highway Spice Kitchen will be removed, and this dish added instead."* — rather
+than asking whether they are sure.
+
+### Two requests, not a flag
+
+"Start a new cart" is `DELETE /trips/{trip}/cart` followed by the original add,
+and deliberately not a `replace_existing_cart` field on the add. A flag like that
+would be a way to destroy a cart hidden inside a request about a dish, and it
+would be reachable by anything that could construct an add.
+
+The cost is a window: if the close succeeds and the add then fails, the customer
+is left with an empty cart and their configuration still on screen. That is
+recoverable with one more tap, and the failure is reported rather than swallowed
+— which is the better trade against a destructive field that no request body
+should carry.
+
+For a **cross-restaurant** conflict the blocking cart is on the journey the
+customer is already on. For a **cross-journey** one the refusal names the other
+journey in `details.trip_id`, and that is the cart that gets closed.
+
+### Naming the other cart
+
+`CART_RESTAURANT_CONFLICT` carries `restaurant_name` in `details`; its message is
+generic. So the screen reads the name from `details` rather than from the
+message — a client that echoed the message would say "your cart has items from a
+different restaurant", which is not something anybody can act on.
+
+`CART_TRIP_CONFLICT` names a **journey, not a kitchen**. The screen says so
+rather than rendering "Your cart has items from " with nothing after it: a
+sentence that never promised a name is better than one that breaks its promise.
 
 ---
 

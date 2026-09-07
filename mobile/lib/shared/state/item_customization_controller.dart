@@ -10,6 +10,7 @@ import '../../domain/models/menu_customization.dart';
 import '../../domain/models/money.dart';
 import '../../domain/models/restaurant_menu.dart';
 import '../../domain/repositories/menu_repository.dart';
+import 'cart_controller.dart';
 import 'providers.dart';
 
 /// Why a configuration cannot be added.
@@ -45,6 +46,38 @@ enum AddToCartFailure {
   unknown,
 }
 
+/// The cart standing in the way of this add, as the server described it.
+///
+/// Module 11's refusal names the other cart and changes nothing, which was
+/// always half an answer. This is the half that lets the other half be
+/// actionable: a screen can say which restaurant, and can offer to close that
+/// cart — because the customer asked it to, and never because the app decided
+/// an API call ought to succeed.
+class CartConflict {
+  const CartConflict({
+    required this.isCrossJourney,
+    this.cartId,
+    this.restaurantName,
+    this.tripId,
+  });
+
+  /// True when the blocking cart is on a **different journey**. A cross-journey
+  /// conflict is a different conversation from a cross-restaurant one: the
+  /// customer may not remember the other journey at all, and closing its cart
+  /// takes something off a trip they are not looking at.
+  final bool isCrossJourney;
+
+  final String? cartId;
+
+  /// Where the food in the other cart is from. Null when the server did not
+  /// say — a cross-journey refusal names the journey, not the kitchen.
+  final String? restaurantName;
+
+  /// The journey the blocking cart belongs to. Null for a cross-restaurant
+  /// conflict, where the cart is on the journey the customer is already on.
+  final String? tripId;
+}
+
 /// What the customer has chosen so far, and what it would cost.
 class CustomizationState {
   const CustomizationState({
@@ -62,6 +95,8 @@ class CustomizationState {
     this.addition,
     this.cart = const CartSummary.empty(),
     this.priceChangedTo,
+    this.conflict,
+    this.isResolvingConflict = false,
     this.showValidation = false,
   });
 
@@ -97,6 +132,17 @@ class CustomizationState {
   /// The new price, when the dish went up between load and add. The customer
   /// looks at it before agreeing.
   final Money? priceChangedTo;
+
+  /// What the cart the customer already has is blocking this add with.
+  ///
+  /// Present only for [AddToCartFailure.cartConflict]. The server names the
+  /// other cart in its refusal, and naming it back is the whole point: "your
+  /// cart has other items" is not a thing anybody can act on, and "your cart
+  /// has items from Highway Spice Kitchen" is.
+  final CartConflict? conflict;
+
+  /// The existing cart is being closed so this add can proceed.
+  final bool isResolvingConflict;
 
   /// Whether unanswered required groups should be marked.
   ///
@@ -215,6 +261,8 @@ class CustomizationState {
     bool clearAddition = false,
     CartSummary? cart,
     Money? priceChangedTo,
+    CartConflict? conflict,
+    bool? isResolvingConflict,
     bool? showValidation,
   }) => CustomizationState(
     preview: preview ?? this.preview,
@@ -237,6 +285,8 @@ class CustomizationState {
     priceChangedTo: clearFailure
         ? null
         : (priceChangedTo ?? this.priceChangedTo),
+    conflict: clearFailure ? null : (conflict ?? this.conflict),
+    isResolvingConflict: isResolvingConflict ?? this.isResolvingConflict,
     showValidation: showValidation ?? this.showValidation,
   );
 }
@@ -526,17 +576,103 @@ class ItemCustomizationController extends Notifier<CustomizationState> {
       newPrice = Money.fromJson(map['current_unit_price']);
     }
 
+    CartConflict? conflict;
+
+    if (failure == AddToCartFailure.cartConflict) {
+      conflict = CartConflict(
+        isCrossJourney: error.code == ApiErrorCode.cartTripConflict,
+        cartId: map['cart_id'] as String?,
+        restaurantName: map['restaurant_name'] as String?,
+        tripId: map['trip_id'] as String?,
+      );
+    }
+
     state = state.copyWith(
       isSubmitting: false,
+      isResolvingConflict: false,
       failure: failure,
       failureMessage: error.message,
       invalidGroupId: map['group_id'] as String?,
       priceChangedTo: newPrice,
+      conflict: conflict,
       showValidation: failure == AddToCartFailure.selectionIncomplete
           ? true
           : state.showValidation,
     );
   }
+
+  /// The customer has decided to start a new cart.
+  ///
+  /// **Only ever called from an explicit, confirmed choice**, and never to make
+  /// this request succeed. The existing cart is closed because the customer
+  /// said to close it — see docs/27-cart-management.md, where the third option
+  /// in which the app decides deliberately does not exist.
+  ///
+  /// Two requests rather than a flag on the add, and deliberately: each says
+  /// exactly what it does. A `replace_existing_cart` field in an add body would
+  /// be a way to destroy a cart hidden inside a request about a dish.
+  ///
+  /// If the close succeeds and the add then fails, the customer is left with an
+  /// empty cart and their configuration still on screen — recoverable with one
+  /// more tap, and the failure is reported rather than swallowed.
+  Future<void> startNewCart() async {
+    final CartConflict? conflict = state.conflict;
+    final String? tripId = _tripId;
+
+    if (conflict == null || tripId == null) return;
+
+    state = state.copyWith(isResolvingConflict: true);
+
+    try {
+      // The blocking cart's own journey for a cross-journey conflict; this one
+      // for a cross-restaurant conflict, where the cart is already here.
+      await ref
+          .read(cartRepositoryProvider)
+          .empty(tripId: conflict.tripId ?? tripId);
+    } on ApiException catch (error) {
+      if (_disposed) return;
+
+      // Nothing was closed, so nothing was lost. The refusal stands and the
+      // customer still has both choices.
+      _applyFailure(error);
+
+      return;
+    } catch (_) {
+      if (_disposed) return;
+
+      state = state.copyWith(
+        isResolvingConflict: false,
+        failure: AddToCartFailure.serverError,
+      );
+
+      return;
+    }
+
+    if (_disposed) return;
+
+    // The badge on the screen behind is now wrong in both directions: the old
+    // cart is gone and a new one is about to exist.
+    ref.invalidate(cartBadgeProvider(tripId));
+
+    if (conflict.tripId case final String other when other != tripId) {
+      ref.invalidate(cartBadgeProvider(other));
+    }
+
+    state = state.copyWith(isResolvingConflict: false, clearFailure: true);
+
+    // A fresh request against a cart that no longer exists: the refused
+    // attempt's key would replay the refusal.
+    _newAttempt();
+
+    await addToCart();
+  }
+
+  /// The customer has decided to keep what they already have.
+  ///
+  /// The add is abandoned and nothing is touched. Their configuration stays on
+  /// screen, because they may well go back to the other restaurant, finish that
+  /// order, and return.
+  void keepExistingCart() => dismissFailure();
 
   /// The customer has seen the new price and wants to go ahead.
   ///

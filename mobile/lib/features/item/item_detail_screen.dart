@@ -480,6 +480,10 @@ class _FailureNotice extends ConsumerWidget {
       );
     }
 
+    if (failure == AddToCartFailure.cartConflict && state.conflict != null) {
+      return _CartConflictNotice(state: state, conflict: state.conflict!);
+    }
+
     final (String title, String body, bool retryable) = switch (failure) {
       AddToCartFailure.selectionIncomplete => (
         strings.itemAddFailedTitle,
@@ -494,12 +498,6 @@ class _FailureNotice extends ConsumerWidget {
       AddToCartFailure.notAcceptingOrders => (
         strings.itemNotAcceptingTitle,
         strings.itemNotAcceptingBody,
-        false,
-      ),
-      AddToCartFailure.cartConflict => (
-        strings.itemCartConflictTitle,
-        state.failureMessage ??
-            strings.itemCartConflictBody(state.cart.restaurantName ?? ''),
         false,
       ),
       AddToCartFailure.network || AddToCartFailure.offline => (
@@ -652,6 +650,111 @@ class _Notice extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// The cart conflict, and the two ways out of it.
+///
+/// Module 11 refused a cross-restaurant or cross-journey add, named the other
+/// cart and mutated nothing. That refusal was right and it was half an answer;
+/// this is the other half.
+///
+/// **Two choices, both explicit, and no third in which the app decides.**
+/// Emptying a cart to make an API call succeed is the customer's decision, and
+/// the destructive one is confirmed with a dialogue that says what will be lost
+/// rather than asking whether they are sure.
+///
+/// "Keep my cart" comes first and is the plain button. The order is not
+/// decoration: the safe choice should be the one under the thumb, and the one
+/// that destroys something should take a deliberate reach.
+class _CartConflictNotice extends ConsumerWidget {
+  const _CartConflictNotice({required this.state, required this.conflict});
+
+  final CustomizationState state;
+  final CartConflict conflict;
+
+  Future<void> _startNew(BuildContext context, WidgetRef ref) async {
+    final AppStrings strings = AppStrings.of(context);
+    final String? name = conflict.restaurantName;
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: Text(strings.itemCartConflictConfirmTitle),
+        content: Text(
+          name == null
+              ? strings.itemCartConflictConfirmBodyUnnamed
+              : strings.itemCartConflictConfirmBody(name),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(strings.itemCartConflictKeep),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: FotgColors.error),
+            child: Text(strings.itemCartConflictStartNew),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await ref.read(itemCustomizationControllerProvider.notifier).startNewCart();
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AppStrings strings = AppStrings.of(context);
+
+    final ItemCustomizationController controller = ref.read(
+      itemCustomizationControllerProvider.notifier,
+    );
+
+    // The server's own words where it named the restaurant, because they are
+    // the specific ones. The app's own where it did not — a cross-journey
+    // refusal names a journey, and "your cart has items from " with nothing
+    // after it is worse than a sentence that never promised a name.
+    final String body = switch (conflict) {
+      CartConflict(isCrossJourney: true) =>
+        strings.itemCartConflictOtherJourney,
+      CartConflict(restaurantName: final String name) =>
+        strings.itemCartConflictBody(name),
+      _ => strings.itemCartConflictBodyUnnamed,
+    };
+
+    return _Notice(
+      icon: Icons.shopping_basket_outlined,
+      title: strings.itemCartConflictTitle,
+      body: body,
+      foreground: FotgColors.warning,
+      background: FotgColors.warningSurface,
+      actions: <Widget>[
+        // The safe choice first, and plain. Nothing happens; the add is
+        // abandoned and their configuration stays on screen.
+        TextButton(
+          onPressed: state.isResolvingConflict
+              ? null
+              : controller.keepExistingCart,
+          child: Text(strings.itemCartConflictKeep),
+        ),
+        FilledButton(
+          onPressed: state.isResolvingConflict
+              ? null
+              : () => _startNew(context, ref),
+          style: FilledButton.styleFrom(backgroundColor: FotgColors.error),
+          child: state.isResolvingConflict
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(strings.itemCartConflictStartNew),
+        ),
+      ],
     );
   }
 }

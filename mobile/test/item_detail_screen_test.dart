@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodonthego/core/network/api_error_code.dart';
 import 'package:foodonthego/core/network/api_exception.dart';
+import 'package:foodonthego/domain/models/cart.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
 import 'package:foodonthego/domain/models/menu_customization.dart';
@@ -20,6 +21,7 @@ void main() {
   Future<FakeMenuRepository> open(
     WidgetTester tester, {
     FakeMenuRepository? menus,
+    FakeCartRepository? carts,
     MenuItemPreview? preview,
     Size size = const Size(390, 844),
     double textScale = 1.0,
@@ -40,6 +42,7 @@ void main() {
           ),
           routes: FakeRouteRepository(calculated: true),
           menus: repository,
+          carts: carts,
           initialLocation:
               '/trips/trip-1/route/restaurants/restaurant-1/menu/items/item-1',
         ),
@@ -416,8 +419,25 @@ void main() {
   });
 
   group('failures', () {
-    Future<FakeMenuRepository> readyToAdd(WidgetTester tester) async {
-      final FakeMenuRepository menus = await open(tester);
+    /// Taps a control inside the failure notice.
+    ///
+    /// The notice is in the scroll view, so a control below the fold exists in
+    /// the tree and is not on screen. `tester.tap` on one of those misses
+    /// silently and surfaces much later as "the button did nothing".
+    Future<void> tapNotice(WidgetTester tester, String label) async {
+      final Finder button = find.text(label);
+
+      await tester.ensureVisible(button);
+      await tester.pumpAndSettle();
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+    }
+
+    Future<FakeMenuRepository> readyToAdd(
+      WidgetTester tester, {
+      FakeCartRepository? carts,
+    }) async {
+      final FakeMenuRepository menus = await open(tester, carts: carts);
 
       await scrollTo(tester, find.text('Mild'));
       await tester.tap(find.text('Mild'));
@@ -464,16 +484,160 @@ void main() {
     ) async {
       final FakeMenuRepository menus = await readyToAdd(tester);
 
+      // The refusal as the server actually sends it: a generic message, with
+      // the restaurant named in `details`. This fixture used to put the name in
+      // the message, which no server does — the assertion passed because the
+      // screen echoed the message back, not because anything read the name.
       menus.nextAddError = const ApiException(
         code: ApiErrorCode.cartRestaurantConflict,
-        message: 'Your cart has items from Highway Spice Kitchen.',
+        message: 'Your cart has items from a different restaurant.',
         status: 409,
+        details: <String, dynamic>{
+          'cart_id': 'cart-1',
+          'restaurant_id': 'restaurant-9',
+          'restaurant_name': 'Highway Spice Kitchen',
+        },
       );
 
       await tapAdd(tester);
 
       expect(find.text('Your cart has other items'), findsOneWidget);
       expect(find.textContaining('Highway Spice Kitchen'), findsWidgets);
+    });
+
+    testWidgets('a cart conflict offers two choices and no third', (
+      WidgetTester tester,
+    ) async {
+      final FakeMenuRepository menus = await readyToAdd(tester);
+
+      menus.nextAddError = const ApiException(
+        code: ApiErrorCode.cartRestaurantConflict,
+        message: 'Your cart has items from a different restaurant.',
+        status: 409,
+        details: <String, dynamic>{'restaurant_name': 'Highway Spice Kitchen'},
+      );
+
+      await tapAdd(tester);
+
+      // Both explicit, and nothing that empties a cart on the customer's
+      // behalf. See docs/27-cart-management.md.
+      expect(find.text('Keep my cart'), findsOneWidget);
+      expect(find.text('Start a new cart'), findsOneWidget);
+      expect(find.text('Try again'), findsNothing);
+    });
+
+    testWidgets('keeping the cart abandons the add and touches nothing', (
+      WidgetTester tester,
+    ) async {
+      final FakeCartRepository carts = FakeCartRepository(
+        lines: <CartLine>[sampleCartLine()],
+      );
+      final FakeMenuRepository menus = await readyToAdd(tester, carts: carts);
+
+      menus.nextAddError = const ApiException(
+        code: ApiErrorCode.cartRestaurantConflict,
+        message: 'Your cart has items from a different restaurant.',
+        status: 409,
+        details: <String, dynamic>{'restaurant_name': 'Highway Spice Kitchen'},
+      );
+
+      final int addsBefore = menus.addCalls;
+
+      await tapAdd(tester);
+      await tapNotice(tester, 'Keep my cart');
+
+      expect(find.text('Your cart has other items'), findsNothing);
+
+      // Nothing was closed and nothing was re-sent. "Keep my cart" abandons the
+      // add; it is not a quieter way of doing the other thing.
+      expect(carts.emptyCalls, 0);
+      expect(carts.snapshot, hasLength(1));
+      expect(menus.addCalls, addsBefore + 1);
+    });
+
+    testWidgets('starting a new cart asks before destroying the old one', (
+      WidgetTester tester,
+    ) async {
+      final FakeCartRepository carts = FakeCartRepository(
+        lines: <CartLine>[sampleCartLine()],
+      );
+      final FakeMenuRepository menus = await readyToAdd(tester, carts: carts);
+
+      menus.nextAddError = const ApiException(
+        code: ApiErrorCode.cartRestaurantConflict,
+        message: 'Your cart has items from a different restaurant.',
+        status: 409,
+        details: <String, dynamic>{'restaurant_name': 'Highway Spice Kitchen'},
+      );
+
+      await tapAdd(tester);
+      await tapNotice(tester, 'Start a new cart');
+
+      expect(find.text('Empty your current cart?'), findsOneWidget);
+      expect(find.textContaining('Highway Spice Kitchen'), findsWidgets);
+
+      // Backing out of the confirmation destroys nothing.
+      await tester.tap(find.widgetWithText(TextButton, 'Keep my cart').last);
+      await tester.pumpAndSettle();
+
+      expect(carts.emptyCalls, 0);
+      expect(carts.snapshot, hasLength(1));
+    });
+
+    testWidgets('confirming closes the old cart and adds the dish', (
+      WidgetTester tester,
+    ) async {
+      final FakeCartRepository carts = FakeCartRepository(
+        lines: <CartLine>[sampleCartLine()],
+      );
+      final FakeMenuRepository menus = await readyToAdd(tester, carts: carts);
+
+      menus.nextAddError = const ApiException(
+        code: ApiErrorCode.cartRestaurantConflict,
+        message: 'Your cart has items from a different restaurant.',
+        status: 409,
+        details: <String, dynamic>{'restaurant_name': 'Highway Spice Kitchen'},
+      );
+
+      final int addsBefore = menus.addCalls;
+
+      await tapAdd(tester);
+      await tapNotice(tester, 'Start a new cart');
+
+      await tester.tap(
+        find.widgetWithText(TextButton, 'Start a new cart').last,
+      );
+      await tester.pumpAndSettle();
+
+      // The old cart closed because the customer said to, and the add retried.
+      expect(carts.emptyCalls, 1);
+      expect(carts.snapshot, isEmpty);
+      expect(menus.addCalls, addsBefore + 2);
+      expect(find.text('Your cart has other items'), findsNothing);
+    });
+
+    testWidgets('a cross-journey conflict does not invent a restaurant name', (
+      WidgetTester tester,
+    ) async {
+      final FakeMenuRepository menus = await readyToAdd(tester);
+
+      // The server names the *journey* here, not the kitchen. "Your cart has
+      // items from " with nothing after it is worse than a sentence that never
+      // promised a name.
+      menus.nextAddError = const ApiException(
+        code: ApiErrorCode.cartTripConflict,
+        message: 'You have items in a cart for a different journey.',
+        status: 409,
+        details: <String, dynamic>{'cart_id': 'cart-1', 'trip_id': 'trip-9'},
+      );
+
+      await tapAdd(tester);
+
+      expect(
+        find.textContaining('belongs to a different journey'),
+        findsOneWidget,
+      );
+      expect(find.text('Start a new cart'), findsOneWidget);
     });
 
     testWidgets('a price rise shows both figures and asks', (

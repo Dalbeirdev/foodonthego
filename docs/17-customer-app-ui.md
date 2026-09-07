@@ -859,3 +859,25 @@ who has just emptied theirs — the server closes an emptied cart and reports it
 as no cart at all. Both land on the same empty state, with the one action that
 fills it. `CART_NOT_FOUND` from revalidation is treated the same way, because to
 the customer it means the same thing.
+
+### Resolving a cart conflict (Module 12)
+
+Module 11 refused a cross-restaurant or cross-journey add, named the other cart
+and mutated nothing. That refusal was right, and it was half an answer — the
+customer was told what was wrong and given nothing to do about it.
+
+The other half is on the dish they were trying to add: a notice with **two
+choices and no third**.
+
+| Choice | What happens |
+| --- | --- |
+| Keep my cart | The add is abandoned. Nothing is touched, and their configuration stays on screen. |
+| Start a new cart | Confirmed first, then the existing cart is closed and the dish added. |
+
+"Keep my cart" is first and plain; the destructive choice is styled as
+destructive and takes a confirmation that names what will be lost. The order is
+not decoration — the safe choice should be the one under the thumb.
+
+The notice is amber rather than red. A conflict is not a failure: the customer
+has a cart, which is a perfectly good thing to have, and it happens to be
+somewhere else.

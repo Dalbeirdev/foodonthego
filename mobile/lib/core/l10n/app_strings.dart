@@ -911,10 +911,28 @@ class AppStrings {
   String get itemNotAcceptingBody =>
       "This restaurant isn't accepting orders right now. You can still browse.";
 
+  // A cart conflict, and the two choices that resolve it. Never a third in
+  // which the app decides — emptying a cart to make a request succeed is the
+  // customer's decision. See docs/27-cart-management.md.
   String get itemCartConflictTitle => 'Your cart has other items';
   String itemCartConflictBody(String restaurant) =>
-      'Your cart has items from $restaurant. Finish or empty that order before '
-      'starting a new one.';
+      'Your cart has items from $restaurant. A pickup order is collected at one '
+      'counter, so this dish needs a new cart.';
+  String get itemCartConflictBodyUnnamed =>
+      'Your cart already has food from somewhere else. A pickup order is '
+      'collected at one counter, so this dish needs a new cart.';
+  String get itemCartConflictOtherJourney =>
+      'Your cart belongs to a different journey. Starting a new one here will '
+      'empty that cart.';
+  String get itemCartConflictKeep => 'Keep my cart';
+  String get itemCartConflictStartNew => 'Start a new cart';
+  String get itemCartConflictConfirmTitle => 'Empty your current cart?';
+  String itemCartConflictConfirmBody(String restaurant) =>
+      'Everything from $restaurant will be removed, and this dish added '
+      'instead. This cannot be undone.';
+  String get itemCartConflictConfirmBodyUnnamed =>
+      'Everything in your current cart will be removed, and this dish added '
+      'instead. This cannot be undone.';
 
   /// The price-change refusal. The old and the new figure are both shown,
   /// because "the price changed" without saying to what is not information.
