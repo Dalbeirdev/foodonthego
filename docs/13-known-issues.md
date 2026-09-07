@@ -24,6 +24,29 @@ rendered and screenshotted at four phone sizes plus dark mode.
 **To clear:** allow `dl.google.com` for the CI runner, install `cmdline-tools`, accept licences, run
 `flutter build apk --debug`, then run the widget tests on an emulator.
 
+**Re-checked at Module 11**, because "still blocked" is worth being precise
+about. Only one host is denied, and only one device node is missing:
+
+| | |
+| --- | --- |
+| `services.gradle.org`, `maven.google.com`, Maven Central | reachable — the dependency side is fine |
+| `dl.google.com` | **403** — and it is the only source of `cmdline-tools`, `platform-tools`, `platforms;android-NN` and `build-tools` at the versions Flutter pins |
+| Ubuntu's own `android-sdk` packages | a dead end: the only platform packaged is **API 23**, far below this app's `compileSdk`, and the `google-android-cmdline-tools-*-installer` packages just download from `dl.google.com` anyway |
+| `/dev/kvm` | absent — so even with an SDK an x86_64 emulator will not start, and an ARM image under full software emulation is too slow to drive a run through |
+| USB passthrough | none, so a physical handset is not reachable either |
+
+So clearing this needs **three** things, not one: the egress allowlist, the SDK
+packages, and `/dev/kvm` exposed to the container. With only the first, a
+`flutter build apk` would compile — worth having, and still not a runtime pass.
+
+**What is now ready for the day it clears.** `integration_test/` holds a driver
+that walks Module 11 on a real handset —
+[03-development-setup.md](03-development-setup.md) has the two commands. It has
+been run green in a browser via `flutter drive`, so the finders and the flow are
+known-good; the only thing missing is the device. That makes closing this a
+matter of attaching one, rather than of writing a test under time pressure on
+borrowed hardware.
+
 ---
 
 ### KI-002 · iOS build and device test cannot be performed

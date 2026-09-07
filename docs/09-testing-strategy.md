@@ -512,3 +512,53 @@ against a live Laravel backend and real MySQL rows. It provokes every race by
 changing rows behind the API's back, which is exactly what a restaurant
 dashboard will do to those columns, and it reads the written cart rows back out
 of MySQL to check the stored price, the snapshots and the modifier records.
+
+---
+
+## The fourth layer: on-device runs (`integration_test/`)
+
+Three layers existed before this: widget tests against repositories we wrote,
+backend tests against a real database, and smoke drivers that put this app's
+network layer against a live server. All three run without a phone, which is
+their virtue and their limit — **none of them proves the app works on a
+handset.**
+
+`integration_test/` is the layer that does. It builds the shipping app,
+installs it on a device or emulator, taps the real controls through the real
+gesture pipeline, and talks to a live Laravel server writing real rows.
+
+| Layer | Real widgets | Real HTTP | Real database | Real device |
+| --- | --- | --- | --- | --- |
+| `test/` — widget tests | ✅ | ❌ | ❌ | ❌ |
+| `backend/tests/` — PHPUnit | ❌ | ✅ | ✅ | ❌ |
+| `tool/*_smoke.dart` | ❌ | ✅ | ✅ | ❌ |
+| `integration_test/` | ✅ | ✅ | ✅ | ✅ |
+
+### What these drivers deliberately do not re-test
+
+An on-device driver for Module 11 sets its journey up **over HTTP** and launches
+the app straight at the item screen. It does not re-drive sign-in, journey
+planning or discovery.
+
+That is not a shortcut. Those modules have their own verification, and driving
+them again here would mean a Module 07 regression arriving as a Module 11
+failure — a test that fails for reasons it does not name is worse than no test.
+The rule is: **an on-device driver drives the module it is named after, and sets
+everything else up through the API.**
+
+Two overrides make that possible, and they are the only two:
+
+- the **session store**, because there is no way to write a Keychain entry from
+  a test process;
+- the router's **initial location**.
+
+Everything below — repositories, HTTP client, controllers, widgets — is exactly
+what ships.
+
+### What a browser run does and does not establish
+
+`flutter drive` can run these targets against a browser on a machine with no
+Android SDK, and that is worth doing: it proves the driver, the finders and the
+flow, so the run works first time on the handset that eventually appears. It
+proves nothing about Android or iOS, and a report that quoted a browser pass as
+a runtime pass would be lying about the one thing the pass is for.

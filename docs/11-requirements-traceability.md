@@ -914,8 +914,8 @@ Screenshot names refer to the Module 11 live-view run recorded in
 | M11-047 | Offline item read | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PARTIAL — see note | Detail is not cached; see below |
 | M11-048 | **Offline add blocked** | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-29`; no fake success |
 | M11-049 | Request race handling | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Generation-checked; the newest wins |
-| M11-050 | Android testing | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ⛔ | ✅ | PENDING — environment | KI-001 |
-| M11-051 | iOS testing | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ⛔ | ✅ | PENDING — environment | KI-002 |
+| M11-050 | Android testing | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ⛔ | ✅ | PENDING — environment | KI-001; driver written, rehearsed in a browser |
+| M11-051 | iOS testing | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ⛔ | ✅ | PENDING — environment | KI-002; same driver runs unchanged |
 | M11-052 | Accessibility | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Sentences, not controls; M11-B04 fixed |
 | M11-053 | Backend tests | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 93 new; 957 total |
 | M11-054 | Flutter tests | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 86 new; 772 total |

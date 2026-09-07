@@ -198,3 +198,79 @@ mysql -N -B --default-character-set=utf8mb4 foodonthego_local \
 `--default-character-set=utf8mb4` is not optional. A special instruction can
 contain Devanagari or an emoji, and without it `mysql` hands back bytes that
 decode to a `FormatException` rather than the note the customer typed.
+
+---
+
+## Running the app on a device (`integration_test/`)
+
+`test/` holds widget tests, which run against repositories we wrote. `tool/`
+holds smoke drivers, which run this app's network layer against a live server.
+`integration_test/` is the third thing: **the real app, on a real device,
+against a live server.** It is what an Android or iOS runtime verification is
+made of.
+
+### Why it needs a token
+
+A handset cannot complete sign-in by itself. `LogOtpProvider` writes the code to
+a log file on the *server* and there is deliberately no endpoint that hands it
+back — that absence is what makes the provider unusable in production, and it is
+not going to be loosened to make a test convenient.
+
+So the code is read on the machine that has the log, and the session token is
+passed to the device:
+
+```bash
+# On the machine running the backend
+php artisan serve --host=0.0.0.0 --port=8000
+php artisan db:seed --class=DiscoveryTestRestaurantSeeder --force
+php artisan db:seed --class=MenuTestDataSeeder --force
+
+cd mobile
+dart run --define=FOTG_API_BASE_URL=http://127.0.0.1:8000 tool/issue_token.dart
+```
+
+It prints an ordinary Sanctum token for an ordinary test persona.
+
+### On a device or emulator
+
+```bash
+flutter devices           # confirm one is attached
+
+flutter test integration_test/ \
+  --dart-define=FOTG_API_BASE_URL=http://192.168.1.20:8000 \
+  --dart-define='FOTG_TEST_TOKEN=369|…'
+```
+
+Three things that will otherwise waste an afternoon:
+
+| Trap | What to do |
+| --- | --- |
+| The token contains a `\|` | **Quote it.** Unquoted, the shell reads it as a pipe. |
+| The device cannot reach `127.0.0.1` | Use `10.0.2.2` for an Android emulator, `127.0.0.1` for an iOS simulator, the host's **LAN address** for a physical handset — and bind the backend to `0.0.0.0`, not `127.0.0.1`. |
+| Cleartext HTTP | Fine in the debug build `flutter test` produces. A release build refuses it, and should. |
+
+### Without a device
+
+`flutter test integration_test/` needs an attached device. `flutter drive` does
+not — it can run the same target in a browser, which is how these drivers are
+checked on a machine with no Android SDK:
+
+```bash
+chromedriver --port=4447 &
+
+CHROME_EXECUTABLE=/path/to/chrome flutter drive \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/module_11_add_to_cart_test.dart \
+  -d web-server --browser-name=chrome --driver-port=4447 \
+  --web-browser-flag=--headless=new \
+  --dart-define=FOTG_API_BASE_URL=http://127.0.0.1:8000 \
+  --dart-define='FOTG_TEST_TOKEN=…'
+```
+
+`chromedriver`'s major version must match the browser's, or the session is
+refused with *"This version of ChromeDriver only supports Chrome version N"*.
+Matching builds are at
+`https://storage.googleapis.com/chrome-for-testing-public/<version>/linux64/chromedriver-linux64.zip`.
+
+**A browser run proves the driver and the flow. It does not prove Android or
+iOS**, and no report should read as if it did.

@@ -64,6 +64,13 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
+  # Drives the real app on a real device or emulator, against a real backend.
+  # This is what makes an Android or iOS runtime verification something we can
+  # produce rather than something we assert: `flutter test integration_test/`
+  # builds the app, installs it, and taps the actual widgets on the handset.
+  integration_test:
+    sdk: flutter
+
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your

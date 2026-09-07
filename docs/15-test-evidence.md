@@ -1828,3 +1828,30 @@ cascade-delete with their restaurant.
 | Web (Chromium, release build) | **PASS** — 34 states |
 | Android | **PENDING — environment unavailable.** No Android SDK; `dl.google.com` is blocked by the egress policy. (KI-001) |
 | iOS | **PENDING — environment unavailable.** No macOS host. (KI-002) |
+
+### The on-device driver, written and rehearsed
+
+`integration_test/module_11_add_to_cart_test.dart` walks this module on a real
+handset: the dish arrives over the device's own network stack, the controls are
+tapped through the real gesture pipeline, and the row the server writes is read
+back and checked.
+
+Six tests: the dish and its rules; nothing paid preselected; a size as an
+absolute price; a sold-out size that cannot be chosen; the whole journey ending
+in `subtotal == 77800`; a second identical tap becoming a quantity rather than a
+line; a dish with no default size; and a sold-out dish with no button at all.
+
+It cannot be run here — that is what KI-001 says — but it has been **run green
+in a browser** through `flutter drive`, twice:
+
+```
+flutter drive --driver=test_driver/integration_test.dart \
+  --target=integration_test/module_11_add_to_cart_test.dart \
+  -d web-server --browser-name=chrome ...
+All tests passed.
+```
+
+That proves the driver, the finders and the flow against the real app and the
+real backend. **It does not prove Android or iOS**, and neither row above moves
+because of it. What it changes is that closing those rows is now a matter of
+attaching a device.

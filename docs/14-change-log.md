@@ -827,3 +827,30 @@ Four defects, none left open — see
   of the same Flutter code.
 - **The suspended-versus-missing distinction is still inherited** from Module 09
   and still documented rather than silently changed.
+
+---
+
+## After Module 11: an on-device driver
+
+Module 11's runtime rows (M11-050 Android, M11-051 iOS) are **PENDING** because
+this environment has no Android SDK and no macOS host, and they stay PENDING.
+What changed is what happens when a device does appear.
+
+**Added.** `mobile/integration_test/module_11_add_to_cart_test.dart` — six tests
+that build the shipping app, install it on a handset, tap the real controls and
+check the row the server writes. `mobile/integration_test/support/` holds the
+two things a device makes awkward: obtaining a session, and launching the app at
+the screen under test. `mobile/tool/issue_token.dart` signs a persona in on the
+host, because a handset cannot read the server's OTP log — and there is
+deliberately no endpoint that would let it.
+
+**Added.** `mobile/test_driver/integration_test.dart`, so the same target can be
+run in a browser through `flutter drive` on a machine with no device. It has
+been run green that way, which proves the driver and the flow — and proves
+nothing about Android or iOS. Neither runtime row moves.
+
+**Changed.** `integration_test` added to `dev_dependencies`.
+
+The setup guide gains the two commands and the three traps that otherwise cost
+an afternoon: quote the token (it contains a `|`), give the device an address it
+can actually reach, and match chromedriver's major version to the browser's.
