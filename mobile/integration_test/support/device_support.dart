@@ -98,7 +98,11 @@ Future<void> launchSignedIn(
     ),
   );
 
-  await settle(tester);
+  // Ten seconds, not six. A first frame on a freshly booted simulator — engine
+  // start, font resolution, the first paint — takes appreciably longer than the
+  // same app in a desktop browser, and the screen under test only issues its
+  // request once it has built.
+  await settle(tester, duration: const Duration(seconds: 10));
 }
 
 /// `pumpAndSettle` cannot be used while the app is talking to a server: it
@@ -118,10 +122,22 @@ Future<void> settle(
 }
 
 /// Pumps until [finder] matches, or gives up with a legible message.
+/// Pumps until [finder] matches, or gives up with a legible message.
+///
+/// Used for assertions as well as for waiting. On a device, an assertion made
+/// on the first frame after a tap is a race: the state change, the rebuild and
+/// the semantics update do not all land inside a fixed pump. Polling for a
+/// short while asserts the same thing without asserting it too early, and a
+/// genuine regression still fails — it simply takes the timeout to do so.
+///
+/// Sixty seconds rather than twenty for the default: a simulator that has just
+/// booted can spend a long time on the first screen of a run, and the failure
+/// this replaces was a real timeout on a request the server had already
+/// answered in under a millisecond.
 Future<void> waitFor(
   WidgetTester tester,
   Finder finder, {
-  Duration timeout = const Duration(seconds: 20),
+  Duration timeout = const Duration(seconds: 60),
   String? describe,
 }) async {
   final DateTime deadline = DateTime.now().add(timeout);
@@ -131,7 +147,19 @@ Future<void> waitFor(
     await tester.pump(const Duration(milliseconds: 150));
   }
 
-  fail('Timed out waiting for ${describe ?? finder.toString()}');
+  // What the screen was actually showing, because "timed out" on its own
+  // cannot tell a slow load from an error state, and a CI cycle spent
+  // discovering which is a cycle wasted.
+  final List<String> visible = tester
+      .widgetList<Text>(find.byType(Text))
+      .map((Text text) => text.data ?? '')
+      .where((String line) => line.isNotEmpty)
+      .toList();
+
+  fail(
+    'Timed out waiting for ${describe ?? finder.toString()}.\n'
+    'On screen instead: ${visible.isEmpty ? '(no text at all)' : visible.join(' | ')}',
+  );
 }
 
 /// The item screen is a `ListView`; anything below the fold is never built, so
@@ -152,5 +180,9 @@ Future<void> scrollTo(WidgetTester tester, Finder finder) async {
 Future<void> tapAt(WidgetTester tester, Finder finder) async {
   await scrollTo(tester, finder);
   await tester.tap(finder);
-  await tester.pump(const Duration(milliseconds: 400));
+
+  // Long enough for the controller to rebuild and for the semantics tree to
+  // catch up. Callers that assert on the result should still use `waitFor`
+  // rather than relying on this: it is a courtesy, not a guarantee.
+  await tester.pump(const Duration(milliseconds: 800));
 }

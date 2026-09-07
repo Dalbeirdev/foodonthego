@@ -224,16 +224,25 @@ void main() {
     await tapAt(tester, find.text('Large'));
 
     // ₹329. If a variant were ever added to the base price this would be ₹578.
-    expect(find.textContaining('Add to cart · ₹329'), findsOneWidget);
+    await waitFor(
+      tester,
+      find.textContaining('Add to cart · ₹329'),
+      describe: 'the button to quote the Large price',
+    );
   });
 
   testWidgets('a sold-out size cannot be chosen', (WidgetTester tester) async {
     await openTheDish(tester);
 
     await tapAt(tester, find.text('Large'));
-    await tapAt(tester, find.text('Family (serves 4)'));
+    await waitFor(tester, find.textContaining('Add to cart · ₹329'));
 
-    // Still Large. The tap did nothing, which is the point.
+    await tapAt(tester, find.text('Family (serves 4)'));
+    await settle(tester, duration: const Duration(seconds: 2));
+
+    // Still Large. The tap did nothing, which is the point — and unlike every
+    // other assertion here this one must NOT poll: waiting for a thing that is
+    // already true would pass however long the price took to change.
     expect(find.textContaining('Add to cart · ₹329'), findsOneWidget);
   });
 
@@ -250,24 +259,33 @@ void main() {
     // The required question, answered differently from its default. Choosing
     // in a single-select group replaces rather than adds.
     await tapAt(tester, find.text('Hot'));
-    expect(
+    await waitFor(
+      tester,
       find.bySemanticsLabel('Mild. No extra charge. Not selected'),
-      findsOneWidget,
+      describe: 'Mild to be deselected when Hot is chosen',
     );
 
     // Two paid extras: +₹40 and +₹20.
     await tapAt(tester, find.text('Extra Cheese'));
     await tapAt(tester, find.text('Jalapeños'));
 
-    expect(find.textContaining('Add to cart · ₹389'), findsOneWidget);
+    await waitFor(
+      tester,
+      find.textContaining('Add to cart · ₹389'),
+      describe: 'the button to price both extras',
+    );
 
     // The ceiling on that group is two, and it says so once reached.
-    expect(find.text('You can choose up to 2.'), findsOneWidget);
+    await waitFor(tester, find.text('You can choose up to 2.'));
 
     // Quantity.
     await tapAt(tester, find.bySemanticsLabel('Add one more'));
-    expect(find.bySemanticsLabel('Quantity, 2'), findsOneWidget);
-    expect(find.textContaining('Add to cart · ₹778'), findsOneWidget);
+    await waitFor(tester, find.bySemanticsLabel('Quantity, 2'));
+    await waitFor(
+      tester,
+      find.textContaining('Add to cart · ₹778'),
+      describe: 'the line total for two',
+    );
 
     // The note, and what it is careful not to promise.
     final Finder note = find.byType(TextField).last;
@@ -363,7 +381,11 @@ void main() {
 
     await tapAt(tester, find.text('250 ml'));
 
-    expect(find.textContaining('Add to cart · ₹69'), findsOneWidget);
+    await waitFor(
+      tester,
+      find.textContaining('Add to cart · ₹69'),
+      describe: 'the button to price the chosen size',
+    );
   });
 
   testWidgets('a sold-out dish offers no way to add it', (
