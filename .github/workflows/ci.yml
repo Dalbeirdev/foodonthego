@@ -266,16 +266,33 @@ jobs:
           arch: x86_64
           profile: pixel_6
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          # 10.0.2.2 is the emulator's alias for the host running the server.
-          script: |
-            cd mobile
-            flutter test integration_test/ \
-              --dart-define=FOTG_API_BASE_URL=http://10.0.2.2:8000 \
-              --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
+          # ONE line, deliberately. This action runs its `script` a line at a
+          # time, each in its own `sh -c`, so a block scalar does not behave
+          # like a shell script: a `cd` on its own line is discarded with the
+          # shell that ran it, and a trailing backslash is not a continuation
+          # but a literal argument. Written as a block, the invocation reached
+          # flutter as two paths — `integration_test/` and `\` — which is a
+          # file inside the integration test directory and a file outside it,
+          # and the tool refused: "Integration tests and unit tests cannot be
+          # run in a single invocation." Reproduced with
+          # `sh -c 'flutter test integration_test/ \'`.
+          #
+          # `>-` folds this into a single line, so `cd` and the flags survive.
+          #
+          # 10.0.2.2 is the emulator's alias for the host running the server,
+          # and emulator-5554 is the device this action always boots — named
+          # explicitly because a runner with the Linux desktop toolchain
+          # present offers more than one target.
+          script: >-
+            cd mobile &&
+            flutter test integration_test/module_11_add_to_cart_test.dart
+            -d emulator-5554
+            --dart-define=FOTG_API_BASE_URL=http://10.0.2.2:8000
+            --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
 
       - name: Backend log, if anything failed
         if: failure()
-        run: tail -100 backend/storage/logs/serve.log backend/storage/logs/laravel.log || true
+        run: tail -n 100 backend/storage/logs/serve.log backend/storage/logs/laravel.log || true
 
   ios-device:
     name: Mobile — iOS simulator
@@ -356,4 +373,4 @@ jobs:
 
       - name: Backend log, if anything failed
         if: failure()
-        run: tail -100 backend/storage/logs/serve.log backend/storage/logs/laravel.log || true
+        run: tail -n 100 backend/storage/logs/serve.log backend/storage/logs/laravel.log || true
