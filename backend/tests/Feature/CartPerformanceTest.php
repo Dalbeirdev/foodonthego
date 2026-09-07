@@ -209,7 +209,7 @@ final class CartPerformanceTest extends TestCase
         $this->openTheList();
         $this->costOfOpeningTheItem();
 
-        [$queries, $ms] = $this->costOfOpeningTheItem();
+        [, $ms] = $this->costOfOpeningTheItem();
 
         $body = $this->asRahul()->getJson($this->itemUrl())->assertOk()->json('data.customization');
 
@@ -224,7 +224,33 @@ final class CartPerformanceTest extends TestCase
         // 3 spice + 2 extras + 80.
         $this->assertSame(85, $options);
 
-        $this->assertLessThanOrEqual(20, $queries);
+        // Scoped to the tables this test is about, like every other count in
+        // this class. The ceiling used to be twenty whole-request queries and
+        // that was never a measurement of anything: locally the request costs
+        // exactly twenty, so the assertion had no headroom at all, and it went
+        // red on CI at twenty-one the first time the session preamble around
+        // it — the token lookup, the rate limiter's bucket, the ordering
+        // context — resolved one query differently. None of those are the
+        // customization.
+        //
+        // Four is what the customization actually costs, stable across the
+        // whole suite: the item, its sizes, its groups, and every option for
+        // all of them in one go. Six leaves room for a legitimate extra read
+        // without leaving room for the thing this guards against — an N+1 over
+        // ten groups is at least thirteen, and over eighty-five options at
+        // least eighty-six.
+        $customization = $this->queriesTouching(
+            fn () => $this->costOfOpeningTheItem(),
+            [
+                'menu_items',
+                'menu_item_variants',
+                'menu_modifier_groups',
+                'menu_modifier_options',
+                'menu_item_modifier_group',
+            ],
+        );
+
+        $this->assertLessThanOrEqual(6, $customization);
         $this->assertLessThan(1_500.0, $ms);
 
         // And the whole thing can still be added, required groups and all.

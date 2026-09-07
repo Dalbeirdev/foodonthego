@@ -231,7 +231,7 @@ final class MenuPerformanceTest extends TestCase
         $this->openTheList();
         $this->costOfOpeningTheMenu();
 
-        [$queries, $ms] = $this->costOfOpeningTheMenu();
+        [, $ms] = $this->costOfOpeningTheMenu();
 
         $response = $this->asRahul()->getJson($this->menuUrl());
         $response->assertOk();
@@ -252,13 +252,23 @@ final class MenuPerformanceTest extends TestCase
         // request they have no signal to make.
         $this->assertSame(500, $rendered);
 
-        // Seventeen at the time of writing, of which two are the menu: the
-        // rest are the token, the trip, its selected route and the cached
-        // corridor read the eligibility check goes through. The budget is a
-        // ceiling rather than a target — it is set where a single per-category
-        // query (twenty more) or a per-item one (five hundred more) fails it,
-        // and where ordinary drift does not.
-        $this->assertLessThanOrEqual(20, $queries);
+        // Two: the categories, and every item in one go. Seventeen queries go
+        // out in total, but the other fifteen are the token, the trip, its
+        // selected route and the cached corridor read the eligibility check
+        // goes through, and none of those is the menu. Counting them made this
+        // a ceiling on the session rather than on the thing under test, which
+        // is how its twin in CartPerformanceTest went red on CI over a
+        // preamble query that had drifted by one.
+        //
+        // Four leaves room for a legitimate extra read and none for what this
+        // guards against: a per-category query is twenty more and a per-item
+        // one five hundred more.
+        $menu = $this->queriesTouching(
+            fn () => $this->costOfOpeningTheMenu(),
+            ['menu_categories', 'menu_items'],
+        );
+
+        $this->assertLessThanOrEqual(4, $menu);
         $this->assertLessThan(1_500.0, $ms);
     }
 
