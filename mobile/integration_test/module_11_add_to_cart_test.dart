@@ -126,9 +126,8 @@ void main() {
     final ApiTripRepository trips = ApiTripRepository(api);
     final ApiPlaceRepository places = ApiPlaceRepository(api);
 
-    final Iterable<Trip> open = (await trips.trips(
-      scope: TripScope.all,
-    )).where((Trip journey) => journey.isDiscardable);
+    final Iterable<Trip> open = (await trips.trips(scope: TripScope.all))
+        .where((Trip journey) => journey.isDiscardable);
 
     if (open.isNotEmpty) {
       trip = open.first;
@@ -289,9 +288,8 @@ void main() {
   ) async {
     await openTheDish(tester);
 
-    final CartSummary before = await ApiMenuRepository(api).cart(
-      tripId: trip.id,
-    );
+    final CartSummary before = await ApiMenuRepository(api)
+        .cart(tripId: trip.id);
 
     // Size: ₹329.
     await tapAt(tester, find.text('Large'));
