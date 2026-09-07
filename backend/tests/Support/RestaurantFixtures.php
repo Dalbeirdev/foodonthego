@@ -161,6 +161,20 @@ final class RestaurantFixtures
         }
     }
 
+    /** One window on one weekday, in the restaurant's own local time. */
+    public static function openOn(
+        Restaurant $restaurant,
+        int $dayOfWeek,
+        string $from,
+        string $to,
+    ): void {
+        $restaurant->openingHours()->create([
+            'day_of_week' => $dayOfWeek,
+            'opens_at' => $from,
+            'closes_at' => $to,
+        ]);
+    }
+
     /**
      * A point a fraction along the origin-destination line, offset
      * perpendicular to it.

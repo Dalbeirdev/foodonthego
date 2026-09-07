@@ -325,6 +325,76 @@ return [
      | the codebase compares against a literal — a business decision to allow
      | twenty of something is a change to this file and nothing else.
      */
+    /*
+    |--------------------------------------------------------------------------
+    | Pickup planning (Module 13)
+    |--------------------------------------------------------------------------
+    |
+    | Every timing rule the planner uses, in one place. Nothing below is
+    | hard-coded in a service: a restaurant that cooks slower, a city with worse
+    | traffic or a product decision to offer wider windows is a change here.
+    |
+    | These are TIMES, not money. None of them appears on a bill.
+    */
+    'pickup' => [
+        // The last resort when a dish, its variant and its restaurant all have
+        // no preparation time on file.
+        //
+        // Fifteen minutes rather than zero, and never zero: a missing prep time
+        // is missing data, not a dish that cooks instantly. Falling this far is
+        // logged every time, because a menu relying on this is a menu somebody
+        // has not finished setting up.
+        'fallback_prep_minutes' => (int) env('PICKUP_FALLBACK_PREP_MINUTES', 15),
+
+        // Packing, bagging, handing over. A restaurant may override it; this is
+        // the platform default. Applied exactly once, and it moves time only —
+        // it is not a charge and never reaches a total.
+        'operational_buffer_minutes' => (int) env('PICKUP_OPERATIONAL_BUFFER_MINUTES', 5),
+
+        // No pickup may be requested sooner than this, whatever the arithmetic
+        // says. A kitchen needs a moment to see an order at all.
+        'minimum_lead_minutes' => (int) env('PICKUP_MINIMUM_LEAD_MINUTES', 10),
+
+        // Slots start every N minutes and last M. Ten and ten gives
+        // 4:10-4:20, 4:20-4:30 — granular enough to feel chosen, wide enough to
+        // be honest about a kitchen's precision.
+        'slot_interval_minutes' => (int) env('PICKUP_SLOT_INTERVAL_MINUTES', 10),
+        'window_duration_minutes' => (int) env('PICKUP_WINDOW_DURATION_MINUTES', 10),
+
+        // How far ahead a customer may plan. Four hours: this is a stop on a
+        // journey being taken now, not a dinner reservation. Multi-day
+        // scheduling is deliberately out of scope.
+        'max_horizon_minutes' => (int) env('PICKUP_MAX_HORIZON_MINUTES', 240),
+
+        // How many options the API returns. A screen of forty time chips is
+        // not a choice, it is a spreadsheet.
+        'max_options' => (int) env('PICKUP_MAX_OPTIONS', 8),
+
+        // A last-order cutoff before closing.
+        //
+        // Defaults to NOUGHT deliberately. The schema has no last_order_at, and
+        // inventing a hidden fifteen-minute cutoff would be a rule no operator
+        // agreed to and no customer could discover. Zero means the only
+        // constraint is the closing time itself; a real cutoff arrives with the
+        // operator module that can set one.
+        'last_order_before_close_minutes' => (int) env('PICKUP_LAST_ORDER_BEFORE_CLOSE_MINUTES', 0),
+
+        // Beyond this, the travel estimate is not presented as current. The
+        // customer is asked to refresh rather than being shown a stale number
+        // dressed as a live one. Fifteen minutes.
+        'route_estimate_max_age_seconds' => (int) env('ROUTE_ESTIMATE_MAX_AGE_SECONDS', 900),
+
+        // How long a generated set of options stays selectable. Long enough to
+        // read the screen and choose, short enough that a slot cannot be
+        // selected after the world has moved on.
+        'option_ttl_seconds' => (int) env('PICKUP_OPTION_TTL_SECONDS', 600),
+
+        // Bumped when any rule above changes shape, so a selection made under
+        // the old rules reads as stale rather than being honoured under new
+        // ones.
+        'planning_version' => (int) env('PICKUP_PLANNING_VERSION', 1),
+    ],
+
     'cart' => [
         // How many of one configured line a customer may add at once.
         //

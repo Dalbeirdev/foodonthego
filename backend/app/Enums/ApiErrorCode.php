@@ -173,6 +173,27 @@ enum ApiErrorCode: string
      */
     case PriceUpdated = 'PRICE_UPDATED';
 
+    // --- pickup planning (Module 13) -------------------------------------
+    //
+    // A pickup window is a claim about time, and every way a claim about time
+    // can go wrong gets its own code: the customer's next move is different for
+    // each, and "something went wrong with your pickup time" is not a move.
+    case PreparationDataUnavailable = 'PREPARATION_DATA_UNAVAILABLE';
+    case PickupOptionsUnavailable = 'PICKUP_OPTIONS_UNAVAILABLE';
+    case PickupOptionNotFound = 'PICKUP_OPTION_NOT_FOUND';
+    case PickupOptionExpired = 'PICKUP_OPTION_EXPIRED';
+    case PickupOptionStale = 'PICKUP_OPTION_STALE';
+    case PickupOptionForbidden = 'PICKUP_OPTION_FORBIDDEN';
+    case PickupTimeInvalid = 'PICKUP_TIME_INVALID';
+    case PickupOutsideHours = 'PICKUP_OUTSIDE_HOURS';
+    case PickupBeforeReady = 'PICKUP_BEFORE_READY';
+    case NoFeasiblePickupWindow = 'NO_FEASIBLE_PICKUP_WINDOW';
+
+    // RouteStale is Module 06's and is reused rather than redeclared: a route
+    // whose estimate has aged out is the same fact whoever noticed it.
+    case CartVersionConflict = 'CART_VERSION_CONFLICT';
+    case PreCheckoutInvalid = 'PRECHECKOUT_INVALID';
+
     public function httpStatus(): int
     {
         return match ($this) {
@@ -281,6 +302,22 @@ enum ApiErrorCode: string
             self::CartLineLimitReached => 409,
             self::CartNotFound => 404,
             self::PriceUpdated => 409,
+
+            // 409 for "the world moved", 422 for "your request does not work",
+            // 404 for "no such thing", 403 for "not yours" — the same split
+            // Module 11 established.
+            self::PreparationDataUnavailable => 409,
+            self::PickupOptionsUnavailable => 409,
+            self::PickupOptionNotFound => 404,
+            self::PickupOptionExpired => 409,
+            self::PickupOptionStale => 409,
+            self::PickupOptionForbidden => 404,
+            self::PickupTimeInvalid => 422,
+            self::PickupOutsideHours => 422,
+            self::PickupBeforeReady => 422,
+            self::NoFeasiblePickupWindow => 409,
+            self::CartVersionConflict => 409,
+            self::PreCheckoutInvalid => 409,
             self::RateLimited => 429,
             self::BusinessRuleViolated => 422,
             self::DependencyUnavailable => 503,
