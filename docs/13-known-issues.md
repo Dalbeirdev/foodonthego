@@ -979,6 +979,48 @@ commit that touched no backend code. The first was `CLOSING_SOON`, where the
 the last half hour of every night. An availability assertion that does not pin
 the clock is a scheduled failure.
 
+### M12-B06 — a fourth clock-dependent test, and the end of the class — **Medium** — FIXED
+
+`TripRestaurantFilterApiTest::test_open_now_and_accepting_orders_are_different_questions`
+went red on a **documentation-only** commit, at 20:38 UTC — 02:08 in
+Asia/Kolkata, inside the fixture's 02:00–03:00 window. "Midnight Dosa Point" was
+genuinely open, so it genuinely appeared under `open_now`. The service was right
+for the third time running.
+
+This one had survived three separate greps for the pattern, and the reason is
+worth recording: **the assertions do not look alike.** M12-B02's compared an
+availability string; another compared an ordering state; this one compared a
+*list of restaurant names* with no time anywhere in it. Nothing textual connects
+them. What connects them is that a fixture seeded opening hours and an assertion
+about something else — cuisines, facilities, filter semantics — silently
+depended on a restaurant being shut.
+
+**Fixed at the root.** `Tests\TestCase::setUp` now freezes the clock at
+2026-09-07 06:30 UTC — noon in Kolkata, on a Monday, nowhere near an opening
+time, a closing time, a midnight rollover or either thirty-minute threshold. A
+test needing a different moment calls `Carbon::setTestNow()` itself and says
+why. All 1,018 tests pass frozen, with no other change.
+
+**Three controls, because this one is easy to get wrong:**
+
+| Control | Result |
+| --- | --- |
+| Freeze the suite at 20:38 UTC instead | The test fails — the freeze's *value* is doing real work |
+| Remove the freeze entirely | The test fails on the wall clock, reproducing CI locally |
+| Reintroduce the `CLOSING_SOON` and `OPENING_SOON` service bugs, suite frozen | **Four pinned tests still catch them** |
+
+The third is the one that matters. Freezing the clock could have bought
+determinism by destroying the coverage that found the twenty-four-hour dhaba
+bug, and it did not: the boundary tests set their own instants and still fail
+when the service is wrong.
+
+**The trade, stated plainly.** The `CLOSING_SOON` bug was found because CI
+happened to run at 23:32 local. That is a lottery — the right test in the right
+half hour — and its price here was three red builds and several hours. The
+replacement is deliberate: tests pinned to the exact instants that matter,
+including both that broke this suite, running on **every** build rather than one
+in forty-eight. A boundary worth checking is worth checking every time.
+
 ### M12-B03 — a suspicion that was not a bug
 
 While investigating M12-B02 the day-of-week filter in `opensWithin` looked as

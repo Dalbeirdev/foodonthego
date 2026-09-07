@@ -573,3 +573,38 @@ absence of evidence, wearing evidence's clothes.
 The same caution applies to what a passing browser run would mean even when the
 harness works: it exercises the driver and the flow, and says nothing whatever
 about Android or iOS.
+
+---
+
+## Time does not move during a backend test (Module 12)
+
+`Tests\TestCase::setUp` freezes the clock at **2026-09-07 06:30 UTC** — noon in
+Asia/Kolkata, on a Monday — for every backend test. A test that needs a
+different moment calls `Carbon::setTestNow()` itself and says why.
+
+This followed four failures of one shape, across three CI reds, two of them on
+commits that touched no backend code. Every one was a fixture that seeded
+opening hours where the assertion was about something else — an availability
+string, an ordering state, a list of restaurant names — and the runner happened
+to start inside the window. **A test that passes at noon and fails at 02:08 is
+not flaky. It is a test with an unstated dependency**, and freezing the clock
+states it.
+
+Three greps for the pattern each missed one, because the assertions have no
+textual resemblance to each other. That is the argument for fixing it at the
+root rather than one file at a time.
+
+### It must not cost the coverage it replaces
+
+A frozen clock can buy determinism by destroying exactly the coverage that finds
+real time bugs — this suite found a twenty-four-hour restaurant announcing
+"closing soon" every night *because* CI ran at 23:32 local. So:
+
+**Anything that depends on the time of day gets a test pinned to the instant
+that matters.** Not "some instant" — the boundary: the last minute before
+closing, the first minute of a window, the moment a threshold flips. Both
+instants that broke this suite are now such tests.
+
+Verified by reintroducing both service bugs with the suite frozen and confirming
+four pinned tests still caught them. Finding a bug because CI ran in the right
+half hour is a lottery; a pinned boundary test runs on every build.
