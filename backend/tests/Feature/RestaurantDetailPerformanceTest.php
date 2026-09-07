@@ -143,17 +143,17 @@ final class RestaurantDetailPerformanceTest extends TestCase
             ->getJson('/api/v1/customer/trips/'.$this->trip->uuid.'/restaurants')
             ->assertOk();
 
-        // One open before the measured ones. The very first request of a
-        // session warms things that have nothing to do with the menu — the
-        // token, the rate limiter's bucket — and counting them made this test
-        // fail by exactly one, once, depending on what ran before it.
-        $this->settledQueryCount(fn (): array => $this->costOfOpening($uuids[0]));
-
         $counts = [];
 
+        // Only the queries that name the restaurant's own tables, for the same
+        // reason as everywhere else in these tests: the session preamble around
+        // a request drifts by one depending on what an earlier test left
+        // resolved, and it is not what this test is about.
         foreach ($uuids as $uuid) {
-            [$queries] = $this->costOfOpening($uuid);
-            $counts[] = $queries;
+            $counts[] = $this->queriesTouching(
+                fn () => $this->costOfOpening($uuid),
+                ['restaurants', 'restaurant_cuisines', 'restaurant_facilities', 'restaurant_opening_hours', 'restaurant_photos'],
+            );
         }
 
         // A customer tapping through the list pays the same each time. The

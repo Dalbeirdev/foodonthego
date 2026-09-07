@@ -24,57 +24,19 @@ use Illuminate\Support\Facades\DB;
  * CI's first run, and why the same failure pointed at the larger menu on one
  * machine and the smaller one on another.
  *
- * Repeating until two consecutive counts agree measures the thing rather than
- * the session. It weakens no assertion: an N+1 moves a count by the number of
- * rows, never by one, so a settled count catches it exactly as before.
+ * Three attempts at stabilising the whole-request count came before this one,
+ * and each looked reasonable at the time: one un-measured warm-up request
+ * (already present, not enough); repeating until two consecutive counts agree
+ * (still flaked); until three agree (four runs in five, which is not a test
+ * anyone should trust the fifth time). All three treated the symptom.
+ *
+ * Counting only the queries that name the tables under test measures the claim
+ * each test actually makes, and is deterministic by construction rather than by
+ * repetition. It weakens nothing: an N+1 queries the same table once per row,
+ * so it shows up exactly as before.
  */
 trait SettlesQueryCounts
 {
-    /**
-     * Both sides of a comparison must be settled, not just the first.
-     *
-     * Settling only the baseline was tried and was not enough: the drift is not
-     * confined to the start of a session, so the *second* measurement can be
-     * the one that costs an extra query. Comparing two settled measurements is
-     * what makes the comparison about the data rather than about which request
-     * happened to warm what.
-     *
-     * @param  callable(): array{0: int, 1: float}  $measure  a per-test helper
-     *                                                        returning queries and milliseconds
-     * @return array{0: int, 1: float}
-     */
-    protected function settledCost(callable $measure, int $attempts = 12): array
-    {
-        $previous = null;
-        $agreements = 0;
-
-        for ($i = 0; $i < $attempts; $i++) {
-            $measurement = $measure();
-
-            // Three in a row, not two. Two was tried and still flaked: the
-            // drift is occasional rather than confined to the first request,
-            // so a single pair can agree by luck and the next measurement
-            // still differ.
-            $agreements = $measurement[0] === $previous ? $agreements + 1 : 0;
-
-            if ($agreements >= 2) {
-                return $measurement;
-            }
-
-            $previous = $measurement[0];
-        }
-
-        // Never settled. Returning the last measurement keeps the assertion the
-        // test's own, rather than failing here with a message about warm-up
-        // that would hide what the test was actually checking.
-        return $measurement;
-    }
-
-    protected function settledQueryCount(callable $measure, int $attempts = 12): int
-    {
-        return $this->settledCost($measure, $attempts)[0];
-    }
-
     /**
      * How many of a request's queries touched the tables under test.
      *

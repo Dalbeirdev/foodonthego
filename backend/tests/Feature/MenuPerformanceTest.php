@@ -337,13 +337,14 @@ final class MenuPerformanceTest extends TestCase
         MenuFixtures::ordinaryMenu($this->restaurant);
 
         $this->openTheList();
-        $this->settledQueryCount(fn (): array => $this->costOfOpeningTheMenu());
 
         $counts = [];
 
         foreach (range(1, 4) as $ignored) {
-            [$queries] = $this->costOfOpeningTheMenu();
-            $counts[] = $queries;
+            $counts[] = $this->queriesTouching(
+                fn () => $this->costOfOpeningTheMenu(),
+                ['menu_categories', 'menu_items'],
+            );
         }
 
         // Backing out of a menu and opening it again is what a customer
