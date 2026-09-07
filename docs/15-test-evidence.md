@@ -1902,3 +1902,65 @@ the same pass.
   + Jalapeños ×2, a figure the phone never sent.
 - A second identical tap becomes a quantity, not a second line — verified
   against the server's own count, not the screen's.
+
+---
+
+# Module 12 — cart management, price revalidation and the order summary
+
+## Suites
+
+| Suite | Count |
+| --- | --: |
+| Backend (PHPUnit) | 1,018 |
+| Flutter widget and unit | 797 |
+| **Automated total** | **1,815** |
+| On-device, Android (API 34 emulator) | 15 |
+| On-device, iOS (iPhone simulator) | 15 |
+
+Both device jobs ran the whole `integration_test` directory on `cbcf4e5`:
+Module 12's seven checks and Module 11's eight, all passing on both platforms.
+
+New backend coverage this module: `CartManagementApiTest` (30),
+`CartRevalidationApiTest` (16), `CartLifecycleApiTest` (3), `CartTotalsTest` (9).
+New Flutter coverage: `cart_screen_test.dart` (20), plus five conflict-resolution
+tests added to `item_detail_screen_test.dart`.
+
+## The seven on-device checks
+
+| # | Check | What it asserts against |
+| --: | --- | --- |
+| 1 | the cart arrives from the server with its lines and totals | the screen, then the seeded rows |
+| 2 | the cart is reachable from the menu | navigation from the menu's app bar |
+| 3 | the plus changes the quantity the server holds | `GET /cart` after the tap |
+| 4 | the minus stops at one rather than removing the line | `GET /cart` — the line survives |
+| 5 | removing the line empties the cart on the server | `cart` is null, `item_count` 0 |
+| 6 | emptying asks first, and backing out changes nothing | `item_count` still 3 |
+| 7 | confirming empties it, and the journey is usable again | an add that the old code refused |
+
+**Every one reads the server back.** A cart screen that shows the right number
+while the database holds a different one is exactly what this module exists to
+prevent, and a test that only inspected the screen could not tell them apart.
+
+## Thirteen negative controls
+
+Each broke the code deliberately and confirmed the test went red, then restored
+it. Twelve fired on the first attempt.
+
+The thirteenth did not, and the reason was a defect in the test rather than the
+code: its `FakeCartRepository` was constructed and never wired into the harness,
+so `emptyCalls` could not move whatever the code did. Every assertion about it
+was vacuous. **An assertion that cannot fail looks identical to one that
+passes** — which is the whole argument for running controls on assertions that
+look obviously correct.
+
+The full table is in [12-module-status.md](12-module-status.md).
+
+## What is not claimed
+
+No live view pass is claimed for this module: the cart screen was verified by
+797 widget and unit tests and by fifteen on-device checks on each platform, not
+by a rendered-release-build inspection of the kind Modules 09–11 recorded.
+
+The tax rate and both fees are **nought**, and the mechanism is tested with
+non-zero values in fixtures only. No production rate has been set, and none was
+guessed.

@@ -1022,3 +1022,17 @@ Screenshot names refer to the Module 11 live-view run recorded in
   cart in the same transaction, and a customer can release one themselves.
   Regression tests in `CartLifecycleApiTest`, and on a device in
   `module_12_cart_test.dart`.
+
+- **M12-050 / M12-051 Android and iOS runtime = PASS, on CI rather than here.**
+  The development machine has neither runtime (KI-001, KI-002), so the
+  `android-device` and `ios-device` jobs run the whole `integration_test`
+  directory on an API 34 emulator and an iPhone simulator, each against a real
+  Laravel server and MySQL. **Fifteen of fifteen on both**, on `cbcf4e5` —
+  Module 12's seven and Module 11's eight, the latter re-run because the Android
+  job now takes the directory rather than one named file.
+
+  Every one of the seven asserts against the **server's rows** after the taps
+  rather than against what the screen says. A cart that displays the right
+  number while the database holds a different one is precisely the failure this
+  module exists to prevent, and a test that only read the screen could not tell
+  the two apart.

@@ -13,7 +13,7 @@
 | 09 | Restaurant Details, Facilities, Availability & Customer Preview | **COMPLETE (Android/iOS device verification pending)** | See below |
 | 10 | Menu, Categories & Menu Item Browsing | **COMPLETE (Android/iOS device verification pending)** | See below |
 | 11 | Menu Item Details, Variants, Addons, Customization & Add to Cart | **COMPLETE** | 1,729 tests; 34 live states; **Android 8/8 and iOS 8/8 on real devices**. See below |
-| 12 | Cart Management, Price Revalidation & Order Summary | **COMPLETE (device runtime verification in flight)** | 1,815 tests; KI-014 cleared. See below |
+| 12 | Cart Management, Price Revalidation & Order Summary | **COMPLETE** | 1,815 tests; **Android 15/15 and iOS 15/15 on real devices**; KI-014 cleared. See below |
 
 ## Roadmap numbering — not the delivery sequence above
 
@@ -379,10 +379,10 @@ Module 12 has **not** been started, per the one-module-at-a-time rule.
 
 ## Module 12 — Cart Management, Price Revalidation & Order Summary
 
-**Status: COMPLETE, with the two runtime rows still open.** Everything else is
-verified. The Android and iOS device jobs are running
-`integration_test/module_12_cart_test.dart` for the first time; until they
-report, those rows say PENDING and nothing else claims otherwise.
+**Status: COMPLETE.** The second module with **no pending runtime row** —
+Android and iOS were both verified on real devices, and each ran fifteen checks
+rather than seven, because the device jobs now run the whole `integration_test`
+directory and so re-ran Module 11's eight alongside Module 12's seven.
 
 | Item | Status | Note |
 | --- | --- | --- |
@@ -417,11 +417,47 @@ report, those rows say PENDING and nothing else claims otherwise.
 | Conflict names the other cart | **PASS** | From `details`, not from the message |
 | **Client never sends a price** | **PASS** | No parameter exists; 8 tampered fields ignored |
 | **No provider call on any of it** | **PASS** | Counter flat, with its own negative control |
-| **Android runtime** | PENDING | Device job in flight — **not claimed** |
-| **iOS runtime** | PENDING | Device job in flight — **not claimed** |
+| **Android runtime** | **PASS** | **15 of 15** on an API 34 emulator, in CI |
+| **iOS runtime** | **PASS** | **15 of 15** on an iPhone simulator, in CI |
 
 **1,815 automated tests pass** (1,018 backend, 797 Flutter), plus seven
 on-device checks awaiting their run.
+
+### The device runs
+
+The development machine has neither runtime (KI-001: no Android SDK,
+`dl.google.com` blocked by the egress policy; KI-002: no macOS host), so CI runs
+`integration_test/` on both — an API 34 emulator and an iPhone simulator, each
+against a real Laravel server and MySQL brought up by `scripts/ci-backend-up.sh`.
+**Fifteen of fifteen on both**, on `cbcf4e5`: Module 12's seven and Module 11's
+eight, the latter re-run because the Android job now takes the whole directory
+rather than one named file.
+
+The seven, by name:
+
+| # | Check |
+| --: | --- |
+| 1 | the cart arrives from the server with its lines and totals |
+| 2 | the cart is reachable from the menu |
+| 3 | the plus changes the quantity the server holds |
+| 4 | the minus stops at one rather than removing the line |
+| 5 | removing the line empties the cart on the server |
+| 6 | emptying asks first, and backing out changes nothing |
+| 7 | confirming empties it, and the journey is usable again |
+
+Each asserts against the **server's rows** after the taps, not against what the
+screen says. A cart screen that displays the right number while the database
+holds a different one is exactly the failure this module exists to prevent, and
+a test that only read the screen could not tell the two apart.
+
+The seventh is KI-014's release on a handset: a cart emptied by tapping, and
+then an add to the same journey that the old code could never have accepted.
+
+Something Module 11's device test could not do, and this one can: **reset the
+cart between tests.** Module 11 had to share one cart across its whole run and
+assert on differences, because nothing could release a cart — the dead end
+itself. Here each test empties over HTTP and seeds one known line. Being able to
+do that is the fix working.
 
 ### Thirteen negative controls
 
