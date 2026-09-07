@@ -255,6 +255,18 @@ Route::prefix('v1')->group(function (): void {
 
                 Route::delete('/{trip}/cart', [CartController::class, 'destroy'])
                     ->name('api.v1.customer.trips.cart.destroy');
+
+                /*
+                 | Price revalidation.
+                 |
+                 | A GET because it is a read: it re-prices every line against
+                 | the live menu and reports, and it writes nothing at all. A
+                 | POST would suggest otherwise, and the one thing this endpoint
+                 | must never be understood to do is correct a cart on the
+                 | customer's behalf.
+                 */
+                Route::get('/{trip}/cart/revalidate', [CartController::class, 'revalidate'])
+                    ->name('api.v1.customer.trips.cart.revalidate');
             });
         });
 });

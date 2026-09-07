@@ -52,6 +52,24 @@ final class CartLineRepricer
      */
     public function reprice(Restaurant $restaurant, CartItem $line, int $quantity): PricedCustomization
     {
+        $priced = $this->priceNow($restaurant, $line, $quantity);
+
+        $this->pricing->assertQuoteStillHolds($priced, (int) $line->unit_price_minor);
+
+        return $priced;
+    }
+
+    /**
+     * The same price, without asking whether the customer agreed to it.
+     *
+     * Split out for revalidation, which needs the live figure whichever
+     * direction it moved: a rise is something to report, not something to
+     * refuse, on a screen whose whole job is reporting.
+     *
+     * @throws ApiException
+     */
+    public function priceNow(Restaurant $restaurant, CartItem $line, int $quantity): PricedCustomization
+    {
         $selection = $this->selectionFor($line, $quantity);
 
         $menuItem = $this->menu->itemForCustomization($restaurant, $selection->itemUuid);
@@ -67,11 +85,8 @@ final class CartLineRepricer
         }
 
         $resolved = $this->validator->validate($menuItem, $selection);
-        $priced = $this->pricing->price($resolved);
 
-        $this->pricing->assertQuoteStillHolds($priced, $selection->quotedUnitPriceMinor);
-
-        return $priced;
+        return $this->pricing->price($resolved);
     }
 
     /**

@@ -23,9 +23,23 @@ final class CartTotalsService
 {
     public function totalsFor(Cart $cart): CartTotals
     {
-        $currency = $cart->currency;
+        return $this->totalsForSubtotal($cart, $cart->subtotalMinor());
+    }
 
-        $subtotal = $cart->subtotalMinor();
+    /**
+     * The same charges, over a subtotal the caller worked out.
+     *
+     * Revalidation needs to answer "what would this cost if you accepted every
+     * price change", and the honest way to answer it is with the cart's own
+     * tax and fee rules over a different subtotal — not with a second copy of
+     * those rules that happens to agree today.
+     *
+     * The cart is still the authority on the currency and on whose charges
+     * apply. Only the figure being charged on is the caller's.
+     */
+    public function totalsForSubtotal(Cart $cart, int $subtotal): CartTotals
+    {
+        $currency = $cart->currency;
 
         $tax = $this->taxOn($subtotal, $this->rateBpsFor($cart));
 

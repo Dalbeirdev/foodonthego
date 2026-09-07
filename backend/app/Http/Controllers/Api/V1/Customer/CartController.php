@@ -10,9 +10,11 @@ use App\Http\Responses\ApiResponse;
 use App\Models\Cart;
 use App\Models\User;
 use App\Services\Cart\CartLineRepricer;
+use App\Services\Cart\CartRevalidationService;
 use App\Services\Cart\CartService;
 use App\Services\Cart\CartTotalsService;
 use App\Services\Trip\TripService;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,9 +22,9 @@ use Illuminate\Http\Request;
  * Reading a cart, correcting it, and emptying it.
  *
  * {@see CartItemController} puts things in. This takes them out again, changes
- * how many there are, and answers "what do I owe" — the half of a cart Module
- * 11 deliberately did not build, because a cart you can fill and cannot empty
- * is worse than one you cannot fill.
+ * how many there are, answers "what do I owe", and answers "is that still
+ * true" — the half of a cart Module 11 deliberately did not build, because a
+ * cart you can fill and cannot empty is worse than one you cannot fill.
  *
  * **No request here carries a price, and none of these handlers reads one.**
  * A quantity change re-prices the line from live menu rows; the number the
@@ -43,6 +45,7 @@ final class CartController
         private readonly CartService $carts,
         private readonly CartLineRepricer $repricer,
         private readonly CartTotalsService $totals,
+        private readonly CartRevalidationService $revalidation,
     ) {}
 
     /**
@@ -171,6 +174,49 @@ final class CartController
         $updated = $this->carts->emptyCart($cart);
 
         return ApiResponse::ok($this->payload($updated));
+    }
+
+    /**
+     * Whether this cart still means what it said.
+     *
+     * A read, and the only handler here that is a read of something other than
+     * the cart itself: it re-prices every line against the live menu and
+     * reports what moved. **It changes nothing.** Not a price, not a quantity,
+     * not a line, not the cart's status.
+     *
+     * That restraint is the whole design. A cart that quietly corrected itself
+     * on the way to checkout would show a customer one total and charge
+     * another, and the fact that the second one was right is not the part they
+     * would remember.
+     *
+     * Every line is reported, including the ones with nothing wrong. A screen
+     * that lists only problems leaves the customer wondering whether the rest
+     * was checked at all.
+     *
+     * @throws ApiException
+     */
+    public function revalidate(Request $request, string $trip): JsonResponse
+    {
+        /** @var User $customer */
+        $customer = $request->user();
+
+        $found = $this->trips->ownedByOrFail($customer, $trip);
+
+        $cart = $this->carts->activeCartWithLines($customer, $found);
+
+        if ($cart === null) {
+            throw new ApiException(
+                ApiErrorCode::CartNotFound,
+                'You do not have a cart on this journey.',
+            );
+        }
+
+        $verdict = $this->revalidation->revalidate($found, $cart, CarbonImmutable::now());
+
+        return ApiResponse::ok([
+            ...$this->payload($cart),
+            'revalidation' => $verdict->toApiArray(),
+        ]);
     }
 
     /**

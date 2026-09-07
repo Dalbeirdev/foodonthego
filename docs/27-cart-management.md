@@ -141,9 +141,17 @@ API call succeed is the customer's decision.
 
 ## Price revalidation
 
-A read. It **never mutates the cart** and never re-prices anything on its own.
-Its job is to answer, for every line, whether what the customer chose is still
-available and still costs what it did.
+`GET /trips/{trip}/cart/revalidate`.
+
+A read, and a `GET` deliberately: it **never mutates the cart** and never
+re-prices anything on its own. A `POST` would suggest otherwise, and the one
+thing this endpoint must never be understood to do is correct a cart on the
+customer's behalf. Its job is to answer, for every line, whether what the
+customer chose is still available and still costs what it did.
+
+The check is Module 11's validator and Module 11's pricing service, run over the
+stored line. A second set of availability rules written for this screen would
+produce a cart that revalidates clean and then refuses at the counter.
 
 Per line it reports:
 
@@ -160,9 +168,39 @@ The snapshot answers *"what did I choose"*. Revalidation answers *"what do I
 owe"*. Keeping those separate is what stops a renamed dish rewriting history and
 a stale price becoming a charge.
 
-Nothing is auto-corrected. A cart whose price rose is shown with both figures
-and the customer decides, because a total that changes itself between the screen
-and the payment is the thing customers do not forgive.
+Findings come in two kinds, and the response says which: a price that moved does
+not stop the customer ordering — they look at it and decide — while a missing
+dish, size or option does, because there is nothing to decide about until the
+line changes. `can_proceed` is the single answer a screen branches on;
+`blocks_ordering` is the same question per line.
+
+Every line is reported, including the ones with nothing wrong. A screen that
+lists only problems leaves the customer wondering whether the rest was checked.
+And a failing line does not stop the ones after it: a customer who has to fix
+three things wants to be told about three things, not the first one three times.
+
+`finding` is a coarse bucket, and `source_code` alongside it carries the refusal
+the pricing path actually gave. That is what lets a screen say "Choose a spice
+level" rather than "something about the options changed" — a restaurant can make
+a modifier group required after a line was added, and the customer's fix is
+specific.
+
+`totals_if_accepted` says what the cart would cost if the customer accepted
+every price change on the screen. It is **null the moment any line cannot be
+priced**: a total worked out around a missing dish is a figure for a cart nobody
+has, and offering one before the customer has decided what happens to that line
+is a guess at what they will choose.
+
+Nothing is auto-corrected — in either direction. A cart whose price rose is
+shown with both figures and the customer decides, because a total that changes
+itself between the screen and the payment is the thing customers do not forgive.
+A price that *fell* is reported too rather than quietly applied: a customer
+should see a reduction, and a read that rewrote a row would be doing the
+forbidden thing in the direction that happens to be pleasant.
+
+Revalidating calls no routing provider. The restaurant's ordering state comes
+from Module 07's cached discovery result, exactly as adding to the cart does —
+looking at your own cart must not spend a route call.
 
 ---
 
