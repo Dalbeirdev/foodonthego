@@ -1998,8 +1998,11 @@ refused with the **same** code. The `orders`, `order_items`, `payments` and
 
 ### Negative controls
 
-**Sixty-three run, fifty-five fired.** The eight that stayed silent are the ones
-worth recording, because each exposed something:
+**More than sixty run; exactly eight stayed silent.** The total is deliberately
+not quoted precisely — several attempts were re-runs of a refined mutation
+against the same target, and counting those as separate controls would inflate
+it. What can be enumerated exactly is the eight that did not fire, and each one
+exposed something:
 
 | What was mutated | What it exposed |
 | --- | --- |

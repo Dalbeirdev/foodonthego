@@ -1290,9 +1290,13 @@ pickup code, no restaurant workflow.
 - **M13-051 1,081 backend tests and 833 Flutter tests pass.** Pint clean,
   `dart analyze --fatal-infos` clean, `dart format` clean.
 
-- **M13-052 Sixty-three negative controls were run against this module's code**
-  across five batches. Fifty-five fired. Every one that stayed silent was
-  chased rather than waved through, and what each exposed is recorded in
+- **M13-052 More than sixty negative controls were run against this module's
+  code**, across six batches. **Exactly eight stayed silent**, and those eight
+  are enumerated in [15-test-evidence.md](15-test-evidence.md) — the total is an
+  approximate count of mutations attempted, several of which were re-runs of a
+  refined mutation against the same target, so it is not quoted as an exact
+  figure. Every silent control was chased rather than waved through, and what
+  each exposed is recorded in
   [15-test-evidence.md](15-test-evidence.md) — including two cases where the
   test was strengthened and one where an assertion was labelled in the test
   itself as currently unreachable.

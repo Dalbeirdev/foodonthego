@@ -613,9 +613,9 @@ half hour is a lottery; a pinned boundary test runs on every build.
 
 ## Module 13 — what the negative controls taught
 
-Sixty-three controls were run against this module. Fifty-five fired. The eight
-that did not are the interesting ones, and the rule that came out of them is
-sharper than the one before it:
+More than sixty controls were run against this module, and **eight did not
+fire**. The eight are what matter, and the rule that came out of them is sharper
+than the one before it:
 
 > **A control that stays silent has told you something. Find out what.**
 
