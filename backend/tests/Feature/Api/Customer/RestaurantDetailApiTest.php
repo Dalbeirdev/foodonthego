@@ -322,10 +322,19 @@ final class RestaurantDetailApiTest extends TestCase
 
         $this->assertMatchesRegularExpression('/^[0-9a-f-]{36}$/', $data['id']);
         $this->assertArrayNotHasKey('restaurant_id', $data);
-        $this->assertStringNotContainsString(
-            (string) $restaurant->id,
-            json_encode($data['id'], JSON_THROW_ON_ERROR),
-        );
+
+        // The identifier on the wire IS the uuid, and is not the sequential
+        // key. That is the property; asserting it directly is also the only
+        // way to assert it reliably.
+        //
+        // This used to check that the uuid text did not *contain* the decimal
+        // id, which is a coincidence rather than a property: a three-digit id
+        // turns up inside a random uuid about once every two hundred runs, and
+        // it duly failed here on id 364 against
+        // 889a2116-bf00-4269-9926-cf30436486cc. A test that fails at random
+        // teaches people to re-run rather than to read.
+        $this->assertSame($restaurant->uuid, $data['id']);
+        $this->assertNotSame((string) $restaurant->id, $data['id']);
     }
 
     public function test_markup_in_a_restaurants_own_text_comes_back_as_text(): void
