@@ -6,7 +6,21 @@ plugins {
 
 android {
     namespace = "com.foodonthego.foodonthego"
-    compileSdk = flutter.compileSdkVersion
+
+    // Pinned rather than left on flutter.compileSdkVersion (36 for Flutter
+    // 3.47.2). flutter_secure_storage 11 compiles against SDK 37 and its AAR
+    // metadata requires consumers to do the same, so the debug build fails at
+    // :app:checkDebugAarMetadata without this.
+    //
+    // compileSdk only decides which APIs the code may reference; it is
+    // deliberately not accompanied by a targetSdk bump, which is what opts an
+    // app in to new *runtime* behaviour and is a product decision rather than a
+    // build fix. minSdk and targetSdk stay on Flutter's own pins below.
+    //
+    // AGP 9.1.0 warns that 36 is its highest tested compileSdk. That is a
+    // warning, not a failure. Remove this pin once Flutter's own default
+    // reaches 37, or once AGP is upgraded to a release that tests against it.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
