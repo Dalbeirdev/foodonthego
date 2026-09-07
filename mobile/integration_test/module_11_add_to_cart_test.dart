@@ -339,7 +339,11 @@ void main() {
     await tapAt(tester, find.textContaining('Add to cart · ₹778'));
     await waitFor(
       tester,
-      find.text('Added to cart'),
+      // textContaining, not text: the confirmation is one Text whose data is
+      // "Added to cart · 2 items in your cart", so an exact match for the
+      // first half of it matches nothing. (No collision with the button's
+      // "Add to cart · ₹778" — "Added" is not "Add".)
+      find.textContaining('Added to cart'),
       describe: 'the confirmation after adding',
     );
 
@@ -373,7 +377,7 @@ void main() {
     final CartSummary before = await carts.cart(tripId: trip.id);
 
     await tapAt(tester, add);
-    await waitFor(tester, find.text('Added to cart'));
+    await waitFor(tester, find.textContaining('Added to cart'));
 
     final CartSummary once = await carts.cart(tripId: trip.id);
     expect(
