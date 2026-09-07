@@ -55,6 +55,20 @@ is clean, and every string it looks for is a string the widget tests or the
 
 **Severity:** High (it produced a false verification claim)
 
+**Status: still true of `flutter drive` on this machine; no longer blocking.**
+The device tests now run on CI, where `flutter test integration_test/<file>` on
+an emulator and a simulator reports per-test results directly and does not go
+through the drive extension. Those runs satisfied the negative-control rule
+below the hard way rather than by assertion: before passing 8 of 8 on
+`c8c1161`, they failed at 6 of 8 and 7 of 8 across five heads, each time naming
+the failing test, the line and the widget — a mangled invocation, a tap on a
+control at y=977 in an 890-tall view, a `CART_TRIP_CONFLICT` the setup created
+itself, and twice a button behind the confirmation snackbar. A harness that
+reports that is a harness whose green means something.
+
+`flutter drive` on the development machine is unchanged and should still not be
+believed. The rest of this entry stands as the record of why.
+
 `flutter drive --driver=test_driver/integration_test.dart --target=integration_test/...`
 exits **0** and prints **"All tests passed."** on this machine even when the
 test body never executes. Confirmed with two negative controls, both of which

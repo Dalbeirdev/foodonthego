@@ -914,8 +914,8 @@ Screenshot names refer to the Module 11 live-view run recorded in
 | M11-047 | Offline item read | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | PARTIAL — see note | Detail is not cached; see below |
 | M11-048 | **Offline add blocked** | ✅ | ➖ | ➖ | ➖ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | `state-29`; no fake success |
 | M11-049 | Request race handling | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Generation-checked; the newest wins |
-| M11-050 | Android testing | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ⛔ | ✅ | PENDING — environment | KI-001; driver written, **never executed** |
-| M11-051 | iOS testing | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ⛔ | ⛔ | ✅ | PENDING — environment | KI-002; same driver, also never executed |
+| M11-050 | Android testing | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ✅ | ✅ | ✅ | **PASS** | 8/8 on an API 34 emulator in CI (`c8c1161`) |
+| M11-051 | iOS testing | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ✅ | ✅ | ✅ | **PASS** | 8/8 on a simulator in CI (`c8c1161`), same driver |
 | M11-052 | Accessibility | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | Sentences, not controls; M11-B04 fixed |
 | M11-053 | Backend tests | ➖ | ✅ | ✅ | ✅ | ✅ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 93 new; 957 total |
 | M11-054 | Flutter tests | ✅ | ➖ | ➖ | ➖ | ➖ | ✅ | ⛔ | ⛔ | ✅ | COMPLETE | 86 new; 772 total |
@@ -946,11 +946,20 @@ Screenshot names refer to the Module 11 live-view run recorded in
   explicit "offline" banner is honest; a *configurator* built on stale prices is
   not. Revisit when the cart screen exists to explain a stale configuration.
 
-- **M11-050 / M11-051 Android and iOS runtime = PENDING — environment
-  unavailable.** KI-001: no Android SDK, and `dl.google.com` is blocked by the
-  egress policy. KI-002: no macOS host. Verification was done against a release
-  **web** build of the same Flutter code, driven through its real semantics
-  tree. That is a real runtime and it is not an Android device.
+- **M11-050 / M11-051 Android and iOS runtime = PASS, on CI rather than here.**
+  The development machine has neither runtime (KI-001: no Android SDK, and
+  `dl.google.com` is blocked by the egress policy; KI-002: no macOS host), so
+  the `android-device` and `ios-device` jobs run
+  `integration_test/module_11_add_to_cart_test.dart` on an API 34 emulator and
+  an iPhone simulator, each against a real Laravel server and MySQL brought up
+  by `scripts/ci-backend-up.sh`. Eight of eight on both, on `c8c1161`.
+
+  The earlier web run stands as what it always was — a real runtime, and not a
+  handset. What the device runs added is what only a device could: real touch
+  input through the real hit test, on a 411x890 and a 402x874 screen, which is
+  where three defects in the driver showed up that no browser window could have
+  surfaced. [15-test-evidence.md](15-test-evidence.md) lists them, and the
+  failures that preceded the pass.
 
 - **M11-015 Addon architecture = one system, deliberately.** Add-ons are
   modifier groups. The decision, and the one thing that would justify reversing

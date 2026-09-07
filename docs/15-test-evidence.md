@@ -1826,10 +1826,14 @@ cascade-delete with their restaurant.
 | Runtime | Result |
 | --- | --- |
 | Web (Chromium, release build) | **PASS** — 34 states |
-| Android | **PENDING — environment unavailable.** No Android SDK; `dl.google.com` is blocked by the egress policy. (KI-001) |
-| iOS | **PENDING — environment unavailable.** No macOS host. (KI-002) |
+| **Android (emulator, API 34, pixel_6, x86_64)** | **PASS** — 8 of 8 on CI |
+| **iOS (simulator, macos-latest)** | **PASS** — 8 of 8 on CI |
 
-### The on-device driver — written, and **not yet run**
+Both device runtimes were unavailable on the development machine (KI-001: no
+Android SDK, `dl.google.com` blocked by the egress policy; KI-002: no macOS
+host) and are now covered by CI instead, which has both.
+
+### The on-device driver — run, on both platforms
 
 `integration_test/module_11_add_to_cart_test.dart` walks this module on a real
 handset: the dish arrives over the device's own network stack, the controls are
@@ -1840,25 +1844,61 @@ the whole journey ending in `subtotal == 77800`, a second identical tap becoming
 a quantity rather than a line, a dish with no default size, and a sold-out dish
 with no button at all.
 
-**It has never been executed, and nothing here should be read as if it had.**
+**It has now been executed, on an Android emulator and an iOS simulator, against
+a real Laravel server and a real MySQL.**
 
-An earlier revision of this section claimed it had been "run green in a browser,
-twice" through `flutter drive`. **That claim was false and is withdrawn.** On
-this machine `flutter drive` exits 0 and prints *"All tests passed."* while the
-test body never runs — proven with two negative controls that both had to fail
-and did not: a deliberately truncated session token, and no token at all, which
-makes `requireToken()` call `fail()` before the first test line.
-[KI-013](13-known-issues.md) records it.
+| | Android emulator | iOS simulator |
+| --- | --- | --- |
+| Commit | `c8c1161` | `c8c1161` |
+| Job | [101822160662](https://github.com/Dalbeirdev/foodonthego/actions/runs/34147358654/job/101822160662) | [101822160506](https://github.com/Dalbeirdev/foodonthego/actions/runs/34147358654/job/101822160506) |
+| Device | API 34, `pixel_6`, x86_64, KVM | first available iPhone, by udid |
+| "Run the on-device tests" | **success**, 17:23:58 → 17:33:10 | **success**, 17:28:19 → 17:36:37 |
+| "Backend log, if anything failed" | **skipped** | **skipped** |
 
-What can honestly be said for the driver is narrower:
+Two independent readings of the same fact, which is why both rows are here.
+`flutter test` exits non-zero if any test fails, so a successful step means all
+eight passed; and the diagnostic step that prints the backend log is guarded by
+`if: failure()`, so its being *skipped* says the same thing from the other side.
 
-| | |
-| --- | --- |
-| It compiles, and `flutter analyze --fatal-infos` is clean | ✅ |
-| Every string it looks for is one the widget tests or the 34-state live-view run already assert against | ✅ |
-| It has been run | ❌ **no** |
+### Why this is believable, when the browser run was not
 
-The third row is the one that matters. `.github/workflows/ci.yml` now carries an
-`android-device` job and an `ios-device` job that run it on an emulator and a
-simulator; neither has executed, because nothing on this branch has reached
-GitHub.
+An earlier revision of this section claimed the driver had been "run green in a
+browser, twice" through `flutter drive`. **That claim was false and was
+withdrawn.** On the development machine `flutter drive` exits 0 and prints *"All
+tests passed."* while the test body never runs — proven with two negative
+controls that both had to fail and did not.
+[KI-013](13-known-issues.md) records it, along with the rule taken from it: *a
+green result is worth nothing until a negative control has been seen to fail.*
+
+The CI runs satisfy that rule, and not by assertion. They failed, repeatedly and
+specifically, before they passed:
+
+| Head | Android | What it said |
+| --- | --- | --- |
+| `cf14169` | invocation failed | `Integration tests and unit tests cannot be run in a single invocation` |
+| `c5ceb76` | 6 of 8 | `"Hot"` at y=977 in an 890-tall view — built, off screen, tap missed |
+| `ea04624` | 6 of 8 | `CART_TRIP_CONFLICT` — the setup's own discarded journeys |
+| `38a74f0` | 7 of 8 | `Add to cart · ₹389` reachable? no — behind the confirmation |
+| `00a4dde` | 7 of 8 | the confirmation still in the tree 30s after a 3s SnackBar |
+| **`c8c1161`** | **8 of 8** | — |
+
+Each of those named the failing test, the line, and the widget. A harness that
+reports *that* is a harness whose green means something. The browser driver
+never once said any of it, which is exactly what was wrong with it.
+
+iOS tracked Android test-for-test at every step, including 7/8 with an identical
+message on `38a74f0` — two platforms agreeing on the same failure and then on
+the same pass.
+
+### What the device runs prove that the widget tests could not
+
+- The item screen loads over a device's own network stack, against a server on
+  another host, and renders what that server sent.
+- The selection rules hold under **real touch input** through the real gesture
+  pipeline and the real hit test — not `tester.tap` on a fake tree.
+- The price on the sticky button tracks the choices as a thumb makes them.
+- `POST /cart/items` carries **no price**, and the row the server writes is read
+  back over HTTP and checked: `subtotal == 77800` paise for Large + Extra Cheese
+  + Jalapeños ×2, a figure the phone never sent.
+- A second identical tap becomes a quantity, not a second line — verified
+  against the server's own count, not the screen's.
