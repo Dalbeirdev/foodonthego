@@ -162,6 +162,38 @@ Future<void> waitFor(
   );
 }
 
+/// Pumps until [finder] matches nothing, or gives up with a legible message.
+///
+/// The counterpart to [waitFor], and needed for the same reason: some of what
+/// this app puts on screen is temporary, and the next tap has to wait for it to
+/// go rather than for a duration that is probably long enough. The confirmation
+/// snackbar is the case in point — it floats *over* the sticky Add to cart bar
+/// for three seconds, so a second tap on that button lands on the snackbar
+/// instead. Scrolling cannot help: the bar is not inside the list.
+///
+/// A fixed `settle` of three seconds against a three second snackbar is not a
+/// wait, it is a coin toss, and it came down tails on the device.
+Future<void> waitUntilGone(
+  WidgetTester tester,
+  Finder finder, {
+  Duration timeout = const Duration(seconds: 30),
+  String? describe,
+}) async {
+  final DateTime deadline = DateTime.now().add(timeout);
+
+  while (DateTime.now().isBefore(deadline)) {
+    if (finder.evaluate().isEmpty) {
+      // One more frame, so the exit animation finishes vacating the space
+      // rather than merely having started to.
+      await tester.pump(const Duration(milliseconds: 400));
+      return;
+    }
+    await tester.pump(const Duration(milliseconds: 150));
+  }
+
+  fail('Timed out waiting for ${describe ?? finder.toString()} to go away.');
+}
+
 /// Brings a control far enough into view that a thumb could actually reach it.
 ///
 /// The item screen is a `ListView`, and the obvious test — "does a finder for

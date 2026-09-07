@@ -386,9 +386,17 @@ void main() {
       reason: 'the first tap makes a line',
     );
 
+    // The confirmation floats over the sticky bar, so the button underneath it
+    // is untappable until it has gone. Waited for rather than slept through:
+    // the snackbar lasts three seconds and the sleep here was three seconds.
+    await waitUntilGone(
+      tester,
+      find.textContaining('Added to cart'),
+      describe: 'the confirmation to stop covering the Add to cart button',
+    );
+
     // The same configuration again. A cart line is a configuration, not a tap:
     // this must become a quantity, never a duplicate row.
-    await settle(tester, duration: const Duration(seconds: 3));
     await tapAt(tester, add);
     await settle(tester, duration: const Duration(seconds: 4));
 
