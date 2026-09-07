@@ -332,6 +332,83 @@ final class PickupTimeApiTest extends TestCase
             ->assertJsonPath('error.code', ApiErrorCode::PickupOptionExpired->value);
     }
 
+    // --- timezones -----------------------------------------------------------
+
+    public function test_a_pickup_survives_a_round_trip_through_a_dst_jump(): void
+    {
+        // The bug this test exists for stored a 1:40 PM Kolkata window as 13:40
+        // UTC — five and a half hours out. India never changes its clocks, so a
+        // fixed-offset zone can hide a whole class of mistake; this one moves.
+        //
+        // At 01:00 UTC on 29 March 2026 the London clock goes 00:59:59 GMT
+        // straight to 02:00:00 BST. The hour from 01:00 to 01:59 local does not
+        // happen, and no counter can be open in it.
+        $this->restaurant->forceFill(['timezone' => 'Europe/London'])->save();
+        $this->restaurant->openingHours()->delete();
+
+        // Closing at four in the morning, local, and that hour is doing work.
+        // A restaurant open all day would give the same windows whichever zone
+        // the comparison happened in, so this test would pass against a
+        // generator that read opening hours as UTC. Four o'clock BST is three
+        // o'clock UTC, and the two answers differ by an hour of windows.
+        RestaurantFixtures::openDaily($this->restaurant, '00:00:00', '04:00:00');
+
+        $this->travelTo(CarbonImmutable::parse('2026-03-29T00:40:00Z'));
+
+        // The route was calculated against the suite's own clock, which is now
+        // months away. Re-stamped so this test is about timezones rather than
+        // about route freshness.
+        $this->trip->selectedRoute->forceFill([
+            'calculated_at' => CarbonImmutable::parse('2026-03-29T00:40:00Z'),
+        ])->save();
+
+        $pickup = $this->pickup();
+
+        $this->assertTrue($pickup['is_feasible']);
+        $this->assertSame('Europe/London', $pickup['timezone']);
+
+        foreach ($pickup['options'] as $option) {
+            $local = CarbonImmutable::parse($option['start_at'])->setTimezone('Europe/London');
+
+            $this->assertFalse(
+                $local->format('H:i') >= '01:00' && $local->format('H:i') < '02:00',
+                'a window at '.$local->format('H:i').' falls inside the hour that never happened',
+            );
+        }
+
+        // The kitchen shuts at 04:00 on its own clock, not on Greenwich's.
+        $last = $pickup['options'][array_key_last($pickup['options'])];
+
+        $this->assertSame(
+            '04:00',
+            CarbonImmutable::parse($last['end_at'])->setTimezone('Europe/London')->format('H:i'),
+            'the last window does not run up to local closing time',
+        );
+
+        $option = $pickup['options'][0];
+
+        // 00:40 GMT, plus a 93-minute drive, is 03:13 BST — the clock jumps an
+        // hour in the middle of that journey. The kitchen would be ready at
+        // 02:05 BST, so arrival is what binds, rounded forward to 03:20.
+        $this->assertSame(
+            '03:20',
+            CarbonImmutable::parse($option['start_at'])->setTimezone('Europe/London')->format('H:i'),
+            'the recommendation is not where the jump puts it',
+        );
+
+        $this->as($this->rahul)
+            ->putJson($this->selectUrl(), ['pickup_option_id' => $option['id']])
+            ->assertOk();
+
+        $cart = $this->cart->fresh();
+
+        // The same instant, stored in UTC, with the counter's own zone kept
+        // beside it rather than baked into it.
+        $this->assertSameMoment($option['start_at'], $cart->requested_pickup_start_at, 'the chosen window');
+        $this->assertSame('Europe/London', $cart->pickup_timezone);
+        $this->assertSame('UTC', $cart->requested_pickup_start_at->timezoneName);
+    }
+
     // --- what must not leak --------------------------------------------------
 
     public function test_the_response_leaks_nothing_operational(): void
