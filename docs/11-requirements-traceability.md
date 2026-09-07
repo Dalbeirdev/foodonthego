@@ -965,3 +965,60 @@ Screenshot names refer to the Module 11 live-view run recorded in
   modifier groups. The decision, and the one thing that would justify reversing
   it (per-add-on quantities), are recorded in
   [26-menu-item-customization.md](26-menu-item-customization.md).
+
+---
+
+## Module 12 — cart management, price revalidation and the order summary
+
+- **M12-001 Cart read = `GET /trips/{trip}/cart`.** Lines with their snapshots
+  and options, per-line and cart totals. Module 11's badge fields are still in
+  the same place; `CartManagementApiTest::test_the_badge_fields_module_11_shipped_are_still_where_they_were`
+  is the test that says so.
+
+- **M12-002 Line editing = `PATCH` and `DELETE`.** Quantity `1..CART_MAX_QUANTITY_PER_LINE`,
+  re-priced from live menu data through `CartLineRepricer` rather than scaled
+  from the snapshot. **Zero is refused**, not read as removal.
+
+- **M12-003 Emptying = `DELETE /trips/{trip}/cart`.** Idempotent: emptying an
+  already-empty cart is a success, because a customer who taps twice has got
+  what they asked for both times.
+
+- **M12-004 A cart is closed, never deleted.** Five events write `CLOSED`; no
+  path deletes a cart row. The rows are what Module 13's orders will point at.
+
+- **M12-005 The order summary is server-calculated**, in integer minor units,
+  in one place (`CartTotalsService`). Tax on the subtotal once, rounded half up.
+  `CartTotalsTest` covers the boundaries, including a value where the float path
+  demonstrably disagrees (7.25% of 200 paise is 14.5 exactly; a float answers
+  14).
+
+- **M12-006 Rates and fees are configuration and data, and every default is
+  nought.** Not a code decision, and **not yet set for production** — flagged
+  for the business. See [14-change-log.md](14-change-log.md).
+
+- **M12-007 Price revalidation = `GET /trips/{trip}/cart/revalidate`**, a read
+  that mutates nothing in either direction.
+  `CartRevalidationApiTest::test_revalidation_writes_nothing_at_all` calls it
+  twice against a cart whose prices and kitchen have all moved, and asserts
+  every column is untouched.
+
+- **M12-008 Conflict resolution = two explicit choices**, on the dish the
+  customer was adding. No third in which the app decides. The destructive one is
+  confirmed with a dialogue naming what will be lost.
+
+- **M12-009 Cost control = zero routing or places calls.** Reading, editing,
+  emptying and revalidating a cart call no provider;
+  `CartRevalidationApiTest::test_revalidating_calls_no_routing_provider` asserts
+  the counter does not move, and carries its own control showing that a cold
+  discovery does move it.
+
+- **M12-010 The client never sends a price.** Structural rather than checked:
+  `CartRepository` has no price parameter on any method, so there is nothing for
+  a modified client to lie in. The API-side assertion is
+  `CartManagementApiTest::test_a_price_sent_with_a_quantity_change_is_ignored`,
+  which sends eight plausible field names and gets the server's own figures back.
+
+- **M12-011 KI-014 = cleared.** `TripService::discard` closes the trip's active
+  cart in the same transaction, and a customer can release one themselves.
+  Regression tests in `CartLifecycleApiTest`, and on a device in
+  `module_12_cart_test.dart`.

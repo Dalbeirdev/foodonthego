@@ -105,6 +105,15 @@ CI runner — see the `android-device` and `ios-device` jobs in
 
 ### KI-014 · A cancelled journey's cart blocks every future cart, permanently
 
+> **RESOLVED in Module 12.** `TripService::discard` now closes the trip's active
+> cart in the same transaction that cancels the trip, and `DELETE /trips/{trip}/cart`
+> gives a customer a way to release one themselves. Regression tests:
+> `CartLifecycleApiTest::test_a_customer_who_cancels_a_journey_can_still_use_a_cart_afterwards`
+> reproduces the four requests below and expects a 201 on the last one, and the
+> Module 12 device test empties a cart on a handset and then adds to the same
+> journey again. The description below is kept as written, because a fixed
+> issue that no longer says what it was is a fixed issue nobody can learn from.
+
 **Severity:** High (a customer can reach it in two taps and cannot leave it)
 
 **Found by:** the first on-device CI run that got as far as adding to a cart.
@@ -148,6 +157,19 @@ around the issue for the tests; it does not fix it for customers.
 **To clear:** Module 12 (cart management), which owns the cart's lifecycle.
 Whichever way it goes, it needs a test that a customer who cancels a journey
 holding a cart can still add to a cart afterwards.
+
+**How it was cleared.** The first of the two options above, chosen because it
+matches what the customer just did: they cancelled the journey, the cart
+belonged to it, and leaving it active is what surprised them. The rows are not
+deleted — only the status moves to `CLOSED`, which is what the enum's second
+case has existed for since Module 11 and what Module 13's orders will point at.
+
+The same release now happens on three other events, for the same reason the
+index makes them necessary: removing a cart's last line, emptying it, and
+resolving a conflict by starting a new cart. An empty `ACTIVE` cart still
+occupies the one-active-cart-per-journey slot, so leaving one behind would
+reproduce this issue by a different route — a cart containing nothing blocking
+every other journey.
 
 ---
 ### KI-002 · iOS build and device test cannot be performed
@@ -913,3 +935,86 @@ this machine that is not routable and every driver fails at sign-in with
 `ApiException(NETWORK)`, which looks exactly like a broken backend. Every smoke
 run needs `--define=FOTG_API_BASE_URL=http://127.0.0.1:8000`, as the header
 comment in each driver says.
+
+---
+
+## Module 12 — cart management, revalidation and the order summary
+
+### M12-B01 — customer text reached the wire as markup — **Medium** — FIXED
+
+Module 11 asserted that a stored `<script>` never comes back as markup. The
+assertion was real; it had simply never been exercised, because the only cart
+endpoint at the time returned a badge — a count and a subtotal — and no
+free-form text. The cart read is the first endpoint to quote a customer's own
+note back, and the moment it did, the test failed.
+
+`ApiResponse` now encodes every body with `JSON_HEX_TAG`, `JSON_HEX_AMP`,
+`JSON_HEX_APOS` and `JSON_HEX_QUOT`. Lossless — any parser decodes the same
+characters, so a note reading "sauce < 1 spoon" still says that — and it applies
+to every field of every endpoint rather than the ones somebody remembered.
+
+**What it taught.** A test can be green because the code is right or because the
+code never runs. This one had been the second kind since Module 11, and nothing
+distinguishes the two from the outside. See also M12-B04.
+
+### M12-B02 — three availability tests assumed the clock — **Medium** — FIXED
+
+`TripRestaurantApiTest` expected `CLOSED` and got `OPENING_SOON`, on a commit
+that touched no backend code. **The service was right**: the run started at
+20:02 UTC, which is 01:32 in Asia/Kolkata, 27 minutes before the fixture's 02:00
+opening, and a restaurant half an hour from opening is `OPENING_SOON`.
+
+Two further tests shared the fixture and were latent failures for a different
+hour — between 20:30 and 21:30 UTC the restaurant is genuinely open and both
+would have asserted `CLOSED` against `OPEN_ACCEPTING`. Demonstrated by pinning
+20:45 UTC and watching both fail. They had survived only because
+`OPENING_SOON` happens to map to a `CLOSED` ordering state.
+
+All three now pin the clock, and the instant that broke the first is kept as a
+test asserting `OPENING_SOON`, so the case is covered rather than avoided.
+
+This is the **second** time a clock-dependent fixture has turned CI red on a
+commit that touched no backend code. The first was `CLOSING_SOON`, where the
+*service* was wrong and a twenty-four-hour dhaba announced "closing soon" for
+the last half hour of every night. An availability assertion that does not pin
+the clock is a scheduled failure.
+
+### M12-B03 — a suspicion that was not a bug
+
+While investigating M12-B02 the day-of-week filter in `opensWithin` looked as
+though it would miss a restaurant opening just after midnight: at 23:45 on
+Monday, a 00:15 window belongs to Tuesday and the filter skips it.
+
+Probed with a throwaway test at exactly that moment. It answers `OPENING_SOON`
+correctly, because the fixture seeds a window for every weekday and
+`nextOccurrence` rolls today's past time forward to tomorrow.
+
+Recorded because "I thought there was a bug and there was not" is worth writing
+down once, so the next reader does not spend the same half hour on it.
+
+### M12-B04 — a test that could not fail — **Medium** — FIXED
+
+The negative control for "Keep my cart abandons the add and touches nothing"
+did not fire: the code was changed to empty the cart quietly and the test still
+passed.
+
+The test was at fault. Its `FakeCartRepository` was constructed and never passed
+to the harness, so `emptyCalls` could not move whatever the code did. Every
+assertion about it was vacuous.
+
+**What it taught.** This is exactly what negative controls are for, and it is the
+argument for running them on assertions that look obviously correct: an
+assertion that cannot fail looks identical to one that passes.
+
+### M12-B05 — a fixture that described no server — **Low** — FIXED
+
+Module 11's cart-conflict widget test put the restaurant's name in the refusal's
+`message`. The server puts a generic sentence there and the name in
+`details.restaurant_name`. The assertion passed because the screen echoed the
+message back, not because anything read the name — so a screen that ignored
+`details` entirely would have passed it too.
+
+The fixture now matches what the server sends, and the screen reads the name
+from `details`.
+
+No Module 12 issue was left open. No Critical defect was found.

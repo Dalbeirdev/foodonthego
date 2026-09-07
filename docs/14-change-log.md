@@ -887,3 +887,118 @@ been wrong for half an hour a night since it was written.
 turned CI red, and a pair of back-to-back windows. The genuine closing-soon case
 — one window, nothing after it — still reads `CLOSING_SOON`, unchanged. Backend
 suite 959 passed, 3980 assertions.
+
+---
+
+## Module 12 — cart management, price revalidation and the order summary
+
+A customer could fill a cart and do nothing else with it. Now they can read it,
+correct it, empty it, and see what it will cost — and reach it at all, which
+Module 11 left them no way to do.
+
+### Backend
+
+Four endpoints, none nested under a restaurant, because a cart already knows
+which kitchen it belongs to and naming a second one is a chance for the two to
+disagree:
+
+```
+GET    /trips/{trip}/cart               lines, options, order summary
+GET    /trips/{trip}/cart/revalidate    the same, plus whether it still holds
+PATCH  /trips/{trip}/cart/items/{item}  quantity, 1..CART_MAX_QUANTITY_PER_LINE
+DELETE /trips/{trip}/cart/items/{item}  remove a line
+DELETE /trips/{trip}/cart               empty it
+```
+
+`GET /cart` is Module 11's badge endpoint extended, not replaced — every field
+it carried is still in the same place, and a test says so by name.
+
+**No request carries a price and no handler reads one.** A quantity change is
+re-priced from live menu rows through `CartLineRepricer`, which turns the stored
+line back into the selection that produced it and hands that to Module 11's
+validator and pricing service unchanged. A dish that has gone up is refused with
+`PRICE_UPDATED` and both figures; one that has gone down is applied.
+
+**Quantity zero is refused, not read as removal.** Overloading nought as
+deletion makes an off-by-one in a stepper destroy a customer's selection and
+leaves the server unable to tell a mistake from an intention.
+
+**`CLOSED` is written for the first time.** Removing the last line, emptying,
+discarding the journey and resolving a conflict all close the cart rather than
+deleting it: the rows are the history Module 13's orders will point at. An empty
+`ACTIVE` cart would still occupy the one-active-cart-per-journey slot and block
+every other journey — KI-014 by a different route.
+
+**The order summary** is computed in one place, in integer minor units. Tax on
+the subtotal once and rounded half up, not per line: twenty lines rounded
+individually drift by paise the customer cannot account for. Rates are
+configuration and data, and **every default is nought** — see below.
+
+**Revalidation is a `GET` and writes nothing.** Per line it reports
+`PRICE_INCREASED` / `PRICE_DECREASED` with both figures, or `ITEM_`, `VARIANT_`
+or `MODIFIER_UNAVAILABLE`; per cart, whether the kitchen is still taking orders.
+`totals_if_accepted` is null the moment a line cannot be priced, because a total
+worked out around a missing dish describes a cart nobody has.
+
+### Mobile
+
+A cart screen, reachable from the app bar of every screen a dish can be added
+from. Nothing on it is calculated on the device: every figure came from the
+server in the response to the request that changed it.
+
+Edits are not optimistic — the line being changed disables its own controls; the
+rest of the cart stays usable. Every unsafe request carries an
+`Idempotency-Key` kept across a retry.
+
+One banner at most, ranked: a closed kitchen outranks a blocked line, which
+outranks a price change. A blocked line is never removed for the customer.
+
+Cart conflicts get the other half of Module 11's refusal: **two choices and no
+third**. "Keep my cart" abandons the add; "Start a new cart" is confirmed with a
+dialogue naming what will be lost. Two requests rather than a flag on the add —
+a `replace_existing_cart` field would be a way to destroy a cart hidden inside a
+request about a dish.
+
+### Rates and fees default to nothing, deliberately
+
+| Input | Where | Default |
+| --- | --- | --- |
+| Tax rate | `restaurants.tax_rate_bps`, falling back to `foodonthego.cart.tax_rate_bps` | **0** |
+| Packaging fee | `restaurants.packaging_fee_minor` | **0** |
+| Platform fee | `foodonthego.cart.platform_fee_minor` | **0** |
+
+A plausible-looking 5% that nobody chose is worse than a visible zero: it reads
+as correct, survives review because it is the figure everyone expects, and ships
+as a real charge on a real customer. The mechanism is built and tested with
+non-zero values in fixtures. **The business must set these before commercial
+launch.**
+
+`restaurants.tax_rate_bps` is nullable rather than zero-defaulted, because null
+and zero mean different things: null is "unconfigured, use the platform
+default", zero is "deliberately not taxed". Collapsing them would make an
+unconfigured restaurant indistinguishable from a tax-exempt one.
+
+### Two tests that had been green for the wrong reason
+
+**A `<script>` in a customer's note reached the wire as markup.** Module 11
+asserted it never could, and the assertion had never been exercised: the only
+cart endpoint returned a badge with no free-form text in it. `ApiResponse` now
+hex-escapes `<`, `>`, `&`, `'` and `"` in every body — lossless, and covering
+every field of every endpoint rather than the ones somebody remembered.
+
+**A cart-conflict fixture described no server**, putting the restaurant's name
+in the refusal's message where the real server puts a generic sentence and the
+name in `details`. The screen passed by echoing the message, so one that ignored
+`details` entirely would have passed too.
+
+### And three availability tests that assumed the clock
+
+`TripRestaurantApiTest` went red on a Flutter-and-docs commit, expecting
+`CLOSED` and getting `OPENING_SOON` — the service was right, the run simply
+started 27 minutes before the fixture's opening. Two more shared the fixture and
+were latent failures for a different hour. All three now pin the clock, and the
+instant that broke the first is kept as coverage.
+
+The second time this has happened. The first was `CLOSING_SOON`, where the
+service *was* wrong. An availability assertion that does not pin the clock is a
+scheduled failure.

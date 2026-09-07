@@ -13,7 +13,7 @@
 | 09 | Restaurant Details, Facilities, Availability & Customer Preview | **COMPLETE (Android/iOS device verification pending)** | See below |
 | 10 | Menu, Categories & Menu Item Browsing | **COMPLETE (Android/iOS device verification pending)** | See below |
 | 11 | Menu Item Details, Variants, Addons, Customization & Add to Cart | **COMPLETE** | 1,729 tests; 34 live states; **Android 8/8 and iOS 8/8 on real devices**. See below |
-| 12 | Cart Management, Price Revalidation & Order Summary | NOT STARTED | Next, on approval |
+| 12 | Cart Management, Price Revalidation & Order Summary | **COMPLETE (device runtime verification in flight)** | 1,815 tests; KI-014 cleared. See below |
 
 ## Roadmap numbering — not the delivery sequence above
 
@@ -374,3 +374,105 @@ correct; what is missing is the release, and cart lifecycle is Module 12's.
 Recorded in [13-known-issues.md](13-known-issues.md).
 
 Module 12 has **not** been started, per the one-module-at-a-time rule.
+
+---
+
+## Module 12 — Cart Management, Price Revalidation & Order Summary
+
+**Status: COMPLETE, with the two runtime rows still open.** Everything else is
+verified. The Android and iOS device jobs are running
+`integration_test/module_12_cart_test.dart` for the first time; until they
+report, those rows say PENDING and nothing else claims otherwise.
+
+| Item | Status | Note |
+| --- | --- | --- |
+| Full cart read | **PASS** | Lines, options, per-line and cart totals |
+| Module 11's badge fields unmoved | **PASS** | Extended, not replaced; a test says so by name |
+| Cart read cost is flat | **PASS** | Same query count at one line or three |
+| Change a line's quantity | **PASS** | `1..CART_MAX_QUANTITY_PER_LINE` |
+| **Quantity zero refused, not removal** | **PASS** | Client declines to ask; server refuses anyway |
+| **Re-priced from live menu data** | **PASS** | 30 000, not the snapshot's 32 900, scaled |
+| **Price rise refused with both figures** | **PASS** | `PRICE_UPDATED`; cart untouched |
+| Price fall applied silently | **PASS** | Nobody needs a dialogue to be charged less |
+| Remove a line | **PASS** | Options go with it, by the foreign key |
+| Remove the last line → cart CLOSED | **PASS** | Row survives; reported as no cart |
+| Empty the cart → CLOSED | **PASS** | Idempotent; emptying an empty cart succeeds |
+| **A cart is never deleted** | **PASS** | Five events write CLOSED; nothing deletes |
+| Journey usable again after emptying | **PASS** | The index slot is genuinely free |
+| **Ownership through the trip** | **PASS** | Another customer's line: 404, not 403 |
+| Idempotency on unsafe requests | **PASS** | Key minted per attempt, kept across a retry |
+| **Order summary, server-calculated** | **PASS** | `CartTotalsService`, integer minor units |
+| Tax on the subtotal once, half up | **PASS** | 20 lines drift by 7 paise if rounded each |
+| Restaurant rate overrides platform | **PASS** | And a rate of zero does **not** fall back |
+| A charge of nothing gets no row | **PASS** | The total is always shown; the zeroes are not |
+| **No float touches money** | **PASS** | A value where the float path answers 14, not 15 |
+| **Rates default to nought** | **PASS** | Deliberate; **the business must set them** |
+| Revalidation is a read | **PASS** | Called twice against a moved world; nothing written |
+| Per-line findings with both figures | **PASS** | Price, item, variant, modifier |
+| Blocking vs advisory findings | **PASS** | From the server's flag, not the finding code |
+| `totals_if_accepted` withheld | **PASS** | Null the moment a line cannot be priced |
+| Kitchen state on the cart | **PASS** | Paused, suspended, off-route all stop it |
+| One broken line does not hide others | **PASS** | Three problems reported as three |
+| Conflict: two choices, no third | **PASS** | Confirmed before anything is destroyed |
+| Conflict names the other cart | **PASS** | From `details`, not from the message |
+| **Client never sends a price** | **PASS** | No parameter exists; 8 tampered fields ignored |
+| **No provider call on any of it** | **PASS** | Counter flat, with its own negative control |
+| **Android runtime** | PENDING | Device job in flight — **not claimed** |
+| **iOS runtime** | PENDING | Device job in flight — **not claimed** |
+
+**1,815 automated tests pass** (1,018 backend, 797 Flutter), plus seven
+on-device checks awaiting their run.
+
+### Thirteen negative controls
+
+Every claim above that could be satisfied by a test that cannot fail was checked
+by breaking the code and watching the test go red. Thirteen, each restored
+afterwards:
+
+| # | What was broken | What caught it |
+| --: | --- | --- |
+| 1 | Eager loads removed from the cart read | The flat-query-count test |
+| 2 | `null` and `0` tax rates collapsed with `?:` | The zero-is-not-unconfigured test |
+| 3 | Snapshot scaled instead of re-priced | The live-repricing test |
+| 4 | Emptied cart left `ACTIVE` | Two lifecycle tests |
+| 5 | Quote check removed from the repricer | The price-rise refusal |
+| 6 | Revalidation made to write the new price back | Four tests, including the one that calls it twice |
+| 7 | Totals offered around an unpriceable line | Two revalidation tests |
+| 8 | The stepper allowed to reach zero | The never-sends-a-zero test |
+| 9 | Charges of nothing given rows | The no-empty-rows test |
+| 10 | A price change ranked above a closed kitchen | The notice-order test |
+| 11 | Blocking derived from the finding, not the flag | The unknown-finding test |
+| 12 | The conflict confirmation removed | The asks-first test |
+| 13 | "Keep my cart" made to empty it quietly | *Did not fire* — see below |
+
+The thirteenth is the one worth reading. It did not fire, and the reason was a
+defect in the test rather than in the code: its `FakeCartRepository` was
+constructed and never wired into the harness, so `emptyCalls` could not move
+whatever the code did. Every assertion about it was vacuous. Fixed, and the
+control then fired. **An assertion that cannot fail looks identical to one that
+passes**, which is the entire argument for running controls on assertions that
+look obviously correct.
+
+### Five defects found, none left open
+
+Two of them were tests that had been green for the wrong reason — a `<script>`
+in a customer's note that had never been returned by any endpoint until now, and
+a cart-conflict fixture describing a server that does not exist. Three were
+clock-dependent availability fixtures, the second time that family has turned CI
+red on a commit touching no backend code. One suspicion turned out not to be a
+bug at all and is written down as such. See
+[13-known-issues.md](13-known-issues.md).
+
+### KI-014 is cleared
+
+A cancelled journey's cart used to block every future cart on every journey,
+permanently, with no screen that could reach the cart doing the blocking.
+`TripService::discard` now closes it in the same transaction that cancels the
+trip, and `DELETE /trips/{trip}/cart` lets a customer release one themselves.
+
+### Handed to Module 13
+
+**The tax rate and both fees are nought**, and that is a decision to leave them
+visibly unset rather than to guess. The mechanism is built and tested with
+non-zero values; the figures are a business input and must be set before
+commercial launch.
