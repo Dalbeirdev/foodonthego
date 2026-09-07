@@ -166,3 +166,177 @@ jobs:
       # Simulator UI testing is tracked separately (KI-002).
       - name: Build iOS (no codesign)
         run: flutter build ios --no-codesign --debug
+
+  # ---------------------------------------------------------------------------
+  # The two on-device runs.
+  #
+  # These are what close the Android and iOS runtime rows (docs/13-known-issues.md
+  # KI-001 and KI-002, docs/11-requirements-traceability.md M11-050 and M11-051).
+  # They build the shipping app, install it on an emulator or simulator, tap the
+  # real controls and check the row a real Laravel server wrote to a real MySQL
+  # database. Nothing in them is stubbed.
+  #
+  # They run only on pull requests and on main. A macOS runner is the most
+  # expensive class GitHub bills, an emulator boot is minutes rather than
+  # seconds, and neither is worth spending on every push to a work branch — the
+  # widget tests and the smoke drivers already run there.
+  # ---------------------------------------------------------------------------
+
+  android-device:
+    name: Mobile — Android emulator
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: foodonthego_testing
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, redis, mbstring, intl, zip, bcmath
+          coverage: none
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Install app dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Start the backend and issue a session
+        id: backend
+        run: echo "token=$(scripts/ci-backend-up.sh 9999900921)" >> "$GITHUB_OUTPUT"
+
+      # KVM is what makes an x86_64 image usable. Without it the emulator either
+      # refuses to start or runs too slowly to drive a run through — which is
+      # exactly why this cannot be done in a container that lacks /dev/kvm.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run the on-device tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          # 10.0.2.2 is the emulator's alias for the host running the server.
+          script: |
+            cd mobile
+            flutter test integration_test/ \
+              --dart-define=FOTG_API_BASE_URL=http://10.0.2.2:8000 \
+              --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
+
+      - name: Backend log, if anything failed
+        if: failure()
+        run: tail -100 backend/storage/logs/serve.log backend/storage/logs/laravel.log || true
+
+  ios-device:
+    name: Mobile — iOS simulator
+    runs-on: macos-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # macOS runners have no MySQL or Redis service containers, so both are
+      # installed rather than declared. Homebrew ships them.
+      - name: Install MySQL and Redis
+        run: |
+          brew install mysql@8.0 redis
+          brew services start mysql@8.0
+          brew services start redis
+          echo "$(brew --prefix mysql@8.0)/bin" >> "$GITHUB_PATH"
+
+      - name: Create the database
+        run: |
+          for _ in $(seq 1 30); do
+            if "$(brew --prefix mysql@8.0)/bin/mysqladmin" ping -h 127.0.0.1 --silent; then break; fi
+            sleep 2
+          done
+          "$(brew --prefix mysql@8.0)/bin/mysql" -h 127.0.0.1 -uroot \
+            -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; CREATE DATABASE foodonthego_testing;"
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, redis, mbstring, intl, zip, bcmath
+          coverage: none
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Install app dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Start the backend and issue a session
+        id: backend
+        run: echo "token=$(scripts/ci-backend-up.sh 9999900922)" >> "$GITHUB_OUTPUT"
+
+      # The first available iPhone, by udid. Deliberately not a device name:
+      # which iPhone models exist depends on the runner's Xcode version, and a
+      # hard-coded "iPhone 15" starts failing the month that changes.
+      - name: Boot a simulator
+        run: |
+          DEVICE=$(xcrun simctl list devices available \
+            | grep 'iPhone' | head -1 \
+            | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          test -n "$DEVICE" || { echo 'No iPhone simulator available'; exit 1; }
+          echo "SIMULATOR=$DEVICE" >> "$GITHUB_ENV"
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+
+      # A simulator shares the host's network stack, so the server is simply
+      # on localhost. No signing: this never leaves the runner.
+      - name: Run the on-device tests
+        working-directory: mobile
+        run: |
+          flutter test integration_test/ -d "$SIMULATOR" \
+            --dart-define=FOTG_API_BASE_URL=http://127.0.0.1:8000 \
+            --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
+
+      - name: Backend log, if anything failed
+        if: failure()
+        run: tail -100 backend/storage/logs/serve.log backend/storage/logs/laravel.log || true

@@ -41,14 +41,53 @@ packages, and `/dev/kvm` exposed to the container. With only the first, a
 
 **What is now ready for the day it clears.** `integration_test/` holds a driver
 that walks Module 11 on a real handset —
-[03-development-setup.md](03-development-setup.md) has the two commands. It has
-been run green in a browser via `flutter drive`, so the finders and the flow are
-known-good; the only thing missing is the device. That makes closing this a
-matter of attaching one, rather than of writing a test under time pressure on
-borrowed hardware.
+[03-development-setup.md](03-development-setup.md) has the two commands.
+
+**It has never been executed.** See KI-013 below: an attempt to rehearse it in a
+browser produced a false pass, and the attempt is what uncovered that. What can
+be said for it is narrower and worth stating exactly: it compiles, the analyzer
+is clean, and every string it looks for is a string the widget tests or the
+34-state live-view run already assert against. That is not the same as a run.
 
 ---
 
+### KI-013 · `flutter drive` reports success when the target never runs
+
+**Severity:** High (it produced a false verification claim)
+
+`flutter drive --driver=test_driver/integration_test.dart --target=integration_test/...`
+exits **0** and prints **"All tests passed."** on this machine even when the
+test body never executes. Confirmed with two negative controls, both of which
+must have failed and did not:
+
+| Control | Expected | Actual |
+| --- | --- | --- |
+| A deliberately truncated session token | every test fails at `whoAmI` with a 401 | `All tests passed.` |
+| **No** `FOTG_TEST_TOKEN` at all — `requireToken()` calls `fail()` in `setUpAll` | every test fails before its first line | `All tests passed.` |
+
+Tried with `-d web-server --browser-name=chrome` and with `-d chrome`. Neither
+reports per-test progress; `-d chrome` never gets past *"Waiting for connection
+from debug service"* and then exits 0. The app is served, the browser never
+drives it, and the driver treats "no failures reported" as success.
+
+**What this cost.** Two runs were reported as green evidence that the Module 11
+device driver worked. They were not evidence of anything. The claim has been
+withdrawn from [15-test-evidence.md](15-test-evidence.md),
+[14-change-log.md](14-change-log.md) and the traceability table.
+
+**The rule taken from it, which applies to every harness in this repository:**
+a green result is worth nothing until a **negative control** has been seen to
+fail. Before believing a new runner, break it on purpose — remove a credential,
+assert something false — and watch it go red. A harness that cannot fail cannot
+pass.
+
+**To clear:** run `integration_test/` on a real device or emulator, where
+`flutter test integration_test/` reports per-test results directly and does not
+depend on the drive extension. That needs KI-001 or KI-002 cleared first, or a
+CI runner — see the `android-device` and `ios-device` jobs in
+`.github/workflows/ci.yml`.
+
+---
 ### KI-002 · iOS build and device test cannot be performed
 
 **Severity:** High (blocks a Module 01 acceptance item)

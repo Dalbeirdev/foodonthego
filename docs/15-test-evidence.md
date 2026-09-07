@@ -1829,29 +1829,36 @@ cascade-delete with their restaurant.
 | Android | **PENDING — environment unavailable.** No Android SDK; `dl.google.com` is blocked by the egress policy. (KI-001) |
 | iOS | **PENDING — environment unavailable.** No macOS host. (KI-002) |
 
-### The on-device driver, written and rehearsed
+### The on-device driver — written, and **not yet run**
 
 `integration_test/module_11_add_to_cart_test.dart` walks this module on a real
 handset: the dish arrives over the device's own network stack, the controls are
 tapped through the real gesture pipeline, and the row the server writes is read
-back and checked.
+back and checked. Eight tests — the dish and its rules, nothing paid
+preselected, a size as an absolute price, a sold-out size that cannot be chosen,
+the whole journey ending in `subtotal == 77800`, a second identical tap becoming
+a quantity rather than a line, a dish with no default size, and a sold-out dish
+with no button at all.
 
-Six tests: the dish and its rules; nothing paid preselected; a size as an
-absolute price; a sold-out size that cannot be chosen; the whole journey ending
-in `subtotal == 77800`; a second identical tap becoming a quantity rather than a
-line; a dish with no default size; and a sold-out dish with no button at all.
+**It has never been executed, and nothing here should be read as if it had.**
 
-It cannot be run here — that is what KI-001 says — but it has been **run green
-in a browser** through `flutter drive`, twice:
+An earlier revision of this section claimed it had been "run green in a browser,
+twice" through `flutter drive`. **That claim was false and is withdrawn.** On
+this machine `flutter drive` exits 0 and prints *"All tests passed."* while the
+test body never runs — proven with two negative controls that both had to fail
+and did not: a deliberately truncated session token, and no token at all, which
+makes `requireToken()` call `fail()` before the first test line.
+[KI-013](13-known-issues.md) records it.
 
-```
-flutter drive --driver=test_driver/integration_test.dart \
-  --target=integration_test/module_11_add_to_cart_test.dart \
-  -d web-server --browser-name=chrome ...
-All tests passed.
-```
+What can honestly be said for the driver is narrower:
 
-That proves the driver, the finders and the flow against the real app and the
-real backend. **It does not prove Android or iOS**, and neither row above moves
-because of it. What it changes is that closing those rows is now a matter of
-attaching a device.
+| | |
+| --- | --- |
+| It compiles, and `flutter analyze --fatal-infos` is clean | ✅ |
+| Every string it looks for is one the widget tests or the 34-state live-view run already assert against | ✅ |
+| It has been run | ❌ **no** |
+
+The third row is the one that matters. `.github/workflows/ci.yml` now carries an
+`android-device` job and an `ios-device` job that run it on an emulator and a
+simulator; neither has executed, because nothing on this branch has reached
+GitHub.

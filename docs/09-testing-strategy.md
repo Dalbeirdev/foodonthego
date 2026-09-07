@@ -555,10 +555,21 @@ Two overrides make that possible, and they are the only two:
 Everything below — repositories, HTTP client, controllers, widgets — is exactly
 what ships.
 
-### What a browser run does and does not establish
+### Never trust a runner you have not seen fail
 
-`flutter drive` can run these targets against a browser on a machine with no
-Android SDK, and that is worth doing: it proves the driver, the finders and the
-flow, so the run works first time on the handset that eventually appears. It
-proves nothing about Android or iOS, and a report that quoted a browser pass as
-a runtime pass would be lying about the one thing the pass is for.
+This layer was added with a driver that could not be run here, and an attempt to
+rehearse it through `flutter drive` in a browser reported **"All tests passed."**
+while executing nothing at all. Two negative controls — a truncated credential,
+then no credential — both had to fail and both reported success. KI-013 in
+[13-known-issues.md](13-known-issues.md) has the detail.
+
+So the rule, which applies to every harness here and not just this one:
+
+**Before believing a new runner, break it on purpose and watch it go red.**
+Remove a credential, assert something false, point it at nothing. A harness that
+cannot fail cannot pass, and a green from one is not evidence — it is the
+absence of evidence, wearing evidence's clothes.
+
+The same caution applies to what a passing browser run would mean even when the
+harness works: it exercises the driver and the flow, and says nothing whatever
+about Android or iOS.

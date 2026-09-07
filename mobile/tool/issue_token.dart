@@ -32,7 +32,18 @@ import 'support/smoke_support.dart';
 const String _phone = '9999900911';
 
 void main(List<String> args) async {
-  final String national = args.isNotEmpty ? args.first : _phone;
+  // `--raw` prints the token and nothing else, so a CI job can capture it
+  // without parsing prose that might be reworded later.
+  final bool raw = args.contains('--raw');
+  final List<String> rest = args.where((String a) => a != '--raw').toList();
+  final String national = rest.isNotEmpty ? rest.first : _phone;
+
+  if (raw) {
+    final Session quiet = await signIn('Rahul', 'Sharma', national);
+    stdout.writeln(quiet.token);
+    quiet.close();
+    return;
+  }
 
   stdout.writeln('FoodOnTheGo — issuing a device test token');
   stdout.writeln('Backend: ${ApiConfig.baseUrl}');

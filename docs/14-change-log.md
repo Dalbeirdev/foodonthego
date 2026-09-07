@@ -845,9 +845,15 @@ host, because a handset cannot read the server's OTP log — and there is
 deliberately no endpoint that would let it.
 
 **Added.** `mobile/test_driver/integration_test.dart`, so the same target can be
-run in a browser through `flutter drive` on a machine with no device. It has
-been run green that way, which proves the driver and the flow — and proves
-nothing about Android or iOS. Neither runtime row moves.
+run through `flutter drive` where a browser or device is available.
+
+**Corrected.** An earlier entry here said that target "has been run green that
+way, which proves the driver and the flow". **That was wrong.** `flutter drive`
+on this machine exits 0 and reports "All tests passed." when the test body never
+executes; two negative controls that had to fail both reported success. The
+driver has **never been run**. KI-013 records the false pass and the rule taken
+from it: a green result is worth nothing until a negative control has been seen
+to fail.
 
 **Changed.** `integration_test` added to `dev_dependencies`.
 
