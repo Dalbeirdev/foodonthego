@@ -283,9 +283,14 @@ jobs:
           # and emulator-5554 is the device this action always boots — named
           # explicitly because a runner with the Linux desktop toolchain
           # present offers more than one target.
+          #
+          # The whole directory, like the iOS job, rather than a list of files
+          # to keep in step: a module that adds a device test and forgets to
+          # add it here would ship unverified, and the failure mode of that is
+          # silence.
           script: >-
             cd mobile &&
-            flutter test integration_test/module_11_add_to_cart_test.dart
+            flutter test integration_test/
             -d emulator-5554
             --dart-define=FOTG_API_BASE_URL=http://10.0.2.2:8000
             --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
