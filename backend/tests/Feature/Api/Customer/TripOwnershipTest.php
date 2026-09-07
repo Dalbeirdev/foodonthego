@@ -304,12 +304,23 @@ final class TripOwnershipTest extends TestCase
 
         $body = (string) $response->getContent();
 
-        // The response is JSON, not a document, and PHP escapes the closing tag
-        // — which is the sequence that could terminate a surrounding script
-        // block if this body were ever inlined into one. The opening tag is
-        // inert on its own and is left alone, correctly.
+        // The response is JSON, not a document, and every angle bracket leaves
+        // as a \uXXXX escape — so neither the opening tag nor the closing one
+        // survives as markup if this body is ever inlined into a document.
+        //
+        // This assertion used to accept the weaker guarantee PHP gives for
+        // free: the closing tag escaped by the slash, the opening tag left
+        // alone as inert. It is inert only until somebody inlines the body
+        // somewhere a `<` starts something. ApiResponse now encodes with
+        // JSON_HEX_TAG and its neighbours, so the guarantee no longer depends
+        // on which half of the tag it is.
         $response->assertHeader('Content-Type', 'application/json');
-        $this->assertStringContainsString('<\\/script>', $body);
+        $this->assertStringNotContainsString('<script>', $body);
         $this->assertStringNotContainsString('</script>', $body);
+        $this->assertStringContainsString('\\u003Cscript\\u003E', $body);
+
+        // Lossless, not sanitised: a client decoding the body gets the name
+        // back exactly as the provider gave it.
+        $this->assertSame($hostile, $response->json('data.origin.display_name'));
     }
 }

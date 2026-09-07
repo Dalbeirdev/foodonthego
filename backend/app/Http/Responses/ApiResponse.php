@@ -25,6 +25,24 @@ use Illuminate\Http\JsonResponse;
 final class ApiResponse
 {
     /**
+     * How every body on this API is encoded.
+     *
+     * `<`, `>`, `&`, `'` and `"` go out as `\uXXXX` escapes. This is lossless —
+     * any JSON parser decodes them back to the same characters, so a client
+     * sees exactly what was stored — and it means a response containing
+     * customer-written text cannot become markup if it ever lands somewhere
+     * that treats it as HTML.
+     *
+     * The API stores what a customer types verbatim, because a note to a
+     * kitchen saying "sauce < 1 spoon" means that. Making it safe belongs where
+     * it is rendered, and this is the cheapest possible belt to go with those
+     * braces: it costs nothing, it applies to every field on every endpoint
+     * rather than the ones somebody remembered, and it does not corrupt the
+     * text on the way through.
+     */
+    private const ENCODING = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+
+    /**
      * @param  array<string, mixed>  $meta
      */
     public static function ok(mixed $data, array $meta = [], int $status = 200): JsonResponse
@@ -32,7 +50,7 @@ final class ApiResponse
         return response()->json([
             'data' => $data,
             'meta' => array_merge(['request_id' => RequestContext::id()], $meta),
-        ], $status);
+        ], $status, [], self::ENCODING);
     }
 
     public static function created(mixed $data): JsonResponse
@@ -85,6 +103,6 @@ final class ApiResponse
             $body['error']['details'] = $details;
         }
 
-        return response()->json($body, $status ?? $code->httpStatus());
+        return response()->json($body, $status ?? $code->httpStatus(), [], self::ENCODING);
     }
 }

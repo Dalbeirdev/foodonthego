@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Auth\CustomerOtpController;
 use App\Http\Controllers\Api\V1\Auth\CustomerRegistrationController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Customer\AddressController;
+use App\Http\Controllers\Api\V1\Customer\CartController;
 use App\Http\Controllers\Api\V1\Customer\CartItemController;
 use App\Http\Controllers\Api\V1\Customer\PlaceController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController;
@@ -231,8 +232,29 @@ Route::prefix('v1')->group(function (): void {
                 Route::post('/{trip}/restaurants/{restaurant}/cart/items', [CartItemController::class, 'store'])
                     ->name('api.v1.customer.trips.restaurants.cart.items.store');
 
-                Route::get('/{trip}/cart', [CartItemController::class, 'show'])
+                /*
+                 | Managing the cart (Module 12).
+                 |
+                 | Not nested under the restaurant, and that is not an
+                 | oversight: a cart already knows which kitchen it belongs to,
+                 | and a path that repeated it would let a request name a
+                 | restaurant its cart disagrees with. The journey is what the
+                 | customer has to own; everything else is read from the cart.
+                 |
+                 | Zero is not an argument to PATCH. A client that means
+                 | "remove" says DELETE — see docs/27-cart-management.md.
+                 */
+                Route::get('/{trip}/cart', [CartController::class, 'show'])
                     ->name('api.v1.customer.trips.cart.show');
+
+                Route::patch('/{trip}/cart/items/{item}', [CartController::class, 'updateItem'])
+                    ->name('api.v1.customer.trips.cart.items.update');
+
+                Route::delete('/{trip}/cart/items/{item}', [CartController::class, 'destroyItem'])
+                    ->name('api.v1.customer.trips.cart.items.destroy');
+
+                Route::delete('/{trip}/cart', [CartController::class, 'destroy'])
+                    ->name('api.v1.customer.trips.cart.destroy');
             });
         });
 });

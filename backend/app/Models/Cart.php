@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\CartStatus;
+use App\Services\Cart\CartTotals;
+use App\Services\Cart\CartTotalsService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -144,5 +146,41 @@ final class Cart extends Model
     public function subtotalMinor(): int
     {
         return (int) $this->items->sum('line_total_minor');
+    }
+
+    /**
+     * The whole cart, as the cart screen renders it.
+     *
+     * The totals are passed in rather than worked out here. A model that could
+     * calculate a charge is a second place charges are calculated, and the
+     * whole point of {@see CartTotalsService} is that
+     * there is one.
+     *
+     * `subtotal` is repeated at the top level as well as inside the breakdown.
+     * It is redundant, and it is the field Module 11's badge already reads —
+     * removing it to tidy the shape would break every client that ships today
+     * to save four lines.
+     *
+     * @return array<string, mixed>
+     */
+    public function toCustomerArray(CartTotals $totals): array
+    {
+        return [
+            'id' => $this->uuid,
+            'status' => $this->status?->value,
+            'trip_id' => $this->trip?->uuid,
+            'restaurant_id' => $this->restaurant?->uuid,
+            'restaurant_name' => $this->restaurant?->name,
+            'currency' => $this->currency,
+            'subtotal' => [
+                'amount_minor' => $this->subtotalMinor(),
+                'currency' => $this->currency,
+            ],
+            'items' => $this->items
+                ->map(static fn (CartItem $item): array => $item->toCustomerArray())
+                ->all(),
+            'totals' => $totals->toApiArray(),
+            'expires_at' => $this->expires_at?->toIso8601String(),
+        ];
     }
 }

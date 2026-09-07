@@ -118,47 +118,4 @@ final class CartItemController
 
         return ApiResponse::created($addition->toApiArray());
     }
-
-    /**
-     * What the customer has so far, for the cart badge.
-     *
-     * Module 11 builds no cart screen. This is the count and the subtotal a
-     * badge needs and nothing more — enough for "2 items · ₹778" and not
-     * enough to render a cart from, which is deliberate: a half-built cart
-     * screen is worse than none.
-     */
-    public function show(Request $request, string $trip): JsonResponse
-    {
-        /** @var User $customer */
-        $customer = $request->user();
-
-        $found = $this->trips->ownedByOrFail($customer, $trip);
-
-        $cart = $this->carts->activeCartFor($customer, $found);
-
-        if ($cart === null) {
-            // An empty cart is not a 404. A customer who has added nothing has
-            // a cart with nothing in it, and a client that had to treat "no
-            // cart" as an error would show one on a perfectly ordinary screen.
-            return ApiResponse::ok([
-                'cart' => null,
-                'item_count' => 0,
-                'line_count' => 0,
-            ]);
-        }
-
-        return ApiResponse::ok([
-            'cart' => [
-                'id' => $cart->uuid,
-                'restaurant_id' => $cart->restaurant?->uuid,
-                'restaurant_name' => $cart->restaurant?->name,
-                'subtotal' => [
-                    'amount_minor' => $cart->subtotalMinor(),
-                    'currency' => $cart->currency,
-                ],
-            ],
-            'item_count' => $cart->itemCount(),
-            'line_count' => $cart->items->count(),
-        ]);
-    }
 }

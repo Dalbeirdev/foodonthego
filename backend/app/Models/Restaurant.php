@@ -48,6 +48,13 @@ final class Restaurant extends Model
             'price_level' => 'integer',
             'rating_count' => 'integer',
             'default_preparation_minutes' => 'integer',
+
+            // Nullable on purpose, and the cast keeps it nullable: null means
+            // nobody has configured this restaurant's tax and the platform
+            // default applies, while zero means it is deliberately not taxed.
+            // See CartTotalsService.
+            'tax_rate_bps' => 'integer',
+            'packaging_fee_minor' => 'integer',
             // Strings, like every other coordinate in this schema: a decimal
             // that round-trips through a float loses its last place, and the
             // last place is a metre.

@@ -449,3 +449,37 @@ Two conventions here are worth keeping:
   is 422; `MODIFIER_UNAVAILABLE` — chosen a minute ago, sold out now — is 409.
 - **`details` carries identifiers, never prose the client parses.** The message
   is for a person; the `group_id` is for the scroll.
+
+---
+
+## Text a customer typed goes out escaped (Module 12)
+
+Every body this API sends is encoded with `JSON_HEX_TAG`, `JSON_HEX_AMP`,
+`JSON_HEX_APOS` and `JSON_HEX_QUOT`, in `ApiResponse`. `<`, `>`, `&`, `'` and
+`"` leave as `\uXXXX` escapes:
+
+```json
+{ "special_instructions": "<script>alert(1)</script>" }
+```
+
+This is **lossless, not sanitisation**. Any JSON parser decodes those escapes
+back to the same characters, so a client sees exactly what was stored, and a
+note to a kitchen reading "sauce < 1 spoon" still says that.
+
+Two reasons it is done on the way out rather than on the way in:
+
+- **Storing mangled text is corruption, not safety.** The kitchen's ticket, the
+  customer's own screen and any future receipt all want the characters the
+  customer typed. Escaping at the storage boundary double-escapes at every
+  later one.
+- **The wire is the only boundary that is common to every field.** A rule that
+  applies to one column is a rule somebody forgets on the next column. This one
+  costs nothing and covers every field of every endpoint, including the ones
+  written after whoever set it up has moved on.
+
+Module 12 is where this started to matter: the cart read is the first endpoint
+that quotes free-form customer text back, and until then the guarantee held only
+because no response happened to carry any.
+
+It is a belt, not braces. The braces are still that nothing in this API renders
+HTML and every response is `application/json`.

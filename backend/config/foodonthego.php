@@ -346,6 +346,27 @@ return [
         // stale-cart handling Module 12 owns: the column is written from now,
         // and nothing yet deletes on it.
         'ttl_seconds' => (int) env('CART_TTL_SECONDS', 60 * 60 * 24 * 7),
+
+        // --- what the order summary adds to the subtotal ---------------------
+        //
+        // Every one of these defaults to NOTHING, deliberately, and none of
+        // them is a guess at what the business will charge.
+        //
+        // A plausible-looking rate that nobody chose is worse than a visible
+        // zero: it reads as correct, it survives review because it looks like
+        // the number everyone expects, and it ships as a real charge on a real
+        // customer. So the mechanism is built and tested with non-zero values
+        // in the seeded fixtures, and production stays at nought until someone
+        // with the authority to set a price sets one.
+        //
+        // Basis points rather than percentages, so a rate is an integer and no
+        // float ever touches money. 500 bps would be 5%.
+        'tax_rate_bps' => (int) env('CART_TAX_RATE_BPS', 0),
+
+        // A flat platform fee in minor units, applied per cart rather than per
+        // line. A restaurant's own packaging fee lives on the restaurant row,
+        // because it is theirs to set and it differs between them.
+        'platform_fee_minor' => (int) env('CART_PLATFORM_FEE_MINOR', 0),
     ],
 
     'api' => [

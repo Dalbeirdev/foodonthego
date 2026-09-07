@@ -54,6 +54,34 @@ final class CartService
     }
 
     /**
+     * The same cart, loaded with everything the cart screen and its editors need.
+     *
+     * Separate from {@see activeCartFor()} rather than folded into it, because
+     * that one answers a badge — a count and a subtotal — and making it drag
+     * the live menu rows along would spend five queries on a number in the
+     * corner of the screen.
+     *
+     * Every relation the cart screen touches is named here, so the cost is the
+     * same seven queries whether the cart holds one line or twenty. A line that
+     * lazy-loads its own options is a cart screen that gets slower the more the
+     * customer puts in it.
+     */
+    public function activeCartWithLines(User $customer, Trip $trip): ?Cart
+    {
+        return Cart::query()
+            ->where('customer_id', $customer->id)
+            ->where('trip_id', $trip->id)
+            ->where('status', CartStatus::Active)
+            ->with([
+                'restaurant',
+                'items.modifiers.option',
+                'items.menuItem',
+                'items.variant',
+            ])
+            ->first();
+    }
+
+    /**
      * Any active cart this customer has, on any journey.
      *
      * Used to answer "you already have a cart, elsewhere" rather than to act on
@@ -306,5 +334,126 @@ final class CartService
         ])->save();
 
         return $item->fresh(['modifiers']) ?? $item;
+    }
+
+    /**
+     * One line of this cart, by its id.
+     *
+     * Not found rather than forbidden when the line belongs to somebody else's
+     * cart. The caller has already proved the journey is theirs; a line id that
+     * answers differently depending on whose cart it sits in is a way to
+     * enumerate other people's carts one id at a time.
+     *
+     * @throws ApiException
+     */
+    public function lineOrFail(Cart $cart, string $lineUuid): CartItem
+    {
+        $line = $cart->items->firstWhere('uuid', $lineUuid);
+
+        if ($line === null) {
+            throw new ApiException(
+                ApiErrorCode::ItemNotFound,
+                'That item is not in your cart.',
+            );
+        }
+
+        return $line;
+    }
+
+    /**
+     * Sets a line's quantity to a figure priced from live menu data.
+     *
+     * The quantity comes from the request; **every price here comes from
+     * {@see PricedCustomization}**, which was calculated in this request from
+     * rows the server read itself. The line total is not the old one scaled up.
+     *
+     * The unit price is rewritten too. It can only have gone down or stayed the
+     * same — a rise was refused before this method was reached — and leaving a
+     * stale higher figure on the row would charge the customer for a discount
+     * they were given.
+     */
+    public function setQuantity(Cart $cart, CartItem $line, PricedCustomization $priced): Cart
+    {
+        return DB::transaction(function () use ($cart, $line, $priced): Cart {
+            $locked = Cart::query()->whereKey($cart->id)->lockForUpdate()->firstOrFail();
+
+            $line->forceFill([
+                'quantity' => $priced->quantity,
+                'unit_price_minor' => $priced->unitPrice->minor,
+                'line_total_minor' => $priced->lineTotal->minor,
+            ])->save();
+
+            $locked->touchActivity();
+
+            return $this->reload($locked);
+        });
+    }
+
+    /**
+     * Takes one line out, and closes the cart if it was the last.
+     *
+     * An empty cart is not left `ACTIVE`. It would still occupy the one active
+     * cart per journey slot, so removing your last line on Monday's trip would
+     * block adding anything to Tuesday's — with a conflict naming a cart that
+     * contains nothing. See docs/27-cart-management.md.
+     */
+    public function removeLine(Cart $cart, CartItem $line): Cart
+    {
+        return DB::transaction(function () use ($cart, $line): Cart {
+            $locked = Cart::query()->whereKey($cart->id)->lockForUpdate()->firstOrFail();
+
+            // The modifier rows go with it, by the foreign key rather than by a
+            // second delete here: a line without its options is a dish nobody
+            // configured, and the database is a better place to guarantee that
+            // than a method somebody might forget to call.
+            $line->delete();
+
+            $remaining = CartItem::query()->where('cart_id', $locked->id)->count();
+
+            if ($remaining === 0) {
+                $locked->close();
+            } else {
+                $locked->touchActivity();
+            }
+
+            return $this->reload($locked);
+        });
+    }
+
+    /**
+     * Empties the cart and closes it.
+     *
+     * Closed, never deleted: the rows are what a customer's history is made of,
+     * and Module 13's orders will point at them. Only the status moves.
+     */
+    public function emptyCart(Cart $cart): Cart
+    {
+        return DB::transaction(function () use ($cart): Cart {
+            $locked = Cart::query()->whereKey($cart->id)->lockForUpdate()->firstOrFail();
+
+            CartItem::query()->where('cart_id', $locked->id)->delete();
+
+            $locked->close();
+
+            return $this->reload($locked);
+        });
+    }
+
+    /**
+     * The cart as it now stands, with the relations a response is built from.
+     *
+     * Re-read rather than patched in memory. After a delete or a quantity
+     * change the in-memory collections still describe the cart as it was, and a
+     * response assembled from them would show the customer the state they just
+     * left.
+     */
+    private function reload(Cart $cart): Cart
+    {
+        return $cart->fresh([
+            'restaurant',
+            'items.modifiers.option',
+            'items.menuItem',
+            'items.variant',
+        ]) ?? $cart;
     }
 }

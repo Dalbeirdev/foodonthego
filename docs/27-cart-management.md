@@ -70,20 +70,56 @@ without asking would be worse than refusing. What was missing was the release.
 
 | Operation | Method | Rule |
 | --- | --- | --- |
-| Change quantity | `PATCH .../cart/items/{item}` | `1..MAX_ITEM_QUANTITY_PER_CART_LINE` |
-| Remove a line | `DELETE .../cart/items/{item}` | Closes the cart if it was the last |
-| Empty the cart | `DELETE .../cart` | Closes the cart |
+| Read the cart | `GET /trips/{trip}/cart` | Lines, options, and the order summary |
+| Change quantity | `PATCH /trips/{trip}/cart/items/{item}` | `1..CART_MAX_QUANTITY_PER_LINE` |
+| Remove a line | `DELETE /trips/{trip}/cart/items/{item}` | Closes the cart if it was the last |
+| Empty the cart | `DELETE /trips/{trip}/cart` | Closes the cart |
 
-**Quantity zero is refused, not treated as removal.** A client that means
-"remove" says `DELETE`. Overloading a quantity of nought as deletion makes an
-off-by-one in a stepper destroy a customer's selection, and makes the server
-unable to tell a mistake from an intention.
+None of these is nested under the restaurant, and that is not an oversight. A
+cart already knows which kitchen it belongs to; a path that repeated it would
+let a request name a restaurant its own cart disagrees with. The journey is the
+only thing the customer has to own, and everything else is read from the cart.
+
+All four answer in one shape — `{cart, item_count, line_count}` — so a client
+renders the response of a delete exactly as it renders a read. A cart that has
+just been closed reports as `"cart": null`, which is what `GET` has always
+answered for a journey with nothing on it: to the customer, an emptied cart and
+a journey they have not started ordering on look the same.
+
+`GET /trips/{trip}/cart` is Module 11's badge endpoint, extended rather than
+replaced. Every field that response carried — `cart.id`, `cart.restaurant_id`,
+`cart.restaurant_name`, `cart.subtotal`, `item_count`, `line_count` — is still
+in the same place. A tidier shape is not worth breaking a client that ships
+today, and there is a test that says so by name.
+
+The read costs the same number of queries whether the cart holds one line or
+twenty. A cart screen that gets slower the more a customer puts in it is the
+classic N+1, and the screen where they are about to spend money is the worst
+place to meet it.
+
+`PATCH` reads exactly one field: `quantity`. **Quantity zero is refused, not
+treated as removal.** A client that means "remove" says `DELETE`. Overloading
+a quantity of nought as deletion makes an off-by-one in a stepper destroy a
+customer's selection, and makes the server unable to tell a mistake from an
+intention.
 
 Changing a quantity **re-prices the line from live menu data** rather than
 multiplying the snapshot. The unit price stored on a line was authoritative at
 the moment it was added; it is not a licence to charge that figure later. If the
 dish now costs more, the response says so rather than quietly applying it — the
-same `PRICE_UPDATED` policy Module 11 uses at the moment of adding.
+same `PRICE_UPDATED` policy Module 11 uses at the moment of adding, with both
+figures in the error's details and the cart left exactly as it was.
+
+A price that has gone *down* is applied without ceremony. Nobody needs a
+confirmation dialogue to be charged less, and leaving the stale higher figure on
+the row would charge a customer for a reduction they were given.
+
+Re-pricing goes through the same validator and the same pricing service the
+original add used: `CartLineRepricer` turns the stored line back into the
+selection that produced it, and hands that to Module 11's code unchanged. A
+second implementation of "what does this dish cost" would be a second thing to
+keep in step with the first, and the day the two disagree the customer is
+charged by whichever one happens to run.
 
 ---
 
