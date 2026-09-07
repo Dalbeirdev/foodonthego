@@ -35,6 +35,19 @@ final readonly class PickupPlan
         public ?CarbonImmutable $earliestReadyAt,
         public ?PickupWindow $recommended,
         public array $windows,
+        /**
+         * Every feasible window, before the cap.
+         *
+         * Deliberately NOT on the wire — a screen shows a handful of choices,
+         * not a timetable. It exists because selection has to re-check the
+         * chosen window against the whole feasible set rather than against the
+         * eight that happened to be offered: time has moved on since, and a
+         * window that has merely slid out of the top of the list is still a
+         * window the kitchen can honour.
+         *
+         * @var list<PickupWindow>
+         */
+        public array $allWindows,
         public string $fingerprint,
         public string $timezone,
         public bool $requiresRouteRefresh,

@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Customer\AddressController;
 use App\Http\Controllers\Api\V1\Customer\CartController;
 use App\Http\Controllers\Api\V1\Customer\CartItemController;
+use App\Http\Controllers\Api\V1\Customer\PickupController;
 use App\Http\Controllers\Api\V1\Customer\PlaceController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController;
 use App\Http\Controllers\Api\V1\Customer\RestaurantMenuController;
@@ -267,6 +268,29 @@ Route::prefix('v1')->group(function (): void {
                  */
                 Route::get('/{trip}/cart/revalidate', [CartController::class, 'revalidate'])
                     ->name('api.v1.customer.trips.cart.revalidate');
+
+                /*
+                 | Pickup time (Module 13).
+                 |
+                 | Options is a POST, and deliberately. It is a calculation over
+                 | live state whose answers are short-lived and whose side
+                 | effect is writing those answers down; a GET would invite a
+                 | client, a proxy or a browser to treat a menu of pickup times
+                 | as something worth keeping.
+                 |
+                 | Selection is a PUT because there is one pickup time per cart
+                 | and choosing again replaces it. Neither endpoint accepts a
+                 | timestamp — the client holds an opaque id and the server
+                 | holds what it meant, which is the whole of why there is
+                 | nothing here to tamper with.
+                 |
+                 | No order is created by either. No payment. No reservation.
+                 */
+                Route::post('/{trip}/cart/pickup-options', [PickupController::class, 'options'])
+                    ->name('api.v1.customer.trips.cart.pickup.options');
+
+                Route::put('/{trip}/cart/pickup-selection', [PickupController::class, 'select'])
+                    ->name('api.v1.customer.trips.cart.pickup.select');
             });
         });
 });

@@ -7,6 +7,8 @@ namespace App\Providers;
 use App\Services\Discovery\RestaurantDiscoveryEligibilityService;
 use App\Services\Discovery\RestaurantDiscoveryService;
 use App\Services\Pickup\ArrivalEstimateProvider;
+use App\Services\Pickup\PickupOptionSelectionService;
+use App\Services\Pickup\PickupOptionStore;
 use App\Services\Pickup\PickupPlanningService;
 use App\Services\Pickup\PickupWindowGenerator;
 use App\Services\Pickup\PlannedRouteArrivalEstimateProvider;
@@ -54,6 +56,19 @@ final class PickupServiceProvider extends ServiceProvider
                 preparation: $this->app->make(PreparationEstimateService::class),
                 windows: $this->app->make(PickupWindowGenerator::class),
                 eligibility: $this->app->make(RestaurantDiscoveryEligibilityService::class),
+            ),
+        );
+
+        $this->app->singleton(
+            PickupOptionStore::class,
+            fn (): PickupOptionStore => new PickupOptionStore,
+        );
+
+        $this->app->singleton(
+            PickupOptionSelectionService::class,
+            fn (): PickupOptionSelectionService => new PickupOptionSelectionService(
+                planning: $this->app->make(PickupPlanningService::class),
+                store: $this->app->make(PickupOptionStore::class),
             ),
         );
     }

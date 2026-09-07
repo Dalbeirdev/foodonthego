@@ -185,7 +185,10 @@ enum ApiErrorCode: string
     // documents and never returns is a promise to clients that nothing keeps.
     case CartEmpty = 'CART_EMPTY';
     case PickupOptionsUnavailable = 'PICKUP_OPTIONS_UNAVAILABLE';
-    case PickupOptionNotFound = 'PICKUP_OPTION_NOT_FOUND';
+    // No PICKUP_OPTION_NOT_FOUND. An id that has expired, an id that never
+    // existed, and an id belonging to somebody else all come back the same way,
+    // as EXPIRED — because telling them apart answers "does this id exist" for
+    // anyone who asks, and the only person who asks is somebody trying ids.
     case PickupOptionExpired = 'PICKUP_OPTION_EXPIRED';
     case PickupOptionStale = 'PICKUP_OPTION_STALE';
     case PickupOptionForbidden = 'PICKUP_OPTION_FORBIDDEN';
@@ -196,7 +199,11 @@ enum ApiErrorCode: string
 
     // RouteStale is Module 06's and is reused rather than redeclared: a route
     // whose estimate has aged out is the same fact whoever noticed it.
-    case CartVersionConflict = 'CART_VERSION_CONFLICT';
+    // No CART_VERSION_CONFLICT. The cart's version is one of the facts the
+    // planning fingerprint is taken over, so a cart that changed between
+    // planning and selecting already comes back as PICKUP_OPTION_STALE. A
+    // second name for one condition is how two half-implementations of it get
+    // written.
     case PreCheckoutInvalid = 'PRECHECKOUT_INVALID';
 
     public function httpStatus(): int
@@ -313,7 +320,6 @@ enum ApiErrorCode: string
             // Module 11 established.
             self::CartEmpty => 422,
             self::PickupOptionsUnavailable => 409,
-            self::PickupOptionNotFound => 404,
             self::PickupOptionExpired => 409,
             self::PickupOptionStale => 409,
             self::PickupOptionForbidden => 404,
@@ -321,7 +327,6 @@ enum ApiErrorCode: string
             self::PickupOutsideHours => 422,
             self::PickupBeforeReady => 422,
             self::NoFeasiblePickupWindow => 409,
-            self::CartVersionConflict => 409,
             self::PreCheckoutInvalid => 409,
             self::RateLimited => 429,
             self::BusinessRuleViolated => 422,
