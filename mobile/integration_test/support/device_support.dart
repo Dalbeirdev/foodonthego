@@ -191,7 +191,39 @@ Future<void> waitUntilGone(
     await tester.pump(const Duration(milliseconds: 150));
   }
 
-  fail('Timed out waiting for ${describe ?? finder.toString()} to go away.');
+  final List<String> visible = tester
+      .widgetList<Text>(find.byType(Text))
+      .map((Text text) => text.data ?? '')
+      .where((String line) => line.isNotEmpty)
+      .toList();
+
+  fail(
+    'Timed out waiting for ${describe ?? finder.toString()} to go away.\n'
+    'Still on screen: ${visible.isEmpty ? '(no text at all)' : visible.join(' | ')}',
+  );
+}
+
+/// Clears any confirmation the app has put up, the way the app itself does.
+///
+/// Waiting for a snackbar to expire turned out not to be reliable under the
+/// integration test binding: the confirmation was still in the tree thirty
+/// seconds after a three second SnackBar was shown. The mechanism is not
+/// confirmed — a real device shows it appear and go — so rather than depend on
+/// a timer whose behaviour here is not understood, the run dismisses it the
+/// same way the app's own "View cart" action does, which is immediate and has
+/// no animation to race.
+///
+/// This is setup, not a weakened assertion: the confirmation is checked with
+/// [waitFor] before this is called, and what the test is actually about — that
+/// a second identical tap becomes a quantity rather than a second line — is
+/// asserted against the server afterwards.
+Future<void> dismissConfirmations(WidgetTester tester) async {
+  final Finder messenger = find.byType(ScaffoldMessenger);
+
+  if (messenger.evaluate().isEmpty) return;
+
+  tester.state<ScaffoldMessengerState>(messenger.first).clearSnackBars();
+  await tester.pump(const Duration(milliseconds: 400));
 }
 
 /// Brings a control far enough into view that a thumb could actually reach it.

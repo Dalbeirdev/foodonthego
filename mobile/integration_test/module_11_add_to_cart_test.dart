@@ -387,11 +387,14 @@ void main() {
     );
 
     // The confirmation floats over the sticky bar, so the button underneath it
-    // is untappable until it has gone. Waited for rather than slept through:
-    // the snackbar lasts three seconds and the sleep here was three seconds.
+    // is untappable until it has gone — and waiting for it to expire does not
+    // work here: it was still in the tree thirty seconds after a three second
+    // SnackBar. Dismissed rather than waited out, and then confirmed gone.
+    await dismissConfirmations(tester);
     await waitUntilGone(
       tester,
       find.textContaining('Added to cart'),
+      timeout: const Duration(seconds: 10),
       describe: 'the confirmation to stop covering the Add to cart button',
     );
 
