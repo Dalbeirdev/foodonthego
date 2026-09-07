@@ -11,6 +11,7 @@ use App\Models\Restaurant;
 use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Tests\Support\CustomerFactory;
 use Tests\Support\RestaurantFixtures;
@@ -126,6 +127,16 @@ final class TripRestaurantApiTest extends TestCase
 
     public function test_a_closed_only_result_says_so(): void
     {
+        // The clock is pinned, and it has to be. This test used to run at
+        // whatever time CI happened to start, and a restaurant opening at 02:00
+        // local reads OPENING_SOON — correctly — for the half hour before that.
+        // CI started at 20:02 UTC, which is 01:32 in Asia/Kolkata, 27 minutes
+        // before the doors: the assertion failed and the code was right.
+        //
+        // 06:30 UTC is noon in Kolkata: hours from either edge of a 02:00–03:00
+        // window, with no threshold anywhere near it.
+        Carbon::setTestNow('2026-09-07 06:30:00');
+
         $restaurant = RestaurantFixtures::nearRoute(0.4, 800, 'Shut Cafe', open: false);
         RestaurantFixtures::openDaily($restaurant, '02:00:00', '03:00:00');
 
@@ -133,6 +144,24 @@ final class TripRestaurantApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.meta.closed_only', true)
             ->assertJsonPath('data.restaurants.0.availability', 'CLOSED');
+    }
+
+    public function test_a_restaurant_about_to_open_says_opening_soon(): void
+    {
+        // The instant that broke the test above, kept as coverage rather than
+        // thrown away. A shut restaurant half an hour from opening is not the
+        // same news as one shut for the night, and a customer deciding where to
+        // stop needs the difference.
+        Carbon::setTestNow('2026-09-07 20:02:25');
+
+        $restaurant = RestaurantFixtures::nearRoute(0.4, 800, 'Shut Cafe', open: false);
+        RestaurantFixtures::openDaily($restaurant, '02:00:00', '03:00:00');
+
+        $this->asRahul()->getJson($this->url())
+            ->assertOk()
+            // Still nothing they can order from, so the banner stands.
+            ->assertJsonPath('data.meta.closed_only', true)
+            ->assertJsonPath('data.restaurants.0.availability', 'OPENING_SOON');
     }
 
     public function test_a_suspended_restaurant_is_never_returned(): void

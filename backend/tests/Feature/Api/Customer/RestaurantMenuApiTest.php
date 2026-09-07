@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\Menu\MenuQuery;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Tests\Support\CustomerFactory;
@@ -385,6 +386,12 @@ final class RestaurantMenuApiTest extends TestCase
 
     public function test_a_closed_restaurant_still_serves_its_menu(): void
     {
+        // Pinned, like the availability tests it shares a fixture with. A
+        // restaurant opening at 02:00 local is genuinely OPEN between 02:00 and
+        // 03:00 IST — 20:30 to 21:30 UTC — and this assertion would fail there
+        // because the code was right. 06:30 UTC is noon in Kolkata: hours from
+        // either edge of the window and from either soon-threshold.
+        Carbon::setTestNow('2026-09-07 06:30:00');
         $closed = RestaurantFixtures::nearRoute(0.45, 800, 'Shut Cafe', open: false);
         RestaurantFixtures::openDaily($closed, '02:00:00', '03:00:00');
         MenuFixtures::ordinaryMenu($closed);

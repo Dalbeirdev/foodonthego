@@ -11,6 +11,7 @@ use App\Models\RestaurantMedia;
 use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Tests\Support\CustomerFactory;
 use Tests\Support\RestaurantFixtures;
@@ -468,6 +469,12 @@ final class RestaurantDetailApiTest extends TestCase
 
     public function test_a_closed_restaurant_says_when_it_opens_again(): void
     {
+        // Pinned, like the availability tests it shares a fixture with. A
+        // restaurant opening at 02:00 local is genuinely OPEN between 02:00 and
+        // 03:00 IST — 20:30 to 21:30 UTC — and this assertion would fail there
+        // because the code was right. 06:30 UTC is noon in Kolkata: hours from
+        // either edge of the window and from either soon-threshold.
+        Carbon::setTestNow('2026-09-07 06:30:00');
         $restaurant = RestaurantFixtures::nearRoute(0.4, 800, 'Shut Cafe', open: false);
         RestaurantFixtures::openDaily($restaurant, '02:00:00', '03:00:00');
 
