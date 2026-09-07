@@ -483,3 +483,47 @@ because no response happened to carry any.
 
 It is a belt, not braces. The braces are still that nothing in this API renders
 HTML and every response is `application/json`.
+
+---
+
+## A verb chosen for caching rather than side effects (Module 13)
+
+Three endpoints joined the customer API in Module 13, and two of them are POSTs
+that a strict reading of REST would make GETs:
+
+| | |
+| --- | --- |
+| `POST .../cart/pickup-options` | A calculation over live state. Its answers are short-lived, and its side effect is writing them down. |
+| `PUT .../cart/pickup-selection` | One pickup time per cart; choosing again replaces it. |
+| `POST .../cart/pre-checkout-validate` | **Writes nothing.** A POST anyway. |
+
+The last one is worth stating plainly, because it looks inconsistent beside
+Module 12's `GET .../cart/revalidate`, which also writes nothing.
+
+`revalidate` reports **facts**: these are the prices, this is what moved. A
+stale fact is still a fact, and a client that cached one shows an old price
+beside a note saying so.
+
+`pre-checkout-validate` renders a **judgement**: may this be paid for. A GET
+invites a client, a proxy or a browser to reuse a yes that was true a minute
+ago, and a stale yes is somebody at a payment screen for a kitchen that has
+shut.
+
+## Every instant carries the clock it belongs to (Module 13)
+
+A pickup happens at a counter, on the counter's clock. Instants in the pickup
+endpoints are ISO 8601 **with the restaurant's offset**, and the IANA zone name
+travels beside them so a client can label what it is showing without doing
+arithmetic.
+
+That applies to the whole response, not to parts of it. A defect in this module
+returned the chosen window in UTC while the options beside it carried
+`+05:30` — the same moment rendered two ways in one body, five and a half hours
+apart. Both halves were individually defensible. The rule that came out of it:
+
+> **One response, one clock.** If any instant in a body is expressed on a
+> particular clock, all of them are.
+
+The database is unaffected and unambiguous: every timestamp is stored in UTC,
+as [06-database-conventions.md](06-database-conventions.md) requires. The
+offset is a presentation decision made at the edge.

@@ -14,6 +14,7 @@
 | 10 | Menu, Categories & Menu Item Browsing | **COMPLETE (Android/iOS device verification pending)** | See below |
 | 11 | Menu Item Details, Variants, Addons, Customization & Add to Cart | **COMPLETE** | 1,729 tests; 34 live states; **Android 8/8 and iOS 8/8 on real devices**. See below |
 | 12 | Cart Management, Price Revalidation & Order Summary | **COMPLETE** | 1,815 tests; **Android 15/15 and iOS 15/15 on real devices**; KI-014 cleared. See below |
+| 13 | Pickup Time Selection, Arrival Window & Pre-Checkout Validation | **COMPLETE** | 1,914 tests; live server run recorded; device runs as CI reports them. See below |
 
 ## Roadmap numbering — not the delivery sequence above
 
@@ -512,3 +513,85 @@ trip, and `DELETE /trips/{trip}/cart` lets a customer release one themselves.
 visibly unset rather than to guess. The mechanism is built and tested with
 non-zero values; the figures are a business input and must be set before
 commercial launch.
+
+---
+
+## Module 13 — pickup time, arrival windows and pre-checkout validation
+
+A customer with a cart can now be told when they could collect it, choose one of
+those times, and be told by the server whether the order could be paid for. The
+module ends there, deliberately: **no order, no order number, no pickup code, no
+payment, no capacity reservation** — and tests in both the API and device suites
+assert the `orders`, `order_items`, `payments` and `pickup_codes` tables do not
+exist at all.
+
+### The arithmetic, and where it comes from
+
+```
+earliest_ready = now + preparation + buffer, floored at now + minimum_lead
+recommended    = max(arrival, earliest_ready), rounded FORWARD onto the grid
+```
+
+Preparation is the **maximum** of the lines, never the sum: a kitchen cooks
+several dishes at once. Quantity does not multiply it. Rounding is forward,
+always — rounding back recommends a time the kitchen cannot meet.
+
+Proved against a live server rather than only in tests: arrival 06:01, kitchen
+ready 05:19, recommendation 06:10, and two dishes reading 20 minutes rather than
+40. The output is in
+[evidence/module-13-verification-run.txt](evidence/module-13-verification-run.txt).
+
+### What the client is trusted with: nothing
+
+The client receives times and sends back an **opaque 256-bit id**. There is no
+field in either request that could carry a time, and the repository interface on
+the Flutter side has no parameter one could go in. Not a signed timing payload:
+a signed payload still has to be verified correctly on every path, and the day
+one path forgets, a customer names their own pickup time.
+
+One customer cannot use another's id, and that is structural rather than
+checked — the cache key is scoped to the customer, so the id is looked for under
+the wrong prefix and is simply not there. The record it would resolve to also
+carries the customer and is compared as well. Expired, forged and stolen all
+come back with the **same** code.
+
+### STALE and INVALID are conclusions, not records
+
+A cart stores what the customer chose — `NONE` or `SELECTED` — and nothing but
+their own action changes it. Whether that intent still stands is computed on
+every read. A column reading `SELECTED` after the restaurant edits its hours is
+not wrong because a job failed to run; it is wrong because a column cannot know.
+
+### This is not the ETA engine
+
+Travel comes from the planned route on the assumption the customer sets off now.
+That is the module's largest approximation, it is stated on the class and in
+[28-pickup-time-planning.md](28-pickup-time-planning.md), and no on-device run
+can close it. `ArrivalEstimateProvider` is a seam in the code so that the live
+engine replaces one binding and no arithmetic moves.
+
+### Five defects, three of which needed a better test first
+
+[13-known-issues.md](13-known-issues.md) has all five. The three worth knowing
+about:
+
+- **The window generator read `day_of_week` with the wrong convention**, shifting
+  every restaurant's schedule by a day. Its unit test was green because it
+  asserted only that a *closed* day was empty — which is exactly what the wrong
+  convention produced. The test agreed with the mistake.
+
+- **A pickup time was stored five and a half hours out.** Eloquent writes a
+  zoned date-time by formatting it rather than converting it, so a 1:40 PM
+  Kolkata window became `13:40 UTC`.
+
+- **The chosen window came back in UTC while the options beside it came back in
+  the restaurant's zone.** Each half was individually correct and the response
+  as a whole was not, so no unit test could have caught it. It took the first
+  screen that renders both halves together — which is what an on-device run is
+  for.
+
+### Still handed forward
+
+**The tax rate and both fees remain nought.** Module 12 flagged this and Module
+13 does not change it: the mechanism is built and tested with non-zero values,
+and the figures are a business input that must be set before commercial launch.

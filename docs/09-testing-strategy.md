@@ -608,3 +608,45 @@ instants that broke this suite are now such tests.
 Verified by reintroducing both service bugs with the suite frozen and confirming
 four pinned tests still caught them. Finding a bug because CI ran in the right
 half hour is a lottery; a pinned boundary test runs on every build.
+
+---
+
+## Module 13 — what the negative controls taught
+
+Sixty-three controls were run against this module. Fifty-five fired. The eight
+that did not are the interesting ones, and the rule that came out of them is
+sharper than the one before it:
+
+> **A control that stays silent has told you something. Find out what.**
+
+Three of the eight silent controls were bad mutations — they had not disabled
+the code they targeted, or the scenario under test could not distinguish the
+mutation from the original. Those were re-run properly and fired.
+
+The other five each exposed a real gap:
+
+- A guard was **hygiene rather than a defence**, and its comment said otherwise.
+  The comment was corrected and the mechanism that actually refuses was given a
+  control of its own.
+- A test's scenario agreed with the mutation, so a **sharper scenario** was
+  added — the server refusing while listing nothing the client can point at.
+- The widget fakes built domain objects directly, so **not one line of JSON
+  parsing was covered**. A model test file was written for it.
+- A fake produced data too clean to exercise the thing under test: its pickup
+  options had identical instants and clock faces, so a test asserting the right
+  one is rendered would have passed either way. The fake now builds them through
+  the real parser from strings carrying an offset.
+- One assertion is genuinely unreachable by any single-point mutation, because
+  the property is guaranteed at two independent places. That is **recorded in
+  the test itself** rather than left to look load-bearing.
+
+### And what only a device could find
+
+One defect in this module was invisible to every unit test by construction: the
+chosen pickup window was reported in UTC while the options beside it were
+reported in the restaurant's zone. **Each half was correct on its own.** It took
+the first screen that renders both halves together — an on-device run — to make
+the inconsistency visible as "12:50 am" above a list starting "6:20 am".
+
+A test suite that only ever checks one endpoint at a time cannot see a
+disagreement between two of them.

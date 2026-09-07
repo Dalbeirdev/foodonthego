@@ -1036,3 +1036,271 @@ Screenshot names refer to the Module 11 live-view run recorded in
   number while the database holds a different one is precisely the failure this
   module exists to prevent, and a test that only read the screen could not tell
   the two apart.
+
+---
+
+## Module 13 — pickup time selection, arrival window and pre-checkout validation
+
+The module ends when a customer has a valid cart, a feasible selected pickup
+window, current pre-checkout validation and a backend-generated
+`ready_for_checkout` — and not one step further. No order, no payment, no
+pickup code, no restaurant workflow.
+
+### The arithmetic
+
+- **M13-001 Preparation is the maximum of the lines, never the sum.** A kitchen
+  cooks several dishes at once. `PreparationEstimateService`; proved live with
+  two dishes reading 20 minutes rather than 40 in
+  [evidence/module-13-verification-run.txt](evidence/module-13-verification-run.txt).
+
+- **M13-002 Quantity does not multiply preparation.** Three portions of a
+  fifteen-minute dish is fifteen minutes. V1 has no evidence about batch sizes
+  and inventing a multiplier would be inventing a number.
+
+- **M13-003 Preparation precedence = variant → item → restaurant default →
+  platform fallback.** Nought and null are both "not set"; the platform fallback
+  is logged every time it is reached, because a menu relying on it is a menu
+  somebody has not finished setting up.
+
+- **M13-004 Modifier preparation is NOT APPLICABLE.** There is no column for it
+  in this schema. Recorded as absent rather than approximated.
+
+- **M13-005 `earliest_ready_at = now + preparation + buffer`, floored at
+  `now + minimum_lead`.** A floor, not an addition: forty minutes of cooking is
+  forty, not fifty. `PickupPlanningServiceTest` covers both halves separately,
+  because one active cart per journey makes them two tests.
+
+- **M13-006 The operational buffer is a restaurant override falling back to a
+  platform default, applied exactly once.** It is a duration and never a charge,
+  and it reaches no total. **Zero is a real answer** and is not read as unset.
+
+- **M13-007 `recommended = max(arrival, earliest_ready)`, rounded FORWARD.**
+  Rounding back would recommend a time the kitchen cannot meet. Proved live:
+  arrival 06:01, ready 05:19, recommendation 06:10.
+
+### Windows
+
+- **M13-008 Windows are generated on a configurable interval and duration**,
+  and only where every condition holds: at or after earliest-ready, at or after
+  `now + lead`, entirely inside an opening window including its end, at or
+  before the last-order cutoff, within the horizon, and the restaurant open and
+  accepting orders.
+
+- **M13-009 Every hours comparison happens in the restaurant's own IANA zone**,
+  never at a fixed offset. `PickupWindowGeneratorTest` includes a UK
+  spring-forward case, and `PickupTimeApiTest` walks the whole flow through the
+  jump — with the restaurant's closing hour chosen so that reading the hours as
+  UTC gives a different answer, which is what makes the control fire.
+
+- **M13-010 Overnight hours are handled by timezone-aware interval arithmetic**,
+  not by special-casing midnight.
+
+- **M13-011 `day_of_week` is 0 for MONDAY.** The one convention in this schema.
+  A defect where the generator read Carbon's (Sunday 0) is recorded as
+  [BUG-M13-001](13-known-issues.md).
+
+- **M13-012 One window per start, however many opening rows produce it.**
+  Overlapping rows are legitimate data; offering "1:00 PM" twice in a list of
+  eight is a shorter list than it looks. [BUG-M13-002](13-known-issues.md).
+
+- **M13-013 The last-order cutoff is configurable and defaults to NOUGHT.**
+  The schema has no `last_order_at`, and inventing a hidden fifteen-minute rule
+  would be a rule no operator agreed to and no customer could discover.
+
+- **M13-014 The horizon binds a window's START.** A window beginning inside the
+  horizon and running ten minutes past it is within how far ahead a customer may
+  plan; truncating it would drop the last option for no visible reason.
+
+- **M13-015 Which windows are offered is capped from the RECOMMENDATION
+  forward**, not from the earliest-ready time. The first eight from earliest-ready
+  would all fall before the customer could arrive. When arrival is past every
+  window there is no recommendation and the last N are offered — the ones
+  nearest to being reachable.
+
+### The ETA boundary
+
+- **M13-016 `ArrivalEstimateProvider` is a seam in the code, not a paragraph in
+  a document.** `PlannedRouteArrivalEstimateProvider` is today's implementation;
+  the live engine replaces one binding in `PickupServiceProvider` and no
+  arithmetic moves.
+
+- **M13-017 This is NOT the ETA engine, and the module does not claim to be.**
+  Travel comes from the planned route on the assumption the customer sets off
+  now. That is the module's largest approximation and is stated on the class,
+  in [28-pickup-time-planning.md](28-pickup-time-planning.md) and here.
+
+- **M13-018 Planning costs no routing-provider call.** Generating windows,
+  switching between them, selecting one and pre-checkout validation all read
+  rows this platform already holds. The only provider call in this area is a
+  journey refresh the customer asks for, which is Module 06's endpoint.
+
+- **M13-019 A stale route is refused, never silently recalculated.**
+  `requires_route_refresh` is set and the screen offers **Refresh journey**; the
+  app never triggers a billed call on its own.
+
+### Options and selection
+
+- **M13-020 `POST /trips/{trip}/cart/pickup-options`** — a POST because it is a
+  calculation over live state whose answers are short-lived and whose side
+  effect is writing them down.
+
+- **M13-021 `PUT /trips/{trip}/cart/pickup-selection` takes `pickup_option_id`
+  and nothing else.** **There is no field in either request that could carry a
+  time.** No signed base64 timing payload: a signed payload still has to be
+  verified correctly on every path, and the day one path forgets, a customer
+  names their own pickup time.
+
+- **M13-022 Option ids are 256 bits from the CSPRNG, opaque and structureless.**
+  No index, no cart id, nothing to read or shift. Asserted on the wire by
+  `PickupTimeApiTest::test_the_response_carries_no_timestamp_the_client_could_send_back`.
+
+- **M13-023 OPTION IDOR — one customer cannot use another's id.** The cache key
+  is scoped to the customer, which makes it structurally impossible rather than
+  merely checked; the record it resolves to also carries the customer and the
+  selection service compares it. Two mechanisms for the guarantee the
+  specification calls mandatory.
+
+- **M13-024 Expired, forged and belonging-to-somebody-else are indistinguishable.**
+  One code for all three. Telling them apart answers "does this id exist" for
+  anybody who asks.
+
+- **M13-025 An option is tied to its cart, journey and restaurant**, and a
+  customer's own id from a different journey is refused.
+
+- **M13-026 A used option id is retired.** Proved live: replaying the id that
+  was just accepted is refused.
+
+- **M13-027 Selection re-checks every condition**: the owner, the cart, the
+  journey, the restaurant, the planning fingerprint, and whether the window is
+  still one the kitchen can honour. The plan that produced an option was true
+  when it was produced; selection is a different moment.
+
+- **M13-028 The chosen window is stored in UTC and reported on the counter's
+  clock.** The column holds an instant; `pickup_timezone` travels beside it. Two
+  defects came from getting this split wrong — [BUG-M13-003](13-known-issues.md)
+  and [BUG-M13-005](13-known-issues.md).
+
+### The planning fingerprint
+
+- **M13-029 A selection is bound to a fingerprint** over the cart's version, the
+  selected route's uuid and `calculated_at`, the restaurant's uuid, its
+  accepting-orders flag and status, its opening-hours fingerprint, and the
+  planning configuration version.
+
+- **M13-030 `carts.version` increments on every CONTENTS change, atomically.**
+  Deliberately not on a price change: a dish going up in price does not alter
+  how long the kitchen needs, and invalidating a good window over it would be
+  caution the customer experiences as breakage.
+
+- **M13-031 The fingerprint ignores the order opening-hours rows were written
+  in.** Two identical schedules inserted differently are the same schedule.
+
+- **M13-032 The fingerprint is never published.** It is an internal comparison
+  value; returning it would tell a client what the server hashes.
+
+### Selection status
+
+- **M13-033 Only NONE and SELECTED are ever written.** STALE and INVALID are
+  conclusions about the customer's intent held against the world, computed by
+  `PickupSelectionEvaluator` on every read. A column reading SELECTED after the
+  restaurant edits its hours is not wrong because a job failed to run — a column
+  cannot know.
+
+- **M13-034 These are deliberately NOT order statuses.** No order exists in this
+  module and none can.
+
+### Pre-checkout
+
+- **M13-035 `POST /trips/{trip}/cart/pre-checkout-validate`** — a POST that
+  writes nothing. The verb is about caching, not side effects: this renders a
+  point-in-time go/no-go, and a stale judgement is somebody at a payment screen
+  for a kitchen that has shut. Module 12's `revalidate` reports facts and stays
+  a GET.
+
+- **M13-036 `ready_for_checkout` is computed by the backend, in one place.**
+  Not a field a request can carry: `test_a_client_cannot_talk_the_server_into_saying_yes`
+  posts a body claiming it and gets back no.
+
+- **M13-037 It never says yes over** an unreviewed price rise, a sold-out line,
+  a paused kitchen, a stale route, a stale pickup selection, or no selection at
+  all. One test each, and each asserts the answer is **no** rather than merely
+  that a problem was listed.
+
+- **M13-038 A price that has fallen is reported and does not block.** Nobody
+  needs a dialogue to be charged less — but they should be told.
+
+- **M13-039 Validating writes nothing**, including its own conclusion. A
+  validator that corrected the thing it was validating would disagree with
+  itself on the second run.
+
+### What is not built, and is asserted not to be
+
+- **M13-040 No order, no order number, no pickup code, no payment, no capacity
+  reservation.** Tests in both the API suite and the device suite assert the
+  `orders`, `order_items`, `payments` and `pickup_codes` tables **do not exist**
+  — the check that would catch somebody getting ahead of the module.
+
+- **M13-041 No WebSockets, no FCM, no live GPS tracking, no early/late
+  detection, no QR pickup, no restaurant accept/reject, no cooking or ready
+  workflow, no multi-day scheduling.** None of these appears in the diff.
+
+### Security and privacy
+
+- **M13-042 Mass assignment is impossible.** Every pickup column is written by
+  `forceFill` against names the service states. A request carrying
+  `requested_pickup_start_at`, `pickup_selection_status`, `version`,
+  `restaurant_id` and `ready_for_checkout` changes none of them, and there is a
+  test that sends all five.
+
+- **M13-043 Nothing operational reaches the wire.** No internal notes, no
+  commission rate, no owner contact details, no bank reference, no tax
+  identifier, no per-line preparation breakdown, and no fingerprint. Asserted by
+  searching the raw response body rather than the parsed shape.
+
+- **M13-044 A refusal never names why a restaurant is unavailable.** "Suspended"
+  tells anybody who can guess a name something the platform has not published.
+
+- **M13-045 Ownership is proved by the journey in the path**, as everywhere else
+  in this API. Another customer's journey is a 404.
+
+### Client discipline
+
+- **M13-046 The Flutter app computes no time and decides no feasibility.** It
+  renders what the server worked out and sends back an opaque id. The repository
+  interface has **no parameter a time could go in**.
+
+- **M13-047 The app formats the counter's clock, not the phone's.**
+  `DateTime.parse` discards the offset the server sent, so the models keep the
+  wall-clock fields beside each instant: one for arithmetic, one for reading.
+  [BUG-M13-003](13-known-issues.md).
+
+- **M13-048 An unrecognised selection status reads as "nothing chosen".** A
+  build that meets a status it cannot interpret must not treat it as settled.
+
+- **M13-049 An issue with an unknown code is kept, with its message and its
+  blocking flag.** Both come from the server, so an old build handles a new
+  issue correctly rather than ignoring it.
+
+- **M13-050 `ready_for_checkout` is read, never derived from the issue list.**
+  The test that pins it is the sharpest case: the server refuses and lists
+  nothing the client can point at, and the screen still says no.
+
+### Verification
+
+- **M13-051 1,081 backend tests and 833 Flutter tests pass.** Pint clean,
+  `dart analyze --fatal-infos` clean, `dart format` clean.
+
+- **M13-052 Sixty-three negative controls were run against this module's code**
+  across five batches. Fifty-five fired. Every one that stayed silent was
+  chased rather than waved through, and what each exposed is recorded in
+  [15-test-evidence.md](15-test-evidence.md) — including two cases where the
+  test was strengthened and one where an assertion was labelled in the test
+  itself as currently unreachable.
+
+- **M13-053 The whole flow was driven against a live server**, with the output
+  recorded rather than transcribed:
+  [evidence/module-13-verification-run.txt](evidence/module-13-verification-run.txt).
+
+- **M13-054 On-device runs are whatever CI reports**, never what a commit
+  message claims. This development machine has no Android SDK and no macOS host
+  (KI-001, KI-002).

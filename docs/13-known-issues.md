@@ -1060,3 +1060,105 @@ The fixture now matches what the server sends, and the screen reads the name
 from `details`.
 
 No Module 12 issue was left open. No Critical defect was found.
+
+---
+
+## Module 13 — pickup time, arrival windows and pre-checkout validation
+
+Five defects, all found and fixed inside the module. Three of them were found by
+tests that had to be written or strengthened first, which is the interesting
+part of each entry.
+
+### M13-B01 — every restaurant's schedule was shifted by a day — **High** — FIXED
+
+`PickupWindowGenerator` read `day_of_week` with Carbon's convention, where
+Sunday is 0. **The column is 0 for MONDAY**, as `RestaurantAvailabilityService`
+and `RestaurantHoursService` both already had it and as the model's own docblock
+states. The same row therefore said "open Monday" to pickup planning and "open
+Tuesday" to discovery.
+
+The unit test was green, and that is the part worth reading. It asserted only
+that a *closed* day offered nothing — which is exactly what the wrong convention
+produced, because under it the open day looked closed. The test agreed with the
+mistake.
+
+It now pins both directions: day 0 is open on a Monday **and** shut on a
+Tuesday. Shift the reading either way and one of the two assertions fails.
+
+**What it taught.** A test that only ever asks "is this empty?" cannot tell a
+correct emptiness from an incorrect one. Asserting the negative case alone is
+half a test.
+
+### M13-B02 — overlapping opening rows offered every window twice — **Medium** — FIXED
+
+An operator who adds a second window rather than editing the first — 09:00–14:00
+and then 12:00–22:00 — produced two identical windows for every hour the two
+share. A customer offered "1:00 PM" twice in a list of eight has a shorter list
+than it looks, from a cause they could never guess.
+
+Windows are now collapsed by start-and-end instant. Found while diagnosing a
+different failure: the fixture helper `nearRoute` already opens a restaurant all
+week, and a test that added a second schedule on top of it produced exactly this
+state by accident.
+
+### M13-B03 — a pickup time stored five and a half hours out — **High** — FIXED
+
+The pickup window is carried in the restaurant's own timezone, because that is
+the clock the counter runs on. **Eloquent writes a zoned date-time by formatting
+it, not by converting it** — so a 1:40 PM Kolkata window went into the UTC
+column as `13:40 UTC`, which is 7:10 PM in Kolkata.
+
+In the one column this module exists to get right.
+
+Converted explicitly at the write, with the zone kept beside the instants in
+`pickup_timezone` rather than baked into them. Caught by an API test comparing
+the stored instant against the offered one — a comparison that only works
+because it compares *instants* and not their rendering.
+
+### M13-B04 — the app would have rendered a Delhi pickup on the phone's clock — **High** — FIXED
+
+The client half of the same split. `DateTime.parse` discards the offset: given
+`2026-09-07T13:40:00+05:30` it returns the right instant flagged UTC, so the
+only things a screen can do with it are render UTC or convert to the device's
+zone. A Delhi pickup read on a phone set to London would have said 8:10 am when
+the door says 1:40 pm.
+
+The models now keep the counter's clock face beside each instant — one for
+arithmetic, one for reading. Found by a model test written specifically because
+the widget fakes built objects directly and left every line of JSON parsing
+uncovered.
+
+**What it taught.** The screen's comment claimed this was handled while the code
+did the opposite. A comment is not a test.
+
+### M13-B05 — the same moment reported on two different clocks — **High** — FIXED
+
+The chosen window came back in UTC while the options beside it came back in the
+restaurant's zone. On a real device that rendered as "Collecting between
+12:50 am – 1:00 am" above a list beginning "6:20 am – 6:30 am": the same moment,
+twice, five and a half hours apart, with nothing to tell a customer which one
+the restaurant means.
+
+Each half was individually correct — the column holds UTC as every timestamp in
+this schema does, and the planner emits zone-aware instants — and the response as
+a whole was not. **No unit test could have caught it**, because there was
+nothing wrong with either side on its own.
+
+It took the first screen that renders both halves together, which is precisely
+what an on-device run is for. Found by the Android emulator job on the first
+run of `module_13_pickup_test.dart`.
+
+### Not a defect: `INVALID` is narrow in production
+
+With the shipped fifteen-minute route freshness, a chosen window almost always
+ages the route out before it passes, so `ROUTE_STALE` fires first. That is the
+right precedence and the more actionable message. The test isolates `INVALID` by
+holding the route fresh and says why; the status is not dead, it is simply rare
+until something refreshes routes in the background.
+
+### Not a defect: two assertions that cannot currently fail
+
+`PickupPlanningServiceTest::test_no_offered_window_starts_before_the_food_is_ready`
+is guarded at two independent points and no single-point mutation reaches it.
+This is recorded **in the test itself** rather than left to look load-bearing.
+The two points that do the guarding have controls of their own that fire.

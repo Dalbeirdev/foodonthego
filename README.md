@@ -12,31 +12,41 @@ immediately and letting it sit; the product is the *timing*.
 
 ---
 
-## Status — Modules 01–02 complete
+## Status — Modules 01–13 complete
 
-**Module 01** — foundation: architecture, design system, API contract, database conventions,
-security baseline, web shells, CI, documentation.
+A customer can sign in with a phone number, plan a journey, see the route,
+discover restaurants along it, search and filter them, open one, read its menu,
+configure a dish, add it to a cart, correct that cart, see what it costs, and
+**choose when to collect it** — with the server deciding every price and every
+time.
 
-**Module 02** — the customer mobile app: Riverpod + go_router architecture, a premium Home with
-three states, five navigation destinations, offline/loading/error systems, and development fixtures
-isolated from production builds.
-
-**No business feature is implemented.** No authentication, journey planner, restaurant search,
-ordering, payments or ETA engine. Every route without a feature behind it goes to a controlled
-placeholder naming the module that will deliver it — never a dead button, never silence.
+**What is still not built**, and no screen pretends otherwise: checkout,
+payment, order creation, order numbers, pickup codes, the restaurant's
+accept/reject and cooking workflows, live GPS tracking, notifications, and the
+ETA engine. Module 13's travel figure comes from the planned route on the
+assumption the customer sets off now — that is an approximation, and it is
+labelled as one everywhere it appears.
 
 | | Result |
 | --- | --- |
-| Automated tests | **178 passed**, 0 failed, 0 skipped (67 backend · 29 web · 82 mobile) |
-| Static checks | Pint ✅ · TypeScript 0 errors ✅ · `flutter analyze --fatal-infos` clean ✅ · `dart format` clean ✅ |
+| Automated tests | **1,914 passed** (1,081 backend · 833 mobile), plus 29 web |
+| Static checks | Pint ✅ · TypeScript 0 errors ✅ · `dart analyze --fatal-infos` clean ✅ · `dart format` clean ✅ |
 | Dependency audits | `composer audit` clean ✅ · `npm audit` 0 vulnerabilities ✅ |
-| Live API | MySQL 1.9 ms · Redis 0.59 ms, verified through a browser |
-| Responsive — web | 8 widths × 2 shells, no overflow, no console errors |
-| Responsive — mobile | 6 sizes, 320 → 768dp, rendered and inspected |
-| Android build/device | **PENDING** — SDK host denied by this environment's egress policy |
-| iOS build/simulator | **PENDING** — requires macOS + Xcode |
+| On-device | Android emulator and iOS simulator run the whole `integration_test/` directory in CI, against a real Laravel server and MySQL |
+| Live server runs | Recorded as output per module in [`docs/evidence/`](docs/evidence/) |
+
+Two things a reader should know before trusting the numbers above:
+
+- **Nothing is claimed as passing on a device unless CI says so.** This
+  development environment has no Android SDK and no macOS host, so a device
+  result is whatever the emulator and simulator report — never what a commit
+  message asserts.
+- **The tax rate and both fees are nought.** The mechanism is built and tested
+  with non-zero values; the figures are a business input and must be set before
+  commercial launch.
 
 Full evidence: [`docs/15-test-evidence.md`](docs/15-test-evidence.md).
+Honest list of what is broken or missing: [`docs/13-known-issues.md`](docs/13-known-issues.md).
 
 ## Architecture
 

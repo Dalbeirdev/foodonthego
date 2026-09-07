@@ -1002,3 +1002,71 @@ instant that broke the first is kept as coverage.
 The second time this has happened. The first was `CLOSING_SOON`, where the
 service *was* wrong. An availability assertion that does not pin the clock is a
 scheduled failure.
+
+---
+
+## Module 13 — Pickup Time Selection, Arrival Window & Pre-Checkout Validation
+
+### Added
+
+**Backend**
+- `carts.version`, `pickup_selection_status`, `requested_pickup_start_at`,
+  `requested_pickup_end_at`, `pickup_timezone`, `pickup_selected_at`,
+  `pickup_planning_fingerprint`; `restaurants.operational_buffer_minutes`
+- `PickupSelectionStatus` (`NONE`, `SELECTED`, `STALE`, `INVALID`) — deliberately not order statuses
+- `ArrivalEstimate`, `ArrivalEstimateProvider`, `PlannedRouteArrivalEstimateProvider` — the ETA boundary as a code seam
+- `PreparationEstimate`, `PreparationEstimateService` — maximum of the lines, never the sum
+- `PickupWindow`, `PickupWindowGenerator` — timezone-aware, overnight-aware, de-duplicating
+- `PickupPlan`, `PickupPlanningService` — the one place the arithmetic lives
+- `PlanningFingerprint` — cart version, route uuid and `calculated_at`, restaurant uuid, accepting-orders, status, hours, config version
+- `PickupOptionStore`, `PickupOptionRecord`, `PickupOptionSelectionService` — opaque single-use ids, keyed per customer
+- `PickupSelectionEvaluator` — derives `STALE` and `INVALID` rather than storing them
+- `PreCheckoutIssue`, `PreCheckoutValidation`, `PreCheckoutValidationService`
+- `PickupController`; `POST .../pickup-options`, `PUT .../pickup-selection`, `POST .../pre-checkout-validate`
+- `PickupServiceProvider`
+- `foodonthego.pickup` configuration block, every value an env override
+
+**Mobile**
+- `PickupSelectionStatus`, `PickupOption`, `PickupSelection`, `PickupPlan`, `PickupView`
+- `PreCheckoutIssueCode`, `PreCheckoutIssue`, `PreCheckoutResult`
+- `PickupRepository`, `ApiPickupRepository`; `ApiClient.put`
+- `PickupController` / `PickupState`, `pickupControllerProvider`
+- `PickupTimeScreen`, `PickupTimeChip`, `PickupExplanationCard`
+- `Routes.tripPickup`, and the way in from the cart
+- Ten pickup error codes on `ApiErrorCode`
+
+**Tests**
+- `PickupWindowGeneratorTest` (9), `PickupPlanningServiceTest` (22)
+- `PickupTimeApiTest` (18), `PreCheckoutValidationApiTest` (14)
+- `pickup_models_test.dart` (14), `pickup_time_screen_test.dart` (22)
+- `integration_test/module_13_pickup_test.dart` (7, on device)
+- `CartFixtures`, `FakePickupRepository`
+
+### Changed
+
+- `carts.version` now increments atomically on every **contents** change, and
+  deliberately not on a price change
+- `Cart::touchActivity()` became `Cart::recordContentChange()` — one name for
+  what it actually does
+- `PickupController::selectionArray` expresses the stored instants on the
+  restaurant's clock, matching the options beside them
+
+### Removed
+
+Three error codes, each before anything raised it:
+
+- `PREPARATION_DATA_UNAVAILABLE` — preparation always falls through to a
+  platform default, so it could never honestly be returned
+- `PICKUP_OPTION_NOT_FOUND` — expired, forged and stolen must not be
+  distinguishable
+- `CART_VERSION_CONFLICT` — the cart's version is one of the facts the planning
+  fingerprint covers, so that condition already comes back as
+  `PICKUP_OPTION_STALE`
+
+A code the API documents and never returns is a promise nothing keeps.
+
+### Still outstanding for the business
+
+**The tax rate and both fees remain nought.** Unchanged from Module 12, and
+still a business input rather than a code decision. They must be set before
+commercial launch.

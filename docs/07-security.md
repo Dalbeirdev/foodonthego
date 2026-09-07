@@ -571,3 +571,52 @@ somebody typed.
 Suspended and nonexistent restaurants both answer 404 with different error
 codes, as documented in Module 09 and again in Module 10. Module 11 inherits it
 rather than diverging.
+
+---
+
+## Module 13 — pickup times
+
+### The client is trusted with nothing about time
+
+A pickup window is chosen by sending an **opaque id the server minted**, and
+there is no field in either the options or the selection request that could
+carry a time. Not "the server validates the time it is sent" — there is nothing
+to send. A test posts a body carrying `requested_pickup_start_at`,
+`pickup_selection_status`, `version`, `restaurant_id` and `ready_for_checkout`
+and none of them changes anything.
+
+Deliberately not a signed timing payload. A signed payload still has to be
+verified correctly on every path, and the day one path forgets, a customer names
+their own pickup time. An opaque id that resolves to a server-written record has
+nothing in it to tamper with.
+
+### Option IDOR is structural, not checked
+
+Option ids live under a cache key scoped to the customer, so another customer's
+id is looked for under the wrong prefix and simply is not there — no branch to
+get wrong, no comparison to forget. The record it would resolve to also carries
+the customer, and the selection service compares it with `hash_equals`. Two
+mechanisms for the guarantee the specification calls mandatory.
+
+### One answer for three different failures
+
+Expired, never existed, and belonging to somebody else all return
+`PICKUP_OPTION_EXPIRED`. Distinguishing them would answer "does this id exist"
+for anyone who asked, and the only person who asks is somebody trying ids.
+
+### Server time, always
+
+Every instant in this module comes from the server's clock. `$now` is injectable
+only so tests can fix a moment and is never populated from a request. A device
+whose clock is an hour fast would otherwise be handed windows in the past and
+told they were fine.
+
+### What does not reach the wire
+
+No internal notes, commission rate, owner contact details, bank reference or tax
+identifier; no per-line preparation breakdown; no capacity or staffing figure;
+and **not the planning fingerprint**, which is an internal comparison value.
+Asserted by searching the raw response body rather than the parsed shape.
+
+A refusal never names *why* a restaurant is unavailable. "Suspended" tells
+anybody who can guess a name something the platform has not published.

@@ -1964,3 +1964,64 @@ by a rendered-release-build inspection of the kind Modules 09–11 recorded.
 The tax rate and both fees are **nought**, and the mechanism is tested with
 non-zero values in fixtures only. No production rate has been set, and none was
 guessed.
+
+---
+
+## Module 13 — pickup time, arrival windows and pre-checkout validation
+
+| | |
+| --- | --- |
+| Backend, PHPUnit | **1,081 passed**, 4,658 assertions |
+| Mobile, `flutter test` | **833 passed** |
+| Pint / `dart analyze --fatal-infos` / `dart format` | clean |
+| Live server run | recorded in [`evidence/module-13-verification-run.txt`](evidence/module-13-verification-run.txt) |
+| On device | whatever the emulator and simulator report — never what a commit claims |
+
+### The live run
+
+Driven over HTTP against a real Laravel server, real MySQL and real Redis, with
+the output recorded rather than transcribed:
+
+```
+travel 66 min, arrival 00:31Z = 06:01 Asia/Kolkata
+kitchen ready 23:49Z          = 05:19 local
+max(arrival, ready) = 06:01, rounded FORWARD -> 06:10 recommended
+stored selection 00:40Z, which is 06:10 local
+```
+
+Two dishes gave **20 minutes of preparation, not 40** — the maximum rather than
+the sum, live rather than only in a unit test. Adding a dish after choosing a
+time moved `ready_for_checkout` from true to false with status `STALE`. A used
+option id, a forged one and a request carrying its own pickup time were all
+refused with the **same** code. The `orders`, `order_items`, `payments` and
+`pickup_codes` tables were all absent.
+
+### Negative controls
+
+**Sixty-three run, fifty-five fired.** The eight that stayed silent are the ones
+worth recording, because each exposed something:
+
+| What was mutated | What it exposed |
+| --- | --- |
+| Recommendation rounds back | The mutation could not distinguish the case the test used. A generator-level control fires instead, and the planner is insensitive to it by design. |
+| Fingerprint reacts to a price change | The mutation did not model the risk — it summed stored line prices, which a menu price change does not move. Re-run against the menu price, and it fired. |
+| Option not bound to its cart | Only one clause of a three-clause condition was disabled. Disabling the whole condition fired. |
+| Token-shape guard removed | The guard is **hygiene, not the defence** — a cache key is a literal string, so a `*` selects nothing. The comment now says so, and the lookup that does refuse has its own control. |
+| Readiness derived from blockers | The mutation agreed with the server in that scenario. A sharper test was added: the server refuses and lists nothing, and the screen still says no. |
+| Unknown issue code dropped | The widget fakes build objects directly, so **no JSON parsing was covered at all**. `pickup_models_test.dart` was written for it, and the control then fired. |
+| Screen formats the instant | The fake's own options made the counter clock and the instant identical. It now builds them through the real parser from strings carrying an offset. |
+| Past-window check disabled | Genuinely subsumed by the feasibility test in every shipped configuration. Recorded **in the test itself** rather than left to look load-bearing. |
+
+Three of those eight ended in a test being strengthened, one in a comment being
+corrected to say what the code actually does, one in a whole test file being
+written, and one in an assertion being labelled honestly as unreachable.
+
+### What the device run found
+
+The first execution of `module_13_pickup_test.dart` on the Android emulator
+failed two of seven. One was a **real API defect** — the chosen window reported
+in UTC while the options beside it reported in the restaurant's zone, rendering
+as "12:50 am" above a list starting "6:20 am". Each half was correct alone, so
+no unit test could have caught it; it took the first screen to render both
+together. The other two were bugs in the test, both recorded in
+[13-known-issues.md](13-known-issues.md) and in the commit that fixed them.
