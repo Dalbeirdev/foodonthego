@@ -28,10 +28,12 @@ import 'package:foodonthego/domain/repositories/customer_repository.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
 import 'package:foodonthego/domain/repositories/place_repository.dart';
 import 'package:foodonthego/domain/models/cart.dart';
+import 'package:foodonthego/domain/models/cart_revalidation.dart';
 import 'package:foodonthego/domain/models/menu_customization.dart';
 import 'package:foodonthego/domain/models/money.dart';
 import 'package:foodonthego/domain/models/restaurant_detail.dart';
 import 'package:foodonthego/domain/models/restaurant_menu.dart';
+import 'package:foodonthego/domain/repositories/cart_repository.dart';
 import 'package:foodonthego/domain/repositories/menu_repository.dart';
 import 'package:foodonthego/domain/repositories/discovery_repository.dart';
 import 'package:foodonthego/domain/repositories/restaurant_repository.dart';
@@ -1500,6 +1502,7 @@ Widget wrapApp({
   FakeDiscoveryRepository? discovery,
   FakeRestaurantRepository? restaurants,
   FakeMenuRepository? menus,
+  FakeCartRepository? carts,
   bool signedIn = true,
 }) {
   final FakeAuthRepository authRepository = auth ?? FakeAuthRepository();
@@ -1535,6 +1538,7 @@ Widget wrapApp({
         restaurants ?? FakeRestaurantRepository(),
       ),
       menuRepositoryProvider.overrideWithValue(menus ?? FakeMenuRepository()),
+      cartRepositoryProvider.overrideWithValue(carts ?? FakeCartRepository()),
       locationServiceProvider.overrideWithValue(
         location ?? FakeLocationService(),
       ),
@@ -2223,3 +2227,266 @@ RestaurantImage sampleImage({
   String url = 'https://cdn.example.test/1.jpg',
   String? altText,
 }) => RestaurantImage(id: id, url: url, thumbnailUrl: url, altText: altText);
+
+/// A customer's cart, without a server.
+///
+/// Applies the server's own rules rather than accepting anything, because a
+/// fake that said yes to everything would let the screen pass its tests while
+/// doing something the real backend refuses. Specifically:
+///
+/// - A quantity below one is refused with `QUANTITY_INVALID`, never treated as
+///   a removal.
+/// - A quantity above [maxQuantity] is refused with `QUANTITY_LIMIT_EXCEEDED`.
+/// - A line total is `unitPrice × quantity`, recomputed here — the caller
+///   cannot send one, because there is no parameter to send it in.
+/// - Removing the last line, or emptying, leaves **no cart** rather than an
+///   empty one, exactly as closing does on the server.
+///
+/// Every request is recorded, so a test can prove what the screen put on the
+/// wire — and, more usefully, prove what it did not.
+class FakeCartRepository implements CartRepository {
+  FakeCartRepository({List<CartLine>? lines, this.maxQuantity = 20})
+    : _lines = <CartLine>[...?lines];
+
+  final List<CartLine> _lines;
+
+  final int maxQuantity;
+
+  String restaurantName = 'Highway Spice Kitchen';
+
+  /// Charges applied on top of the subtotal, as the server would.
+  int taxRateBps = 0;
+  int packagingFeeMinor = 0;
+  int platformFeeMinor = 0;
+
+  /// What revalidation says. Null means "nothing wrong", which the fake turns
+  /// into a clean verdict over whatever lines it holds.
+  CartRevalidation? revalidationToReturn;
+
+  /// Thrown by the next matching call and then cleared, so a test can script
+  /// one failure followed by a success.
+  ApiException? nextReadError;
+  ApiException? nextWriteError;
+
+  int readCalls = 0;
+  int revalidateCalls = 0;
+  int quantityCalls = 0;
+  int removeCalls = 0;
+  int emptyCalls = 0;
+
+  /// The quantities asked for, in order. A test asserting that a stepper never
+  /// sends a zero reads this.
+  final List<int> quantitiesRequested = <int>[];
+
+  /// The idempotency keys the screen used, so a retry can be proved to replay
+  /// rather than repeat.
+  final List<String?> keysUsed = <String?>[];
+
+  List<CartLine> get snapshot => List<CartLine>.unmodifiable(_lines);
+
+  @override
+  Future<CartView> cart({required String tripId}) async {
+    readCalls++;
+    _throwRead();
+
+    return _view();
+  }
+
+  @override
+  Future<RevalidatedCart> revalidate({required String tripId}) async {
+    revalidateCalls++;
+    _throwRead();
+
+    return RevalidatedCart(view: _view(), revalidation: _verdict());
+  }
+
+  @override
+  Future<CartView> setQuantity({
+    required String tripId,
+    required String lineId,
+    required int quantity,
+    String? idempotencyKey,
+  }) async {
+    quantityCalls++;
+    quantitiesRequested.add(quantity);
+    keysUsed.add(idempotencyKey);
+    _throwWrite();
+
+    // The server's rules, applied here. Zero is refused rather than read as a
+    // removal, and the client is not trusted to have checked.
+    if (quantity < 1) {
+      throw const ApiException(
+        code: ApiErrorCode.quantityInvalid,
+        message: 'Choose at least one, or remove the item.',
+      );
+    }
+
+    if (quantity > maxQuantity) {
+      throw ApiException(
+        code: ApiErrorCode.quantityLimitExceeded,
+        message: 'You can have up to $maxQuantity of one item.',
+      );
+    }
+
+    final int index = _lines.indexWhere((CartLine l) => l.id == lineId);
+
+    if (index < 0) {
+      throw const ApiException(
+        code: ApiErrorCode.itemNotFound,
+        message: 'That item is not in your cart.',
+      );
+    }
+
+    final CartLine line = _lines[index];
+
+    _lines[index] = CartLine(
+      id: line.id,
+      itemId: line.itemId,
+      name: line.name,
+      variantName: line.variantName,
+      quantity: quantity,
+      unitPrice: line.unitPrice,
+      // Recomputed from the unit price, never scaled from the old total and
+      // never taken from the request.
+      lineTotal: Money(
+        amountMinor: line.unitPrice.amountMinor * quantity,
+        currency: line.unitPrice.currency,
+      ),
+      specialInstructions: line.specialInstructions,
+      modifiers: line.modifiers,
+    );
+
+    return _view();
+  }
+
+  @override
+  Future<CartView> removeLine({
+    required String tripId,
+    required String lineId,
+    String? idempotencyKey,
+  }) async {
+    removeCalls++;
+    keysUsed.add(idempotencyKey);
+    _throwWrite();
+
+    _lines.removeWhere((CartLine l) => l.id == lineId);
+
+    return _view();
+  }
+
+  @override
+  Future<CartView> empty({
+    required String tripId,
+    String? idempotencyKey,
+  }) async {
+    emptyCalls++;
+    keysUsed.add(idempotencyKey);
+    _throwWrite();
+
+    _lines.clear();
+
+    return _view();
+  }
+
+  void _throwRead() {
+    final ApiException? error = nextReadError;
+
+    if (error != null) {
+      nextReadError = null;
+      throw error;
+    }
+  }
+
+  void _throwWrite() {
+    final ApiException? error = nextWriteError;
+
+    if (error != null) {
+      nextWriteError = null;
+      throw error;
+    }
+  }
+
+  /// An emptied cart is the absence of a cart, exactly as the server reports a
+  /// closed one.
+  CartView _view() {
+    if (_lines.isEmpty) return const CartView.empty();
+
+    final int subtotal = _lines.fold<int>(
+      0,
+      (int sum, CartLine l) => sum + l.lineTotal.amountMinor,
+    );
+
+    final String currency = _lines.first.lineTotal.currency;
+
+    Money money(int minor) => Money(amountMinor: minor, currency: currency);
+
+    // Round half up, in integers, on the subtotal once — the server's rule,
+    // reproduced so a test that checks a total is checking the same
+    // arithmetic.
+    final int tax = taxRateBps <= 0
+        ? 0
+        : (subtotal * taxRateBps + 5000) ~/ 10000;
+
+    return CartView(
+      cart: Cart(
+        id: 'cart-1',
+        restaurantId: 'restaurant-1',
+        restaurantName: restaurantName,
+        tripId: 'trip-1',
+        lines: List<CartLine>.unmodifiable(_lines),
+        totals: CartTotals(
+          subtotal: money(subtotal),
+          tax: money(tax),
+          packagingFee: money(packagingFeeMinor),
+          platformFee: money(platformFeeMinor),
+          total: money(subtotal + tax + packagingFeeMinor + platformFeeMinor),
+        ),
+        itemCount: _lines.fold<int>(0, (int n, CartLine l) => n + l.quantity),
+        lineCount: _lines.length,
+      ),
+      itemCount: _lines.fold<int>(0, (int n, CartLine l) => n + l.quantity),
+      lineCount: _lines.length,
+    );
+  }
+
+  CartRevalidation _verdict() =>
+      revalidationToReturn ??
+      CartRevalidation(
+        canProceed: true,
+        unchanged: true,
+        restaurantAcceptingOrders: true,
+        lines: <CartLineVerdict>[
+          for (final CartLine line in _lines)
+            CartLineVerdict(
+              cartItemId: line.id,
+              name: line.name,
+              variantName: line.variantName,
+              quantity: line.quantity,
+              blocksOrdering: false,
+              priceWhenAdded: line.unitPrice,
+              priceNow: line.unitPrice,
+            ),
+        ],
+      );
+}
+
+/// A cart line, with the fields a test cares about and sensible everything else.
+CartLine sampleCartLine({
+  String id = 'line-1',
+  String name = 'Paneer Tikka',
+  String? variantName = 'Large',
+  int quantity = 1,
+  int unitPriceMinor = 32900,
+  String? specialInstructions,
+  List<CartLineModifier> modifiers = const <CartLineModifier>[],
+}) => CartLine(
+  id: id,
+  itemId: 'item-1',
+  name: name,
+  variantName: variantName,
+  quantity: quantity,
+  unitPrice: Money(amountMinor: unitPriceMinor, currency: 'INR'),
+  lineTotal: Money(amountMinor: unitPriceMinor * quantity, currency: 'INR'),
+  specialInstructions: specialInstructions,
+  modifiers: modifiers,
+);

@@ -764,3 +764,98 @@ The quantity buttons are named even when **disabled**: a tooltip becomes an
 accessible name only on an enabled control, so at quantity one the minus button
 would otherwise be an anonymous disabled thing at exactly the moment a
 screen-reader user needs to know what it is. See M11-B04.
+
+---
+
+## The cart (Module 12)
+
+Three jobs, in the order a customer does them: check that what is here is what
+they meant, correct it if not, and understand what they will pay.
+
+### Nothing on this screen is calculated on the device
+
+Every price, every charge and the total came from the server in the response to
+the request that changed them. An edit replaces the whole view rather than
+patching a figure.
+
+A client that adjusted its own subtotal after a quantity change would be right
+most days and wrong on the day a price moved underneath it — and this is the
+screen where a customer decides what to spend. The one arithmetic the app does
+is none.
+
+### Edits are not optimistic
+
+A stepper that moves before the server has agreed shows a quantity the cart may
+not have. So the line being changed disables its own controls and shows a
+spinner in place of its number; **the rest of the cart stays usable**. Blocking
+the whole screen to change one quantity makes a fast connection feel slow and a
+slow one feel broken.
+
+Every unsafe request carries an `Idempotency-Key`, kept across a retry. A
+connection that dies after the server acted must not remove a second line when
+the customer tries again.
+
+### The minus stops at one
+
+At a quantity of one the minus is disabled and the **Remove** control beside it
+is what the customer uses. Turning the last decrement into a deletion is how a
+mis-tap loses a selection, and it leaves the app unable to tell a mistake from
+an intention. The client does not even send the zero — not as enforcement, which
+is the server's job, but as a refusal to ask a question whose only honest answer
+is no.
+
+### Emptying is confirmed, and says what will happen
+
+"Empty your cart? Everything in it will be removed. This cannot be undone." —
+with **Keep it** first and unstyled, and the destructive action the one that has
+to be reached for. A cart emptied by one stray tap in a moving car is a cart
+rebuilt from memory.
+
+### The order summary
+
+Subtotal, then each charge that is not nothing, then the total. Tabular figures
+so the column lines up at the decimal point and can be added up by eye.
+
+A charge of zero gets **no row**: "Service fee ₹0.00" is a line somebody has to
+read to discover it is nothing, and a summary is easier to check the fewer
+nothings it contains. The total is always shown, zero or not.
+
+### What revalidation puts on the screen
+
+The cart screen opens with `GET /cart/revalidate` — one request, because the
+screen needs the cart and the verdict the same instant and fetching them
+separately would show a total from one moment beside a judgement from another.
+
+One banner at most, and the order is deliberate:
+
+| Rank | Notice | Tone |
+| --- | --- | --- |
+| 1 | The kitchen has stopped taking orders | blocking |
+| 2 | Some items need your attention | blocking |
+| 3 | Prices have changed | advisory |
+
+A customer who cannot order here does not need to be told the paneer went up by
+seventy rupees first.
+
+Per line: a price change shows **both figures** — "Was ₹329 · Now ₹399" — and a
+missing dish shows the server's own message with the name struck through.
+Blocking and advisory findings differ in icon, wording and colour, so the
+distinction survives a monochrome screen and a customer who cannot tell amber
+from red.
+
+**A blocked line is never removed for the customer.** It stays in the cart, says
+what is wrong, and waits for them to deal with it. An app that tidied it away
+would be deciding on their behalf what they no longer want.
+
+`blocks_ordering` is read from the server's own per-line flag rather than
+derived from the finding code, so a finding added to the API after a build has
+shipped still blocks that build correctly instead of being waved through as
+unrecognised.
+
+### An empty cart is not a failure
+
+A customer who has added nothing has a cart with nothing in it, and so does one
+who has just emptied theirs — the server closes an emptied cart and reports it
+as no cart at all. Both land on the same empty state, with the one action that
+fills it. `CART_NOT_FOUND` from revalidation is treated the same way, because to
+the customer it means the same thing.

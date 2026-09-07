@@ -95,6 +95,18 @@ class Routes {
     String itemId,
   ) => '/trips/$tripId/route/restaurants/$restaurantId/menu/items/$itemId';
 
+  /// The customer's cart (Module 12). Nested under the journey and **not**
+  /// under a restaurant, matching the API: a cart already knows which kitchen
+  /// it belongs to, and a path that named a second one would be a chance for
+  /// the two to disagree.
+  ///
+  /// Reached by a push from wherever the customer is — the menu, a dish, the
+  /// restaurant — so the back gesture returns them to what they were doing
+  /// rather than unwinding to the journey.
+  static const String tripCart = 'cart';
+
+  static String tripCartPath(String tripId) => '/trips/$tripId/cart';
+
   /// The controlled destination for anything not built yet. Takes the feature
   /// name and owning module as query parameters so one screen serves them all.
   static const String comingSoon = '/coming-soon';

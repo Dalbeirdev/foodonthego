@@ -13,6 +13,7 @@ import '../../features/placeholder/coming_soon_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../domain/models/discovered_restaurant.dart';
 import '../../features/discovery/discovery_screen.dart';
+import '../../features/cart/cart_screen.dart';
 import '../../features/item/item_detail_screen.dart';
 import '../../features/menu/menu_screen.dart';
 import '../../features/restaurant/restaurant_detail_screen.dart';
@@ -141,6 +142,16 @@ GoRouter createRouter({
                           tripId: state.pathParameters['tripId'] ?? '',
                         ),
                     routes: <RouteBase>[
+                      // The cart sits beside the route rather than under a
+                      // restaurant, exactly as the API does. It is pushed from
+                      // wherever the customer is, so back returns them there.
+                      GoRoute(
+                        path: Routes.tripCart,
+                        builder: (BuildContext context, GoRouterState state) =>
+                            CartScreen(
+                              tripId: state.pathParameters['tripId'] ?? '',
+                            ),
+                      ),
                       GoRoute(
                         path: Routes.tripRoute,
                         builder: (BuildContext context, GoRouterState state) =>

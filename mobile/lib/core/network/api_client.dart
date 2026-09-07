@@ -64,16 +64,29 @@ class ApiClient {
     headers: headers,
   );
 
+  /// [headers] carries `Idempotency-Key` where a caller wants a retry after a
+  /// lost response to be safe. PATCH and DELETE take it for the same reason
+  /// POST does: they are unsafe requests, and a connection that dies after the
+  /// server acted but before the answer arrived leaves the client unable to
+  /// tell that from a request that never landed.
   Future<Map<String, dynamic>> patch(
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = false,
-  }) => _send('PATCH', path, body: body, authenticated: authenticated);
+    Map<String, String> headers = const <String, String>{},
+  }) => _send(
+    'PATCH',
+    path,
+    body: body,
+    authenticated: authenticated,
+    headers: headers,
+  );
 
   Future<Map<String, dynamic>> delete(
     String path, {
     bool authenticated = false,
-  }) => _send('DELETE', path, authenticated: authenticated);
+    Map<String, String> headers = const <String, String>{},
+  }) => _send('DELETE', path, authenticated: authenticated, headers: headers);
 
   /// For the endpoints where a null `data` is a real answer rather than a fault.
   ///

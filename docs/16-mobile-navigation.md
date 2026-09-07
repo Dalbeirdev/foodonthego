@@ -269,3 +269,51 @@ teaches people to dismiss dialogues without reading.
 The cost of being wrong is one re-tap of a few options; the cost of the dialogue
 is friction on every exit. If a later module adds something genuinely expensive
 to lose here, that trade changes.
+
+---
+
+## The cart, beside the route rather than under it (Module 12)
+
+```
+/trips/:tripId
+  └── cart                       ← the cart screen
+  └── route
+        └── restaurants
+              └── :restaurantId
+                    └── menu
+                          └── items/:itemId
+```
+
+`/trips/:tripId/cart` is a **sibling of `route`, not a descendant of a
+restaurant**, and that mirrors the API exactly: a cart already knows which
+kitchen it belongs to, so a path that named a second one would be a chance for
+the two to disagree. The journey is the only thing the customer has to own.
+
+### Pushed, never `go`
+
+The cart is reached from three places — the menu's app bar, a dish's app bar,
+and the "View cart" action on the added-to-cart confirmation — and every one of
+them uses `context.push`. `go` would rewrite the stack to
+`/trips/x/cart` and leave Android back and the iOS swipe unwinding to the
+journey. A customer who opens the cart to check a quantity wants to come back to
+the menu they were reading, with its search and its scroll position intact.
+
+That is also why the cart is not a sixth bottom-bar destination. A cart is a
+place you visit mid-task and leave again, not a place you live; giving it a tab
+would make "back" mean "switch branch" and lose the menu underneath.
+
+### The door, and the badge
+
+`CartAppBarButton` is that door, and it is in the app bar of every screen a dish
+can be added from. Module 11 could add to a cart and had nowhere to send anybody
+afterwards, which is the gap this closes.
+
+The count on it is the server's, from `cartBadgeProvider` — a family keyed by
+the journey, because a customer with two journeys planned has two carts and a
+badge showing the wrong one is worse than no badge. While the read is in flight
+or after it has failed the badge is **absent rather than zero**: an invented "0"
+is indistinguishable from an empty cart, and a traveller in a dead zone would be
+told they have nothing.
+
+The badge is invalidated by a successful add rather than passed a count back
+through the pop, so it is right whichever way the customer returns.

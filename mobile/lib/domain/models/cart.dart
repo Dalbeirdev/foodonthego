@@ -248,3 +248,251 @@ class CartAddition {
     _ => null,
   };
 }
+
+/// One line of a cart: a configured dish, and what it costs.
+///
+/// The names are the server's snapshots, taken when the line was added. A
+/// restaurant that renames a dish tomorrow does not rewrite what the customer
+/// chose today, and this class carries what they chose rather than what the
+/// menu currently says.
+class CartLine {
+  const CartLine({
+    required this.id,
+    required this.name,
+    required this.quantity,
+    required this.unitPrice,
+    required this.lineTotal,
+    this.itemId,
+    this.variantName,
+    this.specialInstructions,
+    this.modifiers = const <CartLineModifier>[],
+  });
+
+  /// The cart line's own id — what a quantity change or a removal addresses.
+  /// Not the menu item's; two lines can be the same dish configured
+  /// differently, and they are edited independently.
+  final String id;
+
+  /// The menu item, for reopening the dish to change a choice.
+  final String? itemId;
+
+  final String name;
+  final String? variantName;
+
+  final int quantity;
+  final Money unitPrice;
+  final Money lineTotal;
+
+  final String? specialInstructions;
+  final List<CartLineModifier> modifiers;
+
+  /// The chosen options as one line of text: "Large · Mild · Extra Cheese".
+  ///
+  /// Assembled here rather than in a widget so the cart screen and any later
+  /// receipt describe a configuration the same way.
+  String get configurationSummary => <String>[
+    if (variantName case final String v) v,
+    for (final CartLineModifier m in modifiers) m.optionName,
+  ].join(' · ');
+
+  bool get hasNote => (specialInstructions ?? '').trim().isNotEmpty;
+
+  static CartLine? fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+
+    final String? id = json['id'] as String?;
+    final String? name = json['name'] as String?;
+    final Money? unit = Money.fromJson(json['unit_price']);
+    final Money? total = Money.fromJson(json['line_total']);
+
+    // A line missing its id cannot be edited, and one missing a price cannot be
+    // shown honestly. Either way it is dropped rather than rendered with a gap
+    // where a figure should be — see [Cart.fromJson] for what the screen does
+    // about the difference that leaves.
+    if (id == null || name == null || unit == null || total == null) {
+      return null;
+    }
+
+    return CartLine(
+      id: id,
+      itemId: json['item_id'] as String?,
+      name: name,
+      variantName: json['variant_name'] as String?,
+      quantity: _int(json['quantity']) ?? 1,
+      unitPrice: unit,
+      lineTotal: total,
+      specialInstructions: json['special_instructions'] as String?,
+      modifiers: <CartLineModifier>[
+        for (final Object? raw
+            in (json['modifiers'] as List<Object?>? ?? const <Object?>[]))
+          if (raw is Map<String, dynamic>)
+            if (CartLineModifier.fromJson(raw) case final CartLineModifier m) m,
+      ],
+    );
+  }
+
+  static int? _int(Object? value) => switch (value) {
+    final int v => v,
+    final num v => v.round(),
+    final String v => int.tryParse(v),
+    _ => null,
+  };
+}
+
+/// What a cart costs, broken down.
+///
+/// Every figure is the server's. Nothing here is added up on the device: a
+/// client that computed its own total would eventually disagree with the one
+/// the customer is charged, and the disagreement would surface at the counter.
+class CartTotals {
+  const CartTotals({
+    required this.subtotal,
+    required this.tax,
+    required this.packagingFee,
+    required this.platformFee,
+    required this.total,
+  });
+
+  final Money subtotal;
+  final Money tax;
+  final Money packagingFee;
+  final Money platformFee;
+  final Money total;
+
+  /// The charges worth a row of their own.
+  ///
+  /// A zero fee is not shown. "Platform fee ₹0.00" is a line a customer has to
+  /// read to discover it is nothing, and a summary is easier to check the
+  /// fewer nothings it contains. The total is always shown, zero or not.
+  List<({String kind, Money amount})> get charges =>
+      <({String kind, Money amount})>[
+        if (!tax.isZero) (kind: 'tax', amount: tax),
+        if (!packagingFee.isZero) (kind: 'packaging', amount: packagingFee),
+        if (!platformFee.isZero) (kind: 'platform', amount: platformFee),
+      ];
+
+  static CartTotals? fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+
+    final Money? subtotal = Money.fromJson(json['subtotal']);
+    final Money? total = Money.fromJson(json['total']);
+
+    if (subtotal == null || total == null) return null;
+
+    final Money zero = Money(amountMinor: 0, currency: total.currency);
+
+    return CartTotals(
+      subtotal: subtotal,
+      tax: Money.fromJson(json['tax']) ?? zero,
+      packagingFee: Money.fromJson(json['packaging_fee']) ?? zero,
+      platformFee: Money.fromJson(json['platform_fee']) ?? zero,
+      total: total,
+    );
+  }
+}
+
+/// A customer's cart, in full.
+///
+/// The thing [CartSummary] is the badge-sized view of. Both are parsed from the
+/// server; neither is assembled on the device from the other.
+class Cart {
+  const Cart({
+    required this.id,
+    required this.lines,
+    required this.totals,
+    required this.itemCount,
+    required this.lineCount,
+    this.restaurantId,
+    this.restaurantName,
+    this.tripId,
+    this.expiresAt,
+  });
+
+  final String id;
+  final String? restaurantId;
+  final String? restaurantName;
+  final String? tripId;
+
+  final List<CartLine> lines;
+  final CartTotals totals;
+
+  /// Individual things, counting quantities. The server's count, not
+  /// `lines.length` and not a sum computed here — a line the client could not
+  /// read must not quietly reduce the number the customer is shown.
+  final int itemCount;
+
+  /// Distinct configurations, as the server counted them.
+  final int lineCount;
+
+  final DateTime? expiresAt;
+
+  /// True when a line the server sent could not be read.
+  ///
+  /// The screen says so rather than showing a shorter cart than the customer
+  /// has. A total that does not match the visible lines is alarming; a total
+  /// that matches lines quietly omitted is worse.
+  bool get hasUnreadableLines => lines.length != lineCount;
+
+  static Cart? fromJson(Object? json, {int itemCount = 0, int lineCount = 0}) {
+    if (json is! Map<String, dynamic>) return null;
+
+    final String? id = json['id'] as String?;
+    final CartTotals? totals = CartTotals.fromJson(json['totals']);
+
+    if (id == null || totals == null) return null;
+
+    return Cart(
+      id: id,
+      restaurantId: json['restaurant_id'] as String?,
+      restaurantName: json['restaurant_name'] as String?,
+      tripId: json['trip_id'] as String?,
+      lines: <CartLine>[
+        for (final Object? raw
+            in (json['items'] as List<Object?>? ?? const <Object?>[]))
+          if (CartLine.fromJson(raw) case final CartLine line) line,
+      ],
+      totals: totals,
+      itemCount: itemCount,
+      lineCount: lineCount,
+      expiresAt: DateTime.tryParse(json['expires_at'] as String? ?? ''),
+    );
+  }
+}
+
+/// The server's answer to "what is in my cart".
+///
+/// A cart or the absence of one, and never an error for the absence. A customer
+/// who has added nothing has an empty cart, and a client that treated "no cart"
+/// as a failure would show an error on a perfectly ordinary screen.
+class CartView {
+  const CartView({required this.itemCount, required this.lineCount, this.cart});
+
+  const CartView.empty() : this(itemCount: 0, lineCount: 0);
+
+  final Cart? cart;
+  final int itemCount;
+  final int lineCount;
+
+  bool get isEmpty => cart == null || cart!.lines.isEmpty;
+
+  /// The badge's figure, from the same read the screen uses.
+  Money? get subtotal => cart?.totals.subtotal;
+
+  static CartView fromJson(Map<String, dynamic> data) {
+    final int items = _int(data['item_count']) ?? 0;
+    final int lines = _int(data['line_count']) ?? 0;
+
+    return CartView(
+      cart: Cart.fromJson(data['cart'], itemCount: items, lineCount: lines),
+      itemCount: items,
+      lineCount: lines,
+    );
+  }
+
+  static int? _int(Object? value) => switch (value) {
+    final int v => v,
+    final num v => v.round(),
+    final String v => int.tryParse(v),
+    _ => null,
+  };
+}

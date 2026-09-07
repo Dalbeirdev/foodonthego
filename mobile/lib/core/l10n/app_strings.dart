@@ -896,7 +896,6 @@ class AppStrings {
   String itemAddedToCartCount(int items) =>
       items == 1 ? '1 item in your cart' : '$items items in your cart';
   String get itemViewCart => 'View cart';
-  String get itemViewCartSoon => 'Your cart opens in the next release.';
 
   // Failures, each with the move that fixes it.
   String get itemAddFailedTitle => "We couldn't add this";
@@ -931,6 +930,80 @@ class AppStrings {
   // --- home: the current journey -------------------------------------------
   String get homeCurrentJourney => 'Your journey';
   String get homeJourneyViewAll => 'All journeys';
+
+  // --- the cart (Module 12) -------------------------------------------------
+  String get cartTitle => 'Your cart';
+  String get cartOpen => 'Cart';
+  String cartFrom(String restaurant) => 'From $restaurant';
+  String cartItemCount(int items) => items == 1 ? '1 item' : '$items items';
+
+  // Empty, and not treated as a failure: a customer who has added nothing has
+  // a cart with nothing in it.
+  String get cartEmptyTitle => 'Nothing in your cart yet';
+  String get cartEmptyBody =>
+      'Find a place to stop along your route and add something you fancy.';
+  String get cartEmptyAction => 'Find somewhere to eat';
+
+  // Lines.
+  String get cartQuantityLabel => 'Quantity';
+  String cartDecreaseFor(String item) => 'One fewer $item';
+  String cartIncreaseFor(String item) => 'One more $item';
+  String cartRemoveFor(String item) => 'Remove $item';
+  String get cartRemove => 'Remove';
+  String cartNote(String note) => 'Note: $note';
+  String get cartEachPrice => 'each';
+
+  // The order summary. Named exactly, because "charges" tells a customer
+  // nothing about what they are paying for.
+  String get cartSummaryTitle => 'Order summary';
+  String get cartSubtotal => 'Subtotal';
+  String get cartTax => 'Taxes';
+  String get cartPackagingFee => 'Packaging';
+  String get cartPlatformFee => 'Service fee';
+  String get cartTotal => 'Total';
+  String get cartTotalsNote =>
+      'Worked out by FoodOnTheGo. You pay this at the counter.';
+
+  // Emptying, which is destructive and therefore confirmed.
+  String get cartEmptyCart => 'Empty cart';
+  String get cartEmptyConfirmTitle => 'Empty your cart?';
+  String get cartEmptyConfirmBody =>
+      'Everything in it will be removed. This cannot be undone.';
+  String get cartEmptyConfirmAction => 'Empty cart';
+  String get cartKeep => 'Keep it';
+
+  // What revalidation found. Two kinds, because the customer's move differs:
+  // a price they look at and accept, a missing dish they have to deal with.
+  String get cartPricesChangedTitle => 'Prices have changed';
+  String get cartPricesChangedBody =>
+      'Check the updated figures before you order.';
+  String get cartNeedsAttentionTitle => 'Some items need your attention';
+  String get cartNeedsAttentionBody =>
+      "You'll need to remove or change these before ordering.";
+  String get cartKitchenClosedTitle => 'This kitchen has stopped taking orders';
+  String get cartKitchenClosedBody =>
+      'Your cart is safe. Try again later, or pick somewhere else on your route.';
+  String get cartPriceWas => 'Was';
+  String get cartPriceNow => 'Now';
+  String get cartUnavailableHere => 'No longer available';
+  String get cartRecheck => 'Check again';
+
+  // Failures, each with the move that fixes it.
+  String get cartLoadFailedTitle => "We couldn't load your cart";
+  String get cartLoadFailedBody => 'Please try again in a moment.';
+  String get cartOfflineTitle => "You're offline";
+  String get cartOfflineBody =>
+      'These figures were last checked when you had a connection.';
+  String get cartRetry => 'Try again';
+  String get cartEditFailed => "That didn't take. Please try again.";
+  String get cartEditOffline => "You're offline — that change wasn't saved.";
+  String get cartLineGone => 'That item is no longer in your cart.';
+  String get cartQuantityRefused => "You can't have that many of one item.";
+  String get cartPriceChangedNow =>
+      'The price has changed. Have a look before you continue.';
+  String get cartTripGoneTitle => 'That journey is gone';
+  String get cartTripGoneBody =>
+      'Plan a journey to start a cart along your route.';
 
   // --- development scaffolding (never shown in production) -----------------
   String get notBuiltYet => 'Not built yet';

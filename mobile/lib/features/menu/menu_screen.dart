@@ -9,6 +9,7 @@ import '../../domain/models/restaurant_detail.dart'
     show RestaurantOrderingState;
 import '../../domain/models/restaurant_menu.dart';
 import '../../shared/state/menu_controller.dart';
+import '../cart/widgets/cart_app_bar_button.dart';
 import 'widgets/menu_category_selector.dart';
 import 'widgets/menu_item_card.dart';
 
@@ -215,6 +216,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
         // go_router, which leaves the router with an empty match list and a
         // blank screen. This one goes through the router.
         leading: BackButton(onPressed: () => Navigator.of(context).pop()),
+        actions: <Widget>[CartAppBarButton(tripId: widget.tripId)],
       ),
       body: SafeArea(
         child: switch (state) {

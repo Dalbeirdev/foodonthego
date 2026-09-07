@@ -11,6 +11,7 @@ import '../../core/config/feature_flags.dart';
 import '../../data/auth/session_store.dart';
 import '../../data/fixtures/development_personas.dart';
 import '../../data/repositories/api_auth_repository.dart';
+import '../../data/repositories/api_cart_repository.dart';
 import '../../data/repositories/api_customer_repository.dart';
 import '../../data/repositories/api_menu_repository.dart';
 import '../../data/repositories/api_place_repository.dart';
@@ -22,6 +23,7 @@ import '../../data/repositories/fixture_home_repository.dart';
 import '../../data/repositories/unconfigured_home_repository.dart';
 import '../../domain/models/home_dashboard.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../domain/repositories/cart_repository.dart';
 import '../../domain/repositories/customer_repository.dart';
 import '../../domain/repositories/home_repository.dart';
 import '../../domain/repositories/menu_repository.dart';
@@ -248,6 +250,15 @@ final restaurantRepositoryProvider = Provider<RestaurantRepository>(
 /// reprice, restock or photograph a menu item.
 final menuRepositoryProvider = Provider<MenuRepository>(
   (Ref ref) => ApiMenuRepository(ref.watch(apiClientProvider)),
+);
+
+/// The customer's cart (Module 12).
+///
+/// Separate from the menu repository, following the server's own split: a line
+/// is *added* from a menu under a restaurant, and everything else about a cart
+/// is addressed by the journey alone. Nothing on this interface takes a price.
+final cartRepositoryProvider = Provider<CartRepository>(
+  (Ref ref) => ApiCartRepository(ref.watch(apiClientProvider)),
 );
 
 /// The device's position.

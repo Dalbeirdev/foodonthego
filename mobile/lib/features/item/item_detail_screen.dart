@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
+import '../../core/routing/routes.dart';
 import '../../core/theme/tokens.dart';
 import '../../domain/models/menu_customization.dart';
 import '../../domain/models/money.dart';
 import '../../domain/models/restaurant_menu.dart';
+import '../../shared/state/cart_controller.dart';
 import '../../shared/state/item_customization_controller.dart';
+import '../cart/widgets/cart_app_bar_button.dart';
 import '../menu/widgets/menu_item_badges.dart';
 import 'widgets/modifier_group_section.dart';
 import 'widgets/quantity_stepper.dart';
@@ -131,14 +135,20 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           duration: const Duration(seconds: 3),
           action: SnackBarAction(
             label: strings.itemViewCart,
-            // Module 12 owns the cart screen. Saying so is honest; opening a
-            // half-built one would not be.
-            onPressed: () => ScaffoldMessenger.of(context)
-              ..clearSnackBars()
-              ..showSnackBar(SnackBar(content: Text(strings.itemViewCartSoon))),
+            onPressed: () {
+              // Cleared first, or the confirmation floats over the cart screen
+              // it just sent the customer to and covers its first line.
+              ScaffoldMessenger.of(context).clearSnackBars();
+              context.push(Routes.tripCartPath(widget.tripId));
+            },
           ),
         ),
       );
+
+    // The menu screen's badge was drawn before this add. Invalidating it here
+    // rather than passing a count back means the badge is right whichever way
+    // the customer returns — the back gesture, the app bar, or the cart.
+    ref.invalidate(cartBadgeProvider(widget.tripId));
 
     ref.read(itemCustomizationControllerProvider.notifier).dismissAddition();
   }
@@ -159,6 +169,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
         // The AppBar's automatic back button pops the Navigator without telling
         // go_router, which leaves the router with an empty match list.
         leading: BackButton(onPressed: () => Navigator.of(context).pop()),
+        actions: <Widget>[CartAppBarButton(tripId: widget.tripId)],
       ),
       body: SafeArea(
         bottom: false,
