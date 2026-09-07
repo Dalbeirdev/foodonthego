@@ -88,6 +88,54 @@ CI runner — see the `android-device` and `ios-device` jobs in
 `.github/workflows/ci.yml`.
 
 ---
+
+### KI-014 · A cancelled journey's cart blocks every future cart, permanently
+
+**Severity:** High (a customer can reach it in two taps and cannot leave it)
+
+**Found by:** the first on-device CI run that got as far as adding to a cart.
+Reproduced against a local backend in three requests.
+
+A cart belongs to a journey. Discarding the journey does not close the cart:
+the trip becomes `CANCELLED` and the cart stays `ACTIVE`. Module 11 then
+refuses every subsequent add, on every journey, because `CartService::cartFor`
+finds an active cart on a different trip and — correctly, by the ONE TRIP
+CONTEXT PER CART rule — will not reuse it:
+
+```
+POST /trips/{A}/restaurants/{R}/cart/items   200   cart created
+POST /trips/{A}/discard                      200   trip CANCELLED
+GET  /trips/{B}/cart                         200   {"cart": null}
+POST /trips/{B}/restaurants/{R}/cart/items   409   CART_TRIP_CONFLICT
+                                                   "You have items in a cart
+                                                    for a different journey."
+```
+
+`GET /trips/{B}/cart` answers `null`, which is true of journey B and gives the
+customer no hint that a cart on a journey they cancelled is what is blocking
+them. The cart is on a cancelled trip, so there is no screen that reaches it.
+
+**There is no way out.** `CartStatus::Closed` exists in the enum and nothing in
+the codebase ever writes it; no endpoint empties a cart or removes a line.
+Every path out of this state belongs to Module 12.
+
+**Not a defect in the refusal.** Refusing to move a stop from one road to
+another is the rule working. What is missing is the release: either discarding
+a journey should close the cart that belongs to it — which is not "silently
+deleting a cart", because the customer just explicitly cancelled its journey —
+or cart management must offer a way to empty one.
+
+**Effect on the device run.** The Module 11 device tests used to discard every
+open journey and create a fresh one per test, which manufactured exactly this
+state and then failed on it. They now share one journey and one cart, and
+assert what each tap changed rather than what the cart contains. That works
+around the issue for the tests; it does not fix it for customers.
+
+**To clear:** Module 12 (cart management), which owns the cart's lifecycle.
+Whichever way it goes, it needs a test that a customer who cancels a journey
+holding a cart can still add to a cart afterwards.
+
+---
 ### KI-002 · iOS build and device test cannot be performed
 
 **Severity:** High (blocks a Module 01 acceptance item)

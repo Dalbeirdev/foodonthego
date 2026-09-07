@@ -73,6 +73,13 @@ const String _dish = 'Paneer Tikka';
 const int _expectedUnitMinor = 38900;
 const int _expectedLineMinor = 77800;
 
+/// A cart's subtotal in paise, with an empty cart counting as nothing.
+///
+/// The assertions below are all differences — what a tap added — rather than
+/// totals, because the run shares one cart (see `prepare`) and a total would
+/// be an assertion about every test that ran before this one.
+int _minor(CartSummary cart) => cart.subtotal?.amountMinor ?? 0;
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -92,32 +99,61 @@ void main() {
 
   /// Everything up to the dish, over HTTP, as this customer.
   ///
-  /// Done fresh for each test rather than once, because a test that adds to a
-  /// cart changes the state the next one would start from, and a shared journey
-  /// would make the order of the tests matter.
+  /// ONE journey for the whole run, reused rather than replaced.
+  ///
+  /// This used to discard every open journey and create a fresh one per test,
+  /// so that a test which added to a cart could not change what the next one
+  /// started from. That reasoning was right about the problem and wrong about
+  /// the remedy, and the first device run that got as far as adding to a cart
+  /// showed why: a cart belongs to a journey, and discarding the journey does
+  /// not close the cart. The next test then arrives on a new journey holding
+  /// an active cart on the old one, and Module 11 refuses the add —
+  ///
+  ///     CART_TRIP_CONFLICT
+  ///     You have items in a cart for a different journey.
+  ///
+  /// — which is the correct answer to the question it was asked. The setup was
+  /// manufacturing the conflict and then failing on it. (The state itself is a
+  /// real dead end for a customer, not only for this run: see KI-014. Nothing
+  /// in Module 11 can release that cart, which is why this cannot be fixed by
+  /// cleaning up over HTTP.)
+  ///
+  /// So the journey is shared, the cart is shared, and the two tests that add
+  /// to it assert what their own taps changed rather than what the whole cart
+  /// contains. That is the stronger assertion anyway: "adding this
+  /// configuration adds exactly this much" holds whatever else is in there.
   Future<void> prepare() async {
     final ApiTripRepository trips = ApiTripRepository(api);
     final ApiPlaceRepository places = ApiPlaceRepository(api);
 
-    for (final Trip open in await trips.trips(scope: TripScope.all)) {
-      if (open.isDiscardable) await trips.discardTrip(open.id);
+    final Iterable<Trip> open = (await trips.trips(
+      scope: TripScope.all,
+    )).where((Trip journey) => journey.isDiscardable);
+
+    if (open.isNotEmpty) {
+      trip = open.first;
+    } else {
+      final List<PlaceSuggestion> from = await places.search('green park');
+      final List<PlaceSuggestion> to = await places.search('jaipur airport');
+
+      trip = await trips.createTrip(
+        TripDraft(
+          origin: TripLocation.fromPlace(
+            await places.details(from.first.placeId),
+          ),
+          destination: TripLocation.fromPlace(
+            await places.details(to.first.placeId),
+          ),
+        ),
+      );
     }
 
-    final List<PlaceSuggestion> from = await places.search('green park');
-    final List<PlaceSuggestion> to = await places.search('jaipur airport');
-
-    trip = await trips.createTrip(
-      TripDraft(
-        origin: TripLocation.fromPlace(
-          await places.details(from.first.placeId),
-        ),
-        destination: TripLocation.fromPlace(
-          await places.details(to.first.placeId),
-        ),
-      ),
-    );
-
-    await ApiRouteRepository(api).calculate(trip.id);
+    // Only when there is not one already. A route is a billed call against a
+    // real provider, and re-asking for one the journey already has is exactly
+    // the cost Module 11 is not allowed to add.
+    if (!trip.routeStatus.hasUsableRoute) {
+      await ApiRouteRepository(api).calculate(trip.id);
+    }
 
     final RestaurantDiscovery found = await ApiDiscoveryRepository(api)
         .discover(trip.id);
@@ -253,6 +289,10 @@ void main() {
   ) async {
     await openTheDish(tester);
 
+    final CartSummary before = await ApiMenuRepository(api).cart(
+      tripId: trip.id,
+    );
+
     // Size: ₹329.
     await tapAt(tester, find.text('Large'));
 
@@ -308,15 +348,15 @@ void main() {
     // --- and now what the server actually stored ------------------------
     final CartSummary cart = await ApiMenuRepository(api).cart(tripId: trip.id);
 
-    expect(cart.lineCount, 1, reason: 'one line');
-    expect(cart.itemCount, 2, reason: 'two of it');
+    expect(cart.lineCount, before.lineCount + 1, reason: 'one new line');
+    expect(cart.itemCount, before.itemCount + 2, reason: 'two of it');
     expect(cart.restaurantId, restaurant.id);
     expect(
-      cart.subtotal?.amountMinor,
+      _minor(cart) - _minor(before),
       _expectedLineMinor,
       reason:
-          'the server should charge $_expectedLineMinor paise — the phone '
-          'sent no price at all',
+          'the server should charge $_expectedLineMinor paise for what was '
+          'chosen — the phone sent no price at all',
     );
   });
 
@@ -330,9 +370,19 @@ void main() {
     await tapAt(tester, find.text('Jalapeños'));
 
     final Finder add = find.textContaining('Add to cart · ₹389');
+    final ApiMenuRepository carts = ApiMenuRepository(api);
+
+    final CartSummary before = await carts.cart(tripId: trip.id);
 
     await tapAt(tester, add);
     await waitFor(tester, find.text('Added to cart'));
+
+    final CartSummary once = await carts.cart(tripId: trip.id);
+    expect(
+      once.lineCount,
+      before.lineCount + 1,
+      reason: 'the first tap makes a line',
+    );
 
     // The same configuration again. A cart line is a configuration, not a tap:
     // this must become a quantity, never a duplicate row.
@@ -340,11 +390,19 @@ void main() {
     await tapAt(tester, add);
     await settle(tester, duration: const Duration(seconds: 4));
 
-    final CartSummary cart = await ApiMenuRepository(api).cart(tripId: trip.id);
+    final CartSummary twice = await carts.cart(tripId: trip.id);
 
-    expect(cart.lineCount, 1, reason: 'still one line');
-    expect(cart.itemCount, 2, reason: 'now two of it');
-    expect(cart.subtotal?.amountMinor, _expectedUnitMinor * 2);
+    expect(
+      twice.lineCount,
+      once.lineCount,
+      reason: 'the second tap makes no new line',
+    );
+    expect(
+      twice.itemCount,
+      once.itemCount + 1,
+      reason: 'it makes a quantity instead',
+    );
+    expect(_minor(twice) - _minor(before), _expectedUnitMinor * 2);
   });
 
   // -------------------------------------------------------- the other shapes
