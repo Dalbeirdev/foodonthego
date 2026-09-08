@@ -690,3 +690,58 @@ Asserted by searching the raw response body rather than the parsed shape.
 
 A refusal never names *why* a restaurant is unavailable. "Suspended" tells
 anybody who can guess a name something the platform has not published.
+
+## Payment (Module 15)
+
+**A client's word about money is evidence to check, never a fact to accept.**
+
+No endpoint accepts an amount. Not one that is validated — one that exists. A
+request carrying `amount`, `total` or `payable_total_minor` parses to exactly
+the same object as one without.
+
+An order is marked paid only after three checks, all of which run on all three
+paths that can reach that state:
+
+1. **Signature** — HMAC-SHA256 over `order_id|payment_id` with the API secret,
+   compared in constant time.
+2. **Binding** — the provider's own order id for that payment must match the
+   provider order this server created for this order. A correctly signed payment
+   belonging to somebody else is still correctly signed.
+3. **Amount and currency** — against the order's total, not the attempt's.
+
+The signature arithmetic deliberately does not sit behind the gateway interface.
+Behind it, a test double would decide whether signatures verify, and every
+payment-security test would assert against a `return true`.
+
+### The webhook endpoint
+
+Unauthenticated by necessity — the provider has no account here — and gated by
+an HMAC over the **raw** body, checked before anything is parsed and before
+anything at all is written.
+
+**Only verified deliveries are recorded.** The endpoint is public: recording a
+rejected delivery under the event id it claimed would let an attacker post a
+forged body carrying the event id of a payment about to happen, causing the
+genuine delivery to collide with the unique index and be discarded as a
+duplicate — an order paid for and left unpaid, by somebody who never had the
+secret.
+
+The webhook secret is separate from the API secret, because the provider signs
+the two messages with two different keys.
+
+### Data this platform does not keep
+
+- **No card data of any kind**, and no column one could be written into.
+- **No webhook payloads** — only a SHA-256 digest of the raw body.
+- **No provider decline text shown to customers.** It is written for a merchant
+  dashboard and says things about a card that are not ours to relay.
+
+### Fail closed
+
+With no credentials the container binds a gateway that refuses every call, and
+`ProductionConfigGuard` refuses to boot in staging or production — including
+when the webhook secret alone is missing, since a live endpoint that can verify
+nothing is indistinguishable from a provider that has stopped sending.
+
+**As this project stands there are no Razorpay credentials, and none were
+invented.**

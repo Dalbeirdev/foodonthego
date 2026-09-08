@@ -691,3 +691,42 @@ relationships — never by frontend filtering.
 that login arrives behind something already tested rather than alongside
 something new. Staff-management endpoints, and tenant scoping for orders,
 payments and settlements, arrive with the modules that create those things.
+
+## Module 15 — orders, payment, webhooks and reconciliation
+
+**COMPLETE**, with one thing stated plainly at the top: **no payment has ever
+been taken, because no Razorpay credentials exist and none were invented.**
+
+Design: [34-orders-payment-and-reconciliation.md](34-orders-payment-and-reconciliation.md).
+
+### What now holds
+
+A checkout quote becomes an order at the price the server quoted. An order can
+have a payment opened against it, and is marked paid only when the provider
+itself confirms the payment exists, belongs to that order, and is for the right
+money. Three paths reach that conclusion — the app's callback, the provider's
+webhook, and a reconciliation run — and they share one implementation.
+
+### The decisions worth knowing
+
+- **The client is never believed about money.** No endpoint accepts an amount;
+  there is no field for one.
+- **Three checks, not one.** Signature, then binding, then amount. A correctly
+  signed payment belonging to another order, and a correctly signed ₹1 payment,
+  both settle nothing.
+- **Signature verification is not on the gateway interface**, so a test double
+  cannot be the thing deciding whether signatures verify.
+- **Only verified webhook deliveries are stored.** Storing rejected ones under
+  the event id they claimed would let anybody suppress a real delivery.
+- **Status is payment state only.** No fulfilment workflow was invented.
+
+### Still handed forward
+
+- **No credentials, so no live payment path has ever executed.** Supplying keys
+  is configuration, but the integration is unexercised and is not claimed
+  otherwise.
+- **No refunds, settlement or payouts.**
+- **No fulfilment workflow**, and two order-status vocabularies — the server's
+  payment-only one and Module 02's speculative Flutter enum — that must be
+  reconciled when it is specified.
+- **No operator login**, unchanged since Module 14T.

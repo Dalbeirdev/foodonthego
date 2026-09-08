@@ -1624,3 +1624,98 @@ Inserted between Modules 14 and 15 at the client's direction. Design:
 
 - **M14T-025 No login for the six operator roles**, unchanged. The boundary exists
   first so that login arrives behind something already tested.
+
+## Module 15 — orders, payment, webhooks and reconciliation
+
+### No credentials, and what follows from that
+
+- **M15-001 No Razorpay credentials exist and none were invented.** The
+  container binds `UnconfiguredPaymentGateway`; the app binds
+  `UnconfiguredPaymentHandoff`. Both refuse, loudly, rather than degrading.
+- **M15-002 A missing integration is a broken deployment, not a quiet one.**
+  `ProductionConfigGuard` refuses to boot in staging or production when the key
+  id, the key secret or the webhook secret is absent.
+  `ProductionConfigGuardTest` covers both halves separately.
+- **M15-003 `RazorpayGateway` has never spoken to Razorpay**, and no claim is
+  made that it has.
+
+### The client never decides money
+
+- **M15-004 No endpoint in this module accepts an amount.** Not validated —
+  absent. `test_amounts_posted_when_placing_an_order_are_ignored_entirely` and
+  `test_an_amount_posted_when_verifying_is_ignored_entirely` post bodies full of
+  figures and assert the result is unchanged.
+- **M15-005 The order's amounts are copied from the quote, never recomputed.**
+- **M15-006 The app has no parameter for a price** on `OrderRepository`, and no
+  field a key secret could arrive in on `PaymentIntent`.
+
+### The three checks
+
+- **M15-007 Signature.** HMAC-SHA256 over `order_id|payment_id`, compared with
+  `hash_equals`. Empty signature and empty secret both fail closed.
+- **M15-008 Binding.** The provider's own order id for the payment must match
+  the provider order created for this order. A correctly signed payment
+  belonging to another order settles nothing.
+- **M15-009 Amount and currency**, checked against the order rather than the
+  attempt. A genuine, signed, correctly bound ₹1 payment does not settle.
+- **M15-010 All three run on every path**, because all three paths call
+  `confirmAgainstProvider()`.
+- **M15-011 Signature verification is not on the gateway interface**, so the
+  test double cannot be the thing deciding whether signatures are valid.
+
+### Webhooks
+
+- **M15-012 Verified over the raw body**, before any parsing. A re-encoded body
+  does not verify, and there is a unit test proving the two are different bytes.
+- **M15-013 The webhook secret is separate from the API secret**, with a test
+  for the reuse mistake.
+- **M15-014 Idempotency is a unique index**, not a check-then-write.
+- **M15-015 Only verified deliveries are stored.** Recording rejected ones under
+  the event id they claimed would let anybody suppress a genuine delivery.
+  Tested by name.
+- **M15-016 A verified delivery always answers 2xx**, including for subjects
+  this deployment does not know, so a provider does not retry into a storm.
+
+### Reconciliation
+
+- **M15-017 It starts from the provider order**, because in the case that
+  matters this server has no payment id to ask about.
+- **M15-018 A grace period**, so it never races a webhook in flight.
+- **M15-019 A captured payment for the wrong amount is counted, not settled**,
+  and the command exits non-zero so a scheduler notices.
+
+### Orders
+
+- **M15-020 One quote becomes at most one order**, enforced by a unique index.
+  A double tap answers 200 with the order that exists.
+- **M15-021 Order lines are snapshots** and do not cascade from the menu.
+  Asserted by renaming and repricing the dish after the order exists.
+- **M15-022 Status is payment state only.** No fulfilment vocabulary was
+  invented, on the server or in the app.
+- **M15-023 An order is settled once.** The row is locked and re-read inside the
+  transaction.
+- **M15-024 One response, one clock** — every instant in an order body on the
+  order's stored zone, asserted by walking the whole body.
+
+### Privacy
+
+- **M15-025 No card data is stored**, and there is no column for it.
+- **M15-026 Webhook payloads are not stored**, only a digest.
+- **M15-027 A provider's decline text is never relayed to the customer.**
+
+### Isolation
+
+- **M15-028 Orders are tenant-scoped** through `BelongsToTenant`, including the
+  indirect path — an order reached by its own id, carrying a customer's name and
+  what they paid.
+- **M15-029 A foreign order and a non-existent one answer identically.**
+- **M15-030 Another customer's order answers 404**, for read, intent and verify.
+
+### Verification
+
+- **M15-031 1,201 backend tests and 938 Flutter tests pass.** 60 and 34 new
+  respectively.
+- **M15-032 Ten negative controls were applied to shipping code and reverted.**
+  Nine fired immediately; the tenth stayed silent and exposed a test that could
+  not distinguish the guard holding from the guard being absent. See
+  15-test-evidence.md.

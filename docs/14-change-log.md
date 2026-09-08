@@ -1180,3 +1180,39 @@ Inserted between Modules 14 and 15 at the client's direction.
 
 No login for the six operator roles, no staff-management endpoints, and no
 tenant scoping for orders, payments or settlements — none of which exist yet.
+
+## Module 15 — orders, payment, webhooks and reconciliation
+
+A quote becomes an order; an order gets paid for. Nothing a client says about
+money is believed at any point.
+
+**No Razorpay credentials exist and none were invented.** The gateway that ships
+is the one that refuses; staging and production decline to boot without keys.
+
+### Added
+
+- `orders`, `order_items`, `order_item_modifiers`, `payments`, `payment_events`.
+- `PaymentGateway` with a Razorpay adapter, an unconfigured default and a
+  deterministic double under `tests/`.
+- `RazorpaySignature`, deliberately outside the gateway interface.
+- `PaymentService`, `WebhookService`, `ReconciliationService`,
+  `OrderPlacementService`, and `payments:reconcile`.
+- Customer order and payment endpoints, tenant-scoped operator order endpoints,
+  and the public webhook endpoint.
+- Flutter: `PlacedOrder`, `PaymentIntent`, `OrderRepository`, `OrderController`,
+  the payment screen, and a payment handoff seam bound to the implementation
+  that reports it cannot open a checkout.
+
+### Changed
+
+- The checkout screen's Proceed button now validates and then goes to payment.
+- Three older tests asserting that no orders table exists now assert that no row
+  was written — the guarantee they were protecting, kept.
+- The Module 14 device test moved with the boundary: one order, awaiting
+  payment, `paid_at` null.
+
+### Fixed
+
+- A navigation guard that sent a customer to payment on a validation the server
+  had refused, because the controller keeps the last good quote in state and the
+  readiness flags still read true. Caught by a test.

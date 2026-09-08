@@ -1314,8 +1314,49 @@ becomes a green tick nobody looks at. Instead:
 - A new step dumps the simulator's own log for the `Runner` process when the
   step does not finish normally.
 
+**Since the fix.** The first bounded run passed in 21 minutes 8 seconds, well
+inside the new 30-minute limit — a third successful run, and the first one where
+a hang would have been caught and explained rather than swallowed. That is one
+data point, not a resolution: the stall has not recurred and has not been
+root-caused.
+
 **What this costs, stated plainly.** iOS on-device verification is **not
-currently reliable in this CI environment**. It has passed — 27 tests, twice —
-and the passes were real. But it cannot be depended on per-commit until this is
-understood, and no iOS on-device claim should be made from a run that did not
-actually print its tests.
+currently reliable in this CI environment**. It has passed — 27 tests, three
+times now — and the passes were real. But it cannot be depended on per-commit
+until this is understood, and no iOS on-device claim should be made from a run
+that did not actually print its tests.
+
+### KI-021 — two order-status vocabularies — **Low, design debt** — OPEN
+
+The server's `OrderStatus` is payment state only: `AWAITING_PAYMENT`, `PAID`,
+`PAYMENT_FAILED`, `CANCELLED`. The Flutter app also carries an `OrderStatus`
+declared speculatively in Module 02 with `placed`, `accepted`, `cooking`,
+`ready`, `pickedUp` and `cancelled` — a fulfilment workflow nobody has specified
+and the API does not send.
+
+Module 15 did not reconcile them. It added a separate `PlacedOrderStatus` for
+the states the server actually produces, so no screen switches on a state the
+API cannot send. The Module 02 enum still drives the home dashboard's fixture
+data.
+
+**Deliberate, not an oversight.** Deleting the older enum would have meant
+inventing a fulfilment vocabulary to replace it, which is the thing Module 15
+declined to do. When a fulfilment workflow is specified, one of the two goes —
+and it should be a separate column from payment state, because "has the customer
+paid" and "has the kitchen finished" are independent questions.
+
+### KI-022 — the Razorpay integration has never been executed — **Medium, environment** — OPEN
+
+`RazorpayGateway` is written, reviewable, and has never made a request. No
+credentials exist for this project and none were invented, so every deployment
+binds `UnconfiguredPaymentGateway` and every call refuses.
+
+What that means for the verification in this module: the three checks, the
+idempotency, the webhook handling and the reconciliation are all tested against
+a deterministic double and against real HMAC arithmetic. **None of it proves
+Razorpay behaves the way its documentation says.** Field names, status strings,
+the webhook envelope and the signature format are all taken from the docs and
+are unverified against the live service.
+
+The first run against real test-mode credentials should be treated as a
+discovery exercise, not a smoke test.

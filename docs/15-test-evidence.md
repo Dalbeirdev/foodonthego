@@ -2263,3 +2263,92 @@ test each.
   not is the door.
 - **No orders, payments or settlements exist** to be tenant-scoped yet.
   `BelongsToTenant` is the seam they will attach to.
+
+# Module 15 — orders, payment, webhooks and reconciliation
+
+## Totals
+
+| Suite | Result |
+| --- | --- |
+| Backend (PHPUnit) | **1,201 passed** (was 1,141), 5,212 assertions |
+| Flutter (`flutter test`) | **938 passed** (was 904) |
+| Pint / `flutter analyze --fatal-infos` / `dart format` | clean |
+
+Sixty new backend tests and thirty-four new Flutter tests.
+
+| File | Tests | Subject |
+| --- | --- | --- |
+| `tests/Unit/RazorpaySignatureTest.php` | 8 | The HMAC arithmetic, with real HMACs |
+| `tests/Feature/Api/Payments/OrderAndPaymentApiTest.php` | 25 | Placing, intent, the three checks, ownership, one clock |
+| `tests/Feature/Api/Payments/WebhookApiTest.php` | 13 | Signature, idempotency, poisoning, unknown subjects |
+| `tests/Feature/Api/Payments/OrderTenancyAndReconciliationTest.php` | 12 | Cross-tenant orders, reconciliation |
+| `tests/Unit/ProductionConfigGuardTest.php` | +2 | Boot refusal for missing keys and missing webhook secret |
+| `test/placed_order_models_test.dart` | 12 | Parsing, unknown status, wall clock, no secret field |
+| `test/order_controller_test.dart` | 12 | Never paid from a handoff; failure mapping |
+| `test/payment_screen_test.dart` | 9 | Screen states, unavailable ≠ declined, 2× text |
+
+## The assertions worth singling out
+
+- **`test_a_correctly_signed_payment_for_another_provider_order_settles_nothing`**
+  — the signature is genuine and verifies. What fails is the binding. A project
+  that checked only signatures would pass every other test in this suite and
+  ship this hole.
+- **`test_a_payment_for_the_wrong_amount_settles_nothing`** — real, signed,
+  correctly bound, and for ₹1.
+- **`test_a_forged_delivery_cannot_poison_the_idempotency_key`** — see below.
+- **`test_a_handoff_claiming_success_does_not_make_an_order_paid`** — the app is
+  told the payment succeeded and the server says otherwise. The screen follows
+  the server.
+- **`test_no_response_ever_contains_the_key_secret`** — four endpoints, checked
+  for both the value and the field name.
+
+## Negative controls
+
+Ten mutations, applied one at a time to shipping code, each reverted.
+
+| # | Mutation | Tests it broke |
+| --- | --- | --- |
+| 1 | signature verification always agrees | 4 |
+| 2 | the payment/order binding check is dropped | 1 |
+| 3 | the amount check is dropped | 3 — client, webhook and reconciliation |
+| 4 | the webhook records the delivery before verifying it | 1 — the poisoning test |
+| 5 | a duplicate delivery is reprocessed instead of skipped | 1 |
+| 6 | placement stops checking for an existing order | 1 |
+| 7 | settle stops checking whether the order is already paid | **0, then 1** |
+| 8 | the receipt resolves the dish through the menu | 1 |
+| 9 | one instant is rendered on a second clock | 1 |
+| 10 | an already-paid order may open another payment | 1 |
+
+## The control that stayed silent
+
+**Control 7 did not fire**, and that was the most useful result of the ten.
+
+Deleting the "is this order already paid?" guard from `settle()` changed
+nothing. `test_verifying_twice_settles_once` still passed — because both
+verifications happened inside the same second and `paid_at` is a second-precision
+column. The second settlement rewrote an identical value, and
+`assertEquals($paidAt, $order->fresh()->paid_at)` could not tell the difference
+between "the guard held" and "the guard was gone and wrote the same number".
+
+The test was green for a reason that had nothing to do with the property it
+claimed to check. It now moves the clock five minutes between the two calls, and
+also pins the payment's `verified_at`. Re-run with the same mutation, the control
+fires.
+
+This is the second time in this project a control has caught a test rather than
+the code — Module 14T's `accountUsable` bug was the first. Both were found the
+same way: **a control that stays silent has told you something.**
+
+## What is not proven
+
+- **No live payment has ever been taken.** No credentials exist, so
+  `RazorpayGateway` has never made a request and no provider checkout has ever
+  opened. Everything above is verified against a deterministic double and real
+  HMAC arithmetic; none of it proves Razorpay behaves as its documentation says.
+- **No refund, settlement or payout path exists** to be tested.
+- **Module 15's device coverage lives in `module_14_checkout_test.dart`**, which
+  was extended to the new boundary rather than duplicated into a new file: the
+  flow is one continuous journey and a second file would have copied two hundred
+  lines of seeding to reach the same screen. It asserts, from the server, that
+  the quote became exactly one order, that it is `AWAITING_PAYMENT`, and that
+  `paid_at` is null.
