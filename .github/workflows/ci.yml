@@ -468,10 +468,12 @@ jobs:
           # silence.
           script: >-
             cd mobile &&
+            set -o pipefail &&
             flutter test integration_test/
             -d emulator-5554
             --dart-define=FOTG_API_BASE_URL=http://10.0.2.2:8000
             --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
+            2>&1 | tee "$RUNNER_TEMP/device-tests.log"
 
       # The review artefact itself, installed and launched.
       #
@@ -514,6 +516,25 @@ jobs:
       - name: Backend log, if anything failed
         if: ${{ failure() || cancelled() }}
         run: tail -n 40 backend/storage/logs/serve.log backend/storage/logs/laravel.log 2>/dev/null || true
+
+      # WHAT ACTUALLY FAILED, and last on purpose.
+      #
+      # Three device runs were spent not knowing. The simulator log and the
+      # server log are both useful and both long, and between them they pushed
+      # the one line that matters — the assertion — past the end of every log
+      # tail available. Diagnostics that bury the failure are worse than none,
+      # because they look like diligence.
+      #
+      # This runs after them, so the failure is the last thing in the log and
+      # the first thing anybody reads.
+      - name: What actually failed
+        if: ${{ failure() }}
+        run: |
+          echo '================ failing assertions ================'
+          grep -nE '\[E\]|Some tests failed|Expected:|Actual:|Which:|Timed out waiting for|On screen instead:|^\s*package:' \
+            "$RUNNER_TEMP/device-tests.log" 2>/dev/null | tail -n 60 \
+            || echo 'No failure markers found — the run produced no test output at all, which is KI-020.'
+
 
   ios-device:
     name: Mobile — iOS simulator
@@ -602,9 +623,11 @@ jobs:
         timeout-minutes: 30
         working-directory: mobile
         run: |
+          set -o pipefail
           flutter test integration_test/ -d "$SIMULATOR" --verbose \
             --dart-define=FOTG_API_BASE_URL=http://127.0.0.1:8000 \
-            --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
+            --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}' \
+            2>&1 | tee "$RUNNER_TEMP/device-tests.log"
 
       # What the simulator itself thought was happening. Only useful when the
       # step above did not finish normally, which is why it is guarded.
@@ -617,3 +640,22 @@ jobs:
       - name: Backend log, if anything failed
         if: ${{ failure() || cancelled() }}
         run: tail -n 40 backend/storage/logs/serve.log backend/storage/logs/laravel.log 2>/dev/null || true
+
+      # WHAT ACTUALLY FAILED, and last on purpose.
+      #
+      # Three device runs were spent not knowing. The simulator log and the
+      # server log are both useful and both long, and between them they pushed
+      # the one line that matters — the assertion — past the end of every log
+      # tail available. Diagnostics that bury the failure are worse than none,
+      # because they look like diligence.
+      #
+      # This runs after them, so the failure is the last thing in the log and
+      # the first thing anybody reads.
+      - name: What actually failed
+        if: ${{ failure() }}
+        run: |
+          echo '================ failing assertions ================'
+          grep -nE '\[E\]|Some tests failed|Expected:|Actual:|Which:|Timed out waiting for|On screen instead:|^\s*package:' \
+            "$RUNNER_TEMP/device-tests.log" 2>/dev/null | tail -n 60 \
+            || echo 'No failure markers found — the run produced no test output at all, which is KI-020.'
+
