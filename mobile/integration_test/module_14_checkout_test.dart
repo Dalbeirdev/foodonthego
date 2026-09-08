@@ -333,12 +333,18 @@ void main() {
     );
 
     await tapAt(tester, find.byKey(const ValueKey<String>('checkout-proceed')));
-    await settle(tester);
 
-    // On the payment screen, with an order number the server minted.
-    expect(
+    // `waitFor`, not `settle`. This tap is followed by three sequential round
+    // trips — validate the quote, place the order, open a payment — and
+    // `settle` pumps for a fixed six seconds without knowing about any of them.
+    // device_support.dart says exactly this about `tapAt`: it is a courtesy,
+    // not a guarantee, and callers that assert on the result must wait for the
+    // condition. The first version of this test ignored that and failed on both
+    // platforms.
+    await waitFor(
+      tester,
       find.byKey(const ValueKey<String>('payment-order-number')),
-      findsOneWidget,
+      describe: 'the payment screen showing the order number the server minted',
     );
 
     // Read from the server, not from the screen: a client cannot know what a

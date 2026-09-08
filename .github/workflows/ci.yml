@@ -513,7 +513,7 @@ jobs:
 
       - name: Backend log, if anything failed
         if: ${{ failure() || cancelled() }}
-        run: tail -n 100 backend/storage/logs/serve.log backend/storage/logs/laravel.log || true
+        run: tail -n 40 backend/storage/logs/serve.log backend/storage/logs/laravel.log 2>/dev/null || true
 
   ios-device:
     name: Mobile — iOS simulator
@@ -612,8 +612,8 @@ jobs:
         if: ${{ failure() || cancelled() }}
         run: |
           xcrun simctl spawn "$SIMULATOR" log show --last 10m \
-            --predicate 'processImagePath CONTAINS "Runner"' 2>/dev/null | tail -n 200 || true
+            --predicate 'processImagePath CONTAINS "Runner"' 2>/dev/null | tail -n 60 || true
 
       - name: Backend log, if anything failed
         if: ${{ failure() || cancelled() }}
-        run: tail -n 100 backend/storage/logs/serve.log backend/storage/logs/laravel.log || true
+        run: tail -n 40 backend/storage/logs/serve.log backend/storage/logs/laravel.log 2>/dev/null || true
