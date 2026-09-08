@@ -1238,3 +1238,31 @@ statement nobody had made.
 
 **Fixed** by a migration making the column nullable and moving existing zeroes to
 `NULL`. `configured` is now `packaging_fee_minor !== null`.
+
+### M14-B05 — the review build ran twice per commit and collided with itself — **Medium** — FIXED
+
+The `review-build` job carried no event guard, so every commit ran it twice:
+once for the `push` event and once for the `pull_request` event. Both produced an
+82 MB artefact with the **same name**, and both finalised at roughly the same
+moment.
+
+On `f1845d4` the artifact service answered the second one with:
+
+```
+Failed to FinalizeArtifact: Received non-retryable error:
+Failed request: (403) Forbidden: Error from intermediary with HTTP status code 403
+```
+
+The binaries themselves were fine — 82,337,899 bytes uploaded, digest computed.
+It was the collision that failed, and it had succeeded on the previous commit
+only by luck of timing.
+
+**Worth naming as a defect rather than waving through as a flake.** The commit it
+appeared on was backend-only and touched no Flutter code, which is exactly the
+shape that invites "not mine, re-run it". It was mine: the job's missing
+condition came in with Module 14, and a re-run would have had the same race.
+
+**Fixed** by giving `review-build` the same event guard the device jobs already
+have, which removes the duplicate run entirely, and by dropping pull-request
+retention to a day — on a PR the artefact exists so the emulator job can install
+it, not so it can be kept for a month.

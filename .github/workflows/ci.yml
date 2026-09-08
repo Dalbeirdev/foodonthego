@@ -190,6 +190,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: mobile
 
+    # The same condition as the device jobs, and for a reason that cost a red
+    # build to learn. Without it this job ran on the `push` event AND the
+    # `pull_request` event for the same commit, producing two 82 MB artefacts
+    # with the *same name* finalising at the same moment — which the artifact
+    # service answered with "Failed to FinalizeArtifact: (403) Forbidden". The
+    # binaries had both uploaded fine; it was the collision that failed.
+    #
+    # It is also simply waste: two release builds and two bundles per commit,
+    # for one artefact anybody wants.
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
     steps:
       - uses: actions/checkout@v4
 
@@ -298,7 +309,11 @@ jobs:
         with:
           name: android-review-build-${{ github.event.pull_request.head.sha || github.sha }}
           path: mobile/build/review/
-          retention-days: 30
+          # A day on a pull request, where the artefact exists so the emulator
+          # job can install it; a month on main, where it is the thing a client
+          # is handed. Thirty days of every intermediate commit is storage
+          # nobody asked for.
+          retention-days: ${{ github.event_name == 'pull_request' && 1 || 30 }}
           if-no-files-found: error
 
   ios:

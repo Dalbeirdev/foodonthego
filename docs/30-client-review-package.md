@@ -59,7 +59,7 @@ downloadable from the workflow run.
 | Artefact | `android-review-build-<commit>.zip` |
 | Contains | `app-release.apk`, `app-release.aab`, `BUILD-INFO.txt` |
 | Where | the **Mobile — Android review build** job of a CI run on this branch |
-| Retention | 30 days from the run |
+| Retention | 30 days on `main`; 1 day on a pull request, where the artefact exists so the emulator job can install it |
 | Version | `1.0.0+1` |
 | Application id | `com.foodonthego.foodonthego` |
 | Environment | `FOTG_ENV=staging` — **not** a production build |
