@@ -512,7 +512,7 @@ jobs:
             ! adb logcat -d -b crash | grep -q com.foodonthego.foodonthego
 
       - name: Backend log, if anything failed
-        if: failure()
+        if: ${{ failure() || cancelled() }}
         run: tail -n 100 backend/storage/logs/serve.log backend/storage/logs/laravel.log || true
 
   ios-device:
@@ -586,13 +586,34 @@ jobs:
 
       # A simulator shares the host's network stack, so the server is simply
       # on localhost. No signing: this never leaves the runner.
+      # KI-020: twice now this step has printed `Xcode build done`, then nothing
+      # whatsoever until the job's own 60-minute timeout cancelled it — 50 minutes
+      # of silence on 8253730, 53 on fd2e136, with `dartvm` still alive in the
+      # orphan list both times. The app builds and launches; the test harness
+      # never hears from it.
+      #
+      # Two things change here, neither of which is a retry. A step timeout well
+      # under the job's, so the stall is bounded and, being a step failure rather
+      # than a job cancellation, one that lets the diagnostic step below run at
+      # all. And --verbose, because the defining feature of this hang is that it
+      # produces no evidence: the daemon handshake is precisely what is missing
+      # from the log, so the next occurrence should show where it stops.
       - name: Run the on-device tests
+        timeout-minutes: 30
         working-directory: mobile
         run: |
-          flutter test integration_test/ -d "$SIMULATOR" \
+          flutter test integration_test/ -d "$SIMULATOR" --verbose \
             --dart-define=FOTG_API_BASE_URL=http://127.0.0.1:8000 \
             --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
 
+      # What the simulator itself thought was happening. Only useful when the
+      # step above did not finish normally, which is why it is guarded.
+      - name: Simulator log, if anything went wrong
+        if: ${{ failure() || cancelled() }}
+        run: |
+          xcrun simctl spawn "$SIMULATOR" log show --last 10m \
+            --predicate 'processImagePath CONTAINS "Runner"' 2>/dev/null | tail -n 200 || true
+
       - name: Backend log, if anything failed
-        if: failure()
+        if: ${{ failure() || cancelled() }}
         run: tail -n 100 backend/storage/logs/serve.log backend/storage/logs/laravel.log || true

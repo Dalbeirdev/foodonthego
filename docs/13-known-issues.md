@@ -1267,24 +1267,55 @@ have, which removes the duplicate run entirely, and by dropping pull-request
 retention to a day — on a PR the artefact exists so the emulator job can install
 it, not so it can be kept for a month.
 
-### KI-020 — the iOS simulator job can hang before any test runs — **Low, environment** — OPEN
+### KI-020 — the iOS simulator job hangs before any test runs — **Medium, environment** — OPEN
 
-Observed once, on `fd2e136`. The macOS runner completed `Xcode build done. 132.3s`
-and then produced **no output at all** for 53 minutes, until the job's own
-60-minute timeout cancelled it. Not a test failure: not one test body executed.
+**Seen twice, on consecutive commits.** It is not a flake.
 
-Not the commit's doing. That commit changed no Flutter code, the identical suite
-had passed on the Android emulator on the same commit minutes earlier, and the
-same iOS suite had completed in ~14 minutes on the commit before.
+| Commit | Build finished | Cancelled | Silence | Tests run |
+| --- | --- | --- | --- | --- |
+| `fd2e136` | `Xcode build done. 132.3s` | job timeout | 53 min | none |
+| `8253730` | `Xcode build done. 148.4s` | job timeout | 50 min 41 s | none |
 
-A re-run passed: 27 tests in 21½ minutes.
+The distinguishing signature is silence *after* `Xcode build done`. A genuine
+test failure prints test names and an assertion; this prints nothing at all
+between the build finishing and the runner killing the job. On `8253730` the
+whole of the step's output was:
 
-**What to do when it recurs.** Re-run the job once. The distinguishing signature
-is silence *after* `Xcode build done` — a genuine failure prints test names and
-an assertion. If it starts recurring rather than being a one-off, the thing to
-investigate is `flutter test integration_test/` launching on the simulator, not
-the tests themselves.
+```
+17:46:45  Running Xcode build...
+17:46:45  Xcode build done.        148.4s
+18:37:26  ##[error]The operation was canceled.
+```
 
-Recorded rather than waved through, because "the iOS job was slow" is exactly the
-sort of thing that gets re-run into a green tick without anybody noticing it has
-become permanent.
+Both times the orphan-process sweep at cleanup listed `dartvm` and `simctl` as
+still alive. The application builds and launches; the test harness never hears
+from it. That points at the VM-service attach, not at the tests.
+
+**Not the diff's doing, either time.** `fd2e136` changed only CI configuration
+and `8253730` only a Markdown file — neither touched Flutter code. The identical
+suite passed on the Android emulator on both commits, minutes apart, and the
+same iOS suite completed in ~14 minutes on the commit before the first
+occurrence.
+
+**What changed in response.** Not a retry — a re-run is what turned the first
+occurrence green, and doing that again is precisely how a permanent problem
+becomes a green tick nobody looks at. Instead:
+
+- The test step now carries `timeout-minutes: 30`, well under the job's 60. The
+  stall is bounded, and it now ends as a *step failure* rather than a *job
+  cancellation*.
+- That distinction mattered more than it looks. The diagnostic step was guarded
+  by `if: failure()`, and a cancelled job does not satisfy `failure()` — so on
+  both occurrences the one step that exists to explain a bad run was skipped.
+  Both device jobs now use `if: ${{ failure() || cancelled() }}`.
+- The test run is now `--verbose`. The defining property of this hang is that it
+  produces no evidence; the daemon handshake is exactly what is missing from the
+  log, so the next occurrence should show where it stops.
+- A new step dumps the simulator's own log for the `Runner` process when the
+  step does not finish normally.
+
+**What this costs, stated plainly.** iOS on-device verification is **not
+currently reliable in this CI environment**. It has passed — 27 tests, twice —
+and the passes were real. But it cannot be depended on per-commit until this is
+understood, and no iOS on-device claim should be made from a run that did not
+actually print its tests.
