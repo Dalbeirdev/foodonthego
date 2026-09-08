@@ -1,0 +1,299 @@
+# Review deployment to techpio.tech.
+#
+# Deliberately a separate workflow from ci.yml. A deploy that fails is a
+# different fact from a test that fails, and merging them into one red X means
+# neither can be read without opening it.
+#
+# THIS DOES NOT TOUCH piodesk.com. The stack publishes exactly one port,
+# 127.0.0.1:8090, which is not reachable from the internet; whatever already
+# owns 80 and 443 keeps them. The one step that goes near the existing web
+# server — installing the vhost and requesting a certificate — is opt-in, runs
+# `nginx -t` before it reloads anything, and reloads rather than restarts.
+name: Deploy — techpio.tech
+
+on:
+  workflow_dispatch:
+    inputs:
+      setup_nginx:
+        description: 'Also install the techpio.tech vhost and request a certificate (one-time; touches the shared nginx)'
+        type: boolean
+        default: false
+  push:
+    branches: ['claude/foodonthego-s0x2vt']
+    paths:
+      - 'backend/**'
+      - 'web/**'
+      - 'mobile/**'
+      - 'deploy/**'
+      - '.github/workflows/deploy.yml'
+
+# Never cancel a deploy in flight. cancel-in-progress here would mean killing a
+# `docker compose up` halfway and leaving the box in a state nobody chose.
+concurrency:
+  group: deploy-techpio
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build, ship, and bring up
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Secrets absent is not a failure. Anyone can fork or re-run this
+      # workflow without deploy credentials, and a red X on their branch would
+      # be noise about something that was never theirs to configure.
+      - name: Are the deploy credentials present
+        id: gate
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          missing=''
+          [ -n "$HOST" ] || missing="$missing DEPLOY_HOST"
+          [ -n "$USER" ] || missing="$missing DEPLOY_USER"
+          [ -n "$KEY" ]  || missing="$missing DEPLOY_SSH_KEY"
+          if [ -n "$missing" ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            {
+              echo '### Deploy skipped'
+              echo
+              echo 'These repository secrets are not set:'
+              echo
+              for s in $missing; do echo "- \`$s\`"; done
+              echo
+              echo 'Settings → Secrets and variables → Actions → New repository secret.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Deploy skipped — missing:$missing"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare the SSH identity
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          PORT: ${{ vars.DEPLOY_PORT || '22' }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # A trailing newline matters: OpenSSH rejects a key file whose final
+          # line has none, with an error that says nothing about newlines.
+          if [ -n "$KNOWN" ]; then
+            printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+            echo 'Host key pinned from DEPLOY_KNOWN_HOSTS.'
+          else
+            # Trust on first use. This is a real weakness and is said out loud
+            # rather than hidden: the first connection cannot tell the server
+            # from anyone able to answer for its address. Pin it by setting
+            # DEPLOY_KNOWN_HOSTS to the output of
+            #   ssh-keyscan -p <port> <host>
+            # run from a machine you trust.
+            ssh-keyscan -p "$PORT" -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+            echo '::warning::DEPLOY_KNOWN_HOSTS is not set — the host key was accepted on first use rather than verified.'
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      # Everything the Dockerfiles need as build context, and nothing else.
+      # vendor/, node_modules/ and build/ are excluded because they are rebuilt
+      # inside the images; shipping them would send hundreds of megabytes to be
+      # thrown away.
+      - name: Pack the source
+        if: steps.gate.outputs.ok == 'true'
+        run: |
+          tar -czf source.tgz \
+            --exclude='**/node_modules' \
+            --exclude='**/vendor' \
+            --exclude='**/build' \
+            --exclude='**/.dart_tool' \
+            --exclude='**/dist' \
+            backend web mobile deploy
+          ls -lh source.tgz
+
+      - name: Ship it
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          PORT: ${{ vars.DEPLOY_PORT || '22' }}
+        run: |
+          scp -i ~/.ssh/deploy_key -P "$PORT" -o BatchMode=yes \
+            source.tgz "$USER@$HOST:/tmp/foodonthego-${{ github.sha }}.tgz"
+
+      - name: Bring the stack up
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          ENV_FILE: ${{ secrets.DEPLOY_ENV_FILE }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$PORT" -o BatchMode=yes "$USER@$HOST" \
+            "SHA='${{ github.sha }}' ENV_FILE='$ENV_FILE' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          ROOT=/opt/foodonthego
+          RELEASE="$ROOT/releases/$SHA"
+
+          # Docker is a prerequisite, not something this installs. The box
+          # serves piodesk.com; installing a container runtime under it is a
+          # decision for its owner, not for a deploy script.
+          command -v docker >/dev/null || {
+            echo "docker is not installed on this box."
+            echo "Install it first:  curl -fsSL https://get.docker.com | sh"
+            exit 1
+          }
+          docker compose version >/dev/null 2>&1 || {
+            echo "the docker compose plugin is missing (docker-compose v1 is not enough)."
+            exit 1
+          }
+
+          mkdir -p "$ROOT/releases" "$ROOT/shared"
+
+          # The environment file lives outside any release and survives all of
+          # them, because it holds the database password and the app key. Lose
+          # it and the existing data becomes unreadable.
+          if [ -n "${ENV_FILE:-}" ]; then
+            printf '%s\n' "$ENV_FILE" > "$ROOT/shared/.env"
+            echo "Wrote shared/.env from DEPLOY_ENV_FILE."
+          fi
+
+          rm -rf "$RELEASE" && mkdir -p "$RELEASE"
+          tar -xzf "/tmp/foodonthego-$SHA.tgz" -C "$RELEASE"
+          rm -f "/tmp/foodonthego-$SHA.tgz"
+
+          # First deploy: build an environment rather than asking for one.
+          # Passwords and the app key are generated here and then persisted, so
+          # nothing secret ever passes through the repository or a chat window.
+          # Razorpay is left empty on purpose — APP_ENV=review is the only
+          # environment ProductionConfigGuard will boot without real
+          # credentials, and inventing placeholder ones would defeat the guard.
+          if [ ! -f "$ROOT/shared/.env" ]; then
+            echo "No shared/.env — generating one."
+            cp "$RELEASE/deploy/.env.example" "$ROOT/shared/.env"
+            set_env() {
+              if grep -q "^$1=" "$ROOT/shared/.env"; then
+                sed -i "s|^$1=.*|$1=$2|" "$ROOT/shared/.env"
+              else
+                echo "$1=$2" >> "$ROOT/shared/.env"
+              fi
+            }
+            set_env APP_KEY "base64:$(head -c 32 /dev/urandom | base64)"
+            set_env DB_PASSWORD "$(head -c 24 /dev/urandom | base64 | tr -d '/+=')"
+            set_env DB_ROOT_PASSWORD "$(head -c 24 /dev/urandom | base64 | tr -d '/+=')"
+            chmod 600 "$ROOT/shared/.env"
+          fi
+
+          cp "$ROOT/shared/.env" "$RELEASE/deploy/.env"
+
+          cd "$RELEASE/deploy"
+          docker compose build
+          docker compose up -d --remove-orphans
+
+          # Migrations run after the containers are up and the database is
+          # healthy — compose's depends_on has already waited for that.
+          docker compose exec -T php php artisan migrate --force
+          docker compose exec -T php php artisan config:cache
+          docker compose exec -T php php artisan route:cache
+
+          ln -sfn "$RELEASE" "$ROOT/current"
+
+          # Keep the last five releases. Rollback is `ln -sfn` at a previous
+          # one and `docker compose up -d` from inside it.
+          ls -1dt "$ROOT/releases"/* | tail -n +6 | xargs -r rm -rf
+
+          echo "--- what is running"
+          docker compose ps
+          REMOTE
+
+      # Proof, not assumption. A deploy that reports success because nothing
+      # threw is a deploy nobody has checked.
+      - name: Does it actually answer
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          PORT: ${{ vars.DEPLOY_PORT || '22' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$PORT" -o BatchMode=yes "$USER@$HOST" bash -s <<'REMOTE'
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /tmp/probe.out -w '%{http_code}' http://127.0.0.1:8090/api/v1/health/ready || echo 000)
+            [ "$code" = "200" ] && { echo "health 200 after ${i}s"; cat /tmp/probe.out; exit 0; }
+            sleep 2
+          done
+          echo "the stack never answered 200 on /api/v1/health/ready"
+          cd /opt/foodonthego/current/deploy && docker compose logs --tail 80
+          exit 1
+          REMOTE
+
+      # One-time, opt-in, and the only step that goes near the server serving
+      # piodesk.com. `nginx -t` gates the reload: an invalid config is rejected
+      # before anything is applied, and `reload` re-reads config without
+      # dropping the connections the existing site is serving.
+      - name: Install the vhost and request a certificate
+        if: steps.gate.outputs.ok == 'true' && inputs.setup_nginx
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          PORT: ${{ vars.DEPLOY_PORT || '22' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$PORT" -o BatchMode=yes "$USER@$HOST" \
+            "CERTBOT_EMAIL='${{ secrets.DEPLOY_CERTBOT_EMAIL }}' bash -s" <<'REMOTE'
+          set -euo pipefail
+          SRC=/opt/foodonthego/current/deploy/nginx/techpio.tech.conf
+
+          resolved=$(getent hosts techpio.tech | awk '{print $1}' | head -1)
+          echo "techpio.tech resolves to ${resolved:-nothing}"
+          [ -n "$resolved" ] || { echo "DNS does not resolve yet; certbot would fail. Stopping."; exit 1; }
+
+          cp "$SRC" /etc/nginx/sites-available/techpio.tech.conf
+          ln -sfn /etc/nginx/sites-available/techpio.tech.conf \
+                  /etc/nginx/sites-enabled/techpio.tech.conf
+
+          # If this fails, nothing has been reloaded and the existing site is
+          # still being served by the config already in memory.
+          nginx -t
+          systemctl reload nginx
+
+          if [ -n "${CERTBOT_EMAIL:-}" ]; then
+            REGISTRATION="-m $CERTBOT_EMAIL"
+          else
+            # No address is sent anywhere unless its owner puts one in the
+            # secret. The cost is that Let's Encrypt cannot warn about an
+            # expiring certificate; renewal is still automatic.
+            REGISTRATION="--register-unsafely-without-email"
+          fi
+          certbot --nginx -n --agree-tos --redirect \
+            -d techpio.tech -d www.techpio.tech \
+            $REGISTRATION || {
+              echo 'certbot failed — the site is up on HTTP; HTTPS needs another look.'
+              exit 1
+            }
+          nginx -t && systemctl reload nginx
+          echo 'https://techpio.tech should now answer.'
+          REMOTE
+
+      - name: Say where it is
+        if: steps.gate.outputs.ok == 'true'
+        run: |
+          {
+            echo '### Deployed'
+            echo
+            echo "Commit \`${{ github.sha }}\` is live on the review box."
+            echo
+            echo '- Customer app — https://techpio.tech/'
+            echo '- Restaurant dashboard — https://techpio.tech/restaurant/'
+            echo '- Admin panel — https://techpio.tech/admin/'
+            echo '- API health — https://techpio.tech/api/v1/health/ready'
+            echo
+            echo 'This is `APP_ENV=review`: OTP codes go to the log, place'
+            echo 'search uses a fixed gazetteer, routing is straight lines, and'
+            echo 'payment refuses every call. See `deploy/README.md`.'
+          } >> "$GITHUB_STEP_SUMMARY"

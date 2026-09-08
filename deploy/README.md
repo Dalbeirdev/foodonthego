@@ -27,6 +27,82 @@ Everything else — discovery along a route, search and filters, menus,
 customisation, the cart, pickup times, the priced checkout, tenant isolation —
 is the real implementation against a real database.
 
+## The automated route (preferred)
+
+`.github/workflows/deploy.yml` does everything below on every push, so the
+steps that follow are the manual fallback and the explanation of what the
+workflow is doing on your behalf.
+
+### What you set, once
+
+**Settings → Secrets and variables → Actions → New repository secret**
+
+| Secret | What it is |
+| --- | --- |
+| `DEPLOY_HOST` | `93.188.167.45` |
+| `DEPLOY_USER` | the SSH user (`root`, or a user in the `docker` group) |
+| `DEPLOY_SSH_KEY` | the **private** key, whole file including the BEGIN/END lines |
+| `DEPLOY_KNOWN_HOSTS` | *optional but recommended* — output of `ssh-keyscan 93.188.167.45` |
+| `DEPLOY_CERTBOT_EMAIL` | *optional* — where Let's Encrypt sends expiry warnings |
+
+A non-standard SSH port goes in a **variable** (not a secret) called
+`DEPLOY_PORT`.
+
+Generate a key pair for this and nothing else:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/foodonthego_deploy -C 'github-actions deploy'
+ssh-copy-id -i ~/.ssh/foodonthego_deploy.pub <user>@93.188.167.45
+cat ~/.ssh/foodonthego_deploy        # this is DEPLOY_SSH_KEY
+ssh-keyscan 93.188.167.45            # this is DEPLOY_KNOWN_HOSTS
+```
+
+The private key never passes through a chat window, an issue, or a commit. If
+the secrets are absent the workflow **skips** rather than failing, so nothing
+goes red before they are set.
+
+### What it does
+
+1. Packs `backend/ web/ mobile/ deploy/` — no `vendor`, `node_modules` or
+   `build`, since the images rebuild them.
+2. `scp`s it and unpacks to `/opt/foodonthego/releases/<sha>`.
+3. On the **first** run only, generates `/opt/foodonthego/shared/.env` with a
+   random `APP_KEY` and random database passwords. That file lives outside
+   every release and survives all of them — **losing it makes the existing
+   database unreadable**. Razorpay is left empty on purpose: `APP_ENV=review`
+   is the only environment `ProductionConfigGuard` boots without real
+   credentials, and a placeholder would defeat the guard.
+4. `docker compose build && up -d`, then `migrate --force`, `config:cache`,
+   `route:cache`.
+5. Points `/opt/foodonthego/current` at the new release and prunes all but the
+   last five.
+6. **Proves it works** — polls `http://127.0.0.1:8090/api/v1/health/ready`
+   until it answers 200, and dumps container logs and fails if it never does.
+   A deploy that reports success because nothing threw is a deploy nobody has
+   checked.
+
+Rolling back is `ln -sfn` at an earlier release and `docker compose up -d` from
+inside it.
+
+### The one step that is opt-in
+
+Installing the nginx vhost and requesting the certificate is the only thing
+that goes near the server already serving **piodesk.com**, so it does not run
+on a push. Trigger it deliberately: **Actions → Deploy — techpio.tech → Run
+workflow → tick "Also install the techpio.tech vhost"**.
+
+It refuses to proceed unless `techpio.tech` already resolves, runs `nginx -t`
+before applying anything, and uses `reload` rather than `restart` — an invalid
+config is rejected while the config already in memory keeps serving the
+existing site.
+
+### Before that will work
+
+`techpio.tech` currently resolves to **2.57.91.91**, which is not this box.
+Step 1 below has to happen first.
+
+---
+
 ## Step 0 — find out what is already on the box
 
 Read-only. Nothing here changes anything. Run it and read the output before
