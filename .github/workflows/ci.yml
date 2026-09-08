@@ -466,15 +466,23 @@ jobs:
           # to keep in step: a module that adds a device test and forgets to
           # add it here would ship unverified, and the failure mode of that is
           # silence.
+          #
+          # The log path is unquoted on purpose. This action does not hand the
+          # script to a shell as an argv element; it builds the command string
+          # `sh -c \"<script>\"` and lets the exec layer re-parse it, so a bare
+          # double quote inside the script can end the argument early and the
+          # rest arrives as positional parameters. The runner workspace has no
+          # spaces in it, so the quotes bought nothing and risked that.
           script: >-
             cd mobile &&
             flutter test integration_test/
             -d emulator-5554
             --dart-define=FOTG_API_BASE_URL=http://10.0.2.2:8000
             --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
-            > "$GITHUB_WORKSPACE/device-tests.log" 2>&1;
+            > $GITHUB_WORKSPACE/device-tests.log 2>&1;
             code=$?;
-            cat "$GITHUB_WORKSPACE/device-tests.log";
+            echo "flutter test exited $code";
+            cat $GITHUB_WORKSPACE/device-tests.log;
             exit $code
 
       # The review artefact itself, installed and launched.
@@ -536,13 +544,49 @@ jobs:
       #
       # This runs after them, so the failure is the last thing in the log and
       # the first thing anybody reads.
+      # The first version of this step told me nothing, and worse, it could not
+      # have. `grep ... | tail -n 60 || echo 'no markers'` binds the `||` to the
+      # pipeline, and a pipeline's status is the status of its last command —
+      # `tail`, which always succeeds. So the fallback was unreachable: a log
+      # that did not exist, a log that was empty, and a log whose failure was
+      # not a Dart assertion all printed exactly the same thing, which was
+      # nothing at all. A control that cannot fail is not a control.
+      #
+      # So: the file's existence and size are stated before anything is read
+      # from it, the grep result is captured into a variable so the empty case
+      # is distinguishable from the missing-file case, and the tail of the run
+      # is printed unconditionally — because a failure that is not an assertion
+      # still has a last line, and that line is the one worth having.
       - name: What actually failed
-        if: ${{ failure() }}
+        if: ${{ failure() || cancelled() }}
         run: |
-          echo '================ failing assertions ================'
-          grep -nE '\[E\]|Some tests failed|Expected:|Actual:|Which:|Timed out waiting for|On screen instead:|^\s*package:' \
-            "$GITHUB_WORKSPACE/device-tests.log" 2>/dev/null | tail -n 60 \
-            || echo 'No failure markers found — the run produced no test output at all, which is KI-020.'
+          log="$GITHUB_WORKSPACE/device-tests.log"
+          if [ ! -f "$log" ]; then
+            echo "NO LOG: $log was never written. The test step died before it ran."
+            ls -la "$GITHUB_WORKSPACE" | head -n 40
+            exit 0
+          fi
+          echo "device-tests.log: $(wc -l < "$log") lines, $(wc -c < "$log") bytes"
+          echo '================ failure markers ================'
+          hits="$(grep -nE '\[E\]|Some tests failed|Expected:|Actual:|Which:|Timed out waiting for|On screen instead:|Test device exited|Lost connection to device|EXCEPTION CAUGHT|Failed to load' "$log" || true)"
+          if [ -n "$hits" ]; then
+            printf '%s\n' "$hits" | tail -n 60
+          else
+            echo '(nothing matched — this failure is not a Dart assertion)'
+          fi
+          echo '================ last 100 lines of the run ================'
+          tail -n 100 "$log"
+
+      # The log itself, kept whatever happened. Reading a job log gives me its
+      # tail and nothing else; an artifact gives me the whole file.
+      - name: Keep the device test log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-tests-log-${{ github.job }}
+          path: device-tests.log
+          if-no-files-found: warn
+          retention-days: 7
 
 
   ios-device:
@@ -628,14 +672,27 @@ jobs:
       # all. And --verbose, because the defining feature of this hang is that it
       # produces no evidence: the daemon handshake is precisely what is missing
       # from the log, so the next occurrence should show where it stops.
+      # `set +e` is load-bearing, and its absence is why four device failures in
+      # a row said nothing. GitHub runs a `run:` block as `/bin/bash -e {0}`.
+      # Under `-e`, `flutter test ... > log 2>&1; code=$?` does not reach the
+      # assignment: the shell dies the instant flutter exits non-zero, so
+      # `code=$?`, the `cat` and the `exit` are all dead code on exactly the
+      # path they exist to serve. The step reported the right exit status — set
+      # -e propagates it — which is what made it look like it was working. On
+      # every failing run since this was written, the captured output was
+      # written to disk and then never printed.
       - name: Run the on-device tests
         timeout-minutes: 30
         working-directory: mobile
         run: |
+          set +e
           flutter test integration_test/ -d "$SIMULATOR" --verbose \
             --dart-define=FOTG_API_BASE_URL=http://127.0.0.1:8000 \
             --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}' \
-            > "$GITHUB_WORKSPACE/device-tests.log" 2>&1; code=$?
+            > "$GITHUB_WORKSPACE/device-tests.log" 2>&1
+          code=$?
+          set -e
+          echo "flutter test exited $code; log is $(wc -l < "$GITHUB_WORKSPACE/device-tests.log") lines"
           cat "$GITHUB_WORKSPACE/device-tests.log"
           exit $code
 
@@ -668,11 +725,47 @@ jobs:
       #
       # This runs after them, so the failure is the last thing in the log and
       # the first thing anybody reads.
+      # The first version of this step told me nothing, and worse, it could not
+      # have. `grep ... | tail -n 60 || echo 'no markers'` binds the `||` to the
+      # pipeline, and a pipeline's status is the status of its last command —
+      # `tail`, which always succeeds. So the fallback was unreachable: a log
+      # that did not exist, a log that was empty, and a log whose failure was
+      # not a Dart assertion all printed exactly the same thing, which was
+      # nothing at all. A control that cannot fail is not a control.
+      #
+      # So: the file's existence and size are stated before anything is read
+      # from it, the grep result is captured into a variable so the empty case
+      # is distinguishable from the missing-file case, and the tail of the run
+      # is printed unconditionally — because a failure that is not an assertion
+      # still has a last line, and that line is the one worth having.
       - name: What actually failed
-        if: ${{ failure() }}
+        if: ${{ failure() || cancelled() }}
         run: |
-          echo '================ failing assertions ================'
-          grep -nE '\[E\]|Some tests failed|Expected:|Actual:|Which:|Timed out waiting for|On screen instead:|^\s*package:' \
-            "$GITHUB_WORKSPACE/device-tests.log" 2>/dev/null | tail -n 60 \
-            || echo 'No failure markers found — the run produced no test output at all, which is KI-020.'
+          log="$GITHUB_WORKSPACE/device-tests.log"
+          if [ ! -f "$log" ]; then
+            echo "NO LOG: $log was never written. The test step died before it ran."
+            ls -la "$GITHUB_WORKSPACE" | head -n 40
+            exit 0
+          fi
+          echo "device-tests.log: $(wc -l < "$log") lines, $(wc -c < "$log") bytes"
+          echo '================ failure markers ================'
+          hits="$(grep -nE '\[E\]|Some tests failed|Expected:|Actual:|Which:|Timed out waiting for|On screen instead:|Test device exited|Lost connection to device|EXCEPTION CAUGHT|Failed to load' "$log" || true)"
+          if [ -n "$hits" ]; then
+            printf '%s\n' "$hits" | tail -n 60
+          else
+            echo '(nothing matched — this failure is not a Dart assertion)'
+          fi
+          echo '================ last 100 lines of the run ================'
+          tail -n 100 "$log"
+
+      # The log itself, kept whatever happened. Reading a job log gives me its
+      # tail and nothing else; an artifact gives me the whole file.
+      - name: Keep the device test log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-tests-log-${{ github.job }}
+          path: device-tests.log
+          if-no-files-found: warn
+          retention-days: 7
 
