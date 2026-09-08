@@ -15,6 +15,7 @@ import '../../domain/models/discovered_restaurant.dart';
 import '../../features/discovery/discovery_screen.dart';
 import '../../features/cart/cart_screen.dart';
 import '../../features/checkout/checkout_screen.dart';
+import '../../features/payment/payment_screen.dart';
 import '../../features/pickup/pickup_time_screen.dart';
 import '../../features/item/item_detail_screen.dart';
 import '../../features/menu/menu_screen.dart';
@@ -180,6 +181,34 @@ GoRouter createRouter({
                                       tripId:
                                           state.pathParameters['tripId'] ?? '',
                                     ),
+                                routes: <RouteBase>[
+                                  // Under the checkout, because paying without
+                                  // a quote is meaningless — and so back lands
+                                  // on the order the customer agreed to.
+                                  //
+                                  // The quote travels as a query parameter
+                                  // rather than a path segment: it is the
+                                  // subject of the payment, not a place, and a
+                                  // consumed quote should not leave a URL that
+                                  // looks re-openable.
+                                  GoRoute(
+                                    path: Routes.tripPayment,
+                                    builder:
+                                        (
+                                          BuildContext context,
+                                          GoRouterState state,
+                                        ) => PaymentScreen(
+                                          tripId:
+                                              state.pathParameters['tripId'] ??
+                                              '',
+                                          checkoutId:
+                                              state
+                                                  .uri
+                                                  .queryParameters['checkout'] ??
+                                              '',
+                                        ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),

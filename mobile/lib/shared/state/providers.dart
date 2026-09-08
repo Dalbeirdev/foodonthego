@@ -13,6 +13,7 @@ import '../../data/fixtures/development_personas.dart';
 import '../../data/repositories/api_auth_repository.dart';
 import '../../data/repositories/api_cart_repository.dart';
 import '../../data/repositories/api_checkout_repository.dart';
+import '../../data/repositories/api_order_repository.dart';
 import '../../data/repositories/api_pickup_repository.dart';
 import '../../data/repositories/api_customer_repository.dart';
 import '../../data/repositories/api_menu_repository.dart';
@@ -26,7 +27,9 @@ import '../../data/repositories/unconfigured_home_repository.dart';
 import '../../domain/models/home_dashboard.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/cart_repository.dart';
+import '../../domain/payments/payment_handoff.dart';
 import '../../domain/repositories/checkout_repository.dart';
+import '../../domain/repositories/order_repository.dart';
 import '../../domain/repositories/pickup_repository.dart';
 import '../../domain/repositories/customer_repository.dart';
 import '../../domain/repositories/home_repository.dart';
@@ -282,6 +285,29 @@ final pickupRepositoryProvider = Provider<PickupRepository>(
 /// implementation builds carries no body at all.
 final checkoutRepositoryProvider = Provider<CheckoutRepository>(
   (Ref ref) => ApiCheckoutRepository(ref.watch(apiClientProvider)),
+);
+
+/// Orders and payment (Module 15).
+///
+/// **Nothing on this interface takes an amount either.** The order is placed at
+/// the price the server quoted, and verification carries three provider
+/// identifiers and nothing else.
+final orderRepositoryProvider = Provider<OrderRepository>(
+  (Ref ref) => ApiOrderRepository(ref.watch(apiClientProvider)),
+);
+
+/// Handing the customer to the provider's checkout sheet.
+///
+/// Bound to the implementation that reports it cannot, because no Razorpay
+/// credentials exist for this project and no SDK is integrated. Wiring up a
+/// provider package against credentials nobody has would compile, would look
+/// finished, and could never run — and a payment path that has never once
+/// executed is worse than an absent one, because absence is visible.
+///
+/// The same shape as the server's `UnconfiguredPaymentGateway`, for the same
+/// reason.
+final paymentHandoffProvider = Provider<PaymentHandoff>(
+  (Ref ref) => const UnconfiguredPaymentHandoff(),
 );
 
 /// The device's position.

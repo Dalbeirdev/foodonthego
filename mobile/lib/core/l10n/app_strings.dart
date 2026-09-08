@@ -1100,6 +1100,47 @@ class AppStrings {
   String get pickupCheckingOrder => 'Checking your order';
 
   // --- checkout (Module 14) ------------------------------------------------
+  // --- payment (Module 15) --------------------------------------------------
+
+  String get paymentTitle => 'Payment';
+  String get paymentPlacing => 'Placing your order…';
+  String get paymentOrderNumber => 'Order number';
+  String get paymentAmountDue => 'Amount due';
+  String get paymentPayNow => 'Pay now';
+  String get paymentPaying => 'Waiting for payment…';
+  String get paymentPaidTitle => 'Payment received';
+  String get paymentPaidBody =>
+      'Your order is confirmed. Show the order number at the counter.';
+  String get paymentAwaitingTitle => 'Not paid yet';
+  String get paymentAwaitingBody =>
+      'Your order is held. It is not confirmed with the kitchen until payment succeeds.';
+  String get paymentCancelledTitle => 'Payment cancelled';
+  String get paymentCancelledBody => 'Nothing was charged. You can try again.';
+  String get paymentDeclinedTitle => 'Payment declined';
+  String get paymentDeclinedBody => 'Please try a different payment method.';
+
+  /// Said plainly. The provider could not be reached — which is not the same as
+  /// a card being refused, and must not be reported as one.
+  String get paymentUnreachableTitle => 'We could not reach payments';
+  String get paymentUnreachableBody =>
+      'Nothing was charged. Please try again shortly.';
+
+  /// The state this build is actually in.
+  String get paymentUnavailableTitle => 'Card payment is not enabled';
+  String get paymentUnavailableBody =>
+      'This build has no payment provider configured, so no payment can be taken. '
+      'Your order has been placed and is held awaiting payment.';
+
+  String get paymentVerificationFailedTitle =>
+      'We could not confirm that payment';
+  String get paymentVerificationFailedBody =>
+      'Nothing about your card was wrong. Please contact support with your order number.';
+
+  String get paymentQuoteMovedTitle => 'Your order changed';
+  String get paymentQuoteMovedBody => 'Please review it again before paying.';
+
+  String get paymentBackToOrder => 'Back to checkout';
+
   String get checkoutTitle => 'Checkout';
   String get checkoutOpen => 'Continue to checkout';
 

@@ -306,8 +306,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   /// The final call to action.
   ///
   /// Enabled only when the **server** says the order is ready. Tapping it asks
-  /// the server again — the payment-readiness check — and then stops, because
-  /// Module 15 owns the payment and does not exist yet.
+  /// the server once more and only then goes to payment.
+  ///
+  /// The re-check is kept rather than left to the payment screen, even though
+  /// placing an order re-validates the quote anyway. Two reasons. A quote the
+  /// server has forgotten is silently replaced with a fresh one here, which is
+  /// a better answer than sending the customer to a payment screen to be told
+  /// their order changed. And the id that travels is the one validation just
+  /// confirmed — a refreshed quote has a new id, and pushing the stale one
+  /// would take them to a payment for a quote that no longer exists.
   Widget _proceed(AppStrings strings, CheckoutState state, Checkout checkout) {
     final bool canProceed = state.readyForPayment && state.isUsable;
 
@@ -320,23 +327,39 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               ? strings.checkoutChecking
               : strings.checkoutProceed,
           onPressed: canProceed && !state.isValidating
-              ? () => ref.read(checkoutControllerProvider.notifier).validate()
+              ? () => _validateThenPay()
               : null,
         ),
-        if (canProceed) ...<Widget>[
-          const SizedBox(height: FotgSpacing.x3),
-          // Said plainly rather than dressed up as a payment method list. A row
-          // of UPI and card logos that cannot be tapped is a promise the build
-          // does not keep.
-          CartNotice(
-            key: const ValueKey<String>('checkout-payment-coming'),
-            title: strings.checkoutPaymentComingTitle,
-            body: strings.checkoutPaymentComingBody,
-            tone: CartNoticeTone.neutral,
-          ),
-        ],
       ],
     );
+  }
+
+  Future<void> _validateThenPay() async {
+    await ref.read(checkoutControllerProvider.notifier).validate();
+
+    if (!mounted) return;
+
+    final CheckoutState after = ref.read(checkoutControllerProvider);
+    final String? checkoutId = after.checkout?.checkoutId;
+
+    // The server's answer, re-read after the check. Anything other than a
+    // usable, ready quote stays on this screen, where the notices explain why.
+    //
+    // `failure` is part of that and not a belt-and-braces extra. When a check
+    // fails the controller keeps the last good quote in state, so the readiness
+    // flags still read true — testing them alone sends the customer to payment
+    // on the strength of an answer the server refused to give. A test caught
+    // exactly that.
+    if (after.failure != null ||
+        !after.readyForPayment ||
+        !after.isUsable ||
+        checkoutId == null) {
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    context.push(Routes.tripPaymentPath(widget.tripId, checkoutId));
   }
 
   Widget _notice(

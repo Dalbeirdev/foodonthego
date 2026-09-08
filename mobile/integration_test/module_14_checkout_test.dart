@@ -26,11 +26,11 @@
 //
 // WHAT IT CANNOT PROVE
 //
-// **Nothing here is a payment.** No order is created, no Razorpay object is
-// made, nothing is marked paid. The Proceed to Payment button asks the server
-// one last question and stops; Module 15 owns everything past that boundary and
-// does not exist yet. A run of this file that produced a payment would be a bug
-// in the file.
+// **Nothing here is a payment.** Since Module 15, Proceed does place an order —
+// but no money moves: no Razorpay credentials exist in this project, so no
+// provider checkout can open and nothing is ever marked paid. A run of this
+// file that produced a *payment* would be a bug in the file. An order awaiting
+// one is the correct outcome and is asserted as such.
 //
 // It also proves nothing about commercial policy. Whether tax, a packaging fee
 // or a platform fee *should* apply is a client decision that has not been made
@@ -313,7 +313,14 @@ void main() {
 
   // ----------------------------------------------------- as far as it may go
 
-  testWidgets('Proceed asks the server and stops at the payment boundary', (
+  /// The boundary moved in Module 15, and this test moved with it.
+  ///
+  /// It used to assert that Proceed stopped dead and no order existed. Proceed
+  /// now asks the server, and on a yes goes to payment, which places the order.
+  /// So the assertion is no longer "nothing was bought" but "exactly one order
+  /// exists and no money moved" — which is the boundary that is actually true
+  /// of this build, and still read from the server rather than the screen.
+  testWidgets('Proceed places the order and stops short of taking money', (
     WidgetTester tester,
   ) async {
     await prepare();
@@ -328,24 +335,23 @@ void main() {
     await tapAt(tester, find.byKey(const ValueKey<String>('checkout-proceed')));
     await settle(tester);
 
-    // Still on the checkout, and honest about why.
-    expect(find.text('Order summary'), findsOneWidget);
+    // On the payment screen, with an order number the server minted.
     expect(
-      find.byKey(const ValueKey<String>('checkout-payment-coming')),
+      find.byKey(const ValueKey<String>('payment-order-number')),
       findsOneWidget,
     );
 
-    // And nothing was bought. Read from the server, not from the screen: a
-    // client cannot know what a backend did, and this is the assertion the
-    // whole module's boundary rests on.
-    final Checkout after = await serverCheckout();
+    // Read from the server, not from the screen: a client cannot know what a
+    // backend did, and this is the assertion the boundary rests on.
+    final List<Map<String, dynamic>> orders = await ordersFor(api);
 
-    expect(after.readyForPayment, isTrue);
+    expect(orders, hasLength(1), reason: 'the quote became exactly one order');
     expect(
-      await orderCountFor(api),
-      0,
-      reason: 'Module 14 ends before any order exists',
+      orders.single['status'],
+      'AWAITING_PAYMENT',
+      reason: 'no credentials exist, so nothing can have been paid',
     );
+    expect(orders.single['paid_at'], isNull);
   });
 
   // ------------------------------------------------------ when things change
@@ -385,17 +391,19 @@ void main() {
   });
 }
 
-/// How many orders this customer has, straight from the server.
+/// This customer's orders, straight from the server.
 ///
-/// Module 14 ends before the orders table exists, so a 404 here is the correct
-/// answer rather than a failure — and it is still an answer from the server
-/// rather than from the app.
-Future<int> orderCountFor(ApiClient api) async {
-  try {
-    final Map<String, dynamic> body = await api.get('/customer/orders');
+/// Deliberately not wrapped in a try/catch any more. It was, while the endpoint
+/// did not exist and a 404 was the right answer; now the endpoint exists, and
+/// swallowing an error here would turn a broken orders API into a passing test
+/// reporting an empty list.
+Future<List<Map<String, dynamic>>> ordersFor(ApiClient api) async {
+  final Map<String, dynamic> body = await api.get('/customer/orders');
 
-    return (body['data'] as List<Object?>? ?? const <Object?>[]).length;
-  } catch (_) {
-    return 0;
-  }
+  final Object? orders = (body['data'] as Map<String, dynamic>?)?['orders'];
+
+  return <Map<String, dynamic>>[
+    for (final Object? entry in (orders as List<Object?>? ?? const <Object?>[]))
+      if (entry is Map<String, dynamic>) entry,
+  ];
 }

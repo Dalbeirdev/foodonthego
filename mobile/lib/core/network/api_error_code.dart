@@ -196,6 +196,22 @@ enum ApiErrorCode {
   checkoutQuoteStale('CHECKOUT_QUOTE_STALE'),
   checkoutQuoteConsumed('CHECKOUT_QUOTE_CONSUMED'),
 
+  // --- orders and payment (Module 15) --------------------------------------
+  //
+  // paymentDeclined and paymentGatewayUnavailable are kept apart because they
+  // become different sentences on screen. One means the customer's card was
+  // refused and they can try another; the other means we could not ask, and
+  // telling them their card failed would be untrue.
+  orderNotFound('ORDER_NOT_FOUND'),
+  orderNotPayable('ORDER_NOT_PAYABLE'),
+  orderAlreadyPaid('ORDER_ALREADY_PAID'),
+  paymentNotFound('PAYMENT_NOT_FOUND'),
+  paymentSignatureInvalid('PAYMENT_SIGNATURE_INVALID'),
+  paymentAmountMismatch('PAYMENT_AMOUNT_MISMATCH'),
+  paymentDeclined('PAYMENT_DECLINED'),
+  paymentGatewayUnavailable('PAYMENT_GATEWAY_UNAVAILABLE'),
+  webhookSignatureInvalid('WEBHOOK_SIGNATURE_INVALID'),
+
   /// The request never reached the server, or never came back.
   network('NETWORK'),
 

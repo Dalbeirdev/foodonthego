@@ -37,7 +37,10 @@ import 'package:foodonthego/domain/models/money.dart';
 import 'package:foodonthego/domain/models/restaurant_detail.dart';
 import 'package:foodonthego/domain/models/restaurant_menu.dart';
 import 'package:foodonthego/domain/repositories/cart_repository.dart';
+import 'package:foodonthego/domain/models/placed_order.dart';
+import 'package:foodonthego/domain/payments/payment_handoff.dart';
 import 'package:foodonthego/domain/repositories/checkout_repository.dart';
+import 'package:foodonthego/domain/repositories/order_repository.dart';
 import 'package:foodonthego/domain/repositories/pickup_repository.dart';
 import 'package:foodonthego/domain/repositories/menu_repository.dart';
 import 'package:foodonthego/domain/repositories/discovery_repository.dart';
@@ -1510,6 +1513,8 @@ Widget wrapApp({
   FakeCartRepository? carts,
   FakePickupRepository? pickup,
   FakeCheckoutRepository? checkouts,
+  FakeOrderRepository? orders,
+  PaymentHandoff? handoff,
   bool signedIn = true,
 }) {
   final FakeAuthRepository authRepository = auth ?? FakeAuthRepository();
@@ -1551,6 +1556,12 @@ Widget wrapApp({
       ),
       checkoutRepositoryProvider.overrideWithValue(
         checkouts ?? FakeCheckoutRepository(),
+      ),
+      orderRepositoryProvider.overrideWithValue(
+        orders ?? FakeOrderRepository(),
+      ),
+      paymentHandoffProvider.overrideWithValue(
+        handoff ?? const UnconfiguredPaymentHandoff(),
       ),
       locationServiceProvider.overrideWithValue(
         location ?? FakeLocationService(),
@@ -2917,5 +2928,130 @@ class FakeCheckoutRepository implements CheckoutRepository {
 
     return '${local.year}-${two(local.month)}-${two(local.day)}'
         'T${two(local.hour)}:${two(local.minute)}:00+05:30';
+  }
+}
+
+/// Orders and payment, scripted.
+///
+/// Every failure mode is reachable: a placement that refuses, a gateway that is
+/// down, a verification the server rejects. A double that could only succeed
+/// would leave the screens that matter most untested.
+class FakeOrderRepository implements OrderRepository {
+  FakeOrderRepository({
+    this.payableTotalMinor = 49_800,
+    this.currency = 'INR',
+    this.orderNumber = '260916-7K2M9QX4TB',
+    this.publicKeyId = '',
+  });
+
+  final int payableTotalMinor;
+  final String currency;
+  final String orderNumber;
+
+  /// Empty by default, which is this project's real state: no credentials, so
+  /// no provider checkout can be opened.
+  final String publicKeyId;
+
+  ApiException? placeFailure;
+  ApiException? intentFailure;
+  ApiException? verifyFailure;
+
+  /// What the server says the order is after verification.
+  bool settlesOnVerify = true;
+
+  int placeCalls = 0;
+  int intentCalls = 0;
+  int verifyCalls = 0;
+
+  /// The last verification body, so a test can assert what was sent — and,
+  /// more usefully, what was not.
+  Map<String, String>? lastVerification;
+
+  PlacedOrder _order({required PlacedOrderStatus status}) => PlacedOrder(
+    id: 'order-uuid-1',
+    orderNumber: orderNumber,
+    status: status,
+    restaurantName: 'Highway Spice Kitchen',
+    pickupTimezone: 'Asia/Kolkata',
+    commercial: CommercialSummary(
+      itemsSubtotal: Money(amountMinor: payableTotalMinor, currency: currency),
+      payableTotal: Money(amountMinor: payableTotalMinor, currency: currency),
+    ),
+  );
+
+  @override
+  Future<PlacedOrder> place({
+    required String tripId,
+    required String checkoutId,
+  }) async {
+    placeCalls++;
+
+    if (placeFailure case final ApiException error) throw error;
+
+    return _order(status: PlacedOrderStatus.awaitingPayment);
+  }
+
+  @override
+  Future<PaymentIntent> createIntent({required String orderId}) async {
+    intentCalls++;
+
+    if (intentFailure case final ApiException error) throw error;
+
+    return PaymentIntent(
+      order: _order(status: PlacedOrderStatus.awaitingPayment),
+      paymentId: 'payment-uuid-1',
+      providerOrderId: 'order_FAKE000001',
+      amount: Money(amountMinor: payableTotalMinor, currency: currency),
+      provider: 'razorpay',
+      publicKeyId: publicKeyId,
+    );
+  }
+
+  @override
+  Future<PlacedOrder> verifyPayment({
+    required String orderId,
+    required String providerOrderId,
+    required String providerPaymentId,
+    required String signature,
+  }) async {
+    verifyCalls++;
+    lastVerification = <String, String>{
+      'provider_order_id': providerOrderId,
+      'provider_payment_id': providerPaymentId,
+      'signature': signature,
+    };
+
+    if (verifyFailure case final ApiException error) throw error;
+
+    return _order(
+      status: settlesOnVerify
+          ? PlacedOrderStatus.paid
+          : PlacedOrderStatus.awaitingPayment,
+    );
+  }
+
+  @override
+  Future<PlacedOrder> byId(String orderId) async =>
+      _order(status: PlacedOrderStatus.awaitingPayment);
+
+  @override
+  Future<List<PlacedOrder>> mine() async => <PlacedOrder>[
+    _order(status: PlacedOrderStatus.awaitingPayment),
+  ];
+}
+
+/// A provider sheet that returns whatever a test tells it to.
+class ScriptedPaymentHandoff implements PaymentHandoff {
+  ScriptedPaymentHandoff(this.result);
+
+  PaymentHandoffResult result;
+
+  int calls = 0;
+
+  @override
+  Future<PaymentHandoffResult> open(PaymentIntent intent) async {
+    calls++;
+
+    return result;
   }
 }

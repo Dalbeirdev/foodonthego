@@ -290,15 +290,43 @@ void main() {
     );
   });
 
-  testWidgets('and it says plainly that payment is not switched on yet', (
+  /// Module 15 arrived, so the "payment is not switched on yet" notice this
+  /// test used to assert is gone — the button now leads somewhere. What
+  /// replaces it is the assertion that it leads to the right place, and only
+  /// after the server has confirmed the quote.
+  testWidgets('Proceed goes to payment once the server confirms the quote', (
     WidgetTester tester,
   ) async {
-    await open(tester);
+    final FakeCheckoutRepository checkout = await open(tester);
+
     await scrollToBottom(tester);
+    await tapKey(tester, 'checkout-proceed');
+    await tester.pumpAndSettle();
+
+    expect(checkout.validateCalls, 1);
+    expect(
+      find.byKey(const ValueKey<String>('payment-order-number')),
+      findsOne,
+    );
+  });
+
+  testWidgets('a quote the server will not confirm does not reach payment', (
+    WidgetTester tester,
+  ) async {
+    final FakeCheckoutRepository checkout = await open(tester);
+
+    checkout.nextValidateError = ApiException(
+      code: ApiErrorCode.checkoutNotReady,
+      message: 'This order cannot be placed yet.',
+    );
+
+    await scrollToBottom(tester);
+    await tapKey(tester, 'checkout-proceed');
+    await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const ValueKey<String>('checkout-payment-coming')),
-      findsOneWidget,
+      find.byKey(const ValueKey<String>('payment-order-number')),
+      findsNothing,
     );
   });
 

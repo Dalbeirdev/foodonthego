@@ -125,8 +125,14 @@ class Routes {
   /// Payment itself is Module 15 and lives beyond this path, not on it.
   static const String tripCheckout = 'checkout';
 
+  /// Payment (Module 15), nested under the checkout it came from.
+  static const String tripPayment = 'payment';
+
   static String tripCheckoutPath(String tripId) =>
       '/trips/$tripId/cart/pickup/checkout';
+
+  static String tripPaymentPath(String tripId, String checkoutId) =>
+      '/trips/$tripId/cart/pickup/checkout/payment?checkout=$checkoutId';
 
   /// The controlled destination for anything not built yet. Takes the feature
   /// name and owning module as query parameters so one screen serves them all.
