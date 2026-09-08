@@ -484,10 +484,26 @@ final class CheckoutApiTest extends TestCase
         $this->prepare();
 
         // The check that would catch somebody getting ahead of the module.
-        foreach (['orders', 'order_items', 'payments', 'pickup_codes', 'razorpay_orders'] as $table) {
+        /*
+         * Module 15 created these tables, so "the table does not exist" is no
+         * longer the check — and deleting the test would have thrown away the
+         * guarantee it was protecting. What actually matters is unchanged and is
+         * now asserted directly: this endpoint writes no order and takes no
+         * money. The tables that still have no business existing are still
+         * asserted absent.
+         */
+        foreach (['orders', 'order_items', 'payments'] as $table) {
+            $this->assertSame(
+                0,
+                DB::table($table)->count(),
+                "{$table} gained a row, and preparing a checkout must not create one",
+            );
+        }
+
+        foreach (['pickup_codes', 'razorpay_orders'] as $table) {
             $this->assertFalse(
                 Schema::hasTable($table),
-                "{$table} exists in Module 14, which ends before any order does",
+                "{$table} exists, and nothing has specified it",
             );
         }
 

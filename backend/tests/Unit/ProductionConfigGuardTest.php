@@ -6,6 +6,9 @@ namespace Tests\Unit;
 
 use App\Services\Otp\OtpDeliveryProvider;
 use App\Services\Otp\Providers\LogOtpProvider;
+use App\Services\Payments\PaymentGateway;
+use App\Services\Payments\RazorpayGateway;
+use App\Services\Payments\UnconfiguredPaymentGateway;
 use App\Services\Places\DevelopmentGazetteerProvider;
 use App\Services\Places\PlaceProvider;
 use App\Services\Places\UnconfiguredPlaceProvider;
@@ -42,6 +45,13 @@ final class ProductionConfigGuardTest extends TestCase
             'database.default' => 'mysql',
             'database.connections.mysql.password' => 'a-real-password',
             'foodonthego.otp.simulate_provider_failure' => false,
+
+            // Not real credentials, and not credentials at all — the guard only
+            // asks whether both halves are present and whether a separate
+            // webhook secret exists. Nothing here is ever sent anywhere.
+            'services.razorpay.key_id' => 'rzp_test_guard_placeholder',
+            'services.razorpay.key_secret' => 'guard-placeholder-secret',
+            'services.razorpay.webhook_secret' => 'guard-placeholder-webhook-secret',
         ]);
 
         // Stands in for a real SMS vendor: the only thing the guard asks a
@@ -55,6 +65,10 @@ final class ProductionConfigGuardTest extends TestCase
 
         // And for a real routing provider, for the same reason.
         $this->app->instance(RouteProvider::class, new DevelopmentRouteProvider(isProduction: false));
+
+        // And a payment gateway that is not the one which refuses. Constructed,
+        // never called: the guard asks what is bound, not whether it works.
+        $this->app->instance(PaymentGateway::class, new RazorpayGateway('rzp_test_guard_placeholder', 'guard-placeholder-secret'));
     }
 
     public function test_it_refuses_production_without_a_routing_provider(): void
@@ -117,6 +131,44 @@ final class ProductionConfigGuardTest extends TestCase
         ProductionConfigGuard::assert($this->appIn('production'));
 
         $this->addToAssertionCount(1);
+    }
+
+    /**
+     * The failure this catches is a deployment that cannot take money.
+     *
+     * Worth its own test rather than trusting the composite one above, because
+     * a guard that silently stopped checking payments would still let
+     * `test_a_correctly_configured_production_boots` pass.
+     */
+    public function test_an_unconfigured_payment_gateway_stops_production_from_starting(): void
+    {
+        $this->validProductionConfig();
+
+        $this->app->instance(PaymentGateway::class, new UnconfiguredPaymentGateway);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/RAZORPAY_KEY_ID/');
+
+        ProductionConfigGuard::assert($this->appIn('production'));
+    }
+
+    /**
+     * The quieter half, and the more dangerous one.
+     *
+     * A live webhook endpoint with no secret rejects every delivery, which from
+     * the outside is indistinguishable from a provider that has stopped sending.
+     * Orders that were paid for would sit unpaid.
+     */
+    public function test_a_missing_webhook_secret_stops_production_from_starting(): void
+    {
+        $this->validProductionConfig();
+
+        config(['services.razorpay.webhook_secret' => '']);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/RAZORPAY_WEBHOOK_SECRET/');
+
+        ProductionConfigGuard::assert($this->appIn('production'));
     }
 
     public function test_local_development_is_not_subject_to_these_rules(): void

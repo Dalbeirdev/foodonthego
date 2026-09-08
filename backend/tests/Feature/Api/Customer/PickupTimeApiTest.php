@@ -13,6 +13,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\Support\CartFixtures;
 use Tests\Support\CustomerFactory;
@@ -550,10 +551,26 @@ final class PickupTimeApiTest extends TestCase
         // Module 13 ends with four columns on a cart. There is no order table
         // to write to yet, and this asserts that none appeared to be written
         // to — the check that would have caught somebody getting ahead.
-        foreach (['orders', 'order_items', 'payments', 'pickup_codes'] as $table) {
+        /*
+         * Module 15 created these tables, so "the table does not exist" is no
+         * longer the check — and deleting the test would have thrown away the
+         * guarantee it was protecting. What actually matters is unchanged and is
+         * now asserted directly: this endpoint writes no order and takes no
+         * money. The tables that still have no business existing are still
+         * asserted absent.
+         */
+        foreach (['orders', 'order_items', 'payments'] as $table) {
+            $this->assertSame(
+                0,
+                DB::table($table)->count(),
+                "{$table} gained a row, and choosing a pickup time must not create one",
+            );
+        }
+
+        foreach (['pickup_codes'] as $table) {
             $this->assertFalse(
                 Schema::hasTable($table),
-                "{$table} exists in Module 13, which ends before any order does",
+                "{$table} exists, and nothing has specified it",
             );
         }
 

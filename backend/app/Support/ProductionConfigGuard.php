@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Services\Otp\OtpDeliveryProvider;
+use App\Services\Payments\PaymentGateway;
+use App\Services\Payments\UnconfiguredPaymentGateway;
 use App\Services\Places\PlaceProvider;
 use App\Services\Places\UnconfiguredPlaceProvider;
 use App\Services\Routing\RouteProvider;
@@ -70,6 +72,7 @@ final class ProductionConfigGuard
         $failures = array_merge($failures, self::otpFailures($app));
         $failures = array_merge($failures, self::placeFailures($app));
         $failures = array_merge($failures, self::routeFailures($app));
+        $failures = array_merge($failures, self::paymentFailures($app));
 
         if ($failures !== []) {
             throw new RuntimeException(
@@ -124,6 +127,44 @@ final class ProductionConfigGuard
         }
 
         return [];
+    }
+
+    /**
+     * Payment gateway configuration.
+     *
+     * The failure this prevents is the most expensive one in the project. A
+     * deployment with no Razorpay credentials binds the gateway that refuses, so
+     * every attempt to pay errors — which is bad but visible. The quieter half is
+     * the webhook secret: an endpoint live with no secret cannot verify a single
+     * delivery, and the correct behaviour of rejecting everything is
+     * indistinguishable, from the outside, from a provider that has stopped
+     * sending. Orders would sit unpaid that had been paid for.
+     *
+     * Both halves are therefore required before this environment may boot, and
+     * the webhook secret is required separately from the API secret because
+     * Razorpay signs the two messages with two different keys.
+     *
+     * @return array<int, string>
+     */
+    private static function paymentFailures(Application $app): array
+    {
+        $failures = [];
+
+        try {
+            $gateway = $app->make(PaymentGateway::class);
+        } catch (Throwable $e) {
+            return ['The payment gateway could not be resolved: '.$e->getMessage()];
+        }
+
+        if ($gateway instanceof UnconfiguredPaymentGateway) {
+            $failures[] = 'RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must both be set, or no customer can pay.';
+        }
+
+        if ((string) config('services.razorpay.webhook_secret') === '') {
+            $failures[] = 'RAZORPAY_WEBHOOK_SECRET must be set, or every webhook is rejected and paid orders stay unpaid.';
+        }
+
+        return $failures;
     }
 
     private static function placeFailures(Application $app): array

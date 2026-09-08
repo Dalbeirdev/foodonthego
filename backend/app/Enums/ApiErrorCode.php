@@ -217,6 +217,23 @@ enum ApiErrorCode: string
     case CheckoutQuoteStale = 'CHECKOUT_QUOTE_STALE';
     case CheckoutQuoteConsumed = 'CHECKOUT_QUOTE_CONSUMED';
 
+    // --- orders and payment (Module 15) --------------------------------------
+    //
+    // The split that matters here is between "your card was refused" and "we
+    // could not ask". A customer can act on the first by trying another card; the
+    // second is ours and they should be told to try again shortly. Collapsing
+    // them into one code is how a provider outage gets reported to customers as
+    // a declined payment.
+    case OrderNotFound = 'ORDER_NOT_FOUND';
+    case OrderNotPayable = 'ORDER_NOT_PAYABLE';
+    case OrderAlreadyPaid = 'ORDER_ALREADY_PAID';
+    case PaymentNotFound = 'PAYMENT_NOT_FOUND';
+    case PaymentSignatureInvalid = 'PAYMENT_SIGNATURE_INVALID';
+    case PaymentAmountMismatch = 'PAYMENT_AMOUNT_MISMATCH';
+    case PaymentDeclined = 'PAYMENT_DECLINED';
+    case PaymentGatewayUnavailable = 'PAYMENT_GATEWAY_UNAVAILABLE';
+    case WebhookSignatureInvalid = 'WEBHOOK_SIGNATURE_INVALID';
+
     public function httpStatus(): int
     {
         return match ($this) {
@@ -348,6 +365,36 @@ enum ApiErrorCode: string
             self::CheckoutQuoteExpired,
             self::CheckoutQuoteStale,
             self::CheckoutQuoteConsumed => 409,
+            // Module 15. Not found rather than forbidden for somebody else's
+            // order, for the same reason as a checkout quote: answering 403 on
+            // an id that exists is an oracle.
+            self::OrderNotFound,
+            self::PaymentNotFound => 404,
+
+            // 409: the request is well formed and the order is the caller's own.
+            // Its state is simply not one a payment can start from, and a second
+            // attempt at an order already paid is a conflict rather than an
+            // error in the request.
+            self::OrderNotPayable,
+            self::OrderAlreadyPaid,
+            self::PaymentAmountMismatch => 409,
+
+            // 422 and deliberately not 403. A signature that does not verify is
+            // a malformed claim, not a permission problem, and 403 would suggest
+            // to a caller that a different credential might help.
+            self::PaymentSignatureInvalid,
+            // The provider answered perfectly well and the answer was no.
+            // Not 402: that status is poorly handled by intermediaries and
+            // clients, and this is reported in the body like every other refusal.
+            self::PaymentDeclined => 422,
+
+            // 503, like every other dependency: retry, do not change the request.
+            self::PaymentGatewayUnavailable => 503,
+
+            // 400 rather than 401 or 403. The sender is not a user of this API
+            // and has no credential to fix; the body did not verify.
+            self::WebhookSignatureInvalid => 400,
+
             self::RateLimited => 429,
             self::BusinessRuleViolated => 422,
             self::DependencyUnavailable => 503,

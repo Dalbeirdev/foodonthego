@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\V1\Customer\AddressController;
 use App\Http\Controllers\Api\V1\Customer\CartController;
 use App\Http\Controllers\Api\V1\Customer\CartItemController;
 use App\Http\Controllers\Api\V1\Customer\CheckoutController;
+use App\Http\Controllers\Api\V1\Customer\OrderController;
+use App\Http\Controllers\Api\V1\Customer\PaymentController;
 use App\Http\Controllers\Api\V1\Customer\PickupController;
 use App\Http\Controllers\Api\V1\Customer\PlaceController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController;
@@ -22,7 +24,9 @@ use App\Http\Controllers\Api\V1\Customer\TripRouteController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MetaController;
 use App\Http\Controllers\Api\V1\Restaurant\TenantMenuItemController;
+use App\Http\Controllers\Api\V1\Restaurant\TenantOrderController;
 use App\Http\Controllers\Api\V1\Restaurant\TenantRestaurantController;
+use App\Http\Controllers\Api\V1\Webhooks\RazorpayWebhookController;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Route;
@@ -334,7 +338,50 @@ Route::prefix('v1')->group(function (): void {
 
                 Route::post('/{trip}/checkout/{checkout}/validate', [CheckoutController::class, 'validate'])
                     ->name('api.v1.customer.trips.checkout.validate');
+
+                /*
+                 | Placing the order (Module 15).
+                 |
+                 | The quote becomes an order. Still no amount in the request:
+                 | the price is the one the server quoted, read from the quote
+                 | row, and there is no field through which another could
+                 | arrive.
+                 |
+                 | Idempotent. A double tap answers 200 with the order that
+                 | already exists rather than 201 with a second one, and the
+                 | unique index on orders.checkout_quote_id is what makes that
+                 | true even when two requests race.
+                 */
+                Route::post('/{trip}/checkout/{checkout}/order', [OrderController::class, 'place'])
+                    ->name('api.v1.customer.trips.checkout.order');
             });
+
+            /*
+             |------------------------------------------------------------------
+             | Orders and payment (Module 15)
+             |------------------------------------------------------------------
+             |
+             | NEITHER PAYMENT ROUTE ACCEPTS AN AMOUNT. `intent` reads the
+             | order's total; `verify` takes three provider identifiers and
+             | nothing else. A request carrying `amount` parses to the same
+             | thing as one without it.
+             |
+             | `verify` relays what the app was told by the provider. It is
+             | checked rather than believed — signature, then binding, then
+             | amount, against the provider itself — and nothing a client can
+             | post is capable of moving an order to PAID on its own say-so.
+             */
+            Route::get('/customer/orders', [OrderController::class, 'index'])
+                ->name('api.v1.customer.orders.index');
+
+            Route::get('/customer/orders/{order}', [OrderController::class, 'show'])
+                ->name('api.v1.customer.orders.show');
+
+            Route::post('/customer/orders/{order}/payment-intent', [PaymentController::class, 'intent'])
+                ->name('api.v1.customer.orders.payment.intent');
+
+            Route::post('/customer/orders/{order}/payment/verify', [PaymentController::class, 'verify'])
+                ->name('api.v1.customer.orders.payment.verify');
         });
 
     /*
@@ -391,6 +438,19 @@ Route::prefix('v1')->group(function (): void {
          */
         Route::get('/menu/items/{item}', [TenantMenuItemController::class, 'show'])
             ->name('api.v1.restaurant.menu.items.show');
+
+        /*
+         | Orders, tenant-scoped (Module 15).
+         |
+         | `show` is the indirect path again, and this time it carries a
+         | customer's name and what they paid. An unscoped lookup here hands one
+         | restaurant's takings to another.
+         */
+        Route::get('/orders', [TenantOrderController::class, 'index'])
+            ->name('api.v1.restaurant.orders.index');
+
+        Route::get('/orders/{order}', [TenantOrderController::class, 'show'])
+            ->name('api.v1.restaurant.orders.show');
     });
 
     /*
@@ -410,6 +470,29 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/restaurants', [AdminRestaurantController::class, 'index'])
             ->name('api.v1.admin.restaurants.index');
     });
+
+    /*
+     |--------------------------------------------------------------------------
+     | Provider webhooks (Module 15)
+     |--------------------------------------------------------------------------
+     |
+     | Unauthenticated, and it has to be: Razorpay has no account on this
+     | platform and no token to present. What replaces authentication is an HMAC
+     | over the raw request body, checked before anything else happens and before
+     | anything at all is written.
+     |
+     | NOT behind `auth:sanctum`, and equally NOT behind a shared secret in the
+     | URL. A secret in a path ends up in access logs, proxy logs and error
+     | reports; the signature does not.
+     |
+     | The throttle is deliberately the public one rather than something tighter.
+     | A provider retrying a burst of deliveries after an outage is normal
+     | traffic, and rate-limiting it into failure would turn a brief outage into
+     | a set of orders permanently marked unpaid.
+     */
+    Route::post('/webhooks/razorpay', RazorpayWebhookController::class)
+        ->middleware('throttle:api-public')
+        ->name('api.v1.webhooks.razorpay');
 });
 
 /*
