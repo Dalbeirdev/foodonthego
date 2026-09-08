@@ -1,0 +1,70 @@
+# FoodOnTheGo — review deployment for techpio.tech
+#
+# NOTHING HERE BINDS A PUBLIC PORT. The only published port is
+# 127.0.0.1:8090, which is not reachable from the internet. Whatever already
+# owns 80 and 443 on this box — the server serving piodesk.com — keeps them,
+# and a vhost proxies to this stack. That is deliberate: a compose file that
+# grabbed 80 would either fail to start or take the existing site down, and
+# both of those are worse than an extra proxy hop.
+
+name: foodonthego
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-foodonthego}
+      MYSQL_USER: ${DB_USERNAME:-foodonthego}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-p${DB_ROOT_PASSWORD}']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    # No ports. The database is reachable only from this compose network.
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+  php:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      # Storage outlives the container: logs, and anything the app writes.
+      - backend-storage:/app/storage
+    healthcheck:
+      test: ['CMD', 'php', '-r', 'exit(0);']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - php
+    ports:
+      # Localhost only. See the note at the top of this file.
+      - '127.0.0.1:8090:80'
+    volumes:
+      - backend-storage:/app/storage:ro
+
+volumes:
+  mysql-data:
+  redis-data:
+  backend-storage:

@@ -46,3 +46,6 @@ build/
 # Coverage
 coverage/
 /mobile/coverage/
+
+# Deployment secrets. The example is committed; the real one never is.
+deploy/.env
