@@ -342,9 +342,14 @@ jobs:
 
   android-device:
     name: Mobile — Android emulator
-    timeout-minutes: 45
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    # So the review artefact exists to install. The point is to smoke-test the
+    # exact file a client is handed, not a rebuild of it that happens to share
+    # a commit.
+    needs: review-build
 
     services:
       mysql:
@@ -403,6 +408,12 @@ jobs:
       # KVM is what makes an x86_64 image usable. Without it the emulator either
       # refuses to start or runs too slowly to drive a run through — which is
       # exactly why this cannot be done in a container that lacks /dev/kvm.
+      - name: Download the review build
+        uses: actions/download-artifact@v4
+        with:
+          name: android-review-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: review-build
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
@@ -446,6 +457,44 @@ jobs:
             -d emulator-5554
             --dart-define=FOTG_API_BASE_URL=http://10.0.2.2:8000
             --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
+
+      # The review artefact itself, installed and launched.
+      #
+      # "An APK was built" and "an APK a client can install runs" are different
+      # claims, and only the second is worth reporting. This downloads the file
+      # that is handed over, puts it on the emulator, starts it, and checks it
+      # is still alive with nothing of its own in the crash buffer.
+      #
+      # The crash check greps for this package rather than asserting the buffer
+      # is empty: a headless emulator crashes something of Google's often
+      # enough, and a check that fails on that is a check somebody reruns until
+      # it passes.
+      #
+      # The uninstall is not tidiness. The integration tests above installed a
+      # debug build signed with *this* runner's debug keystore; the review APK
+      # was signed with the review-build runner's. Same application id, different
+      # signature, so `install -r` would be refused.
+      #
+      # ONE line, for the reason recorded on the step above: this action runs
+      # `script` a line at a time, each in its own `sh -c`.
+      - name: Install and launch the review APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: >-
+            adb uninstall com.foodonthego.foodonthego || true &&
+            adb install review-build/app-release.apk &&
+            adb logcat -b all -c &&
+            adb shell am start -n com.foodonthego.foodonthego/.MainActivity &&
+            sleep 20 &&
+            adb shell pidof com.foodonthego.foodonthego &&
+            adb shell dumpsys package com.foodonthego.foodonthego | grep -E 'versionName|versionCode' &&
+            adb logcat -d -b crash &&
+            ! adb logcat -d -b crash | grep -q com.foodonthego.foodonthego
 
       - name: Backend log, if anything failed
         if: failure()
