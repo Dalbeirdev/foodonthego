@@ -1266,3 +1266,25 @@ condition came in with Module 14, and a re-run would have had the same race.
 have, which removes the duplicate run entirely, and by dropping pull-request
 retention to a day — on a PR the artefact exists so the emulator job can install
 it, not so it can be kept for a month.
+
+### KI-020 — the iOS simulator job can hang before any test runs — **Low, environment** — OPEN
+
+Observed once, on `fd2e136`. The macOS runner completed `Xcode build done. 132.3s`
+and then produced **no output at all** for 53 minutes, until the job's own
+60-minute timeout cancelled it. Not a test failure: not one test body executed.
+
+Not the commit's doing. That commit changed no Flutter code, the identical suite
+had passed on the Android emulator on the same commit minutes earlier, and the
+same iOS suite had completed in ~14 minutes on the commit before.
+
+A re-run passed: 27 tests in 21½ minutes.
+
+**What to do when it recurs.** Re-run the job once. The distinguishing signature
+is silence *after* `Xcode build done` — a genuine failure prints test names and
+an assertion. If it starts recurring rather than being a one-off, the thing to
+investigate is `flutter test integration_test/` launching on the simulator, not
+the tests themselves.
+
+Recorded rather than waved through, because "the iOS job was slow" is exactly the
+sort of thing that gets re-run into a green tick without anybody noticing it has
+become permanent.
