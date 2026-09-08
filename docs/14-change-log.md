@@ -1132,3 +1132,51 @@ commercial launch.
 No payment, no order, no Razorpay object, no reservation of inventory, and no
 commercial rule invented. All are named in
 [30-client-review-package.md](30-client-review-package.md).
+
+## Module 14T — Multi-Tenancy, Tenant Assignment & Cross-Tenant Isolation
+
+Inserted between Modules 14 and 15 at the client's direction.
+
+### Added
+
+**Backend**
+- `App\Enums\TenantRole` — capability inside one restaurant, ordered owner ⊇
+  manager ⊇ staff, deliberately separate from `Role`
+- `restaurant_user` migration — one assignment per person per restaurant, unique
+  in the database, revoked by status rather than deleted
+- `platform_tenant_grants` migration — a super administrator's breadth as a row;
+  with none, nothing
+- `RestaurantMembership`, `PlatformTenantGrant` models
+- `App\Services\Tenancy\TenantAccessService` — the only implementation of
+  reachability; default deny, surface and assignment both checked, scoping done
+  in the query
+- `App\Policies\RestaurantPolicy` — view/update/manageMenu/manageStaff/
+  viewFinancials, and **no `before()` hook**
+- `App\Models\Concerns\BelongsToTenant` — closes the indirect path
+- `Restaurant::scopeReachableBy`, `Restaurant::memberships`,
+  `User::restaurantMemberships`, `User::platformTenantGrants`
+- Guarded routes: `/restaurant/restaurants`, `/restaurant/restaurants/{id}`
+  (read and PATCH), `/restaurant/restaurants/{id}/menu/items`,
+  `/restaurant/menu/items/{item}`, `/admin/restaurants`
+- `TenantIsolationTest` — 22 cross-tenant tests over HTTP; `TenancyFixtures`
+
+**Docs**
+- `33-multi-tenancy-and-tenant-isolation.md`; `07-security.md` gains the
+  constraint and its current state
+
+### Fixed
+
+- **`accountUsable()` denied every account that had not round-tripped.** It read
+  `is_active === true`; the column defaults to true, so a freshly created model
+  held NULL and was read as disabled. That made every "reaches nothing"
+  assertion pass whether the boundary worked or not — the one bug a tenancy
+  suite must never have. Only an explicit `false` denies now.
+
+### Changed
+
+- `MenuItem` and `MenuCategory` use `BelongsToTenant`
+
+### Not done, deliberately
+
+No login for the six operator roles, no staff-management endpoints, and no
+tenant scoping for orders, payments or settlements — none of which exist yet.

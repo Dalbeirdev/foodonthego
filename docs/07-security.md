@@ -75,20 +75,25 @@ that every future module is written against it instead of discovering it.
 
 ### Where this stands today
 
-**Unbuilt, and not currently violated — because there is nothing to violate.**
+**Built in Module 14T.** Full design:
+[33-multi-tenancy-and-tenant-isolation.md](33-multi-tenancy-and-tenant-isolation.md).
 
 | Piece | State |
 | --- | --- |
 | `Role` enum with all seven roles | **Exists**, with `isRestaurantRole()` and `isPlatformRole()` |
-| A user↔restaurant assignment table | **Does not exist** |
-| `restaurants.owner_id` | **Does not exist** — `owner_name`, `owner_phone` and `owner_email` are contact strings for the platform to ring, not a foreign key |
-| `app/Policies` | **Does not exist** |
-| Any `Gate::` or `->authorize()` call | **None in the codebase** |
-| API routes for restaurant, admin, support, rider or ops roles | **None** |
+| `TenantRole` — capability *within* one restaurant | **Exists**, ordered so owner ⊇ manager ⊇ staff |
+| `restaurant_user` assignment table | **Exists** — one row per person per restaurant, unique in the database |
+| `platform_tenant_grants` | **Exists** — a super administrator with no row reaches nothing |
+| `restaurants.owner_id` | **Deliberately does not exist** — an owner is an assignment whose role is `owner`, so there is one place to revoke |
+| `TenantAccessService` | **Exists** — the only implementation of reachability |
+| `app/Policies/RestaurantPolicy` | **Exists** — no `before()` hook, on purpose |
+| `BelongsToTenant` scope for child models | **Exists** — closes the indirect path |
+| Guarded routes for the restaurant and platform surfaces | **Exist**, minimal and deliberately not a dashboard |
+| Cross-tenant security tests | **22**, over HTTP, with 7 negative controls all of which fired |
 
-So a restaurant is not, structurally, owned by anybody. Nothing can be assigned, therefore nothing
-can be isolated — and equally, no cross-tenant surface exists to leak through. The risk is entirely
-prospective, and the mechanism has to exist before the first surface that needs it, not alongside it.
+**A login for the six operator roles is still not built**, and that is unchanged. The boundary
+exists first so that login arrives behind something already tested rather than alongside something
+new.
 
 ### The precedent to follow
 
@@ -369,9 +374,11 @@ Named rather than implied:
 - **Per-resource authorisation policies** — with the modules that own the resources. Module 04's
   saved addresses are authorised in one service method rather than a policy class; a policy layer
   arrives with the first resource that more than one role can reach. A restaurant is that resource.
-- **Tenant isolation** — the constraint is specified above and **none of its mechanism is built**:
-  no assignment table, no policies, no `Gate::` call anywhere, and no route for the six roles it
-  would govern. Nothing is currently leaking, because nothing is currently reachable.
+- **Authentication for the six operator roles** — the tenant boundary they will sign in behind is
+  built and tested (Module 14T); minting them a token is not.
+- **Staff management endpoints** — assignments and grants are rows today. The screens that create
+  them belong to the operator module; `manageStaff` exists on the policy so the depth is already
+  decided.
 - **Email verification** — an email address on a profile is stored unverified and shown unverified.
 - **Address geocoding** — no Places or Geocoding call is made yet, so coordinates stay `NULL`.
 - **File upload scanning** — with the first module that accepts an upload.

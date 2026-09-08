@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\RestaurantStatus;
 use App\Enums\RestaurantVerificationStatus;
 use App\Services\Discovery\RestaurantDiscoveryEligibilityService;
+use App\Services\Tenancy\TenantAccessService;
 use Database\Factories\RestaurantFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -119,6 +120,33 @@ final class Restaurant extends Model
     }
 
     /** @return HasMany<RestaurantOpeningHour, $this> */
+    /**
+     * Who may work here. The tenant boundary as a relationship.
+     *
+     * Includes revoked assignments on purpose — a revoked row is a record that
+     * access once existed, and a staff screen that could not show it would be
+     * unable to answer "who had a key in March". Anything deciding *access*
+     * filters with `->active()`.
+     */
+    public function memberships(): HasMany
+    {
+        return $this->hasMany(RestaurantMembership::class);
+    }
+
+    /**
+     * Restaurants this user may reach, filtered in the query.
+     *
+     * A thin pass-through to {@see TenantAccessService::reachableBy()} so that a
+     * caller can write `Restaurant::query()->reachableBy($user)` without knowing
+     * about the service — and so there is still only one implementation of the
+     * rule. A second copy of tenancy logic is a second answer, and the wrong one
+     * is always the copy.
+     */
+    public function scopeReachableBy(Builder $query, User $user): void
+    {
+        app(TenantAccessService::class)->reachableBy($query, $user);
+    }
+
     public function openingHours(): HasMany
     {
         return $this->hasMany(RestaurantOpeningHour::class)->orderBy('opens_at');

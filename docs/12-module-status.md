@@ -16,6 +16,7 @@
 | 12 | Cart Management, Price Revalidation & Order Summary | **COMPLETE** | 1,815 tests; **Android 15/15 and iOS 15/15 on real devices**; KI-014 cleared. See below |
 | 13 | Pickup Time Selection, Arrival Window & Pre-Checkout Validation | **COMPLETE** | 1,914 tests; live server run recorded; device runs as CI reports them. See below |
 | 14 | Checkout, Final Order Review, Commercial Calculation & Payment Readiness | **COMPLETE** | 2,023 tests; **Android 5/5 and iOS 5/5 on real devices**; 12 screenshots; review APK built by CI. See below |
+| 14T | Multi-Tenancy, Tenant Assignment & Cross-Tenant Isolation | **COMPLETE** | 1,141 backend tests; 22 cross-tenant security tests over HTTP; 7 negative controls, all fired. See below |
 
 ## Roadmap numbering — not the delivery sequence above
 
@@ -652,3 +653,41 @@ input.
 **`iOS REVIEW BUILD = PENDING — APPLE SIGNING/TESTFLIGHT ENVIRONMENT UNAVAILABLE`.**
 **Six of seven roles have no login and no API surface**, so no credentials exist
 for them and none were invented.
+
+---
+
+## Module 14T — multi-tenancy and tenant isolation
+
+**COMPLETE.** Inserted between Modules 14 and 15 at the client's direction:
+payments attach to orders, orders attach to restaurants, and money moves per
+tenant, so the tenant dimension is cheaper to have than to retrofit.
+
+Design: [33-multi-tenancy-and-tenant-isolation.md](33-multi-tenancy-and-tenant-isolation.md).
+Constraint: [07-security.md](07-security.md).
+
+### What now holds
+
+A restaurant is a tenant. Owners, managers and staff reach only the restaurants
+they are assigned to; a super administrator reaches only what a grant says, and
+with no grant reaches nothing. Enforced by query scoping, a policy and database
+relationships — never by frontend filtering.
+
+### The decisions worth knowing
+
+- **The tenant role is on the assignment, not the user.** One person can own one
+  restaurant and cook at another, and `users.role` cannot say that.
+- **Both are checked.** An insert into `restaurant_user` does not promote a
+  customer account, because the surface gate fails first.
+- **No `restaurants.owner_id`.** An owner is an assignment; one place to revoke.
+- **No policy `before()` hook.** That hook is how "super admin sees everything"
+  becomes true by omission rather than by decision.
+- **The indirect path is the one that matters.** A menu item reached by its own
+  id names no restaurant, and the obvious implementation hands one tenant's
+  prices to another. `BelongsToTenant` closes it, and it has its own test.
+
+### Still handed forward
+
+**No login for any of the six operator roles.** The boundary exists first, so
+that login arrives behind something already tested rather than alongside
+something new. Staff-management endpoints, and tenant scoping for orders,
+payments and settlements, arrive with the modules that create those things.

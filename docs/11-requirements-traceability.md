@@ -1533,3 +1533,94 @@ Client handover: [30-client-review-package.md](30-client-review-package.md).
   withheld — with the reason — for the six that do not. Measured:
   `route:list` matches zero routes for those six, and the web shells contain no
   login screen, password field or token handling.
+
+---
+
+# Module 14T — Multi-tenancy, tenant assignment and cross-tenant isolation
+
+Inserted between Modules 14 and 15 at the client's direction. Design:
+[33-multi-tenancy-and-tenant-isolation.md](33-multi-tenancy-and-tenant-isolation.md).
+
+## The model
+
+- **M14T-001 A restaurant is a tenant**, and the only way anybody reaches one is
+  an assignment row or a platform grant.
+
+- **M14T-002 The tenant role lives on the assignment, not on the user.**
+  `users.role` decides which surface somebody signs in to; `restaurant_user.tenant_role`
+  decides what they may do at that restaurant. A single column on `users` cannot
+  describe an owner at one restaurant who cooks at another.
+
+- **M14T-003 Both are checked.** A customer account with an assignment row
+  reaches nothing, so an insert into `restaurant_user` is not by itself a way in.
+
+- **M14T-004 There is no `restaurants.owner_id`.** An owner is an assignment whose
+  role is `owner` — one place to look, one place to revoke.
+
+- **M14T-005 One assignment per person per restaurant**, enforced by a database
+  unique constraint rather than a validation rule.
+
+- **M14T-006 Access is revoked by status, never by deletion**, and every read
+  filters on it through an `active()` scope.
+
+- **M14T-007 `TenantRole` is an ordering**, written once: owner ⊇ manager ⊇ staff.
+
+## Enforcement
+
+- **M14T-008 `TenantAccessService` is the only implementation of reachability.**
+  The policy, the scopes and every controller ask it.
+
+- **M14T-009 Isolation is enforced in the query.** `reachableBy()` is a `whereIn`
+  against a subquery, never a filter applied after the fetch.
+
+- **M14T-010 A foreign tenant and a non-existent one answer identically** — same
+  404, same code, same message, asserted by comparing the two responses.
+
+- **M14T-011 The role middleware is a surface check and never a tenancy check.**
+  On its own it would let any manager reach every restaurant.
+
+- **M14T-012 `RestaurantPolicy` has no `before()` hook.** That hook is how "super
+  admin sees everything" becomes true by omission.
+
+- **M14T-013 Depth is per action**: view = staff, update and manageMenu =
+  manager, manageStaff and viewFinancials = owner.
+
+- **M14T-014 A suspended or deactivated account reaches nothing**, whatever its
+  assignments say.
+
+## The indirect path
+
+- **M14T-015 A resource reached by its own id is still tenant-scoped.**
+  `BelongsToTenant::scopeInReachableTenant()` reaches back through the owning
+  restaurant and filters in the query.
+
+- **M14T-016 Both shapes are routed and both are tested** — the nested one and
+  the bare-id one — because a pass on the easy shape says nothing about the
+  dangerous one.
+
+## Platform accounts
+
+- **M14T-017 A super administrator with no grant reaches nothing.**
+- **M14T-018 Breadth is a row**: `scope = 'all'` or one named restaurant.
+- **M14T-019 A revoked grant reaches nothing.**
+- **M14T-020 Depth is separate from breadth** — a support agent looking into one
+  complaint gets `staff`, not `owner`.
+- **M14T-021 Where somebody holds both an assignment and a grant, the stronger
+  applies**, worked out by the enum's ordering rather than a second comparison.
+
+## Verification
+
+- **M14T-022 1,141 backend tests pass**, Pint clean. 22 are this module's, all
+  over HTTP with real tokens.
+
+- **M14T-023 Seven negative controls were applied to shipping code and reverted.
+  Every one fired**, each on the tests that should catch it — enumerated in
+  [15-test-evidence.md](15-test-evidence.md).
+
+- **M14T-024 A control found a real bug before it shipped.** `accountUsable()`
+  read `is_active === true`; the column defaults to true, so an
+  un-round-tripped model held NULL and was read as disabled. Denying by accident
+  made every "reaches nothing" assertion pass whether the boundary worked or not.
+
+- **M14T-025 No login for the six operator roles**, unchanged. The boundary exists
+  first so that login arrives behind something already tested.

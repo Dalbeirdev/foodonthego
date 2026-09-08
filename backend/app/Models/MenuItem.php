@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\MenuItemDietaryType;
 use App\Enums\MenuItemStockStatus;
+use App\Models\Concerns\BelongsToTenant;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -25,6 +26,8 @@ use Illuminate\Support\Str;
  */
 final class MenuItem extends Model
 {
+    use BelongsToTenant;
+
     /** @var list<string> */
     protected $fillable = [];
 

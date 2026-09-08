@@ -167,17 +167,25 @@ fourteen modules, **one of them has a working login flow**.
 | Role | Login flow exists | API surface exists | Credentials available |
 | --- | --- | --- | --- |
 | Customer | **Yes** — phone + OTP | Yes, 35 endpoints | Yes, below |
-| Restaurant owner | No | **No routes at all** | **None — nothing to log in to** |
-| Restaurant staff | No | No routes at all | None |
-| Platform admin | No | No routes at all | None |
-| Support agent | No | No routes at all | None |
-| Finance | No | No routes at all | None |
-| Rider / logistics | No | No routes at all | None |
+| Restaurant owner | **No** | Tenant-scoped, minimal (Module 14T) | **None — nothing to log in with** |
+| Restaurant manager | **No** | Tenant-scoped, minimal | None |
+| Restaurant staff | **No** | Tenant-scoped, minimal | None |
+| Platform admin | **No** | Grant-scoped, minimal | None |
+| Support agent | **No** | Grant-scoped, minimal | None |
+| Super admin | **No** | Grant-scoped, minimal | None |
 
-This was measured rather than assumed: `php artisan route:list` matches **zero**
-routes under `api/v1/restaurant`, `api/v1/admin`, `api/v1/support`,
-`api/v1/rider` or `api/v1/ops`, and the two web shells contain no login screen,
-no password field and no token handling anywhere in their source.
+Module 14T changed one half of this and not the other. The six operator roles now
+have a **tenant boundary that is built and tested** — 22 cross-tenant tests over
+HTTP, seven negative controls — behind a deliberately minimal set of routes that
+exists so the isolation can be tested at all, not as an operator dashboard.
+
+**What still does not exist is a way for any of them to sign in.** No flow mints a
+token for a restaurant or platform account, so there are no credentials to hand
+over and none have been invented. The boundary was built first on purpose: login
+arrives behind something already tested rather than alongside something new.
+
+The two web shells still contain no login screen, no password field and no token
+handling anywhere in their source.
 
 **No credentials have been invented for the six roles that cannot log in.** A
 username and password for a surface with no authentication would be a fiction

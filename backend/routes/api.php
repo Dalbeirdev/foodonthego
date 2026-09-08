@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\ApiErrorCode;
+use App\Http\Controllers\Api\V1\Admin\AdminRestaurantController;
 use App\Http\Controllers\Api\V1\Auth\CustomerOtpController;
 use App\Http\Controllers\Api\V1\Auth\CustomerRegistrationController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
@@ -20,6 +21,8 @@ use App\Http\Controllers\Api\V1\Customer\TripRestaurantDetailController;
 use App\Http\Controllers\Api\V1\Customer\TripRouteController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MetaController;
+use App\Http\Controllers\Api\V1\Restaurant\TenantMenuItemController;
+use App\Http\Controllers\Api\V1\Restaurant\TenantRestaurantController;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Route;
@@ -333,6 +336,80 @@ Route::prefix('v1')->group(function (): void {
                     ->name('api.v1.customer.trips.checkout.validate');
             });
         });
+
+    /*
+     |--------------------------------------------------------------------------
+     | The restaurant surface — tenant-scoped (Module 14T)
+     |--------------------------------------------------------------------------
+     |
+     | Not the operator dashboard. This is the smallest surface that makes tenant
+     | isolation testable the way it must be tested: over HTTP, with a real token,
+     | substituting an identifier that belongs to somebody else. A service method
+     | cannot be IDOR-tested; only a route can.
+     |
+     | THREE GATES, IN ORDER, AND EACH DOES A DIFFERENT JOB.
+     |
+     |   auth:sanctum   — is there a session at all
+     |   role:...       — is this the kind of account that belongs on this surface
+     |   the tenant scope + policy, inside every controller — which restaurants,
+     |                    and how deeply
+     |
+     | The role gate alone would let any restaurant_manager reach every
+     | restaurant on the platform, which is precisely the failure this module
+     | exists to prevent. It is a surface check, never a tenancy check.
+     |
+     | No login mints a token for these roles yet, by design — the isolation is
+     | what is being built, and authenticating an operator is a later module. The
+     | boundary is here first so that login arrives behind something already
+     | tested rather than alongside something new.
+     */
+    Route::middleware([
+        'auth:sanctum',
+        'role:restaurant_owner,restaurant_manager,restaurant_staff',
+        'throttle:api-public',
+    ])->prefix('restaurant')->group(function (): void {
+        Route::get('/restaurants', [TenantRestaurantController::class, 'index'])
+            ->name('api.v1.restaurant.restaurants.index');
+
+        Route::get('/restaurants/{restaurant}', [TenantRestaurantController::class, 'show'])
+            ->name('api.v1.restaurant.restaurants.show');
+
+        Route::patch('/restaurants/{restaurant}', [TenantRestaurantController::class, 'update'])
+            ->name('api.v1.restaurant.restaurants.update');
+
+        Route::get('/restaurants/{restaurant}/menu/items', [TenantMenuItemController::class, 'index'])
+            ->name('api.v1.restaurant.menu.items.index');
+
+        /*
+         | The indirect path, and the reason this route exists.
+         |
+         | A menu item by its own id, with no restaurant anywhere in the request.
+         | Nothing here names a tenant, so nothing here can be trusted to scope
+         | one — the controller reaches back through the owning restaurant
+         | instead. This is the shape that leaks in real systems, and it is
+         | tested by name.
+         */
+        Route::get('/menu/items/{item}', [TenantMenuItemController::class, 'show'])
+            ->name('api.v1.restaurant.menu.items.show');
+    });
+
+    /*
+     |--------------------------------------------------------------------------
+     | The platform surface — grant-scoped (Module 14T)
+     |--------------------------------------------------------------------------
+     |
+     | A super administrator with no grant reaches nothing. That is the whole
+     | assertion, and it is the one that stops being true the moment somebody
+     | adds a policy `before()` hook that returns true for an admin.
+     */
+    Route::middleware([
+        'auth:sanctum',
+        'role:support_agent,admin,super_admin',
+        'throttle:api-public',
+    ])->prefix('admin')->group(function (): void {
+        Route::get('/restaurants', [AdminRestaurantController::class, 'index'])
+            ->name('api.v1.admin.restaurants.index');
+    });
 });
 
 /*

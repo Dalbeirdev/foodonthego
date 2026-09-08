@@ -6,8 +6,10 @@ namespace App\Models;
 
 use App\Enums\AccountStatus;
 use App\Enums\Role;
+use App\Services\Tenancy\TenantAccessService;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -65,6 +67,24 @@ final class User extends Authenticatable
     public function getRouteKeyName(): string
     {
         return 'uuid';
+    }
+
+    /**
+     * The restaurants this account is assigned to, revoked rows included.
+     *
+     * Never the basis for an authorisation decision on its own — that goes
+     * through {@see TenantAccessService}, which also
+     * checks the surface and the account's standing. This is for showing
+     * somebody their own list.
+     */
+    public function restaurantMemberships(): HasMany
+    {
+        return $this->hasMany(RestaurantMembership::class);
+    }
+
+    public function platformTenantGrants(): HasMany
+    {
+        return $this->hasMany(PlatformTenantGrant::class);
     }
 
     public function hasRole(Role ...$roles): bool

@@ -2179,3 +2179,87 @@ shows in [30-client-review-package.md](30-client-review-package.md) section H.
 - **Nothing is deployed**, so nothing has been verified over a public network,
   under TLS, or behind a real load balancer.
 - **Six of seven roles have no login to verify.**
+
+---
+
+# Module 14T — Multi-tenancy and tenant isolation
+
+## Totals
+
+| Suite | Result |
+| --- | --- |
+| Backend (PHPUnit) | **1,141 passed** (was 1,119), 4,885 assertions |
+| Pint | clean |
+
+New: `tests/Feature/Api/Tenancy/TenantIsolationTest.php` — **22 tests**, every
+one over HTTP with a real Sanctum token. A service method cannot be IDOR-tested;
+only a route can.
+
+## What is asserted
+
+Two restaurants, five people: Priya manages the Spice Kitchen, Vikram manages the
+Coast Cafe, Arjun owns the Spice Kitchen, Meera is a super administrator, Rahul is
+a customer.
+
+| Area | Tests |
+| --- | --- |
+| List isolation | sees only assigned tenants · no assignment sees nothing |
+| Single-record isolation | reads own · cannot read another's · **foreign and non-existent answer identically** |
+| Write isolation | writes own · cannot write another's, *and the row is unchanged* · staff read but cannot write |
+| The indirect path | a menu item by its **own id** is still scoped, with its own control · a menu list through a foreign restaurant id |
+| Revocation | revoked assignment grants nothing · suspended account · deactivated account |
+| The surface gate | a customer cannot reach the restaurant surface · **an assignment does not promote a customer account** |
+| Platform accounts | no grant reaches nothing · reaches exactly what is granted · platform-wide grant · revoked grant · support agent scoped to one |
+| Depth | owner holds everything a manager does · stronger of assignment and grant |
+
+Two assertions worth singling out:
+
+- **"one tenants manager cannot write to another tenant"** reads the row back from
+  the database rather than trusting the response. A refusal that still wrote would
+  be the worst outcome and would look identical from outside.
+- **"a foreign tenant and a nonexistent one answer identically"** compares the two
+  responses' code and message. A 403 here would tell somebody enumerating
+  identifiers which ones are real.
+
+## Negative controls
+
+Seven mutations, applied one at a time to shipping code, each reverted. **Every
+one fired.**
+
+| # | Mutation | Tests it broke |
+| --- | --- | --- |
+| 1 | the single-tenant lookup loses `reachableBy` | 6 — cross-tenant read, identical-404, cross-tenant write, revoked, deactivated, suspended |
+| 2 | the indirect path loses `inReachableTenant` | 1 — a menu item by its own id |
+| 3 | platform role implies platform-wide access | 4 — no-grant, exact grant, revoked grant, support agent scope |
+| 4 | revoked assignments count as access | 1 |
+| 5 | the surface check is dropped | 3 — deactivated, suspended, assignment-does-not-promote |
+| 6 | suspended/disabled treated as usable | 2 |
+| 7 | the write action drops to staff depth | 1 |
+
+Control 3 is the most informative: making the role string imply breadth broke
+*four* tests including "reaches exactly what they are granted", which is what
+proves the grant scoping does real work rather than merely agreeing with the role.
+
+## A control that found a real bug
+
+`accountUsable()` was first written as `$user->is_active === true`.
+
+`is_active` defaults to **true in the database**, so a model that has not
+round-tripped since `create()` holds `NULL` — and `=== true` read that absence as
+a disabled account. Every account the fixtures made was therefore denied, and
+every "this account reaches nothing" assertion passed **whether the boundary
+worked or not**.
+
+That is the one bug a tenancy suite must never have: green that means the subject
+was broken, not that the guard held. It surfaced because a single test asserted a
+*positive* — that somebody with a grant does get a capability — and that test
+failed. Only an explicit `false` denies now, and `status` and `is_active` have a
+test each.
+
+## What is not proven
+
+- **No operator login exists**, so no test signs in as a restaurant user through a
+  real flow. Tokens are minted directly. What is proven is the boundary; what is
+  not is the door.
+- **No orders, payments or settlements exist** to be tenant-scoped yet.
+  `BelongsToTenant` is the seam they will attach to.
