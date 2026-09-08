@@ -117,6 +117,17 @@ class Routes {
 
   static String tripPickupPath(String tripId) => '/trips/$tripId/cart/pickup';
 
+  /// The last screen before money (Module 14). Under the pickup time, because
+  /// a checkout cannot be prepared without one — the server refuses to quote a
+  /// basket that has no collection window — and so the back gesture returns the
+  /// customer to the choice the price depends on.
+  ///
+  /// Payment itself is Module 15 and lives beyond this path, not on it.
+  static const String tripCheckout = 'checkout';
+
+  static String tripCheckoutPath(String tripId) =>
+      '/trips/$tripId/cart/pickup/checkout';
+
   /// The controlled destination for anything not built yet. Takes the feature
   /// name and owning module as query parameters so one screen serves them all.
   static const String comingSoon = '/coming-soon';

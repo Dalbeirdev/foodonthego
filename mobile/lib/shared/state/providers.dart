@@ -12,6 +12,7 @@ import '../../data/auth/session_store.dart';
 import '../../data/fixtures/development_personas.dart';
 import '../../data/repositories/api_auth_repository.dart';
 import '../../data/repositories/api_cart_repository.dart';
+import '../../data/repositories/api_checkout_repository.dart';
 import '../../data/repositories/api_pickup_repository.dart';
 import '../../data/repositories/api_customer_repository.dart';
 import '../../data/repositories/api_menu_repository.dart';
@@ -25,6 +26,7 @@ import '../../data/repositories/unconfigured_home_repository.dart';
 import '../../domain/models/home_dashboard.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/cart_repository.dart';
+import '../../domain/repositories/checkout_repository.dart';
 import '../../domain/repositories/pickup_repository.dart';
 import '../../domain/repositories/customer_repository.dart';
 import '../../domain/repositories/home_repository.dart';
@@ -271,6 +273,15 @@ final cartRepositoryProvider = Provider<CartRepository>(
 /// name its own pickup time in.
 final pickupRepositoryProvider = Provider<PickupRepository>(
   (Ref ref) => ApiPickupRepository(ref.watch(apiClientProvider)),
+);
+
+/// Checkout (Module 14).
+///
+/// **Nothing on this interface takes an amount.** A modified client cannot name
+/// a price because there is no parameter for one, and the request the
+/// implementation builds carries no body at all.
+final checkoutRepositoryProvider = Provider<CheckoutRepository>(
+  (Ref ref) => ApiCheckoutRepository(ref.watch(apiClientProvider)),
 );
 
 /// The device's position.

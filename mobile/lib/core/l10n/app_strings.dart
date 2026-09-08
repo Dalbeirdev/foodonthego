@@ -1099,6 +1099,61 @@ class AppStrings {
   String get pickupNotReadyTitle => 'Not quite ready';
   String get pickupCheckingOrder => 'Checking your order';
 
+  // --- checkout (Module 14) ------------------------------------------------
+  String get checkoutTitle => 'Checkout';
+  String get checkoutOpen => 'Continue to checkout';
+
+  String get checkoutPickupHeading => 'Pickup';
+  String get checkoutJourneyHeading => 'Your journey';
+  String checkoutJourney(String from, String to) => '$from → $to';
+  String get checkoutOrderHeading => 'Your order';
+  String get checkoutSummaryHeading => 'Order summary';
+  String get checkoutItemsSubtotal => 'Items subtotal';
+  String get checkoutTotal => 'Total to pay';
+
+  // Charge labels. A code this build has never met is shown as itself rather
+  // than dropped: a customer paying a charge must see it even on an old build.
+  String get checkoutTax => 'Tax';
+  String get checkoutPackagingFee => 'Packaging';
+  String get checkoutPlatformFee => 'Service fee';
+  String get checkoutDiscount => 'Discount';
+
+  // Said out loud, because an empty summary otherwise reads as a mistake. It is
+  // deliberately about configuration and NOT a statement about tax law.
+  String get checkoutNoAdjustments =>
+      'No additional charges are currently configured.';
+
+  String get checkoutEditCart => 'Edit cart';
+  String get checkoutChangePickup => 'Change pickup time';
+
+  String get checkoutProceed => 'Proceed to payment';
+  String get checkoutChecking => 'Checking your order';
+
+  // Payment is Module 15. The button is present and honest about that rather
+  // than absent, because a customer who reaches the end of a checkout and finds
+  // nothing assumes the app is broken.
+  String get checkoutPaymentComingTitle =>
+      'Payment arrives in the next release';
+  String get checkoutPaymentComingBody =>
+      "Your order is checked and ready. Card, UPI, wallet and net banking aren't switched on yet.";
+
+  String get checkoutReadyTitle => 'Ready to pay';
+  String get checkoutNotReadyTitle => 'Not quite ready';
+
+  String get checkoutExpiredTitle => 'Checkout details need refreshing';
+  String get checkoutExpiredBody =>
+      'Prices and pickup times move. We will fetch the current ones.';
+  String get checkoutStaleTitle => 'Your order has changed';
+  String get checkoutStaleBody =>
+      'Refresh the checkout so we can price what is in your cart now.';
+  String get checkoutRefresh => 'Refresh checkout';
+
+  String get checkoutLoadFailedTitle => "We couldn't prepare your checkout";
+  String get checkoutLoadFailedBody => 'Please try again in a moment.';
+  String get checkoutRetry => 'Try again';
+
+  String checkoutExpiresAt(String time) => 'Held until $time';
+
   // --- development scaffolding (never shown in production) -----------------
   String get notBuiltYet => 'Not built yet';
   String comingInModule(String module) => 'Arrives in $module.';

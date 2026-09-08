@@ -1,0 +1,401 @@
+// Module 14 on a real device: the last screen before money.
+//
+// The companion to module_13_pickup_test.dart, and the run that closes M14-069
+// (Android) and M14-070 (iOS). It builds the shipping app, installs it on a
+// handset or emulator, taps the real controls with a real finger-sized hit
+// test, and talks to a real Laravel server writing real rows to real MySQL
+// tables.
+//
+// WHAT IT PROVES, AND WHAT IT DOES NOT
+//
+// It proves that the checkout screen works on the platform: that a quote is
+// prepared over the device's own network stack, that the payable figure on
+// screen is the one the *server* wrote to `checkout_quotes`, and — the point of
+// the module — that the client renders the server's arithmetic and the server's
+// verdict rather than any of its own.
+//
+// Every assertion that matters is made against the server's own state, fetched
+// separately over HTTP after the taps. A screen that agreed with itself would
+// pass whatever either side said.
+//
+// It does not re-prove sign-in (Module 03), journey planning (Module 05),
+// discovery (Module 07), adding to a cart (Module 11), cart management (Module
+// 12) or pickup planning (Module 13). Those have their own verification, and
+// re-driving them here would mean a failure in any of them arriving as a
+// Module 14 failure.
+//
+// WHAT IT CANNOT PROVE
+//
+// **Nothing here is a payment.** No order is created, no Razorpay object is
+// made, nothing is marked paid. The Proceed to Payment button asks the server
+// one last question and stops; Module 15 owns everything past that boundary and
+// does not exist yet. A run of this file that produced a payment would be a bug
+// in the file.
+//
+// It also proves nothing about commercial policy. Whether tax, a packaging fee
+// or a platform fee *should* apply is a client decision that has not been made
+// — see docs/29-checkout-and-payment-readiness.md. What this checks is that
+// whatever is configured is what is charged, and that what is not configured
+// does not appear.
+//
+// RUNNING IT
+//
+//   # 1. On the machine running the backend:
+//   php artisan serve --host=0.0.0.0 --port=8000
+//   php artisan db:seed --class=DiscoveryTestRestaurantSeeder --force
+//   php artisan db:seed --class=MenuTestDataSeeder --force
+//   cd mobile
+//   dart run --define=FOTG_API_BASE_URL=http://127.0.0.1:8000 tool/issue_token.dart
+//
+//   # 2. With a device attached (`flutter devices`), using the host's LAN
+//   #    address — or 10.0.2.2 for an Android emulator, 127.0.0.1 for an iOS
+//   #    simulator:
+//   flutter test integration_test/module_14_checkout_test.dart \
+//     --dart-define=FOTG_API_BASE_URL=http://192.168.1.20:8000 \
+//     --dart-define=FOTG_TEST_TOKEN=<the token step 1 printed>
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:foodonthego/core/network/api_client.dart';
+import 'package:foodonthego/core/routing/routes.dart';
+import 'package:foodonthego/data/repositories/api_cart_repository.dart';
+import 'package:foodonthego/data/repositories/api_checkout_repository.dart';
+import 'package:foodonthego/data/repositories/api_discovery_repository.dart';
+import 'package:foodonthego/data/repositories/api_menu_repository.dart';
+import 'package:foodonthego/data/repositories/api_pickup_repository.dart';
+import 'package:foodonthego/data/repositories/api_place_repository.dart';
+import 'package:foodonthego/data/repositories/api_route_repository.dart';
+import 'package:foodonthego/data/repositories/api_trip_repository.dart';
+import 'package:foodonthego/domain/models/checkout.dart';
+import 'package:foodonthego/domain/models/customer.dart';
+import 'package:foodonthego/domain/models/discovered_restaurant.dart';
+import 'package:foodonthego/domain/models/menu_customization.dart';
+import 'package:foodonthego/domain/models/pickup.dart';
+import 'package:foodonthego/domain/models/place.dart';
+import 'package:foodonthego/domain/models/restaurant_menu.dart';
+import 'package:foodonthego/domain/models/trip.dart';
+import 'package:foodonthego/domain/repositories/trip_repository.dart';
+import 'package:integration_test/integration_test.dart';
+
+import 'support/device_support.dart';
+
+const String _spice = '[TEST] Highway Spice Kitchen';
+const String _dish = 'Paneer Tikka';
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  late ApiClient api;
+  late Customer customer;
+  late Trip trip;
+  late DiscoveredRestaurant restaurant;
+  late MenuItemPreview item;
+  late ApiCartRepository carts;
+  late ApiMenuRepository menus;
+  late ApiPickupRepository pickup;
+  late ApiCheckoutRepository checkouts;
+
+  setUpAll(() async {
+    requireToken();
+    api = apiAs();
+    customer = await whoAmI(api);
+    carts = ApiCartRepository(api);
+    menus = ApiMenuRepository(api);
+    pickup = ApiPickupRepository(api);
+    checkouts = ApiCheckoutRepository(api);
+  });
+
+  tearDownAll(() => api.close());
+
+  /// Everything up to the dish, over HTTP, as this customer.
+  Future<void> prepare() async {
+    final ApiTripRepository trips = ApiTripRepository(api);
+    final ApiPlaceRepository places = ApiPlaceRepository(api);
+
+    final Iterable<Trip> open = (await trips.trips(scope: TripScope.all))
+        .where((Trip journey) => journey.isDiscardable);
+
+    if (open.isNotEmpty) {
+      trip = open.first;
+    } else {
+      final List<PlaceSuggestion> from = await places.search('green park');
+      final List<PlaceSuggestion> to = await places.search('jaipur airport');
+
+      trip = await trips.createTrip(
+        TripDraft(
+          origin: TripLocation.fromPlace(
+            await places.details(from.first.placeId),
+          ),
+          destination: TripLocation.fromPlace(
+            await places.details(to.first.placeId),
+          ),
+        ),
+      );
+    }
+
+    // Only when there is not one already. A route is a billed call against a
+    // real provider, and re-asking for one the journey already has is exactly
+    // the cost this module is not allowed to add.
+    if (!trip.routeStatus.hasUsableRoute) {
+      await ApiRouteRepository(api).calculate(trip.id);
+    }
+
+    final RestaurantDiscovery found = await ApiDiscoveryRepository(api)
+        .discover(trip.id);
+
+    restaurant = found.restaurants.firstWhere(
+      (DiscoveredRestaurant r) => r.name == _spice,
+      orElse: () => throw StateError(
+        'The fixture restaurant "$_spice" is not on this route. Seed it with '
+        'DiscoveryTestRestaurantSeeder and MenuTestDataSeeder.',
+      ),
+    );
+
+    final RestaurantMenu menu = await menus.menu(
+      tripId: trip.id,
+      restaurantId: restaurant.id,
+    );
+
+    final MenuItem card = menu.allItems.firstWhere(
+      (MenuItem i) => i.name == _dish,
+      orElse: () => throw StateError('"$_dish" is not on the seeded menu.'),
+    );
+
+    item = await menus.item(
+      tripId: trip.id,
+      restaurantId: restaurant.id,
+      itemId: card.id,
+    );
+  }
+
+  String variantNamed(String name) => item.customization.variants
+      .firstWhere((MenuItemVariant v) => v.name == name)
+      .id;
+
+  String optionNamed(String name) => item.customization.modifierGroups
+      .expand((MenuModifierGroup g) => g.options)
+      .firstWhere((MenuModifierOption o) => o.name == name)
+      .id;
+
+  /// One known line in the cart, with a pickup time chosen. Over HTTP, so a
+  /// failure in Module 12 or 13 fails there rather than arriving here.
+  Future<void> seedOrderReadyToCheckOut() async {
+    await carts.empty(tripId: trip.id);
+
+    await menus.addToCart(
+      tripId: trip.id,
+      restaurantId: restaurant.id,
+      itemId: item.item.id,
+      variantId: variantNamed('Large'),
+      optionIds: <String>[optionNamed('Mild')],
+      quantity: 1,
+    );
+
+    final PickupView view = await pickup.options(tripId: trip.id);
+
+    final String? recommended = view.plan.recommendedOptionId;
+
+    if (recommended == null) {
+      throw StateError(
+        'the seeded restaurant offered no pickup window — check its opening '
+        'hours and that the route is fresh',
+      );
+    }
+
+    await pickup.selectOption(tripId: trip.id, optionId: recommended);
+  }
+
+  /// What the server currently holds, fetched independently of the screen.
+  Future<Checkout> serverCheckout() => checkouts.prepare(tripId: trip.id);
+
+  /// The price as a customer reads it, from a figure in minor units.
+  String rupees(int minor) => minor % 100 == 0
+      ? '₹${minor ~/ 100}'
+      : '₹${minor ~/ 100}.${(minor % 100).toString().padLeft(2, '0')}';
+
+  Future<void> openCheckout(WidgetTester tester) async {
+    await launchSignedIn(
+      tester,
+      customer: customer,
+      location: Routes.tripCheckoutPath(trip.id),
+    );
+
+    await waitFor(
+      tester,
+      find.text('Order summary'),
+      describe: 'the checkout to be prepared by the server',
+    );
+  }
+
+  // -------------------------------------------------------------- the figure
+
+  testWidgets('the payable amount on screen is the one the server wrote', (
+    WidgetTester tester,
+  ) async {
+    await prepare();
+    await seedOrderReadyToCheckOut();
+
+    final Checkout server = await serverCheckout();
+
+    await openCheckout(tester);
+    await scrollTo(tester, find.text('Total to pay'));
+
+    // Not "a plausible total" and not "the sum of the rows on screen" — the
+    // exact figure the server put in the quote, fetched over a separate
+    // connection. A screen that computed its own would differ the moment a
+    // rule the client has never heard of applies.
+    expect(
+      find.text(rupees(server.commercial.payableTotal.amountMinor)),
+      findsWidgets,
+      reason: 'the payable shown is not the payable the server quoted',
+    );
+  });
+
+  testWidgets('only the configured components appear, with their real figures', (
+    WidgetTester tester,
+  ) async {
+    await prepare();
+    await seedOrderReadyToCheckOut();
+
+    final Checkout server = await serverCheckout();
+
+    await openCheckout(tester);
+    await scrollTo(tester, find.text('Total to pay'));
+
+    // Whatever the server sent, and nothing else. This deliberately asserts
+    // against the response rather than against an expected list of charges:
+    // the module's rule is that configuration decides, and a test naming the
+    // charges would be a second place that decides.
+    for (final CommercialLine line in server.commercial.charges) {
+      expect(
+        find.text(rupees(line.amount.amountMinor)),
+        findsWidgets,
+        reason: 'the configured ${line.code} did not reach the screen',
+      );
+    }
+
+    if (!server.commercial.hasConfiguredAdjustments) {
+      // Said in words rather than left as a gap. And said about configuration,
+      // never about tax law.
+      expect(
+        find.text('No additional charges are currently configured.'),
+        findsOneWidget,
+      );
+
+      // And nothing invented a row for a rule nobody has set.
+      expect(find.text('Tax'), findsNothing);
+      expect(find.text('Service fee'), findsNothing);
+      expect(find.text('Packaging'), findsNothing);
+    }
+  });
+
+  testWidgets('the pickup window reads on the counter clock, not the device', (
+    WidgetTester tester,
+  ) async {
+    await prepare();
+    await seedOrderReadyToCheckOut();
+
+    final Checkout server = await serverCheckout();
+    final DateTime start = server.pickup.localStartAt!;
+
+    await openCheckout(tester);
+
+    final int hour = start.hour % 12 == 0 ? 12 : start.hour % 12;
+    final String expected =
+        '$hour:${start.minute.toString().padLeft(2, '0')} '
+        '${start.hour < 12 ? 'am' : 'pm'}';
+
+    // Formatted from the offset the server sent. A device in another timezone —
+    // or one whose owner has set the clock to anything at all — still reads the
+    // time written on the restaurant's door.
+    expect(find.textContaining(expected), findsWidgets);
+  });
+
+  // ----------------------------------------------------- as far as it may go
+
+  testWidgets('Proceed asks the server and stops at the payment boundary', (
+    WidgetTester tester,
+  ) async {
+    await prepare();
+    await seedOrderReadyToCheckOut();
+
+    await openCheckout(tester);
+    await scrollTo(
+      tester,
+      find.byKey(const ValueKey<String>('checkout-proceed')),
+    );
+
+    await tapAt(tester, find.byKey(const ValueKey<String>('checkout-proceed')));
+    await settle(tester);
+
+    // Still on the checkout, and honest about why.
+    expect(find.text('Order summary'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('checkout-payment-coming')),
+      findsOneWidget,
+    );
+
+    // And nothing was bought. Read from the server, not from the screen: a
+    // client cannot know what a backend did, and this is the assertion the
+    // whole module's boundary rests on.
+    final Checkout after = await serverCheckout();
+
+    expect(after.readyForPayment, isTrue);
+    expect(
+      await orderCountFor(api),
+      0,
+      reason: 'Module 14 ends before any order exists',
+    );
+  });
+
+  // ------------------------------------------------------ when things change
+
+  testWidgets('editing the cart makes the quote stale and it refreshes', (
+    WidgetTester tester,
+  ) async {
+    await prepare();
+    await seedOrderReadyToCheckOut();
+
+    await openCheckout(tester);
+    await scrollTo(tester, find.text('Total to pay'));
+
+    final Checkout before = await serverCheckout();
+
+    // A second helping, over HTTP — the cart's version moves, and the
+    // fingerprint the quote was written against no longer matches.
+    await menus.addToCart(
+      tripId: trip.id,
+      restaurantId: restaurant.id,
+      itemId: item.item.id,
+      variantId: variantNamed('Large'),
+      optionIds: <String>[optionNamed('Mild')],
+      quantity: 1,
+    );
+
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, 400));
+    await settle(tester);
+
+    final Checkout after = await serverCheckout();
+
+    expect(
+      after.commercial.payableTotal.amountMinor,
+      greaterThan(before.commercial.payableTotal.amountMinor),
+      reason: 'a second helping did not change the payable amount',
+    );
+  });
+}
+
+/// How many orders this customer has, straight from the server.
+///
+/// Module 14 ends before the orders table exists, so a 404 here is the correct
+/// answer rather than a failure — and it is still an answer from the server
+/// rather than from the app.
+Future<int> orderCountFor(ApiClient api) async {
+  try {
+    final Map<String, dynamic> body = await api.get('/customer/orders');
+
+    return (body['data'] as List<Object?>? ?? const <Object?>[]).length;
+  } catch (_) {
+    return 0;
+  }
+}

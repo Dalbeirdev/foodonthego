@@ -345,6 +345,93 @@ void main() {
     expect(find.text('Your order is ready to go'), findsOneWidget);
   });
 
+  // --- the way on to Module 14 ---------------------------------------------
+
+  testWidgets('Continue to checkout appears only once the server says yes', (
+    WidgetTester tester,
+  ) async {
+    final FakePickupRepository pickup = FakePickupRepository()
+      ..readyForCheckout = true;
+
+    await open(tester, pickup: pickup);
+
+    // Before the check, there is nothing to continue to. The customer has not
+    // asked, and the server has not answered.
+    expect(
+      find.byKey(const ValueKey<String>('pickup-continue-checkout')),
+      findsNothing,
+    );
+
+    await tester.tap(
+      find.byKey(ValueKey<String>('pickup-option-${pickup.offered.first.id}')),
+    );
+    await tester.pumpAndSettle();
+
+    await check(tester);
+
+    expect(
+      find.byKey(const ValueKey<String>('pickup-continue-checkout')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a refusal offers no way on to a checkout', (
+    WidgetTester tester,
+  ) async {
+    // No issues in the response, and the server still says no. A screen that
+    // decided this from an empty issue list would put a customer one tap from
+    // a price for a basket the backend has refused to price.
+    final FakePickupRepository pickup = FakePickupRepository()
+      ..readyForCheckout = false;
+
+    await open(tester, pickup: pickup);
+
+    await tester.tap(
+      find.byKey(ValueKey<String>('pickup-option-${pickup.offered.first.id}')),
+    );
+    await tester.pumpAndSettle();
+
+    await check(tester);
+
+    expect(
+      find.byKey(const ValueKey<String>('pickup-continue-checkout')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('Continue to checkout opens the checkout', (
+    WidgetTester tester,
+  ) async {
+    final FakePickupRepository pickup = FakePickupRepository()
+      ..readyForCheckout = true;
+
+    await open(tester, pickup: pickup);
+
+    await tester.tap(
+      find.byKey(ValueKey<String>('pickup-option-${pickup.offered.first.id}')),
+    );
+    await tester.pumpAndSettle();
+
+    await check(tester);
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('pickup-continue-checkout')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Checkout'), findsOneWidget);
+    expect(find.text('Order summary'), findsOneWidget);
+
+    // And the pickup screen is underneath rather than replaced, so back returns
+    // the customer to the choice the price depends on rather than to the
+    // journey.
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('When will you collect?'), findsOneWidget);
+    expect(find.text('Order summary'), findsNothing);
+  });
+
   testWidgets('a price that has fallen is shown and is not in the way', (
     WidgetTester tester,
   ) async {

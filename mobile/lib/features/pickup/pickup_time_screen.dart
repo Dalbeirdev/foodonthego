@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
+import '../../core/routing/routes.dart';
 import '../../core/theme/tokens.dart';
 import '../../domain/models/pickup.dart';
 import '../../domain/models/pre_checkout.dart';
@@ -133,6 +135,10 @@ class _PickupTimeScreenState extends ConsumerState<PickupTimeScreen> {
         if (state.preCheckout case final PreCheckoutResult result) ...<Widget>[
           const SizedBox(height: FotgSpacing.x4),
           _preCheckoutCard(strings, result),
+          if (result.readyForCheckout) ...<Widget>[
+            const SizedBox(height: FotgSpacing.x4),
+            _continueToCheckout(strings),
+          ],
         ],
       ],
     );
@@ -274,6 +280,20 @@ class _PickupTimeScreenState extends ConsumerState<PickupTimeScreen> {
     onPressed: state.isValidating || state.selectedOptionId == null
         ? null
         : () => ref.read(pickupControllerProvider.notifier).validate(),
+  );
+
+  /// Module 14's entry point.
+  ///
+  /// Shown only once the **server** has said this order may be checked out, and
+  /// only after the customer has asked it — the button appears beneath the
+  /// verdict rather than beside the chips, so nothing offers to price a basket
+  /// the backend has not agreed to price. The checkout screen asks again on
+  /// arrival regardless: this screen's answer is a moment old by the time the
+  /// next one loads, and a stale yes is exactly the kind that costs money.
+  Widget _continueToCheckout(AppStrings strings) => PrimaryButton(
+    key: const ValueKey<String>('pickup-continue-checkout'),
+    label: strings.checkoutOpen,
+    onPressed: () => context.push(Routes.tripCheckoutPath(widget.tripId)),
   );
 
   /// The server's verdict, rendered.

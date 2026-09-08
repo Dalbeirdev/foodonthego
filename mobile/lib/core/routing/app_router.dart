@@ -14,6 +14,7 @@ import '../../features/profile/profile_screen.dart';
 import '../../domain/models/discovered_restaurant.dart';
 import '../../features/discovery/discovery_screen.dart';
 import '../../features/cart/cart_screen.dart';
+import '../../features/checkout/checkout_screen.dart';
 import '../../features/pickup/pickup_time_screen.dart';
 import '../../features/item/item_detail_screen.dart';
 import '../../features/menu/menu_screen.dart';
@@ -165,6 +166,22 @@ GoRouter createRouter({
                                       tripId:
                                           state.pathParameters['tripId'] ?? '',
                                     ),
+                            routes: <RouteBase>[
+                              // Under the pickup time, because a checkout
+                              // cannot be prepared without one — and so back
+                              // lands on the choice the price depends on.
+                              GoRoute(
+                                path: Routes.tripCheckout,
+                                builder:
+                                    (
+                                      BuildContext context,
+                                      GoRouterState state,
+                                    ) => CheckoutScreen(
+                                      tripId:
+                                          state.pathParameters['tripId'] ?? '',
+                                    ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

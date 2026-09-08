@@ -32,15 +32,27 @@ final readonly class ArrivalEstimate
     }
 
     /**
+     * The customer-facing shape, on the counter's clock.
+     *
+     * The zone is a parameter rather than a field because an arrival estimate
+     * does not have one: it is a moment, and the moment is the same whichever
+     * clock reads it. What it must not do is reach a response on a different
+     * clock from the pickup window beside it — see the rule in
+     * [PickupPlan::toApiArray].
+     *
      * @return array<string, mixed>
      */
-    public function toApiArray(): array
+    public function toApiArray(string $timezone): array
     {
+        $local = static fn (?CarbonImmutable $instant): ?string => $instant === null
+            ? null
+            : ($timezone === '' ? $instant : $instant->setTimezone($timezone))->toIso8601String();
+
         return [
-            'estimated_arrival_at' => $this->arrivalAt->toIso8601String(),
+            'estimated_arrival_at' => $local($this->arrivalAt),
             'travel_minutes' => $this->travelMinutes(),
             'basis' => $this->source,
-            'calculated_at' => $this->calculatedAt?->toIso8601String(),
+            'calculated_at' => $local($this->calculatedAt),
             'is_fresh' => $this->isFresh,
         ];
     }

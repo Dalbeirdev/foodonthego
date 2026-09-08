@@ -28,6 +28,7 @@ import 'package:foodonthego/domain/repositories/customer_repository.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
 import 'package:foodonthego/domain/repositories/place_repository.dart';
 import 'package:foodonthego/domain/models/cart.dart';
+import 'package:foodonthego/domain/models/checkout.dart';
 import 'package:foodonthego/domain/models/cart_revalidation.dart';
 import 'package:foodonthego/domain/models/pickup.dart';
 import 'package:foodonthego/domain/models/pre_checkout.dart';
@@ -36,6 +37,7 @@ import 'package:foodonthego/domain/models/money.dart';
 import 'package:foodonthego/domain/models/restaurant_detail.dart';
 import 'package:foodonthego/domain/models/restaurant_menu.dart';
 import 'package:foodonthego/domain/repositories/cart_repository.dart';
+import 'package:foodonthego/domain/repositories/checkout_repository.dart';
 import 'package:foodonthego/domain/repositories/pickup_repository.dart';
 import 'package:foodonthego/domain/repositories/menu_repository.dart';
 import 'package:foodonthego/domain/repositories/discovery_repository.dart';
@@ -1507,6 +1509,7 @@ Widget wrapApp({
   FakeMenuRepository? menus,
   FakeCartRepository? carts,
   FakePickupRepository? pickup,
+  FakeCheckoutRepository? checkouts,
   bool signedIn = true,
 }) {
   final FakeAuthRepository authRepository = auth ?? FakeAuthRepository();
@@ -1545,6 +1548,9 @@ Widget wrapApp({
       cartRepositoryProvider.overrideWithValue(carts ?? FakeCartRepository()),
       pickupRepositoryProvider.overrideWithValue(
         pickup ?? FakePickupRepository(),
+      ),
+      checkoutRepositoryProvider.overrideWithValue(
+        checkouts ?? FakeCheckoutRepository(),
       ),
       locationServiceProvider.overrideWithValue(
         location ?? FakeLocationService(),
@@ -2686,4 +2692,230 @@ class FakePickupRepository implements PickupRepository {
     recommendedOptionId: _options.isEmpty ? null : _options.first.id,
     options: List<PickupOption>.unmodifiable(_options),
   );
+}
+
+/// A checkout, without a server.
+///
+/// Every response is built by handing a **server-shaped map to the real
+/// parser**, never by constructing a [Checkout] field by field. That is the
+/// same reasoning as [FakePickupRepository]: the instants the server sends
+/// carry an offset, `DateTime.parse` throws it away, and a fake that handed the
+/// screen ready-made `DateTime`s would make a test about which clock is shown
+/// pass whichever clock was shown.
+///
+/// **No method here accepts an amount, and nothing here recomputes one.** The
+/// figures are what this fake was told to send, exactly as the server's are what
+/// it worked out. A fake that summed its own lines would be a second
+/// implementation of the rule under test.
+class FakeCheckoutRepository implements CheckoutRepository {
+  FakeCheckoutRepository({
+    this.itemsSubtotalMinor = 49_800,
+    int? payableTotalMinor,
+    this.currency = 'INR',
+  }) : payableTotalMinor = payableTotalMinor ?? itemsSubtotalMinor;
+
+  /// The same instant [FakePickupRepository] plans against, so a test can put
+  /// the two screens in one story.
+  static final DateTime serverNow = FakePickupRepository.serverNow;
+
+  /// What the server says the checkout is worth. Set directly — never derived
+  /// from [charges], because deriving it here is the mistake being tested for.
+  int itemsSubtotalMinor;
+  int payableTotalMinor;
+
+  final String currency;
+
+  /// The configured components, in the shape the server sends them. A charge
+  /// nobody has configured is simply absent, exactly as it is on the wire —
+  /// there is no way to express "configured as zero" by leaving it out.
+  List<({String code, int amountMinor})> charges =
+      const <({String code, int amountMinor})>[];
+  List<({String code, int amountMinor})> discounts =
+      const <({String code, int amountMinor})>[];
+
+  /// The server saying so, rather than the client inferring it from the lists
+  /// above. Set independently so a test can produce the disagreement.
+  bool? hasConfiguredAdjustments;
+
+  CheckoutStatus status = CheckoutStatus.active;
+
+  /// **The server's answer.** Never derived from [issues] by this fake, for the
+  /// same reason the app must not derive it: a test that could only produce a
+  /// consistent pair could never catch a screen that trusted the wrong one.
+  bool readyForPayment = true;
+
+  String restaurantName = 'Highway Spice Kitchen';
+  String? origin = 'Delhi';
+  String? destination = 'Jaipur';
+
+  /// Minutes from [serverNow] until the quote lapses. Null sends no expiry.
+  int? expiresInMinutes = 10;
+
+  List<PreCheckoutIssue> issues = const <PreCheckoutIssue>[];
+
+  /// The lines, in the shape the cart API sends them.
+  List<Map<String, dynamic>> items = <Map<String, dynamic>>[
+    <String, dynamic>{
+      'id': 'line-1',
+      'name': 'Paneer Tikka',
+      'quantity': 2,
+      'variant_name': 'Large',
+      'unit_price': <String, dynamic>{
+        'amount_minor': 24_900,
+        'currency': 'INR',
+      },
+      'line_total': <String, dynamic>{
+        'amount_minor': 49_800,
+        'currency': 'INR',
+      },
+    },
+  ];
+
+  ApiException? nextPrepareError;
+  ApiException? nextValidateError;
+
+  int prepareCalls = 0;
+  int validateCalls = 0;
+
+  /// Every checkout id the client sent, in order. A test proving the screen
+  /// echoes the server's id — rather than one it made up — reads this.
+  final List<String> checkoutIdsSent = <String>[];
+
+  /// Every request body the client produced. Empty maps, because the interface
+  /// has nowhere to put an amount; a test asserts they stay empty.
+  final List<Map<String, Object?>> bodiesSent = <Map<String, Object?>>[];
+
+  String _issued = 'quote-aaa1f3c';
+
+  String get issuedCheckoutId => _issued;
+
+  /// Mints a new id, the way preparing again would.
+  void supersede() => _issued = 'quote-${_issued.length}b7e2d';
+
+  @override
+  Future<Checkout> prepare({required String tripId}) async {
+    prepareCalls++;
+    bodiesSent.add(const <String, Object?>{});
+
+    final ApiException? error = nextPrepareError;
+
+    if (error != null) {
+      nextPrepareError = null;
+      throw error;
+    }
+
+    return _checkout();
+  }
+
+  @override
+  Future<Checkout> validate({
+    required String tripId,
+    required String checkoutId,
+  }) async {
+    validateCalls++;
+    checkoutIdsSent.add(checkoutId);
+    bodiesSent.add(const <String, Object?>{});
+
+    final ApiException? error = nextValidateError;
+
+    if (error != null) {
+      nextValidateError = null;
+      throw error;
+    }
+
+    // An id this fake never issued. The real server answers the same way, and a
+    // test that got a success here would be testing nothing.
+    if (checkoutId != _issued) {
+      throw ApiException(
+        code: ApiErrorCode.checkoutQuoteNotFound,
+        message: 'That checkout is no longer available. Please try again.',
+      );
+    }
+
+    return _checkout();
+  }
+
+  Checkout _checkout() => Checkout.fromJson(<String, dynamic>{
+    'checkout_id': _issued,
+    'status': status.wireValue,
+    'currency': currency,
+    'restaurant': <String, dynamic>{'id': 'rest-1', 'name': restaurantName},
+    'journey': <String, dynamic>{
+      'id': 'trip-1',
+      'origin': origin,
+      'destination': destination,
+    },
+    'pickup': <String, dynamic>{
+      'timezone': 'Asia/Kolkata',
+      'selection': <String, dynamic>{
+        'status': 'SELECTED',
+        'start_at': _kolkata(serverNow.add(const Duration(minutes: 70))),
+        'end_at': _kolkata(serverNow.add(const Duration(minutes: 80))),
+        'timezone': 'Asia/Kolkata',
+      },
+    },
+    'items': items,
+    'commercial': <String, dynamic>{
+      'items_subtotal': <String, dynamic>{
+        'amount_minor': itemsSubtotalMinor,
+        'currency': currency,
+      },
+      'payable_total': <String, dynamic>{
+        'amount_minor': payableTotalMinor,
+        'currency': currency,
+      },
+      'charges': <Map<String, dynamic>>[
+        for (final ({String code, int amountMinor}) line in charges)
+          <String, dynamic>{
+            'code': line.code,
+            'amount': <String, dynamic>{
+              'amount_minor': line.amountMinor,
+              'currency': currency,
+            },
+          },
+      ],
+      'discounts': <Map<String, dynamic>>[
+        for (final ({String code, int amountMinor}) line in discounts)
+          <String, dynamic>{
+            'code': line.code,
+            'amount': <String, dynamic>{
+              'amount_minor': line.amountMinor,
+              'currency': currency,
+            },
+          },
+      ],
+      'has_configured_adjustments':
+          hasConfiguredAdjustments ??
+          (charges.isNotEmpty || discounts.isNotEmpty),
+    },
+    // On the counter's clock, like every other instant the server sends in one
+    // body. A fake that wrote this one in UTC would let a screen that converts
+    // to the phone's zone pass.
+    'expires_at': expiresInMinutes == null
+        ? null
+        : _kolkata(serverNow.add(Duration(minutes: expiresInMinutes!))),
+    'ready_for_payment': readyForPayment,
+    'validation': <String, dynamic>{
+      'ready_for_checkout': readyForPayment,
+      'selection_status': 'SELECTED',
+      'issues': <Map<String, dynamic>>[
+        for (final PreCheckoutIssue issue in issues)
+          <String, dynamic>{
+            'code': issue.code?.wireValue,
+            'message': issue.message,
+            'blocking': issue.blocking,
+          },
+      ],
+    },
+  })!;
+
+  /// A UTC instant, written the way the server writes it for Asia/Kolkata.
+  static String _kolkata(DateTime instant) {
+    final DateTime local = instant.add(const Duration(hours: 5, minutes: 30));
+
+    String two(int v) => v.toString().padLeft(2, '0');
+
+    return '${local.year}-${two(local.month)}-${two(local.day)}'
+        'T${two(local.hour)}:${two(local.minute)}:00+05:30';
+  }
 }

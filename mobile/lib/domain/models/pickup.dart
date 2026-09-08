@@ -79,49 +79,53 @@ class PickupOption {
       id: id,
       startAt: start,
       endAt: end,
-      localStartAt: _wallClock(json['start_at']),
-      localEndAt: _wallClock(json['end_at']),
+      localStartAt: wallClockOf(json['start_at']),
+      localEndAt: wallClockOf(json['end_at']),
       isRecommended: json['is_recommended'] == true,
     );
   }
 
   static DateTime? _time(Object? value) =>
       value is String ? DateTime.tryParse(value) : null;
+}
 
-  /// The clock face the server wrote, kept as written.
-  ///
-  /// **`DateTime.parse` throws the offset away.** Given
-  /// `2026-09-07T13:40:00+05:30` it hands back the right instant flagged UTC,
-  /// and the only two things a client can then do with it are show it in UTC or
-  /// convert it to the phone's zone — so a Delhi pickup on a phone set to
-  /// London renders as 8:10 am. The time on the door is 1:40 pm.
-  ///
-  /// Dart has no timezone database in core, and rather than take a dependency
-  /// to convert into a zone the server has already converted into, this reads
-  /// the wall-clock fields straight out of the string. The server decided the
-  /// offset — daylight saving included — and this keeps its answer.
-  ///
-  /// The absolute instant is kept alongside, in [PickupOption.startAt], because
-  /// comparisons need it. One is for arithmetic and the other is for reading,
-  /// and conflating them is how an afternoon becomes a morning.
-  static DateTime? _wallClock(Object? value) {
-    if (value is! String) return null;
+/// The clock face the server wrote, kept as written.
+///
+/// **`DateTime.parse` throws the offset away.** Given
+/// `2026-09-07T13:40:00+05:30` it hands back the right instant flagged UTC, and
+/// the only two things a client can then do with it are show it in UTC or
+/// convert it to the phone's zone — so a Delhi pickup on a phone set to London
+/// renders as 8:10 am. The time on the door is 1:40 pm.
+///
+/// Dart has no timezone database in core, and rather than take a dependency to
+/// convert into a zone the server has already converted into, this reads the
+/// wall-clock fields straight out of the string. The server decided the offset
+/// — daylight saving included — and this keeps its answer.
+///
+/// The absolute instant is kept alongside, in [PickupOption.startAt], because
+/// comparisons need it. One is for arithmetic and the other is for reading, and
+/// conflating them is how an afternoon becomes a morning.
+///
+/// Top-level rather than private to one model: every instant the server sends
+/// needs this treatment, and Module 14's quote expiry is the second caller. A
+/// screen reaching for `.toLocal()` instead is the bug this exists to prevent.
+DateTime? wallClockOf(Object? value) {
+  if (value is! String) return null;
 
-    final RegExpMatch? match = RegExp(
-      r'^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?',
-    ).firstMatch(value);
+  final RegExpMatch? match = RegExp(
+    r'^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?',
+  ).firstMatch(value);
 
-    if (match == null) return null;
+  if (match == null) return null;
 
-    return DateTime(
-      int.parse(match.group(1)!),
-      int.parse(match.group(2)!),
-      int.parse(match.group(3)!),
-      int.parse(match.group(4)!),
-      int.parse(match.group(5)!),
-      int.parse(match.group(6) ?? '0'),
-    );
-  }
+  return DateTime(
+    int.parse(match.group(1)!),
+    int.parse(match.group(2)!),
+    int.parse(match.group(3)!),
+    int.parse(match.group(4)!),
+    int.parse(match.group(5)!),
+    int.parse(match.group(6) ?? '0'),
+  );
 }
 
 /// What the customer has chosen, as the server currently reads it.
@@ -165,8 +169,8 @@ class PickupSelection {
       status: PickupSelectionStatus.fromWire(json['status']),
       startAt: PickupOption._time(json['start_at']),
       endAt: PickupOption._time(json['end_at']),
-      localStartAt: PickupOption._wallClock(json['start_at']),
-      localEndAt: PickupOption._wallClock(json['end_at']),
+      localStartAt: wallClockOf(json['start_at']),
+      localEndAt: wallClockOf(json['end_at']),
       timezone: json['timezone'] as String?,
       selectedAt: PickupOption._time(json['selected_at']),
     );
@@ -282,9 +286,7 @@ class PickupPlan {
       selection: PickupSelection.fromJson(json['selection']),
       timezone: json['timezone'] as String?,
       estimatedArrivalAt: PickupOption._time(travel['estimated_arrival_at']),
-      localEstimatedArrivalAt: PickupOption._wallClock(
-        travel['estimated_arrival_at'],
-      ),
+      localEstimatedArrivalAt: wallClockOf(travel['estimated_arrival_at']),
       travelMinutes: _int(travel['travel_minutes']),
       routeCalculatedAt: PickupOption._time(travel['calculated_at']),
       routeIsFresh: travel['is_fresh'] == true,
@@ -292,7 +294,7 @@ class PickupPlan {
       bufferMinutes: _int(json['buffer_minutes']),
       minimumLeadMinutes: _int(json['minimum_lead_minutes']),
       earliestReadyAt: PickupOption._time(json['earliest_ready_at']),
-      localEarliestReadyAt: PickupOption._wallClock(json['earliest_ready_at']),
+      localEarliestReadyAt: wallClockOf(json['earliest_ready_at']),
       reason: json['reason'] as String?,
       recommendedOptionId: json['recommended_option_id'] as String?,
       options: <PickupOption>[

@@ -152,6 +152,12 @@ final class CheckoutController
      * requests would render four moments side by side, and the customer would
      * be asked to agree to the combination.
      *
+     * **One response, one clock.** Every instant below goes through
+     * `$plan->local()`, so the whole body is read on the restaurant's. Adding a
+     * raw `toIso8601String()` here fails
+     * `test_every_instant_in_one_response_is_on_one_clock`, which is what that
+     * test is for.
+     *
      * @return array<string, mixed>
      */
     private function payload(Cart $cart, CheckoutPreparation $preparation, CarbonImmutable $now): array
@@ -197,9 +203,14 @@ final class CheckoutController
                 ...$plan->toApiArray(),
                 'selection' => [
                     'status' => $this->evaluator->statusFor($cart, $plan, $now)->value,
-                    'start_at' => $this->local($cart->requested_pickup_start_at, $cart->pickup_timezone),
-                    'end_at' => $this->local($cart->requested_pickup_end_at, $cart->pickup_timezone),
-                    'timezone' => $cart->pickup_timezone,
+                    // The plan's zone, not the one stored on the cart when the
+                    // choice was made. They are the same restaurant's clock in
+                    // every ordinary case; where they are not, the plan's is
+                    // the current truth, and rendering the stored one here
+                    // would put a second clock in this body.
+                    'start_at' => $plan->local($cart->requested_pickup_start_at),
+                    'end_at' => $plan->local($cart->requested_pickup_end_at),
+                    'timezone' => $plan->timezone,
                 ],
             ],
 
@@ -209,7 +220,10 @@ final class CheckoutController
 
             'commercial' => $preparation->breakdown->toApiArray(),
 
-            'expires_at' => $quote?->expires_at?->toIso8601String(),
+            // On the counter's clock like everything else here. In UTC beside a
+            // window at +05:30 it renders as an expiry hours in the customer's
+            // past, on the screen where they agree to pay.
+            'expires_at' => $plan->local($quote?->expires_at),
 
             // The authoritative answer, computed by the backend in one place. A
             // client renders it and must never derive its own.
@@ -229,22 +243,5 @@ final class CheckoutController
         }
 
         return null;
-    }
-
-    /**
-     * A stored UTC instant, on the counter's clock.
-     *
-     * The rule Module 13 arrived at the hard way, applied here from the start:
-     * one response, one clock. A checkout showing the pickup window in UTC
-     * beside options in the restaurant's zone is the same moment rendered twice,
-     * hours apart.
-     */
-    private function local(?CarbonImmutable $instant, ?string $zone): ?string
-    {
-        if ($instant === null) {
-            return null;
-        }
-
-        return (($zone ?? '') === '' ? $instant : $instant->setTimezone($zone))->toIso8601String();
     }
 }

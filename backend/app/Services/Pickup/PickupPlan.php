@@ -76,21 +76,44 @@ final readonly class PickupPlan
      * a client must never perform is the one this module exists to make
      * authoritative.
      *
+     * **One response, one clock.** Every instant here is rendered in
+     * [$timezone] — the restaurant's — because a body that mixes them is the
+     * same moment written twice, hours apart, and nothing on the receiving side
+     * can tell which of the two a given field used. Anything added to this
+     * array goes through [local]; a test asserts that every instant in a
+     * checkout response carries one offset, and it fails loudly if one does not.
+     *
      * @return array<string, mixed>
      */
     public function toApiArray(): array
     {
         return [
-            'server_now' => $this->serverNow->toIso8601String(),
+            'server_now' => $this->local($this->serverNow),
             'timezone' => $this->timezone,
-            'travel' => $this->arrival?->toApiArray(),
+            'travel' => $this->arrival?->toApiArray($this->timezone),
             'preparation' => $this->preparation->toApiArray(),
             'buffer_minutes' => $this->bufferMinutes,
             'minimum_lead_minutes' => $this->minimumLeadMinutes,
-            'earliest_ready_at' => $this->earliestReadyAt?->toIso8601String(),
+            'earliest_ready_at' => $this->local($this->earliestReadyAt),
             'requires_route_refresh' => $this->requiresRouteRefresh,
             'is_feasible' => $this->isFeasible(),
             'reason' => $this->refusal?->value,
         ];
+    }
+
+    /**
+     * A stored instant, on the counter's clock.
+     *
+     * The conversion, not a reformatting: the moment is unchanged and only the
+     * offset it is read through moves.
+     */
+    public function local(?CarbonImmutable $instant): ?string
+    {
+        if ($instant === null) {
+            return null;
+        }
+
+        return ($this->timezone === '' ? $instant : $instant->setTimezone($this->timezone))
+            ->toIso8601String();
     }
 }

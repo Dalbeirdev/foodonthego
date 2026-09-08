@@ -189,6 +189,13 @@ enum ApiErrorCode {
   noFeasiblePickupWindow('NO_FEASIBLE_PICKUP_WINDOW'),
   preCheckoutInvalid('PRECHECKOUT_INVALID'),
 
+  // --- checkout (Module 14) ------------------------------------------------
+  checkoutNotReady('CHECKOUT_NOT_READY'),
+  checkoutQuoteNotFound('CHECKOUT_QUOTE_NOT_FOUND'),
+  checkoutQuoteExpired('CHECKOUT_QUOTE_EXPIRED'),
+  checkoutQuoteStale('CHECKOUT_QUOTE_STALE'),
+  checkoutQuoteConsumed('CHECKOUT_QUOTE_CONSUMED'),
+
   /// The request never reached the server, or never came back.
   network('NETWORK'),
 

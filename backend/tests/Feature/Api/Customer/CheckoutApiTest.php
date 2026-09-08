@@ -517,6 +517,75 @@ final class CheckoutApiTest extends TestCase
         }
     }
 
+    // --- one response, one clock ---------------------------------------------
+
+    /**
+     * Every instant in a checkout body carries the counter's offset.
+     *
+     * The rule Module 13 arrived at the hard way, applied to the whole response
+     * rather than to the field that happened to be wrong at the time: if any
+     * moment in a body is expressed on a particular clock, all of them are.
+     *
+     * What this catches is not a formatting preference. A quote's expiry sent in
+     * UTC beside a pickup window sent at +05:30 renders as "held until 6:40 am"
+     * under a 1:40 pm collection — an expiry seven hours in the customer's past,
+     * on the screen where they agree to pay.
+     */
+    public function test_every_instant_in_one_response_is_on_one_clock(): void
+    {
+        $this->choosePickup();
+
+        $instants = $this->instantsIn($this->prepare());
+
+        // The control the assertion depends on: a body with one instant in it
+        // would pass the comparison below while proving nothing.
+        $this->assertGreaterThan(4, count($instants), 'too few instants to compare');
+
+        $offsets = [];
+
+        foreach ($instants as $path => $value) {
+            $offsets[substr($value, -6)][] = $path;
+        }
+
+        $this->assertCount(
+            1,
+            $offsets,
+            'instants on more than one clock: '.json_encode($offsets, JSON_PRETTY_PRINT),
+        );
+
+        // And it is the restaurant's clock, not the server's. Asia/Kolkata is
+        // never +00:00, so a body that had merely become self-consistent by
+        // sending everything in UTC still fails here.
+        $this->assertSame('+05:30', array_key_first($offsets));
+    }
+
+    /**
+     * Every ISO-8601 string in a response body, by dotted path.
+     *
+     * @param  array<string, mixed>  $body
+     * @return array<string, string>
+     */
+    private function instantsIn(array $body): array
+    {
+        $found = [];
+
+        $walk = function (array $node, string $prefix) use (&$walk, &$found): void {
+            foreach ($node as $key => $value) {
+                $path = $prefix === '' ? (string) $key : $prefix.'.'.$key;
+
+                if (is_array($value)) {
+                    $walk($value, $path);
+                } elseif (is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/', $value) === 1) {
+                    $found[$path] = $value;
+                }
+            }
+        };
+
+        $walk($body, '');
+
+        return $found;
+    }
+
     // --- what must not leak ---------------------------------------------------
 
     public function test_the_response_leaks_nothing_operational(): void

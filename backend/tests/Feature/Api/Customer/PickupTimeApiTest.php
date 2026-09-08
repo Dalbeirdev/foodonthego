@@ -363,6 +363,64 @@ final class PickupTimeApiTest extends TestCase
         $this->assertStringEndsWith('+05:30', $selection['start_at']);
     }
 
+    /**
+     * Every instant in a pickup body carries the counter's offset.
+     *
+     * The test above pins one field against another. This one pins the whole
+     * response, which is the form the rule actually takes: if any moment in a
+     * body is expressed on a particular clock, all of them are. It was written
+     * because the narrower test passed while `server_now`, `earliest_ready_at`
+     * and the travel estimate were still going out in UTC beside windows at
+     * +05:30 — a fix that had corrected the field somebody looked at rather
+     * than the rule.
+     */
+    public function test_every_instant_in_one_response_is_on_one_clock(): void
+    {
+        $option = $this->pickup()['options'][0];
+
+        $this->as($this->rahul)
+            ->putJson($this->selectUrl(), ['pickup_option_id' => $option['id']])
+            ->assertOk();
+
+        $body = $this->as($this->rahul)->postJson($this->optionsUrl())->json('data');
+
+        $instants = [];
+
+        $walk = function (array $node, string $prefix) use (&$walk, &$instants): void {
+            foreach ($node as $key => $value) {
+                $path = $prefix === '' ? (string) $key : $prefix.'.'.$key;
+
+                if (is_array($value)) {
+                    $walk($value, $path);
+                } elseif (is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/', $value) === 1) {
+                    $instants[$path] = $value;
+                }
+            }
+        };
+
+        $walk($body, '');
+
+        // Without this the comparison below would pass on a body that had
+        // stopped sending times at all.
+        $this->assertGreaterThan(6, count($instants), 'too few instants to compare');
+
+        $offsets = [];
+
+        foreach ($instants as $path => $value) {
+            $offsets[substr($value, -6)][] = $path;
+        }
+
+        $this->assertCount(
+            1,
+            $offsets,
+            'instants on more than one clock: '.json_encode($offsets, JSON_PRETTY_PRINT),
+        );
+
+        // Asia/Kolkata is never +00:00, so a body that had merely become
+        // self-consistent by sending everything in UTC still fails here.
+        $this->assertSame('+05:30', array_key_first($offsets));
+    }
+
     public function test_a_pickup_survives_a_round_trip_through_a_dst_jump(): void
     {
         // The bug this test exists for stored a 1:40 PM Kolkata window as 13:40

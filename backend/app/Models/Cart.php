@@ -8,6 +8,7 @@ use App\Enums\CartStatus;
 use App\Enums\PickupSelectionStatus;
 use App\Services\Cart\CartTotals;
 use App\Services\Cart\CartTotalsService;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -203,7 +204,34 @@ final class Cart extends Model
                 ->map(static fn (CartItem $item): array => $item->toCustomerArray())
                 ->all(),
             'totals' => $totals->toApiArray(),
-            'expires_at' => $this->expires_at?->toIso8601String(),
+            // One response, one clock. A cart is rendered beside pickup
+            // windows and, in Module 14, beside a quote's expiry — all of
+            // which carry the restaurant's offset. In UTC this one field would
+            // be the same moment written differently from everything around
+            // it, and nothing downstream could tell which fields used which.
+            'expires_at' => $this->localIso($this->expires_at),
         ];
+    }
+
+    /**
+     * A stored UTC instant, on the counter's clock.
+     *
+     * The restaurant's zone, then the one recorded with the pickup choice, then
+     * the instant as stored. The order matters only where the two disagree —
+     * a restaurant that has moved zones — and there the current one is right.
+     */
+    private function localIso(?CarbonInterface $instant): ?string
+    {
+        if ($instant === null) {
+            return null;
+        }
+
+        $zone = (string) ($this->restaurant?->timezone ?: $this->pickup_timezone ?: '');
+
+        // `toImmutable()` first: `expires_at` is cast mutable, and calling
+        // `setTimezone` on it in place would rezone the attribute on the model
+        // as a side effect of serialising it.
+        return ($zone === '' ? $instant->toImmutable() : $instant->toImmutable()->setTimezone($zone))
+            ->toIso8601String();
     }
 }
