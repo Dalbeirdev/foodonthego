@@ -237,9 +237,10 @@ Tables that do not exist in the database today: `orders`, `order_items`,
 
 ## H — Screenshots
 
-Twelve, in [evidence/module-14/](evidence/module-14/). All produced by rendering
-the real app or the real web shells against a real Laravel server — nothing is a
-mock-up.
+Sixteen, in [evidence/module-14/](evidence/module-14/), indexed one by one in
+[evidence/module-14/INDEX.md](evidence/module-14/INDEX.md). All produced by
+rendering the real app or the real web shells against a real Laravel server —
+nothing is a mock-up.
 
 ### Customer checkout (Flutter, 393 × 852)
 
@@ -251,6 +252,8 @@ mock-up.
 | `state-04-expired-quote.png` | a quote past its hold, asking to be refreshed |
 | `state-05-blocked.png` | a sold-out line refused in the server's words, with no payment notice |
 | `state-06-dark.png` | the same checkout on a phone set to dark |
+| `state-07-cart.png` · `state-08-cart-foot.png` | the cart (Module 12) |
+| `state-09-pickup-times.png` · `state-10-pickup-explanation.png` | the pickup windows, and how each was worked out (Module 13) |
 
 States 02 and 03 are each other's control: the same screen and the same code
 path, with only the restaurant's commercial configuration changed between them.
@@ -308,6 +311,15 @@ Two things a careful reader will notice and should not be surprised by:
 
 Read section H. The screenshots show every state of the checkout screen, and
 [15-test-evidence.md](15-test-evidence.md) records what was run and what passed.
+
+### The guides
+
+- [31-customer-mobile-guide.md](31-customer-mobile-guide.md) — the customer app
+  screen by screen, with screenshots for every step.
+- [32-restaurant-and-admin-web-guide.md](32-restaurant-and-admin-web-guide.md) —
+  what the two web applications are, and what they are not.
+- [evidence/module-14/INDEX.md](evidence/module-14/INDEX.md) — every screenshot,
+  what it evidences, and the screenshot QA result.
 
 ---
 

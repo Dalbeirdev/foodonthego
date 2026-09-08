@@ -12,86 +12,67 @@ lookup is ever reached. That is the right answer for the wrong reason to be
 quoted as evidence of quote scoping. Quote ownership is measured properly in
 CheckoutApiTest, where the second customer has their own journey and their own
 cart, and where removing either clause of the scoping query was watched to open
-the hole.
-
-=== who is signed in ===
+the ho=== who is signed in ===
 {
-    "data": {
-        "id": "3c149884-1486-4af9-927d-a1bcbb7581bf",
-        "first_name": "Rahul",
-        "last_name": "Sharma",
-        "full_name": "Rahul Sharma",
-        "phone": "+919999901412",
-        "email": null,
-        "phone_verified": true,
-        "email_verified": false,
-        "status": "active",
-        "created_at": "2026-09-08T14:36:05+00:00"
+    "error": {
+        "code": "UNAUTHENTICATED",
+        "message": "Authentication is required to access this resource.",
+        "request_id": "c5313a5c-5e6a-4d5f-88aa-0199774378fa"
+    }
+}
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<stdin>", line 7, in <module>
+  File "<stdin>", line 3, in loc
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'data'
 
 === checkout prepare — no commercial rule configured ===
-{
-  "checkout_id": "04a43650-501f-455b-a9f9-36660b828403",
-  "status": "ACTIVE",
-  "currency": "INR",
-  "commercial": {
-    "items_subtotal": {
-      "amount_minor": 65800,
-      "currency": "INR"
-    },
-    "charges": [],
-    "discounts": [],
-    "payable_total": {
-      "amount_minor": 65800,
-      "currency": "INR"
-    },
-    "has_configured_adjustments": false
-  },
-  "expires_at": "2026-09-08T20:16:06+05:30",
-  "ready_for_payment": true
-}
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+KeyError: 'data'
 
 === every instant in that body, and its offset ===
-pickup.server_now                           2026-09-08T20:06:06+05:30
-pickup.travel.estimated_arrival_at          2026-09-08T21:12:16+05:30
-pickup.travel.calculated_at                 2026-09-08T20:06:06+05:30
-pickup.earliest_ready_at                    2026-09-08T20:31:06+05:30
-pickup.selection.start_at                   2026-09-08T21:20:00+05:30
-pickup.selection.end_at                     2026-09-08T21:30:00+05:30
-expires_at                                  2026-09-08T20:16:06+05:30
-
-distinct offsets: ['+05:30']
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+KeyError: 'data'
 
 === a body carrying its own amounts changes nothing ===
-{
-  "items_subtotal": {
-    "amount_minor": 65800,
-    "currency": "INR"
-  },
-  "charges": [],
-  "discounts": [],
-  "payable_total": {
-    "amount_minor": 65800,
-    "currency": "INR"
-  },
-  "has_configured_adjustments": false
-}
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+KeyError: 'data'
 
 === with tax at 5% and a packaging fee of 15 rupees configured ===
-{
-  "items_subtotal": {
-    "amount_minor": 65800,
-    "currency": "INR"
-  },
-  "charges": [
-    {
-      "code": "TAX",
-      "amount": {
-        "amount_minor": 3290,
-        "currency": "INR"
-      }
-    },
-    {
-      "code": "PACKAGING_FEE",
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+KeyError: 'data'
+
+=== another customer's checkout id ===
+/tmp/claude-0/-home-user-PioDesk/23ff1c62-ad5c-5754-8c29-bf2eee162ef6/scratchpad/m14-verify.sh: line 107: syntax error near unexpected token `json.load'
+/tmp/claude-0/-home-user-PioDesk/23ff1c62-ad5c-5754-8c29-bf2eee162ef6/scratchpad/m14-verify.sh: line 107: `CID=$(echo "$Q" | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["checkout_id"])')'
+FEE",
       "amount": {
         "amount_minor": 1500,
         "currency": "INR"
