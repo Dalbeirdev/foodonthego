@@ -404,16 +404,28 @@ void main() {
 /// swallowing an error here would turn a broken orders API into a passing test
 /// reporting an empty list.
 Future<List<Map<String, dynamic>>> ordersFor(ApiClient api) async {
-  // ApiClient already unwraps the envelope — its own comment says it "returns
-  // whatever was under `data`" — so this reads `orders`, not `data.orders`.
+  // `authenticated: true` is the whole point of this line, and leaving it out
+  // is what failed this test on both platforms for five runs. ApiClient's
+  // `get` takes `{bool authenticated = false}`, so the default sends no
+  // Authorization header at all and the server answers 401 — correctly. Every
+  // repository in lib/ passes it; this helper was the only caller in the
+  // codebase that did not.
   //
-  // The version before this one read `data['orders']`, got null, and produced
-  // an empty list. That mistake was inherited from the helper this replaced,
-  // which read `body['data'] as List` and was equally wrong — but it was
+  // The 401 was never the mystery. It was thrown loudly, on the first run,
+  // exactly as it should have been — the mystery was three defects in the CI
+  // plumbing that meant no run ever printed it. Two fixes were pushed against
+  // guesses in the meantime, and neither was the cause.
+  //
+  // ApiClient also unwraps the envelope — its own comment says it "returns
+  // whatever was under `data`" — so this reads `orders`, not `data.orders`.
+  // An earlier version got that wrong too, and the version before that was
   // wrapped in a try/catch returning 0 while the assertion expected 0, so it
-  // passed for a reason that had nothing to do with what it claimed to check.
-  // Dropping the try/catch is what exposed it.
-  final Map<String, dynamic> body = await api.get('/customer/orders');
+  // passed for a reason unrelated to what it claimed to check. Dropping the
+  // try/catch is what let this surface as a failure rather than an empty list.
+  final Map<String, dynamic> body = await api.get(
+    '/customer/orders',
+    authenticated: true,
+  );
 
   return <Map<String, dynamic>>[
     for (final Object? entry
