@@ -1516,6 +1516,13 @@ Client handover: [30-client-review-package.md](30-client-review-package.md).
 - **M14-060 An Android review APK and app bundle are built by CI** with a
   manifest recording version, commit, toolchain, API address and SHA-256.
 
+- **M14-064 The review APK is installed and launched, not merely built.** The
+  emulator job downloads the artefact itself — the file handed over, not a
+  rebuild sharing a commit — installs it on a Pixel 6 running Android 14, starts
+  it, and checks the process is alive twenty seconds later, that
+  `versionName=1.0.0` matches the manifest, and that nothing belonging to this
+  package is in the crash buffer.
+
 - **M14-061 `EXTERNAL REVIEW URL = PENDING`** — nothing is deployed, and a
   localhost address is not a review URL.
 

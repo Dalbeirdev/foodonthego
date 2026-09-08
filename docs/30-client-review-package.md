@@ -69,6 +69,26 @@ downloadable from the workflow run.
 head commit, the workflow run URL, the Flutter version, the API address compiled
 in, and the SHA-256 of both binaries.
 
+### It has been installed and launched
+
+Not "an APK was produced" — the artefact itself is downloaded by the Android
+emulator job, installed on a Pixel 6 running Android 14, and started. On the run
+for `549be29`:
+
+```
+Performing Streamed Install
+Success
+Starting: Intent { cmp=com.foodonthego.foodonthego/.MainActivity }
+2780                                    <- still running twenty seconds later
+    versionCode=1 minSdk=24 targetSdk=36
+    versionName=1.0.0
+```
+
+and nothing belonging to this package in the crash buffer. The check greps for
+this package rather than asserting an empty buffer: a headless emulator crashes
+something of Google's often enough, and a check that fails on that is a check
+somebody reruns until it passes.
+
 ### What the signing means
 
 `android/app/build.gradle.kts` still carries Flutter's placeholder release
@@ -390,6 +410,7 @@ configured" and "configured as zero" is enforced in code and in tests.
 | Web | typecheck, tests and both builds clean |
 | Android device run | **27 integration tests on an emulator**, including 5 for Module 14 |
 | iOS device run | the same suite on a simulator |
+| Review APK | downloaded, installed and launched on the emulator; alive, correct version, clean crash buffer |
 
 The device runs install the shipping app on a real emulator and simulator and
 drive it against a real Laravel server writing to a real MySQL database. Nothing
