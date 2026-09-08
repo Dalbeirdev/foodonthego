@@ -481,8 +481,8 @@ jobs:
             --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
             > $GITHUB_WORKSPACE/device-tests.log 2>&1;
             code=$?;
-            echo "flutter test exited $code";
-            cat $GITHUB_WORKSPACE/device-tests.log;
+            bash $GITHUB_WORKSPACE/scripts/ci-device-report.sh
+            $GITHUB_WORKSPACE/device-tests.log $code;
             exit $code
 
       # The review artefact itself, installed and launched.
@@ -686,14 +686,14 @@ jobs:
         working-directory: mobile
         run: |
           set +e
-          flutter test integration_test/ -d "$SIMULATOR" --verbose \
+          flutter test integration_test/ -d "$SIMULATOR" \
             --dart-define=FOTG_API_BASE_URL=http://127.0.0.1:8000 \
             --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}' \
             > "$GITHUB_WORKSPACE/device-tests.log" 2>&1
           code=$?
           set -e
-          echo "flutter test exited $code; log is $(wc -l < "$GITHUB_WORKSPACE/device-tests.log") lines"
-          cat "$GITHUB_WORKSPACE/device-tests.log"
+          bash "$GITHUB_WORKSPACE/scripts/ci-device-report.sh" \
+            "$GITHUB_WORKSPACE/device-tests.log" "$code"
           exit $code
 
       # What the simulator itself thought was happening. Only useful when the
