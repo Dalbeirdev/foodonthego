@@ -1308,3 +1308,221 @@ pickup code, no restaurant workflow.
 - **M13-054 On-device runs are whatever CI reports**, never what a commit
   message claims. This development machine has no Android SDK and no macOS host
   (KI-001, KI-002).
+
+---
+
+# Module 14 — Checkout, commercial calculation and payment readiness
+
+Full design: [29-checkout-and-payment-readiness.md](29-checkout-and-payment-readiness.md).
+Client handover: [30-client-review-package.md](30-client-review-package.md).
+
+## The quote
+
+- **M14-001 A checkout quote is written when, and only when, the order can be
+  bought.** `CheckoutPreparationService::prepare` returns `quote: null` when
+  pre-checkout validation refuses — a basket nobody can buy is not given a price.
+
+- **M14-002 Amounts are integer minor units throughout.** `checkout_quotes` has
+  no floating-point column. Tax is basis points on the subtotal, rounded half up,
+  applied once: `intdiv($subtotal * $bps + 5000, 10000)`.
+
+- **M14-003 A quote is not an order and not a payment.** Its statuses are
+  `ACTIVE`, `STALE`, `EXPIRED`, `CONSUMED` and nothing else. A test reads the
+  column directly rather than through the enum cast, and asserts no order status
+  can be found there.
+
+- **M14-004 A quote holds for ten minutes** (`foodonthego.checkout.quote_ttl_minutes`),
+  after which it is `EXPIRED` and must be refreshed rather than revived.
+
+- **M14-005 Expiry is decided before staleness.** `CheckoutQuote::effectiveStatus`
+  checks consumption, then the clock, then the fingerprint — a quote that has both
+  lapsed and gone stale reports `EXPIRED`, which is the one a customer can act on.
+
+- **M14-006 Preparing again supersedes rather than accumulates.** The write runs
+  in a transaction that first marks existing `ACTIVE` quotes consumed-by-supersession,
+  so two taps arriving together cannot leave a customer holding two live prices.
+
+- **M14-007 The fingerprint covers everything a price depends on** — customer,
+  cart, cart version, journey, restaurant identity and its accepting-orders state,
+  the route and when it was calculated, the pickup window, Module 13's own planning
+  fingerprint, the currency, and the commercial rule version.
+
+- **M14-008 Nothing is reserved.** Preparing a checkout holds no inventory. A
+  long-lived reservation has real consequences for other customers and is not
+  introduced as a side effect of viewing a screen.
+
+## Commercial calculation
+
+- **M14-009 Money is worked out in one place.** `CommercialCalculationService`
+  wraps Module 12's `CartTotalsService` and duplicates none of its arithmetic;
+  `payableTotal` is that service's total rather than a re-summation.
+
+- **M14-010 Configured is not the same as zero.** A rule nobody has configured is
+  **absent** from the response; a rule configured as zero is a **row** whose
+  amount is zero. Tax is configured when the restaurant sets `tax_rate_bps` or the
+  platform default is non-zero; the packaging fee when
+  `restaurants.packaging_fee_minor` is not null; the platform fee when its config
+  value is non-zero.
+
+- **M14-011 `packaging_fee_minor` was made nullable** so that "not configured" is
+  expressible at all. It was `NOT NULL DEFAULT 0`, which made every restaurant on
+  the platform read as having configured a fee of nothing.
+
+- **M14-012 Discounts are always reported unconfigured.** No discount or promotion
+  rule exists in this build, and the response says so rather than sending a zero.
+
+- **M14-013 `has_configured_adjustments` is sent explicitly** rather than left for
+  a client to infer from an empty list. "Nothing is configured" and "the charges
+  failed to send" look identical otherwise, and only one is a state to render as a
+  price.
+
+- **M14-014 No commercial rule has been invented.** GST, service fees, convenience
+  fees, commission, packing charges and discounts are all unset, and the report
+  says `COMMERCIAL POLICY PRODUCTION READINESS = PENDING CLIENT DECISION`.
+
+## The API
+
+- **M14-015 `POST /trips/{trip}/checkout/prepare`** returns the whole purchase in
+  one body — restaurant, journey, pickup, items, money, readiness and the reasons
+  behind a refusal.
+
+- **M14-016 `POST /trips/{trip}/checkout/{checkout}/validate`** re-checks
+  everything, plus the quote itself.
+
+- **M14-017 Both are POSTs**, because they render a point-in-time judgement and a
+  cached yes is somebody at a payment screen for a kitchen that has shut.
+
+- **M14-018 Neither reads money from the request.** A body carrying
+  `payable_total_minor`, `items_subtotal_minor`, `tax_minor` or `discount_minor`
+  parses to exactly the same thing as a body without them. Asserted by a tamper
+  test comparing the two responses.
+
+- **M14-019 `ready_for_payment` is computed by the backend in one place** and is
+  not a field a request can carry.
+
+- **M14-020 The journey is context, not data to act on.** No polyline, no
+  coordinates: a place label with a fallback chain of name, then city, then
+  formatted address.
+
+- **M14-021 The response leaks nothing operational** — no internal notes, no
+  commission rate, no owner contact, no bank reference, no tax identifier, no
+  fingerprint, no rule version.
+
+## Ownership and tampering
+
+- **M14-022 A quote is scoped by customer AND cart in the query itself**, not
+  fetched and then compared. Each clause alone closes the hole; the redundancy is
+  deliberate, was measured, and is recorded on the method.
+
+- **M14-023 Another customer's checkout id is a 404**, with the same message as an
+  id that never existed — the difference between "not yours" and "not real" is
+  what an attacker is trying to learn.
+
+- **M14-024 A checkout id from a different journey is refused.**
+
+- **M14-025 A forged checkout id is refused.**
+
+- **M14-026 Another customer cannot prepare a checkout on this journey.**
+
+- **M14-027 A client cannot talk the server into saying ready.**
+
+## What stops a checkout
+
+- **M14-028 A price rise after quoting stops it.**
+- **M14-029 A sold-out line stops it.**
+- **M14-030 A paused kitchen stops it.**
+- **M14-031 A pickup window that has passed stops it.**
+- **M14-032 Changing the cart makes the quote stale.**
+- **M14-033 Changing the pickup time makes the quote stale.**
+- **M14-034 An expired quote is refused and asks to be refreshed.**
+
+## One response, one clock
+
+- **M14-035 Every instant in a checkout body carries the restaurant's offset.**
+  Not a formatting preference: five instants were going out in UTC beside two at
+  `+05:30`, which renders as a quote "held until 6:40 am" under a 1:10 pm
+  collection.
+
+- **M14-036 The same holds for the pickup body**, which had the same split.
+  Module 13's fix had corrected the field somebody looked at rather than the rule.
+
+- **M14-037 Both are pinned by a test that walks the whole response** and fails if
+  two offsets appear, rather than by a test naming fields — so a field added later
+  is covered by a test written before it existed.
+
+- **M14-038 Both also assert the offset is `+05:30`**, so a body that had become
+  self-consistent by sending everything in UTC still fails.
+
+- **M14-039 The client keeps the wall clock beside the instant.**
+  `DateTime.parse` discards the offset, so `Checkout.localExpiresAt` is read out
+  of the string by `wallClockOf` rather than converted with `.toLocal()`, which
+  would be a third clock.
+
+## The Flutter layer
+
+- **M14-040 The screen computes no figure and decides no readiness.**
+- **M14-041 `CheckoutRepository` has no parameter that takes an amount**, and the
+  requests carry no body at all.
+- **M14-042 An unknown quote status is not read as usable**, and is not silently
+  read as expired either — which would offer a refresh that fixes nothing.
+- **M14-043 Readiness is the server's flag, never derived from an empty issue
+  list.**
+- **M14-044 A component the server did not send is not drawn**, and no zero row is
+  invented for it.
+- **M14-045 An unknown charge code is shown using the code itself** rather than
+  dropped: a customer paying a charge must see it even on an old build.
+- **M14-046 The total shown is the server's**, not the sum of the rows on screen.
+- **M14-047 A quote the server has forgotten is replaced, not explained** — an id
+  the customer never saw cannot be described to them.
+- **M14-048 A stale quote is refreshed rather than revalidated.**
+- **M14-049 A failed validate leaves the price on screen** and only stops the
+  customer proceeding.
+- **M14-050 Proceed to payment is enabled only when the server says ready**, and
+  says plainly that payment arrives in the next release rather than showing a row
+  of payment logos that cannot be tapped.
+- **M14-051 Module 13's Continue to checkout is functional**, shown only once the
+  server's pre-checkout verdict says yes.
+- **M14-052 The edit controls are stacked** so both labels are readable at 393dp
+  and at 200% text.
+
+## Nothing is bought
+
+- **M14-053 Preparing a checkout creates no order and no payment.** Asserted by
+  checking that the `orders`, `order_items`, `payments` and `pickup_codes` tables
+  do not exist.
+- **M14-054 No Razorpay object is created and no key is read.**
+- **M14-055 Proceed to payment hands off to nothing.**
+
+## Verification
+
+- **M14-056 1,119 backend tests and 904 Flutter tests pass.** Pint clean,
+  `dart analyze --fatal-infos` clean, `dart format` clean.
+
+- **M14-057 Negative controls were run against every layer of this module** —
+  parsing, the controller, the screen, the summary card, the pickup entry point
+  and the two one-clock tests. Each is named in
+  [15-test-evidence.md](15-test-evidence.md) with the mutation applied and the
+  tests it made fail. **Every one fired.**
+
+- **M14-058 The device runs are CI's, not a commit message's.** Five Module 14
+  integration tests passed on an Android emulator and on an iOS simulator, inside
+  a run of 27 tests across Modules 11–14, against a real Laravel server writing to
+  a real MySQL database.
+
+- **M14-059 Twelve screenshots were produced by rendering the real app and the
+  real web shells** against a real server:
+  [evidence/module-14/](evidence/module-14/).
+
+- **M14-060 An Android review APK and app bundle are built by CI** with a
+  manifest recording version, commit, toolchain, API address and SHA-256.
+
+- **M14-061 `EXTERNAL REVIEW URL = PENDING`** — nothing is deployed, and a
+  localhost address is not a review URL.
+
+- **M14-062 `iOS REVIEW BUILD = PENDING — APPLE SIGNING/TESTFLIGHT ENVIRONMENT
+  UNAVAILABLE`.** No IPA exists and none has been fabricated.
+
+- **M14-063 Credentials were provided for the one role that has a login**, and
+  withheld — with the reason — for the six that do not. Measured:
+  `route:list` matches zero routes for those six, and the web shells contain no
+  login screen, password field or token handling.

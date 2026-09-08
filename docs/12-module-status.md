@@ -15,6 +15,7 @@
 | 11 | Menu Item Details, Variants, Addons, Customization & Add to Cart | **COMPLETE** | 1,729 tests; 34 live states; **Android 8/8 and iOS 8/8 on real devices**. See below |
 | 12 | Cart Management, Price Revalidation & Order Summary | **COMPLETE** | 1,815 tests; **Android 15/15 and iOS 15/15 on real devices**; KI-014 cleared. See below |
 | 13 | Pickup Time Selection, Arrival Window & Pre-Checkout Validation | **COMPLETE** | 1,914 tests; live server run recorded; device runs as CI reports them. See below |
+| 14 | Checkout, Final Order Review, Commercial Calculation & Payment Readiness | **COMPLETE** | 2,023 tests; **Android 5/5 and iOS 5/5 on real devices**; 12 screenshots; review APK built by CI. See below |
 
 ## Roadmap numbering — not the delivery sequence above
 
@@ -595,3 +596,59 @@ about:
 **The tax rate and both fees remain nought.** Module 12 flagged this and Module
 13 does not change it: the mechanism is built and tested with non-zero values,
 and the figures are a business input that must be set before commercial launch.
+
+---
+
+## Module 14 — checkout, commercial calculation and payment readiness
+
+**COMPLETE.** 1,119 backend and 904 Flutter tests pass; five on-device
+integration tests pass on an Android emulator and an iOS simulator; twelve
+screenshots were rendered from the real app and the real web shells; an Android
+review APK and app bundle are built by CI with a manifest.
+
+Design: [29-checkout-and-payment-readiness.md](29-checkout-and-payment-readiness.md).
+Handover: [30-client-review-package.md](30-client-review-package.md).
+
+### What a customer can now do
+
+Reach a checkout screen showing an **authoritative payable amount** for a
+configured cart with a chosen pickup window, see exactly which commercial
+components apply, and be told plainly that payment arrives in the next release.
+
+### What this module deliberately does not do
+
+**No payment, no order, no Razorpay object, nothing marked paid.** A test asserts
+the `orders`, `order_items`, `payments` and `pickup_codes` tables do not exist.
+`Proceed to payment` asks the server one last question and stops.
+
+### One response, one clock — stated as an invariant this time
+
+Module 13 established the rule after a device run showed the same window rendered
+hours apart, and fixed the field rather than the rule. This module found the rest:
+five instants in UTC beside two at `+05:30`, which renders as a quote held until a
+time seven hours in the customer's past.
+
+Both bodies now render every instant on the restaurant's clock, and each is pinned
+by a test that walks the whole response and fails on two offsets — a test that
+names no fields, so a field added later is covered by a test written before it
+existed.
+
+### Configured is not the same as zero
+
+A rule nobody has configured is **absent** from the response and absent from the
+screen. A rule configured as zero is a row whose amount is zero. The column that
+made this inexpressible — `packaging_fee_minor NOT NULL DEFAULT 0` — was made
+nullable, because otherwise every restaurant on the platform read as having
+configured a fee of nothing.
+
+### Still handed forward
+
+**`COMMERCIAL POLICY PRODUCTION READINESS = PENDING CLIENT DECISION`.** Tax,
+packaging, service and convenience fees, commission and discounts are all unset.
+The mechanism is built and tested with non-zero values; the figures are a business
+input.
+
+**`EXTERNAL REVIEW URL = PENDING`** — nothing is deployed.
+**`iOS REVIEW BUILD = PENDING — APPLE SIGNING/TESTFLIGHT ENVIRONMENT UNAVAILABLE`.**
+**Six of seven roles have no login and no API surface**, so no credentials exist
+for them and none were invented.

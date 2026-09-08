@@ -1,0 +1,120 @@
+Module 14 — live verification run
+=================================
+
+Everything below is the API's own output, captured by scripts/m14-verify.sh
+against a real Laravel server on a real MySQL 8 database. Nothing is
+transcribed and nothing is stubbed.
+
+A note on the ownership check near the end. It sends another customer's token
+to this customer's checkout id and gets a 404 — but the journey in the path
+belongs to the first customer too, so trip ownership refuses before the quote
+lookup is ever reached. That is the right answer for the wrong reason to be
+quoted as evidence of quote scoping. Quote ownership is measured properly in
+CheckoutApiTest, where the second customer has their own journey and their own
+cart, and where removing either clause of the scoping query was watched to open
+the hole.
+
+=== who is signed in ===
+{
+    "data": {
+        "id": "3c149884-1486-4af9-927d-a1bcbb7581bf",
+        "first_name": "Rahul",
+        "last_name": "Sharma",
+        "full_name": "Rahul Sharma",
+        "phone": "+919999901412",
+        "email": null,
+        "phone_verified": true,
+        "email_verified": false,
+        "status": "active",
+        "created_at": "2026-09-08T14:36:05+00:00"
+
+=== checkout prepare — no commercial rule configured ===
+{
+  "checkout_id": "04a43650-501f-455b-a9f9-36660b828403",
+  "status": "ACTIVE",
+  "currency": "INR",
+  "commercial": {
+    "items_subtotal": {
+      "amount_minor": 65800,
+      "currency": "INR"
+    },
+    "charges": [],
+    "discounts": [],
+    "payable_total": {
+      "amount_minor": 65800,
+      "currency": "INR"
+    },
+    "has_configured_adjustments": false
+  },
+  "expires_at": "2026-09-08T20:16:06+05:30",
+  "ready_for_payment": true
+}
+
+=== every instant in that body, and its offset ===
+pickup.server_now                           2026-09-08T20:06:06+05:30
+pickup.travel.estimated_arrival_at          2026-09-08T21:12:16+05:30
+pickup.travel.calculated_at                 2026-09-08T20:06:06+05:30
+pickup.earliest_ready_at                    2026-09-08T20:31:06+05:30
+pickup.selection.start_at                   2026-09-08T21:20:00+05:30
+pickup.selection.end_at                     2026-09-08T21:30:00+05:30
+expires_at                                  2026-09-08T20:16:06+05:30
+
+distinct offsets: ['+05:30']
+
+=== a body carrying its own amounts changes nothing ===
+{
+  "items_subtotal": {
+    "amount_minor": 65800,
+    "currency": "INR"
+  },
+  "charges": [],
+  "discounts": [],
+  "payable_total": {
+    "amount_minor": 65800,
+    "currency": "INR"
+  },
+  "has_configured_adjustments": false
+}
+
+=== with tax at 5% and a packaging fee of 15 rupees configured ===
+{
+  "items_subtotal": {
+    "amount_minor": 65800,
+    "currency": "INR"
+  },
+  "charges": [
+    {
+      "code": "TAX",
+      "amount": {
+        "amount_minor": 3290,
+        "currency": "INR"
+      }
+    },
+    {
+      "code": "PACKAGING_FEE",
+      "amount": {
+        "amount_minor": 1500,
+        "currency": "INR"
+      }
+    }
+  ],
+  "discounts": [],
+  "payable_total": {
+    "amount_minor": 70590,
+    "currency": "INR"
+  },
+  "has_configured_adjustments": true
+}
+
+=== another customer's checkout id ===
+status: 404
+
+=== nothing was bought ===
+orders             0
+order_items        0
+payments           0
+pickup_codes       0
+checkout_quotes    1
+(1 = the table exists, 0 = it does not)
+ACTIVE	3
+EXPIRED	9

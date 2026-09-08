@@ -2028,3 +2028,154 @@ as "12:50 am" above a list starting "6:20 am". Each half was correct alone, so
 no unit test could have caught it; it took the first screen to render both
 together. The other two were bugs in the test, both recorded in
 [13-known-issues.md](13-known-issues.md) and in the commit that fixed them.
+
+---
+
+# Module 14 — Checkout, commercial calculation and payment readiness
+
+## Totals
+
+| Suite | Result |
+| --- | --- |
+| Backend (PHPUnit) | **1,119 passed**, 4,837 assertions |
+| Flutter | **904 passed** |
+| Web | typecheck, tests, both builds clean |
+| Pint | clean |
+| `dart analyze --fatal-infos` | clean |
+| `dart format` | clean |
+
+New in this module: `CommercialCalculationServiceTest` (14),
+`CheckoutApiTest` (23, including the whole-body clock control),
+`PickupTimeApiTest` +1, `checkout_models_test.dart` (21),
+`checkout_controller_test.dart` (17), `checkout_screen_test.dart` (30),
+`pickup_time_screen_test.dart` +3, `module_14_checkout_test.dart` (5, on device).
+
+## The device runs
+
+Not a claim from a commit message. CI run
+[34233058604](https://github.com/Dalbeirdev/foodonthego/actions/runs/34233058604),
+all seven jobs green.
+
+**Android emulator** (`pixel_6`, API 34, `google_apis`, x86_64): the shipping app
+built, installed, and driven against a real Laravel server writing to a real
+MySQL 8 database. **27 tests passed** across Modules 11–14. The five for
+Module 14:
+
+```
+✅ the payable amount on screen is the one the server wrote
+✅ only the configured components appear, with their real figures
+✅ the pickup window reads on the counter clock, not the device
+✅ Proceed asks the server and stops at the payment boundary
+✅ editing the cart makes the quote stale and it refreshes
+```
+
+**iOS simulator**: the same suite, on a macOS runner, green.
+
+Every assertion that matters in those tests is made against the server's own
+state, fetched over a separate connection after the taps. A screen that agreed
+with itself would pass whatever either side said.
+
+## Negative controls
+
+Sixteen mutations, applied one at a time to shipping code, each reverted after
+the run. **Every one fired**, and the tests that failed are named because a
+control that fires on the wrong test has told you your test is measuring
+something else.
+
+### Parsing (`checkout_models_test.dart`)
+
+| # | Mutation | Tests it broke |
+| --- | --- | --- |
+| 1 | derive `payableTotal` by summing subtotal and charges | the payable total is read, never re-added from the parts |
+| 2 | derive `readyForPayment` from `issues.isEmpty` | readiness is the server flag · readiness is false when the field is missing · a checkout with no quote still parses |
+| 3 | unknown status falls back to `ACTIVE` | a status this build has never heard of is not read as usable · an absent status is not read as usable |
+| 4 | read the expiry with `DateTime.parse().toUtc()` | the expiry keeps the clock the server wrote it on |
+| 5 | recompute `hasConfiguredAdjustments` from the lists | an empty charge list with the flag set is believed |
+
+### The screen (`checkout_screen_test.dart`)
+
+| # | Mutation | Tests it broke |
+| --- | --- | --- |
+| 6 | `readyForPayment` from the blocker list | Proceed is refused when the server says the order is not ready |
+| 7 | CTA ignores the quote status | a status this build has never heard of stops the checkout |
+| 8 | expiry converted with `.toLocal()` | the expiry is shown on the counter's clock |
+| 9 | the summary card sums its rows | the total shown is the server's, not the sum of the rows |
+| 10 | invent a zero row for every unconfigured charge | with nothing configured the payable is the subtotal, said so · a charge configured as zero is shown as a row |
+
+### The controller (`checkout_controller_test.dart`)
+
+| # | Mutation | Tests it broke |
+| --- | --- | --- |
+| 11 | a forgotten quote no longer re-prepares | a forgotten quote is replaced rather than reported · an expired quote is replaced too |
+| 12 | remove the in-flight guard on validate | a second validate is ignored while the first is in flight |
+| 13 | refresh revalidates instead of preparing | a refresh prepares afresh · preparing again picks up the new quote id |
+| 14 | a failed validate wipes the held quote | a failed validate leaves the quote on screen |
+
+### The entry point (`pickup_time_screen_test.dart`)
+
+| # | Mutation | Tests it broke |
+| --- | --- | --- |
+| 15 | show Continue to checkout regardless of the verdict | a refusal offers no way on to a checkout |
+| 16 | point the route at a path nothing serves | Continue to checkout opens the checkout |
+
+### The two clock controls
+
+Both were written before the fix and watched to fail. `CheckoutApiTest`'s named
+all five offending fields in its failure message:
+
+```
+instants on more than one clock: {
+  "+00:00": ["pickup.server_now", "pickup.travel.estimated_arrival_at",
+             "pickup.travel.calculated_at", "pickup.earliest_ready_at",
+             "expires_at"],
+  "+05:30": ["pickup.selection.start_at", "pickup.selection.end_at"]
+}
+```
+
+`PickupTimeApiTest`'s then found the one the first fix had missed:
+`cart.expires_at`, still in UTC.
+
+## One control that fired on the wrong thing
+
+Worth recording, because it is the failure mode this practice exists to catch.
+
+The first screenshot run reported **no problems** and produced six images with no
+text in them at all. The assertions read Flutter's semantics tree; the deliverable
+was pixels. Both were true statements about different things.
+
+See [13-known-issues.md](13-known-issues.md) M14-B03.
+
+## Live verification
+
+The whole flow was driven against a live Laravel server on a real MySQL
+database, in a browser, by a script rather than by hand:
+
+- signed in through the real OTP flow,
+- planned Green Park → Jaipur International Airport,
+- calculated a route, discovered `[TEST] Highway Spice Kitchen`,
+- added Paneer Tikka (Large, Mild) ×2,
+- chose the recommended pickup window,
+- prepared a checkout and read the payable amount off the screen.
+
+Server: `payable = 65800` minor units, `charges = []`, `ready = true`.
+Screen: **₹658**, "No additional charges are currently configured", Proceed
+enabled.
+
+With `tax_rate_bps = 500` and `packaging_fee_minor = 1500` configured on the same
+restaurant, the same code path: server `payable = 70590`, `TAX:3290`,
+`PACKAGING_FEE:1500`; screen **₹658 + ₹32.90 + ₹15 = ₹705.90**, and the "no
+additional charges" sentence gone.
+
+## Screenshots
+
+Twelve, in [evidence/module-14/](evidence/module-14/), listed with what each
+shows in [30-client-review-package.md](30-client-review-package.md) section H.
+
+## What is still not proven
+
+- **No payment has been tested, because none exists.** Module 15.
+- **The pickup time is not a live ETA.** Unchanged from Module 13 and not
+  closable by any device run.
+- **Nothing is deployed**, so nothing has been verified over a public network,
+  under TLS, or behind a real load balancer.
+- **Six of seven roles have no login to verify.**

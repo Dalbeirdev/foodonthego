@@ -1070,3 +1070,65 @@ A code the API documents and never returns is a promise nothing keeps.
 **The tax rate and both fees remain nought.** Unchanged from Module 12, and
 still a business input rather than a code decision. They must be set before
 commercial launch.
+
+## Module 14 — Checkout, Final Order Review, Commercial Calculation & Payment Readiness
+
+### Added
+
+**Backend**
+- `checkout_quotes` migration — integer minor units, `*_configured` companions,
+  `ACTIVE`/`STALE`/`EXPIRED`/`CONSUMED`, composite FK tying a quote to one
+  customer's cart
+- migration making `restaurants.packaging_fee_minor` nullable, so "not
+  configured" is expressible
+- `CommercialCalculationService` — wraps Module 12's totals, duplicates no
+  arithmetic, reports configured-ness per component
+- `CommercialBreakdown` — only configured components reach the wire
+- `CheckoutFingerprint`, `CheckoutQuote`, `CheckoutPreparationService`
+- `CheckoutController` — `prepare` and `validate`; no money read from any request
+- `config('foodonthego.checkout')` — TTL, rule version, quotes per cart
+- `CommercialCalculationServiceTest` (14), `CheckoutApiTest` (23)
+
+**Mobile**
+- `domain/models/checkout.dart`, `domain/repositories/checkout_repository.dart`,
+  `data/repositories/api_checkout_repository.dart` — no parameter takes an
+  amount, and the requests carry no body
+- `shared/state/checkout_controller.dart`
+- `features/checkout/checkout_screen.dart` and `widgets/commercial_summary_card.dart`
+- route `\/trips\/:tripId\/cart\/pickup\/checkout`, reached from Module 13's
+  **Continue to checkout**
+- `checkout_models_test.dart` (21), `checkout_controller_test.dart` (17),
+  `checkout_screen_test.dart` (30), `module_14_checkout_test.dart` (5, on device)
+
+**CI**
+- `review-build` job — release APK and app bundle with a `BUILD-INFO.txt`
+  recording version, branch head commit, run URL, toolchain, API address and
+  SHA-256; uploaded as an artefact
+
+**Docs**
+- `29-checkout-and-payment-readiness.md`, `30-client-review-package.md`
+- twelve screenshots in `evidence/module-14/`
+
+### Fixed
+
+- **Every instant but two went out on the wrong clock** (M14-B01). Module 13's
+  rule is now an invariant over the whole response body in both the pickup and
+  checkout APIs, pinned by tests that name no fields.
+- **"Change pickup time" was painted as "Change pick…"** on a 393dp phone
+  (M14-B02). Found by looking at a screenshot; the widget test for that row was
+  green, because an ellipsis does not change what `find.text` matches.
+- **`packaging_fee_minor` made every restaurant read as configured** (M14-B04).
+
+### Changed
+
+- `PickupPlan::toApiArray`, `ArrivalEstimate::toApiArray` and
+  `Cart::toCustomerArray` render instants on the restaurant's clock
+- `wallClockOf` promoted out of `PickupOption` — every instant a customer reads
+  needs it, and Module 14's quote expiry is the second caller
+- the checkout's edit controls are stacked rather than side by side
+
+### Not done, deliberately
+
+No payment, no order, no Razorpay object, no reservation of inventory, and no
+commercial rule invented. All are named in
+[30-client-review-package.md](30-client-review-package.md).

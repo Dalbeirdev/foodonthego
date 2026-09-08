@@ -265,8 +265,12 @@ jobs:
             echo
             echo "Version:          $(grep '^version:' pubspec.yaml | cut -d' ' -f2)"
             echo "Application id:   com.foodonthego.foodonthego"
-            echo "Commit:           ${{ github.sha }}"
-            echo "Branch:           ${{ github.ref_name }}"
+            # The branch head, not github.sha. On a pull_request event that is
+            # the ephemeral merge commit and github.ref_name is "1/merge" —
+            # neither of which a reviewer can check out, which is the one thing
+            # a build manifest is for.
+            echo "Commit:           ${{ github.event.pull_request.head.sha || github.sha }}"
+            echo "Branch:           ${{ github.event.pull_request.head.ref || github.ref_name }}"
             echo "Workflow run:     ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             echo "Built at (UTC):   $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             echo "Flutter:          $(flutter --version | head -n 1)"
@@ -292,7 +296,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: android-review-build-${{ github.sha }}
+          name: android-review-build-${{ github.event.pull_request.head.sha || github.sha }}
           path: mobile/build/review/
           retention-days: 30
           if-no-files-found: error

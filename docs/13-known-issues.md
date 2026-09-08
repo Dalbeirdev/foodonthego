@@ -1162,3 +1162,79 @@ until something refreshes routes in the background.
 is guarded at two independent points and no single-point mutation reaches it.
 This is recorded **in the test itself** rather than left to look load-bearing.
 The two points that do the guarding have controls of their own that fire.
+
+---
+
+## Module 14 defects
+
+### M14-B01 — every instant but two went out on the wrong clock — **High** — FIXED
+
+A checkout response carried five instants in UTC — `pickup.server_now`, the
+travel estimate's `estimated_arrival_at` and `calculated_at`,
+`earliest_ready_at`, and the quote's `expires_at` — beside two at `+05:30`. The
+pickup response had the same split.
+
+Rendered, that is a quote **"held until 6:40 am" underneath a 1:10 pm
+collection**: an expiry seven hours in the customer's past, on the screen where
+they agree to pay.
+
+**How it survived Module 13.** M13-B05 was the same defect, found on a device,
+and the fix corrected the field that had been looked at — `selectionArray` —
+rather than the rule. `PickupPlan::toApiArray` kept serialising the planner's
+own instants as stored, and nothing tested the response as a whole.
+
+**Fixed** by routing every instant in both bodies through the restaurant's zone:
+`PickupPlan::local`, `ArrivalEstimate::toApiArray($timezone)`,
+`Cart::localIso`, and `$plan->local()` in the checkout controller.
+
+**The test is the interesting part.** It does not name fields. It walks the whole
+response, collects every ISO-8601 string, and fails if more than one offset
+appears — so a field added next year is covered by a test written before it
+existed. It also asserts the single offset is `+05:30`, because a body that had
+become self-consistent by sending everything in UTC would pass a sameness check
+and still be wrong. Written first; it failed naming all five wrong fields.
+
+### M14-B02 — "Change pickup time" was painted as "Change pick…" — **Medium** — FIXED
+
+Side by side with **Edit cart** on a 393dp phone, the second button's label was
+ellipsised. A control whose name a customer cannot read, on the screen where they
+decide whether to change something before paying.
+
+**No test caught it, and the widget test for that row was green** — `find.text`
+matches the `Text` widget by its label, which the ellipsis does not change. What
+changes is how much of it is painted.
+
+Found by looking at a screenshot.
+
+**Fixed** by stacking the two buttons full width, which also survives 200% text
+where half a screen width never could. Pinned by a test that compares the
+paragraph's painted width against the width the label needs; it failed at 126.7
+against 135.4 before the fix.
+
+### M14-B03 — the first six screenshots had no text in them at all — **Low** — FIXED
+
+Not a product defect: a defect in the evidence, recorded because of what it says
+about the assertions beside it.
+
+Flutter web fetches its default font from a CDN this build environment blocks, so
+the first screenshot run produced six images of a correctly laid out app with
+**no glyphs anywhere**. Every assertion in that run passed, because they read
+Flutter's semantics tree — which carries the text whether or not a single pixel
+of it is painted.
+
+**A green result about one thing is not a green result about another.** The
+assertions were true and the deliverable was worthless.
+
+**Fixed** by temporarily bundling a stand-in font with the rupee sign in it —
+DejaVu Sans; Liberation Sans has no `U+20B9` and rendered every price as a tofu
+box — and reverting it immediately. The committed app is unchanged.
+
+### M14-B04 — `packaging_fee_minor` made every restaurant look configured — **Medium** — FIXED
+
+The column was `NOT NULL DEFAULT 0`, so "no packaging fee has been configured"
+and "the packaging fee is set to nothing" were the same value. Every restaurant
+on the platform read as having configured a fee of zero, which is a commercial
+statement nobody had made.
+
+**Fixed** by a migration making the column nullable and moving existing zeroes to
+`NULL`. `configured` is now `packaging_fee_minor !== null`.

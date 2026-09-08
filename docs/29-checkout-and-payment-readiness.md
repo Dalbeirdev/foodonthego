@@ -191,3 +191,95 @@ is not a field a request can carry.
 At the end of Module 14 a customer can reach a state where `ready_for_payment`
 is true — and nothing has been charged, no order exists, and no Razorpay object
 has been created.
+
+---
+
+## One response, one clock
+
+Module 13 arrived at this rule the hard way: a device run showed the same pickup
+window rendered twice, five and a half hours apart, because the chosen window
+came back in UTC while the options beside it came back in the restaurant's zone.
+The fix at the time corrected the field somebody had looked at. It did not
+correct the rule.
+
+Module 14 found the rest of it. A checkout body was going out with five instants
+in UTC — `pickup.server_now`, the travel estimate's two, `earliest_ready_at` and
+the quote's `expires_at` — beside two at `+05:30`. Rendered, that is a quote
+"held until 6:40 am" underneath a 1:10 pm collection: an expiry seven hours in
+the customer's past, on the screen where they agree to pay.
+
+**The rule, stated as an invariant rather than as a field:** if any instant in a
+response body is expressed on a particular clock, all of them are. It is the
+restaurant's clock, because a pickup happens at a counter and the counter has a
+wall.
+
+Where it lives:
+
+| Layer | What enforces it |
+| --- | --- |
+| `PickupPlan::toApiArray` | every instant goes through `PickupPlan::local` |
+| `ArrivalEstimate::toApiArray` | takes the zone as a parameter; has no clock of its own |
+| `Cart::toCustomerArray` | `expires_at` through `Cart::localIso` |
+| `CheckoutController::payload` | every instant through `$plan->local()` |
+| `PickupTimeApiTest`, `CheckoutApiTest` | walk the whole body, fail on two offsets |
+
+The two tests are the point. They do not name the fields; they walk the response
+and count distinct offsets, so a field added later is covered by a test written
+before it existed. Both also assert the single offset is `+05:30` rather than
+merely self-consistent — a body that had become uniform by sending everything in
+UTC would pass a sameness check and still be wrong.
+
+### On the client
+
+Dart's `DateTime.parse` **discards the offset**: given
+`2026-09-07T13:40:00+05:30` it returns the right instant flagged UTC, and the
+only two things a client can then do are show UTC or convert to the phone's
+zone. So the models keep two fields for every instant a customer reads — the
+absolute one for comparing, and the wall-clock reading exactly as the server
+wrote it, parsed out of the string by `wallClockOf`.
+
+`Checkout.localExpiresAt` is the second caller of that function. A screen
+reaching for `.toLocal()` instead is the bug this exists to prevent, and on a
+device set to London it would put a third clock in a body the server took care
+to write on one.
+
+---
+
+## The Flutter layer
+
+**The screen computes no figure and decides no readiness.** The subtotal, every
+charge, the payable total and `ready_for_payment` all arrive from the server and
+are rendered as sent. That is not a style preference: a client that could produce
+its own total would be a second answer to a question that must have exactly one,
+and this is the screen where a customer agrees to a number.
+
+`CheckoutRepository` has **no parameter that takes an amount**, and
+`ApiCheckoutRepository` sends **no request body at all**. A modified client
+cannot name a price because there is nowhere to put one.
+
+| Piece | Responsibility |
+| --- | --- |
+| `domain/models/checkout.dart` | parsing; an unknown status reads as `STALE`, never usable |
+| `domain/repositories/checkout_repository.dart` | `prepare` and `validate`, no amounts |
+| `shared/state/checkout_controller.dart` | holds what came back; re-prepares a quote the server has forgotten |
+| `features/checkout/checkout_screen.dart` | renders it |
+| `features/checkout/widgets/commercial_summary_card.dart` | draws only the components sent |
+
+### What the summary card will not do
+
+It has no code that renders a zero row for a missing component. An absent charge
+means nobody configured that rule, and "Tax ₹0.00" would state a decision the
+platform has not made. When nothing is configured the card says so in words —
+about configuration, and never about tax law.
+
+### Getting there
+
+Module 13's pickup screen shows **Continue to checkout** once its pre-checkout
+verdict says the order is ready, and not before. The checkout screen asks the
+server again on arrival regardless: the previous screen's answer is a moment old
+by the time this one loads, and a stale yes is the kind that costs money.
+
+`Edit cart` and `Change pickup time` are stacked rather than side by side. In a
+row on a 393dp phone the second painted as "Change pick…" — a control whose name
+a customer cannot read — and half a screen width is much less than enough at
+200% text.
