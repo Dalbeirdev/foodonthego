@@ -404,12 +404,20 @@ void main() {
 /// swallowing an error here would turn a broken orders API into a passing test
 /// reporting an empty list.
 Future<List<Map<String, dynamic>>> ordersFor(ApiClient api) async {
+  // ApiClient already unwraps the envelope — its own comment says it "returns
+  // whatever was under `data`" — so this reads `orders`, not `data.orders`.
+  //
+  // The version before this one read `data['orders']`, got null, and produced
+  // an empty list. That mistake was inherited from the helper this replaced,
+  // which read `body['data'] as List` and was equally wrong — but it was
+  // wrapped in a try/catch returning 0 while the assertion expected 0, so it
+  // passed for a reason that had nothing to do with what it claimed to check.
+  // Dropping the try/catch is what exposed it.
   final Map<String, dynamic> body = await api.get('/customer/orders');
 
-  final Object? orders = (body['data'] as Map<String, dynamic>?)?['orders'];
-
   return <Map<String, dynamic>>[
-    for (final Object? entry in (orders as List<Object?>? ?? const <Object?>[]))
+    for (final Object? entry
+        in (body['orders'] as List<Object?>? ?? const <Object?>[]))
       if (entry is Map<String, dynamic>) entry,
   ];
 }
