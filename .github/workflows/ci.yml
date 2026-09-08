@@ -468,12 +468,14 @@ jobs:
           # silence.
           script: >-
             cd mobile &&
-            set -o pipefail &&
             flutter test integration_test/
             -d emulator-5554
             --dart-define=FOTG_API_BASE_URL=http://10.0.2.2:8000
             --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
-            2>&1 | tee "$RUNNER_TEMP/device-tests.log"
+            > "$GITHUB_WORKSPACE/device-tests.log" 2>&1;
+            code=$?;
+            cat "$GITHUB_WORKSPACE/device-tests.log";
+            exit $code
 
       # The review artefact itself, installed and launched.
       #
@@ -519,6 +521,13 @@ jobs:
 
       # WHAT ACTUALLY FAILED, and last on purpose.
       #
+      # The capture is a redirect and an explicit exit code, not `tee` with
+      # `set -o pipefail`. The Android action runs its script through `sh -c`,
+      # which is dash on these runners, and dash has no pipefail — the first
+      # version of this died in 98 seconds with an illegal option before an
+      # emulator had even booted. The comment above that script warns about
+      # this exact class of mistake and I made it anyway.
+      #
       # Three device runs were spent not knowing. The simulator log and the
       # server log are both useful and both long, and between them they pushed
       # the one line that matters — the assertion — past the end of every log
@@ -532,7 +541,7 @@ jobs:
         run: |
           echo '================ failing assertions ================'
           grep -nE '\[E\]|Some tests failed|Expected:|Actual:|Which:|Timed out waiting for|On screen instead:|^\s*package:' \
-            "$RUNNER_TEMP/device-tests.log" 2>/dev/null | tail -n 60 \
+            "$GITHUB_WORKSPACE/device-tests.log" 2>/dev/null | tail -n 60 \
             || echo 'No failure markers found — the run produced no test output at all, which is KI-020.'
 
 
@@ -623,11 +632,12 @@ jobs:
         timeout-minutes: 30
         working-directory: mobile
         run: |
-          set -o pipefail
           flutter test integration_test/ -d "$SIMULATOR" --verbose \
             --dart-define=FOTG_API_BASE_URL=http://127.0.0.1:8000 \
             --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}' \
-            2>&1 | tee "$RUNNER_TEMP/device-tests.log"
+            > "$GITHUB_WORKSPACE/device-tests.log" 2>&1; code=$?
+          cat "$GITHUB_WORKSPACE/device-tests.log"
+          exit $code
 
       # What the simulator itself thought was happening. Only useful when the
       # step above did not finish normally, which is why it is guarded.
@@ -643,6 +653,13 @@ jobs:
 
       # WHAT ACTUALLY FAILED, and last on purpose.
       #
+      # The capture is a redirect and an explicit exit code, not `tee` with
+      # `set -o pipefail`. The Android action runs its script through `sh -c`,
+      # which is dash on these runners, and dash has no pipefail — the first
+      # version of this died in 98 seconds with an illegal option before an
+      # emulator had even booted. The comment above that script warns about
+      # this exact class of mistake and I made it anyway.
+      #
       # Three device runs were spent not knowing. The simulator log and the
       # server log are both useful and both long, and between them they pushed
       # the one line that matters — the assertion — past the end of every log
@@ -656,6 +673,6 @@ jobs:
         run: |
           echo '================ failing assertions ================'
           grep -nE '\[E\]|Some tests failed|Expected:|Actual:|Which:|Timed out waiting for|On screen instead:|^\s*package:' \
-            "$RUNNER_TEMP/device-tests.log" 2>/dev/null | tail -n 60 \
+            "$GITHUB_WORKSPACE/device-tests.log" 2>/dev/null | tail -n 60 \
             || echo 'No failure markers found — the run produced no test output at all, which is KI-020.'
 
