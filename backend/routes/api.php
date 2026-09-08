@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Customer\AddressController;
 use App\Http\Controllers\Api\V1\Customer\CartController;
 use App\Http\Controllers\Api\V1\Customer\CartItemController;
+use App\Http\Controllers\Api\V1\Customer\CheckoutController;
 use App\Http\Controllers\Api\V1\Customer\PickupController;
 use App\Http\Controllers\Api\V1\Customer\PlaceController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController;
@@ -308,6 +309,28 @@ Route::prefix('v1')->group(function (): void {
                  */
                 Route::post('/{trip}/cart/pre-checkout-validate', [PickupController::class, 'preCheckout'])
                     ->name('api.v1.customer.trips.cart.precheckout');
+
+                /*
+                 | Checkout (Module 14).
+                 |
+                 | Prepare answers "what is being bought, when, and for how
+                 | much". Validate answers "is all of that still true". Both
+                 | POST, for the caching reason this file already records
+                 | against pre-checkout: these render a judgement, and a cached
+                 | yes is somebody at a payment screen for a kitchen that shut.
+                 |
+                 | NEITHER READS MONEY FROM THE REQUEST. There is no field in
+                 | which a subtotal, a tax figure, a discount or a total could
+                 | arrive, because nothing below looks for one.
+                 |
+                 | No order is created here. No payment. No Razorpay object.
+                 | Module 15 owns that boundary.
+                 */
+                Route::post('/{trip}/checkout/prepare', [CheckoutController::class, 'prepare'])
+                    ->name('api.v1.customer.trips.checkout.prepare');
+
+                Route::post('/{trip}/checkout/{checkout}/validate', [CheckoutController::class, 'validate'])
+                    ->name('api.v1.customer.trips.checkout.validate');
             });
         });
 });

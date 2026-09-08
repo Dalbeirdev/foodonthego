@@ -206,6 +206,17 @@ enum ApiErrorCode: string
     // written.
     case PreCheckoutInvalid = 'PRECHECKOUT_INVALID';
 
+    // --- checkout (Module 14) ------------------------------------------------
+    //
+    // A checkout can fail for reasons the customer can act on and reasons they
+    // cannot, and the two need different words. None of these is a payment
+    // error: no payment exists in Module 14.
+    case CheckoutNotReady = 'CHECKOUT_NOT_READY';
+    case CheckoutQuoteNotFound = 'CHECKOUT_QUOTE_NOT_FOUND';
+    case CheckoutQuoteExpired = 'CHECKOUT_QUOTE_EXPIRED';
+    case CheckoutQuoteStale = 'CHECKOUT_QUOTE_STALE';
+    case CheckoutQuoteConsumed = 'CHECKOUT_QUOTE_CONSUMED';
+
     public function httpStatus(): int
     {
         return match ($this) {
@@ -328,6 +339,15 @@ enum ApiErrorCode: string
             self::PickupBeforeReady => 422,
             self::NoFeasiblePickupWindow => 409,
             self::PreCheckoutInvalid => 409,
+
+            // Not found rather than forbidden for a quote that is not this
+            // customer's: confirming a checkout id exists tells anybody who
+            // tries one something they should not learn.
+            self::CheckoutQuoteNotFound => 404,
+            self::CheckoutNotReady,
+            self::CheckoutQuoteExpired,
+            self::CheckoutQuoteStale,
+            self::CheckoutQuoteConsumed => 409,
             self::RateLimited => 429,
             self::BusinessRuleViolated => 422,
             self::DependencyUnavailable => 503,

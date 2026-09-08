@@ -439,6 +439,37 @@ return [
         'platform_fee_minor' => (int) env('CART_PLATFORM_FEE_MINOR', 0),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Checkout (Module 14)
+    |--------------------------------------------------------------------------
+    */
+    'checkout' => [
+        // How long a quote stays usable.
+        //
+        // Short on purpose. Prices change, stock changes, a kitchen pauses, a
+        // pickup window passes — a quote that outlived those would be a promise
+        // nobody had checked. Ten minutes is long enough to read a summary and
+        // decide, short enough that nothing important moves underneath it.
+        'quote_ttl_minutes' => (int) env('CHECKOUT_QUOTE_TTL_MINUTES', 10),
+
+        // Which commercial rules produced a figure.
+        //
+        // Bump this whenever a tax rate, a fee or a discount rule changes, and
+        // every outstanding quote becomes stale. Without it a customer could
+        // hold a quote across a pricing change and pay yesterday's number — and
+        // the pricing change would be invisible to the fingerprint, because the
+        // cart, the restaurant and the pickup would all be untouched.
+        'commercial_rule_version' => (int) env('COMMERCIAL_RULE_VERSION', 1),
+
+        // How many ACTIVE quotes one cart may hold at once.
+        //
+        // Preparing checkout repeatedly is ordinary — a customer reopens the
+        // screen, a connection drops and retries — and each prepare supersedes
+        // the last rather than adding to a pile. This is the backstop.
+        'max_active_quotes_per_cart' => (int) env('CHECKOUT_MAX_ACTIVE_QUOTES', 1),
+    ],
+
     'api' => [
         'current_version' => 'v1',
         'supported_versions' => ['v1'],
