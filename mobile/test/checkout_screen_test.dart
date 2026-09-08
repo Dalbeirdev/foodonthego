@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodonthego/core/network/api_error_code.dart';
 import 'package:foodonthego/core/network/api_exception.dart';
@@ -58,9 +59,26 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// To the foot of the list, however tall the list happens to be.
+  ///
+  /// A single fixed drag is a guess about height, and at 200% text it is the
+  /// wrong guess: the same offset that reaches the bottom at 100% lands halfway
+  /// down a page twice as long. Dragging until nothing moves is not a guess.
   Future<void> scrollToBottom(WidgetTester tester) async {
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, -1200));
-    await tester.pumpAndSettle();
+    final Finder list = find.byType(Scrollable).first;
+
+    double last = -1;
+
+    for (int i = 0; i < 12; i++) {
+      final double offset = tester.widget<Scrollable>(list).controller!.offset;
+
+      if (offset == last) break;
+
+      last = offset;
+
+      await tester.drag(list, const Offset(0, -600));
+      await tester.pumpAndSettle();
+    }
   }
 
   // --- loading --------------------------------------------------------------
@@ -574,6 +592,37 @@ void main() {
     expect(find.text('When will you collect?'), findsOneWidget);
   });
 
+  // --- the labels are readable ---------------------------------------------
+
+  testWidgets('both edit labels are shown whole, not ellipsised', (
+    WidgetTester tester,
+  ) async {
+    // Found by looking at a screenshot rather than at a test. Side by side on a
+    // 393dp phone, "Change pickup time" rendered as "Change pick…" — a control
+    // whose name a customer cannot read, on the screen where they decide
+    // whether to change something before paying.
+    //
+    // Asserted on geometry rather than on presence: `find.text` matches the
+    // Text widget by its label, which is unchanged by the ellipsis. What
+    // changes is how much of it is painted.
+    await open(tester);
+    await scrollToBottom(tester);
+
+    for (final String label in <String>['Edit cart', 'Change pickup time']) {
+      final RenderParagraph paragraph = tester.renderObject<RenderParagraph>(
+        find.text(label),
+      );
+
+      expect(
+        paragraph.size.width,
+        greaterThanOrEqualTo(
+          paragraph.getMaxIntrinsicWidth(double.infinity) - 0.5,
+        ),
+        reason: '"$label" is painted narrower than it needs and is truncated',
+      );
+    }
+  });
+
   // --- accessibility --------------------------------------------------------
 
   testWidgets('the summary lays out at twice the text size', (
@@ -587,9 +636,21 @@ void main() {
       ..payableTotalMinor = 53_290;
 
     await open(tester, checkout: checkout, textScale: 2.0);
-    await scrollToBottom(tester);
+
+    // Scrolled to the summary rather than to the foot of the list: at 200% the
+    // page is long enough that the bottom of it is well past the total, and a
+    // test looking for the total down there would fail on a screen that lays
+    // out correctly.
+    await tester.scrollUntilVisible(
+      find.text('Total to pay'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
     expect(find.text('Total to pay'), findsOneWidget);
+    expect(find.text('Tax'), findsOneWidget);
+    expect(find.text('Packaging'), findsOneWidget);
   });
 }

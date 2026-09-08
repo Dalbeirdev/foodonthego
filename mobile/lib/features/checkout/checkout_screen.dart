@@ -277,22 +277,28 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   /// Both invalidate the quote — not through a hook somebody has to remember to
   /// call, but through the fingerprint: the cart's version moves, or the pickup
   /// selection does, and the next read is stale.
-  Widget _editRow(AppStrings strings) => Row(
+  /// Stacked rather than side by side.
+  ///
+  /// Two of these in a row on a 393dp phone painted "Change pickup time" as
+  /// "Change pick…" — a control whose name the customer cannot read, on the
+  /// screen where they decide whether to change something before paying. Half a
+  /// screen width is not enough for either label at any text size worth
+  /// supporting, and it is much less than enough at 200%.
+  Widget _editRow(AppStrings strings) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: <Widget>[
-      Expanded(
-        child: SecondaryButton(
-          key: const ValueKey<String>('checkout-edit-cart'),
-          label: strings.checkoutEditCart,
-          onPressed: () => context.push(Routes.tripCartPath(widget.tripId)),
-        ),
+      SecondaryButton(
+        key: const ValueKey<String>('checkout-edit-cart'),
+        label: strings.checkoutEditCart,
+        expand: true,
+        onPressed: () => context.push(Routes.tripCartPath(widget.tripId)),
       ),
-      const SizedBox(width: FotgSpacing.x3),
-      Expanded(
-        child: SecondaryButton(
-          key: const ValueKey<String>('checkout-change-pickup'),
-          label: strings.checkoutChangePickup,
-          onPressed: () => context.push(Routes.tripPickupPath(widget.tripId)),
-        ),
+      const SizedBox(height: FotgSpacing.x2),
+      SecondaryButton(
+        key: const ValueKey<String>('checkout-change-pickup'),
+        label: strings.checkoutChangePickup,
+        expand: true,
+        onPressed: () => context.push(Routes.tripPickupPath(widget.tripId)),
       ),
     ],
   );
