@@ -43,6 +43,66 @@ request path.
 New accounts default to `customer` — the least privileged role — and role escalation is never
 self-service.
 
+## Multi-tenancy and tenant isolation
+
+**A restaurant is a tenant.** Restaurant owners, managers and staff may reach only the restaurants
+they are *explicitly assigned to*. `super_admin` may reach more than one tenant, and which ones is
+an RBAC decision rather than an implicit consequence of the role string.
+
+This is a platform-wide constraint, recorded here rather than in the module that first needs it, so
+that every future module is written against it instead of discovering it.
+
+### The rules
+
+1. **Isolation is enforced in the query, not after the fetch.** A lookup that finds a row and *then*
+   compares a tenant id has already decided the row exists, and the difference between "not yours"
+   and "not real" is what an attacker is trying to learn. Scope in the `where`, as
+   `TripService::ownedByOrFail()` and `CheckoutController::quoteOrFail()` already do for customers.
+2. **Isolation is enforced by Laravel authorisation, policies and query scoping, and by database
+   relationships.** Never by frontend filtering. A hidden button is a courtesy; the endpoint is
+   reachable with `curl` regardless.
+3. **Assignment is a row, not a role.** `restaurant_manager` says what somebody may do; it never
+   says *where*. Membership of a tenant is an explicit record with its own lifecycle, and a role
+   with no assignment reaches nothing.
+4. **A missing assignment answers 404**, with the same body as a restaurant that does not exist.
+5. **Cross-tenant reach is a test, not a review comment.** Every read, write, list, API route and
+   id-substitution path gets an explicit test that a member of tenant A cannot reach tenant B —
+   including the indirect routes, which is where the real holes are: a menu item reached through
+   *its own* id rather than through its restaurant, an order reached through a payment, a report
+   filtered by a tenant id supplied in the request.
+6. **`super_admin` is scoped too.** "May access multiple tenants" is not "may access all tenants
+   implicitly". Whatever grants the breadth is checked in the same place as everything else.
+
+### Where this stands today
+
+**Unbuilt, and not currently violated — because there is nothing to violate.**
+
+| Piece | State |
+| --- | --- |
+| `Role` enum with all seven roles | **Exists**, with `isRestaurantRole()` and `isPlatformRole()` |
+| A user↔restaurant assignment table | **Does not exist** |
+| `restaurants.owner_id` | **Does not exist** — `owner_name`, `owner_phone` and `owner_email` are contact strings for the platform to ring, not a foreign key |
+| `app/Policies` | **Does not exist** |
+| Any `Gate::` or `->authorize()` call | **None in the codebase** |
+| API routes for restaurant, admin, support, rider or ops roles | **None** |
+
+So a restaurant is not, structurally, owned by anybody. Nothing can be assigned, therefore nothing
+can be isolated — and equally, no cross-tenant surface exists to leak through. The risk is entirely
+prospective, and the mechanism has to exist before the first surface that needs it, not alongside it.
+
+### The precedent to follow
+
+Customer scoping is already the right shape and should be the model:
+
+- `Trip::query()->ownedBy($customer)` — a scope, applied in the query.
+- `CheckoutQuote` looked up by `uuid` **and** `customer_id` **and** `cart_id` in one `where`, each
+  clause sufficient alone and the redundancy deliberate and measured.
+- The same 404 for "not yours" and "not real", everywhere.
+
+Tenant scoping is that pattern with a different subject. What it additionally needs is a policy
+layer, because a restaurant resource is reachable by more than one role — which is precisely the
+condition this document already set for introducing one.
+
 ## Transport and headers
 
 Every API response carries:
@@ -308,7 +368,10 @@ Named rather than implied:
   that does the suspending.
 - **Per-resource authorisation policies** — with the modules that own the resources. Module 04's
   saved addresses are authorised in one service method rather than a policy class; a policy layer
-  arrives with the first resource that more than one role can reach.
+  arrives with the first resource that more than one role can reach. A restaurant is that resource.
+- **Tenant isolation** — the constraint is specified above and **none of its mechanism is built**:
+  no assignment table, no policies, no `Gate::` call anywhere, and no route for the six roles it
+  would govern. Nothing is currently leaking, because nothing is currently reachable.
 - **Email verification** — an email address on a profile is stored unverified and shown unverified.
 - **Address geocoding** — no Places or Geocoding call is made yet, so coordinates stay `NULL`.
 - **File upload scanning** — with the first module that accepts an upload.
