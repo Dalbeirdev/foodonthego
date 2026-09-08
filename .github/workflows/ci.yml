@@ -163,6 +163,140 @@ jobs:
       - name: Build Android (debug)
         run: flutter build apk --debug
 
+  # ---------------------------------------------------------------------------
+  # The review build (Module 14).
+  #
+  # What a client installs on a handset to look at the work. Built here rather
+  # than on a workstation because nothing about it should depend on one person's
+  # machine: the version, the commit and the toolchain are all recorded in a
+  # manifest that ships beside the binaries.
+  #
+  # SIGNING, PLAINLY. Both artefacts are signed with Android's *debug* key,
+  # because android/app/build.gradle.kts still carries Flutter's placeholder
+  # release config and no upload key exists for this project. That is fine for
+  # sideloading onto a review device and is NOT fine for Google Play: the .aab
+  # here cannot be uploaded to a Play track, and is included so the bundle
+  # target is known to build rather than as something publishable. A real
+  # release needs a keystore held by the client, which is theirs to create and
+  # not ours to invent.
+  #
+  # The APK is built where the app tests already pass, so a green run of this
+  # job is a statement about the same commit the tests ran on.
+  # ---------------------------------------------------------------------------
+
+  review-build:
+    name: Mobile — Android review build
+    timeout-minutes: 40
+    runs-on: ubuntu-latest
+    needs: mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Install app dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      # Where the review build talks to. Set the FOTG_REVIEW_API_BASE_URL
+      # repository variable once a review backend is deployed; until then the
+      # build carries the emulator's alias for a developer's own machine, which
+      # is honest about the fact that there is nowhere else for it to point.
+      # Whichever it used is written into the manifest below rather than left
+      # for somebody to guess from a screenshot.
+      - name: Resolve the review API address
+        id: api
+        run: |
+          url='${{ vars.FOTG_REVIEW_API_BASE_URL }}'
+          if [ -z "$url" ]; then
+            url='http://10.0.2.2:8000'
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deployed=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      # FOTG_ENV=staging, deliberately, and neither of the other two.
+      #
+      # Not production: nothing here is signed with a production key, there are
+      # no production credentials, and calling it production would be the one
+      # claim this build must not make. Not development either — the profile
+      # screen would say so, and the label a reviewer reads should match what
+      # they were handed.
+      #
+      # Staging keeps the "arrives in a later module" notices visible, which is
+      # what a reviewer of a partly built product needs to see rather than a
+      # screen that silently does nothing. It also leaves the demo personas in
+      # the binary; that is a property of a non-production build and is stated
+      # in the manifest rather than left to be discovered.
+      - name: Build the review APK
+        working-directory: mobile
+        run: |
+          flutter build apk --release \
+            --dart-define=FOTG_ENV=staging \
+            --dart-define=FOTG_API_BASE_URL='${{ steps.api.outputs.url }}'
+
+      - name: Build the Android App Bundle
+        working-directory: mobile
+        run: |
+          flutter build appbundle --release \
+            --dart-define=FOTG_ENV=staging \
+            --dart-define=FOTG_API_BASE_URL='${{ steps.api.outputs.url }}'
+
+      - name: Record what was built
+        working-directory: mobile
+        run: |
+          mkdir -p build/review
+          cp build/app/outputs/flutter-apk/app-release.apk build/review/
+          cp build/app/outputs/bundle/release/app-release.aab build/review/
+
+          {
+            echo "FoodOnTheGo — Android review build"
+            echo
+            echo "Version:          $(grep '^version:' pubspec.yaml | cut -d' ' -f2)"
+            echo "Application id:   com.foodonthego.foodonthego"
+            echo "Commit:           ${{ github.sha }}"
+            echo "Branch:           ${{ github.ref_name }}"
+            echo "Workflow run:     ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "Built at (UTC):   $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "Flutter:          $(flutter --version | head -n 1)"
+            echo
+            echo "Environment:      staging (FOTG_ENV=staging) — NOT a production build"
+            echo "API base URL:     ${{ steps.api.outputs.url }}"
+            echo "Backend deployed: ${{ steps.api.outputs.deployed }}"
+            echo
+            echo "                  A staging binary contains the demo personas and shows"
+            echo "                  the \"arrives in a later module\" notices. Both are"
+            echo "                  compiled out of a production build."
+            echo
+            echo "Signing:          Android DEBUG key (Flutter placeholder release config)."
+            echo "                  Sideload only. The .aab CANNOT be uploaded to Google Play"
+            echo "                  and the .apk is not a production release. A real release"
+            echo "                  needs an upload keystore held by the client."
+            echo
+            echo "SHA-256:"
+            (cd build/review && sha256sum app-release.apk app-release.aab)
+          } > build/review/BUILD-INFO.txt
+
+          cat build/review/BUILD-INFO.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-review-build-${{ github.sha }}
+          path: mobile/build/review/
+          retention-days: 30
+          if-no-files-found: error
+
   ios:
     name: Mobile — iOS build
     timeout-minutes: 30
