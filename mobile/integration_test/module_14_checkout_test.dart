@@ -62,6 +62,7 @@ import 'package:foodonthego/data/repositories/api_cart_repository.dart';
 import 'package:foodonthego/data/repositories/api_checkout_repository.dart';
 import 'package:foodonthego/data/repositories/api_discovery_repository.dart';
 import 'package:foodonthego/data/repositories/api_menu_repository.dart';
+import 'package:foodonthego/data/repositories/api_order_repository.dart';
 import 'package:foodonthego/data/repositories/api_pickup_repository.dart';
 import 'package:foodonthego/data/repositories/api_place_repository.dart';
 import 'package:foodonthego/data/repositories/api_route_repository.dart';
@@ -94,6 +95,7 @@ void main() {
   late ApiMenuRepository menus;
   late ApiPickupRepository pickup;
   late ApiCheckoutRepository checkouts;
+  late ApiOrderRepository orderApi;
 
   setUpAll(() async {
     requireToken();
@@ -103,6 +105,7 @@ void main() {
     menus = ApiMenuRepository(api);
     pickup = ApiPickupRepository(api);
     checkouts = ApiCheckoutRepository(api);
+    orderApi = ApiOrderRepository(api);
   });
 
   tearDownAll(() => api.close());
@@ -371,6 +374,95 @@ void main() {
       orders,
       isEmpty,
       reason: 'nothing was paid for, so nothing may appear as an order',
+    );
+  });
+
+  // ------------------------------------------- Module 16, as far as it reaches
+
+  /*
+   | The confirmation screen on a real device, for an order nobody has paid for.
+   |
+   | WHAT THIS CAN AND CANNOT REACH. The screen's main job — showing an order
+   | number and a pickup code — needs a CAPTURED payment, and no payment can be
+   | captured in this project because no provider credentials exist. So the
+   | phase reachable here is the honest one: money has not been taken, and the
+   | screen says so.
+   |
+   | That is still worth a device run rather than only a widget test. It proves
+   | the route exists on the platform, that a cold start straight into
+   | /orders/<id>/confirmation works — which is the crash-recovery case the
+   | route was placed under Orders to support — and that the screen renders
+   | against a real server's answer rather than a fake repository's.
+   |
+   | The paid phases are covered by widget tests against the real screen with a
+   | scripted repository. That is a weaker claim and is recorded as one.
+   */
+  testWidgets('the confirmation screen opens cold on a real order id', (
+    WidgetTester tester,
+  ) async {
+    await prepare();
+    await seedOrderReadyToCheckOut();
+
+    // Straight through the API rather than through the screen: this test is
+    // about the confirmation screen, and driving checkout again would make a
+    // Module 14 failure arrive as a Module 16 one.
+    final Checkout checkout = await serverCheckout();
+    final String? checkoutId = checkout.checkoutId;
+
+    if (checkoutId == null) {
+      fail('the server prepared no quote, so there is nothing to pay for');
+    }
+
+    final String orderId = (await orderApi.place(
+      tripId: trip.id,
+      checkoutId: checkoutId,
+    )).id;
+
+    // A payment target, not an order. The server has minted no number.
+    final List<Map<String, dynamic>> orders = await ordersFor(api);
+    expect(
+      orders,
+      isEmpty,
+      reason: 'nothing was paid for, so nothing may appear as an order',
+    );
+
+    // A cold start directly at the route, exactly as a customer relaunching
+    // after the app was killed would arrive.
+    await launchSignedIn(
+      tester,
+      customer: customer,
+      location: Routes.orderConfirmationPath(orderId),
+    );
+
+    await waitFor(
+      tester,
+      find.byKey(const ValueKey<String>('confirmation-placed')),
+      describe: 'the confirmation screen to report on an unpaid order',
+    );
+
+    // No order number, because the server has correctly not minted one. This
+    // is the Module 16 boundary seen from the client: the screen renders an
+    // order that is not yet an order, and does not invent a reference for it.
+    expect(
+      find.byKey(const ValueKey<String>('confirmation-order-number')),
+      findsNothing,
+    );
+
+    // No pickup credential either -- there is nothing to collect.
+    expect(
+      find.byKey(const ValueKey<String>('confirmation-pickup-card')),
+      findsNothing,
+    );
+
+    // And nothing anywhere claims a payment failed. Checked on the device
+    // because this is where the phase is decided from a real HTTP answer.
+    expect(
+      find.byKey(const ValueKey<String>('confirmation-network-error')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('confirmation-unauthorized')),
+      findsNothing,
     );
   });
 
