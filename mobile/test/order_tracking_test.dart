@@ -383,4 +383,60 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byKey(const ValueKey<String>('tracking-timeline')), findsOne);
   });
+
+  testWidgets('the screen fits at every width we support', (
+    WidgetTester tester,
+  ) async {
+    // A mid-order timeline, because it is the tallest of the ordinary states:
+    // five steps, three of them carrying a time. Testing the placed state
+    // would test the easy one.
+    FakeOrderRepository cooking() =>
+        FakeOrderRepository()
+          ..trackedOrder = tracked(
+            status: PlacedOrderStatus.cooking,
+            version: 3,
+            timeline: <OrderTimelineStep>[
+              step(
+                PlacedOrderStatus.placed,
+                OrderTimelineStepState.completed,
+                at: DateTime(2026, 9, 18, 16, 1),
+              ),
+              step(
+                PlacedOrderStatus.accepted,
+                OrderTimelineStepState.completed,
+                at: DateTime(2026, 9, 18, 16, 3),
+              ),
+              step(
+                PlacedOrderStatus.cooking,
+                OrderTimelineStepState.current,
+                at: DateTime(2026, 9, 18, 16, 6),
+              ),
+              step(PlacedOrderStatus.ready, OrderTimelineStepState.upcoming),
+              step(PlacedOrderStatus.pickedUp, OrderTimelineStepState.upcoming),
+            ],
+          );
+
+    for (final Size size in <Size>[
+      const Size(320, 720),
+      const Size(360, 740),
+      const Size(375, 812),
+      const Size(390, 844),
+      const Size(412, 892),
+      const Size(430, 932),
+    ]) {
+      await open(tester, orders: cooking(), size: size);
+
+      expect(tester.takeException(), isNull, reason: 'overflow at $size');
+      expect(
+        find.byKey(const ValueKey<String>('tracking-status')),
+        findsOne,
+        reason: 'the status hero must survive $size',
+      );
+      expect(
+        find.byKey(const ValueKey<String>('tracking-timeline')),
+        findsOne,
+        reason: 'the timeline must survive $size',
+      );
+    }
+  });
 }
