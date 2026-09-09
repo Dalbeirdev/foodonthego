@@ -1537,3 +1537,72 @@ Half an hour old and two days old currently look the same. `server_time` and
 `fetchedAt` are both already carried, so the fix is presentational rather than
 structural — but it is a real way for a customer to be misled by something that
 was true once.
+
+### KI-032 — the device jobs ran the API on a one-request-at-a-time server — **Medium, tooling** — FIXED at Module 17
+
+CI run 158 failed two on-device tests on the iOS simulator. One was a real
+application defect and is fixed separately (the tracking double-unwrap). The
+other, `module_11`'s *a dish with no default size asks before it prices*, was
+this — and it is worth writing down, because the honest first reading was
+"iOS-only, passed on Android, probably a flake", and that reading was wrong.
+
+**What the screen said.** `We couldn't load this item | Please try again in a
+moment.` The app was not confused; it had asked for a menu item, been given
+nothing within `ApiConfig.requestTimeout` (ten seconds), and said so.
+
+**What the server said.** From the same job's `serve.log`, during that test:
+
+```
+17:52:56 .../cart                     ~ 7s
+17:52:57 .../routes                   ~ 7s
+17:53:03 .../restaurants              ~ 3s
+17:53:04 .../restaurants/{id}         ~ 4s
+17:53:07 .../menu                     ~ 3s
+17:53:09 .../menu/items/29ebfe51-...  ~ 5s
+```
+
+Every one of those endpoints answers in **0.04 ms** elsewhere in the same log,
+when nothing else is in flight. So this is not slow code and not a slow
+machine. It is a queue.
+
+**Why.** `php artisan serve` is PHP's built-in development server, and by
+default it is a single worker: it accepts connections and answers them strictly
+one at a time. Opening a screen cold asks the session, the trip, the route, the
+restaurant, the menu and the item all at once — around nine requests — so the
+ninth waits for the sum of the eight ahead of it. `ServeCommand` starts its
+timer at the `Accepted` line, not when PHP begins the work, so the durations it
+prints *include* that wait. The `~ 5s` above is almost all queue.
+
+**Measured, rather than argued.** Nine concurrent authenticated requests
+against the real script-started server on a four-core box, sorted:
+
+```
+one worker    0.015 0.030 0.046 0.062 0.076 0.091 0.105 0.120 0.136
+eight workers 0.018 0.020 0.026 0.032 0.046 0.061 0.075 0.091 0.106
+```
+
+The one-worker row is a 15 ms staircase with no step out of place, which is the
+signature of a queue rather than of load; the eight-worker row starts with a
+cluster that finished together. Worst case roughly halves here. In CI, where
+the requests cost hundreds of milliseconds rather than fifteen, the same queue
+is the difference between 0.04 ms and five seconds.
+
+**Why iOS and not Android.** Nothing about iOS. Both jobs ran the same
+single-worker server; the iOS job's launches happened to overlap enough to push
+one request past ten seconds and the Android job's did not. The same test would
+fail on Android on a different day, which is exactly why "it passed on the other
+platform" was not a diagnosis.
+
+**Fixed** in `scripts/ci-backend-up.sh`, which both device jobs use:
+`PHP_CLI_SERVER_WORKERS=8` and `--no-reload`. The second flag is not optional —
+Laravel refuses the worker count without it and prints `Unable to respect the
+PHP_CLI_SERVER_WORKERS environment variable`, then carries on with one server.
+That warning cost an hour here, so the script now greps its own log for it and
+says loudly that it is single-worker rather than letting a future Laravel
+version quietly undo this.
+
+**Not fixed, and deliberately:** the ten-second client timeout stands, and the
+item and tracking screens still give up after one failed load rather than
+retrying. Both are product decisions from earlier modules. Raising a timeout or
+adding a silent retry to make a test pass would have hidden the next real
+failure, which is the thing these device jobs exist to catch.

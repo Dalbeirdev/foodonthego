@@ -2209,3 +2209,19 @@ Inserted between Modules 14 and 15 at the client's direction. Design:
 - **M17-083 A negative-control harness must revert from a copy**, never by
   reversing a string edit, and must not score a parse error as a fired control.
   See 09-testing-strategy.md.
+- **M17-084 The repository's own wire format needs a test.** `tracking()`
+  unwrapped the response envelope twice, so every call against a real server
+  threw and the screen honestly reported that it could not load the order. All
+  962 widget tests then in the suite drove a fake repository, so the code that
+  turns an HTTP body into a model had never executed. Covered by
+  `mobile/test/order_repository_wire_test.dart`, whose fixture is copied from
+  the live run rather than written from the model's point of view — a fixture
+  written from the model's side would have shared the fake's blind spot.
+  Found by: the iOS device job. Control: restoring the double unwrap fails 3 of 4.
+- **M17-085 A device test must not be measuring the test server.** The device
+  jobs ran the API on a single-worker `php artisan serve`, which answers one
+  request at a time while the app asks about nine when a screen opens cold;
+  under load one of them passed the client's ten-second timeout. Fixed in
+  `scripts/ci-backend-up.sh` with `PHP_CLI_SERVER_WORKERS=8 --no-reload`, and
+  the script now warns loudly if Laravel ever declines the worker count.
+  Evidence: `docs/evidence/module-17/serve-concurrency-run.txt`. KI-032.

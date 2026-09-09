@@ -2557,7 +2557,7 @@ None of these were found by a test failing. All of them were found by a test
 | Suite | Tests | New in this module |
 | --- | --- | --- |
 | Backend (PHPUnit/Pest, real MySQL) | **1,293 passed**, 5,720 assertions | 41 |
-| Flutter (widget + unit) | **962 passed** | 11 |
+| Flutter (widget + unit) | **966 passed** | 15 |
 | Device (integration_test) | 29 per platform | 1 |
 
 Backend 72.6s; Flutter 1m43s. No skips.
@@ -2682,3 +2682,52 @@ nullable order number invisible to every widget test.
 - **No refund exists to display.** `PaymentStatus` has no `REFUNDED` case.
 - **No realtime, no ETA, no push, no pickup verification** — and tests assert
   the app does not claim any of them.
+
+## The device run, and the second evidence file
+
+Two device failures on CI run 158, on iOS only, on a commit whose Android run
+was green apart from one of them. They had two different causes, and treating
+them as one would have got both wrong.
+
+**The tracking screen could not load an order.** A real defect: `tracking()`
+unwrapped the response envelope twice, so `TrackedOrder.fromJson` was handed
+null on every real call. Nothing in the suite could have caught it — all 962
+widget tests then in the suite drive a fake repository, so the code that turns
+an actual HTTP body into a model had never executed once, not once.
+`test/order_repository_wire_test.dart`
+is the missing layer: the real repository against a `MockClient` returning the
+envelope copied out of the live run, not written from the model's point of view.
+Restoring the double unwrap fails three of its four cases.
+
+**The menu item screen could not load an item.** Not a defect in the app. The
+device job's backend was `php artisan serve` with its default single worker,
+answering one request at a time while the app asked nine at once; one of them
+passed the client's ten-second timeout and the screen said so. The measurement
+is in `evidence/module-17/serve-concurrency-run.txt`, and the fix is eight
+workers in `scripts/ci-backend-up.sh`. KI-032.
+
+That file is worth reading for one thing beyond the numbers: the first attempt
+at the measurement showed **no difference at all** between one worker and eight,
+because Laravel silently declines `PHP_CLI_SERVER_WORKERS` without `--no-reload`
+and both arms were the control. The script now greps its own log for that
+warning.
+
+## Tracking screenshots
+
+Seven, in `evidence/module-17/screenshots/`, with a README naming what each one
+evidences. Captured by `mobile/tool/capture_tracking_screenshots.dart` — the
+real widget tree with Roboto and MaterialIcons loaded out of the Flutter SDK, so
+unlike the Module 01 and 14 images there is no stand-in font here.
+
+It lives under `tool/` rather than `test/` deliberately: `flutter test` with no
+path runs `test/` only, so CI never runs it, and a golden that CI does not
+enforce cannot fail a build over an antialiasing difference between two
+machines. These are evidence, not assertions. The assertions about this screen
+are in `test/order_tracking_test.dart`, and the proof that it works against a
+real server is the on-device suite.
+
+One artefact is left in the images rather than cropped: the app bar title
+renders as boxes under this harness while every other string resolves. The cause
+was not found, it does not reproduce on either device run, and the README says
+so — a screenshot with something quietly removed is worth less than one with
+something visibly unexplained.

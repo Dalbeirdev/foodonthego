@@ -87,6 +87,21 @@ downloadable from the workflow run.
 head commit, the workflow run URL, the Flutter version, the API address compiled
 in, and the SHA-256 of both binaries.
 
+The digests for the Module 17 build, taken from the CI job that produced it
+rather than retyped from anywhere:
+
+| Binary | SHA-256 | Commit |
+| --- | --- | --- |
+| `app-release.apk` | `7f2e57b41397da903df21c126641786a9739ce026cd24bc95a8c6d7d2dede5ea` | `b688c9b` |
+| `app-release.aab` | `42fe4429386dea9ddcb93f0f53dffa1fef60509d9eafc32aa85479572bd58036` | `b688c9b` |
+
+A digest is only meaningful next to the commit it was built from, so both are
+given. Commits after `b688c9b` on this branch change documentation and CI
+tooling only — no Dart, no Kotlin, no Gradle configuration — so the binary a
+reviewer downloads from a later run is the same application, but its digest
+will differ, because a Flutter build is not byte-reproducible. Trust the
+`BUILD-INFO.txt` inside the zip you actually downloaded over this table.
+
 ### It has been installed and launched
 
 Not "an APK was produced" — the artefact itself is downloaded by the Android
@@ -161,6 +176,13 @@ an installable app, and it is not an IPA.
 
 **An iOS build is never an APK.** An `.apk` is an Android package; iOS uses
 `.ipa`. No `.ipa` exists and none has been fabricated.
+
+**What iOS *is* verified to do**, as of Module 17: the full on-device suite runs
+on an iPhone simulator on every pull request — the same 29 tests as Android,
+driving a real Laravel backend over HTTP — and passes. That is a genuine runtime
+result on Apple's own simulator runtime and it is how the Module 17 tracking
+defect was found. It is still not an installable build, and this section stays
+PENDING until there is an Apple signing environment.
 
 ---
 
@@ -322,6 +344,28 @@ nothing is a mock-up.
 States 02 and 03 are each other's control: the same screen and the same code
 path, with only the restaurant's commercial configuration changed between them.
 
+### Order tracking (Flutter, Module 17)
+
+Seven more, in [evidence/module-17/screenshots/](evidence/module-17/screenshots/),
+with a README beside them saying what each one evidences: `tracking-placed`,
+`tracking-cooking`, `tracking-ready`, `tracking-picked-up`, `tracking-rejected`,
+plus the same order at 320 dp and at 2× text scale.
+
+The one worth opening first is `tracking-rejected.png`. A refused order shows
+the path **truncated** — Cooking and Ready are not left on screen pretending
+still to be coming — with the restaurant's customer-safe reason above it and no
+pickup credential. That is the behaviour that is easiest to get wrong and
+hardest to see in a test name.
+
+These were captured differently from the sixteen above: not a web build, but the
+real widget tree under `flutter test`, with Roboto and MaterialIcons loaded out
+of the Flutter SDK. So there is no stand-in font here — the type and icons are
+the ones a real build ships. There is also no real server: the data is a fixture
+chosen to put each timeline state on screen, and the same screen filled by a
+real Laravel backend is in
+[evidence/module-17/live-api-run.txt](evidence/module-17/live-api-run.txt).
+One blemish is left visible rather than cropped, and the README explains it.
+
 ### Web shells (1440 × 900 and 390 × 844)
 
 `restaurant-1440` · `restaurant-390` · `restaurant-dark` · `admin-1440` ·
@@ -460,7 +504,7 @@ configured" and "configured as zero" is enforced in code and in tests.
 | | |
 | --- | --- |
 | Backend | **1,293 tests**, Pint clean |
-| Flutter | **962 tests**, `analyze --fatal-infos` clean, `format` clean |
+| Flutter | **966 tests**, `analyze --fatal-infos` clean, `format` clean |
 | Web | typecheck, tests and both builds clean |
 | Android device run | **29 integration tests on an emulator** |
 | iOS device run | the same suite on a simulator |

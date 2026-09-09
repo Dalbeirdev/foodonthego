@@ -221,7 +221,7 @@ passed to the device:
 
 ```bash
 # On the machine running the backend
-php artisan serve --host=0.0.0.0 --port=8000
+PHP_CLI_SERVER_WORKERS=8 php artisan serve --host=0.0.0.0 --port=8000 --no-reload
 php artisan db:seed --class=DiscoveryTestRestaurantSeeder --force
 php artisan db:seed --class=MenuTestDataSeeder --force
 
@@ -230,6 +230,14 @@ dart run --define=FOTG_API_BASE_URL=http://127.0.0.1:8000 tool/issue_token.dart
 ```
 
 It prints an ordinary Sanctum token for an ordinary test persona.
+
+**The two extra flags on `serve` matter when a device is the client.** By
+default it is a single worker answering one request at a time, and opening a
+screen cold fires about nine at once — so the last of them can pass the app's
+ten-second timeout and the screen will tell you, correctly, that it could not
+load. `--no-reload` is required: Laravel ignores the worker count without it
+and says so in one line you will not be looking at. `scripts/ci-backend-up.sh`
+does all of this for you. KI-032.
 
 ### On a device or emulator
 

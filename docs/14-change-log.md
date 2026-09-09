@@ -1359,6 +1359,16 @@ customer app got a screen that reads it without ever deciding it.
 - **A negative-control harness that inserted code at position 0** when reverting
   a control whose mutation was an empty string, silently breaking eight
   subsequent controls. See 09-testing-strategy.md.
+- **The tracking call unwrapped the response envelope twice**, so every request
+  against a real server threw and the screen honestly said it could not load
+  the order. Found on a device, because all 962 widget tests then in the suite drive a fake
+  repository and the code that turns an HTTP body into a model had never once
+  run. `mobile/test/order_repository_wire_test.dart` is the missing layer.
+- **The device CI backend answered one request at a time** (KI-032).
+  `scripts/ci-backend-up.sh` ran `php artisan serve` with its default single
+  worker, so the nine requests an app fires when a screen opens cold queued
+  behind each other until one passed the client's ten-second timeout. It now
+  runs eight workers, and warns loudly if Laravel ever declines them.
 
 ### Recorded, not fixed
 
@@ -1367,3 +1377,6 @@ customer app got a screen that reads it without ever deciding it.
   parallelism.
 - KI-030 — no cancellation policy, so no cancel button.
 - KI-031 — a stale tracking screen does not say how stale.
+- KI-032 — recorded as FIXED, because the diagnosis is worth more than the
+  one-line change: the failure looked platform-specific and looked like a flake,
+  and was neither.

@@ -804,3 +804,42 @@ test file rather than implied by its name.
 a client that ignores every response after the first. The suite therefore
 contains its inverse — "a newer response does update the status" — and the two
 together say something the regression test alone does not.
+
+### The device job was measuring the server, not the app
+
+Run 158 failed two on-device tests on iOS. One was a real defect — the tracking
+call unwrapped the response envelope twice, which no widget test could see
+because all of them drive a fake repository. The other was `module_11`'s *a dish
+with no default size asks before it prices*, which had passed on Android on the
+identical commit.
+
+"Passed on the other platform" is not a diagnosis, and neither is "flake". What
+the iOS screen actually said was `We couldn't load this item`, and what the
+server log said, for the same seconds, was that endpoints which answer in
+0.04 ms had taken three, five and seven seconds. `php artisan serve` is a
+single-worker server: it answers one request at a time, and the app asks about
+nine at once when a screen opens cold. The ninth waits for the eight in front
+of it, the client gives up at ten seconds, and the screen reports the truth.
+
+So the failing assertion was about the harness's concurrency, not about the
+app's behaviour — the device job was measuring `php artisan serve` and
+attributing the result to Flutter. `scripts/ci-backend-up.sh` now starts eight
+workers, and the measurement behind that is in
+`docs/evidence/module-17/serve-concurrency-run.txt`.
+
+Two things were deliberately **not** done, because both would have made the
+suite weaker while making it greener:
+
+* the ten-second client timeout was not raised, and
+* no retry was added to the item or tracking screens.
+
+Either would have turned this failure into a pass without changing anything
+true about the product, and would have swallowed the next real one. The screen
+giving up and saying so is the behaviour under test; the queue in front of it
+was the bug.
+
+The general form, and it is the third instance in this project: **when a test
+fails, ask what the harness was doing before asking what the code was doing.**
+A silent negative control, a reverted mutation that never applied, and now a
+one-request-at-a-time server — all three looked like results and none of them
+were.
