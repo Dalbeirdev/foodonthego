@@ -7,6 +7,7 @@ namespace Tests\Feature\Api\Orders;
 use App\Enums\CartStatus;
 use App\Enums\CheckoutQuoteStatus;
 use App\Enums\OrderStatus;
+use App\Enums\OrderTransitionSource;
 use App\Enums\PaymentStatus;
 use App\Exceptions\Orders\OrderCreationRefused;
 use App\Exceptions\Orders\PickupCredentialVersionMissing;
@@ -138,6 +139,42 @@ final class OrderPlacementTest extends TestCase
     /**
      * Scenario 51 — the money invariant, which the specification marks mandatory.
      */
+    /**
+     * Placement starts the order's history, proven against the real path.
+     *
+     * A NEGATIVE CONTROL FOUND THIS MISSING. There was an assertion elsewhere
+     * that "placement writes the first history entry", but it ran against a
+     * test fixture that wrote the row itself -- so commenting out the save in
+     * CreateOrderFromCapturedPayment left it green. The claim was about the
+     * fixture, not about the code.
+     *
+     * This one captures a payment through the real HTTP surface, which is the
+     * only path that can prove it.
+     */
+    public function test_a_captured_payment_starts_the_orders_history(): void
+    {
+        [$order] = $this->captureAPayment();
+
+        $entries = $order->refresh()->statusHistory()->get();
+
+        $this->assertCount(1, $entries);
+
+        $first = $entries->first();
+
+        $this->assertNull($first->from_status, 'an order comes from no state');
+        $this->assertSame(OrderStatus::Placed, $first->to_status);
+        $this->assertSame(OrderTransitionSource::System, $first->source_type);
+
+        /*
+         | The history's time is the order's time, not the writer's.
+         |
+         | They are the same instant here. They are not the same instant when a
+         | recovery sweep finishes a stranded capture hours later, and that is
+         | the case this assertion pins.
+         */
+        $this->assertTrue($order->placed_at->equalTo($first->occurred_at));
+    }
+
     public function test_the_order_total_is_exactly_what_was_captured(): void
     {
         [$order] = $this->captureAPayment();

@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Support\Orders;
 
+use App\Enums\OrderStatus;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
+use App\Services\Orders\OrderStateMachine;
+use App\Services\Orders\OrderTimelineService;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Date;
 
 /**
  * One order, rendered for an API response.
@@ -58,7 +62,59 @@ final class OrderPresenter
             'placed_at' => self::local($order->placed_at, $zone),
             'paid_at' => self::local($order->paid_at, $zone),
             'cancelled_at' => self::local($order->cancelled_at, $zone),
+
+            /*
+             | Module 17. The status, said in words the customer can read.
+             |
+             | Sent with every order rather than mapped on the phone, so a new
+             | lifecycle state is a backend deploy rather than an app-store
+             | release -- and so an app that has never heard of a state shows a
+             | sentence instead of a raw enum value.
+             */
+            'status_title' => OrderStatusCopy::title($order->status),
+            'status_subtitle' => OrderStatusCopy::subtitle($order->status),
+
+            /*
+             | Increments on every status transition.
+             |
+             | The client uses it to discard a response that overtook a newer
+             | one. It must never be used to guess a state the server has not
+             | sent: it says which answer is fresher, not what comes next.
+             */
+            'order_version' => (int) $order->order_version,
+
+            'status_updated_at' => self::local(self::statusChangedAt($order), $zone),
+
+            /*
+             | Whether anything can still happen to this order.
+             |
+             | Decided from the transition table rather than from a list the
+             | client keeps, so a client stops polling a terminal order without
+             | having to know which states are terminal.
+             */
+            'is_active' => in_array($order->status, OrderStateMachine::activeStatuses(), strict: true),
         ];
+    }
+
+    /**
+     * When the order last moved, from the milestone that matches its state.
+     *
+     * Read off the order row rather than from the history table: the Orders tab
+     * lists many orders and must not join a history table per row to say
+     * "updated 4 minutes ago".
+     */
+    private static function statusChangedAt(Order $order): ?CarbonInterface
+    {
+        return match ($order->status) {
+            OrderStatus::Placed => $order->placed_at,
+            OrderStatus::Accepted => $order->accepted_at,
+            OrderStatus::Rejected => $order->rejected_at,
+            OrderStatus::Cooking => $order->cooking_started_at,
+            OrderStatus::Ready => $order->ready_at,
+            OrderStatus::PickedUp => $order->picked_up_at,
+            OrderStatus::Cancelled => $order->cancelled_at,
+            default => $order->updated_at,
+        };
     }
 
     /**
@@ -90,6 +146,64 @@ final class OrderPresenter
      *
      * @return array<string, mixed>
      */
+    /**
+     * Everything the tracking screen needs, and nothing it does not.
+     *
+     * ONE ENDPOINT, ONE SCREEN. Module 17 enriches the existing order detail
+     * response rather than adding a parallel /tracking route: the two would
+     * return almost the same thing, and the first time they drifted a customer
+     * would see one status on a list and a different one on a screen.
+     *
+     * NOT INCLUDED, deliberately: the pickup code and QR token. They stay on
+     * their own endpoint behind their own request, because tracking is polled
+     * and a credential that rode along would travel every few seconds through
+     * every proxy in between. What is included is whether one is available --
+     * a boolean is not a credential.
+     *
+     * @return array<string, mixed>
+     */
+    public static function tracking(Order $order, OrderTimelineService $timeline): array
+    {
+        $order->loadMissing(['items.modifiers', 'restaurant', 'statusHistory']);
+
+        return [
+            ...self::detail($order),
+            'timeline' => $timeline->forCustomer($order, self::zone($order)),
+
+            /*
+             | The customer-safe half of why an order ended badly.
+             |
+             | Null is the ordinary case and is not a gap: most exceptions have
+             | nothing safe to add beyond the status itself, and an empty string
+             | here would push the client into rendering a blank explanation.
+             */
+            'customer_safe_reason' => $order->customer_safe_reason,
+
+            'pickup_credential' => [
+                /*
+                 | Available from placement, not from READY.
+                 |
+                 | The credential is derived from the order and exists the
+                 | moment the order does, so hiding it until READY would be a
+                 | UI fiction rather than a security boundary -- and a customer
+                 | who arrives early would be told they have no code when they
+                 | do. The tracking screen says when to use it instead.
+                 */
+                'available' => $order->status->isPlacedOrder() && ! $order->status->isTerminal(),
+                'expires_at' => self::local($order->pickup_token_expires_at, self::zone($order)),
+            ],
+
+            /*
+             | The server's clock, sent so the client can say how stale it is.
+             |
+             | A phone's own clock may be wrong by hours, and "updated 4 minutes
+             | ago" computed against a wrong clock is worse than no freshness
+             | indicator at all.
+             */
+            'server_time' => self::local(Date::now(), self::zone($order)),
+        ];
+    }
+
     public static function intent(Order $order, Payment $payment): array
     {
         return [
@@ -196,7 +310,16 @@ final class OrderPresenter
         ];
     }
 
-    private static function zone(Order $order): string
+    /**
+     * The clock every instant in an order response is rendered on.
+     *
+     * PUBLIC because Module 17 added a second producer of instants -- the
+     * timeline -- and a second copy of this rule would be a second clock. The
+     * invariant that one response carries one timezone is asserted by
+     * OrderAndPaymentApiTest, and it caught exactly that mistake when the
+     * timeline first shipped in UTC.
+     */
+    public static function zone(Order $order): string
     {
         $zone = $order->pickup_timezone;
 
@@ -215,7 +338,7 @@ final class OrderPresenter
      * the distinction Module 13 got wrong once by formatting rather than
      * converting.
      */
-    private static function local(?CarbonInterface $instant, string $zone): ?string
+    public static function local(?CarbonInterface $instant, string $zone): ?string
     {
         if ($instant === null) {
             return null;

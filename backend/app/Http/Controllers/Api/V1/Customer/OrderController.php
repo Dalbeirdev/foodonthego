@@ -16,6 +16,8 @@ use App\Models\User;
 use App\Services\Cart\CartService;
 use App\Services\Orders\OrderPlacementService;
 use App\Services\Orders\OrderRecoveryService;
+use App\Services\Orders\OrderStateMachine;
+use App\Services\Orders\OrderTimelineService;
 use App\Services\Orders\PickupCredentialService;
 use App\Services\Trip\TripService;
 use App\Support\Orders\OrderPresenter;
@@ -37,7 +39,18 @@ final class OrderController
         private readonly OrderPlacementService $placement,
         private readonly PickupCredentialService $credentials,
         private readonly OrderRecoveryService $recovery,
+        private readonly OrderTimelineService $timeline,
     ) {}
+
+    /**
+     * How many orders one request returns.
+     *
+     * Module 22 owns real history with paging. Until then a cap keeps a
+     * long-standing customer's Orders tab from loading their entire past on
+     * every open, and the number is named so the next module changes a
+     * constant rather than hunting a literal.
+     */
+    private const LIST_LIMIT = 50;
 
     /**
      * Turn an accepted quote into an order.
@@ -92,10 +105,51 @@ final class OrderController
             ->with('restaurant')
             ->orderByDesc('placed_at')
             ->orderByDesc('id')
-            ->limit(50)
+            ->limit(self::LIST_LIMIT)
             ->get();
 
+        /*
+         | Split rather than flagged, and split on the transition table.
+         |
+         | "Active" means something can still happen to this order, which is a
+         | property of OrderStateMachine rather than a list of statuses kept
+         | here -- so an order becomes inactive the moment its last outgoing
+         | edge is removed, without this controller being edited.
+         |
+         | The whole list is still returned. Module 22 owns real history with
+         | paging and reorder; splitting it now gives the Orders tab its two
+         | sections without pretending to be that module.
+         */
+        $active = OrderStateMachine::activeStatuses();
+
+        [$open, $past] = $orders->partition(
+            static fn (Order $order): bool => in_array($order->status, $active, strict: true),
+        );
+
         return ApiResponse::ok([
+            /*
+             | Soonest pickup first, not newest order first.
+             |
+             | A customer with two live orders cares about the one they have to
+             | collect next, which is not necessarily the one they bought last.
+             | The id breaks ties so the order is deterministic across requests
+             | -- a list that reshuffles between refreshes reads as a bug.
+             */
+            'active' => $open
+                ->sortBy([['pickup_start_at', 'asc'], ['id', 'asc']])
+                ->values()
+                ->map(OrderPresenter::summary(...))
+                ->all(),
+
+            'past' => $past->values()->map(OrderPresenter::summary(...))->all(),
+
+            /*
+             | Kept, and identical to what Module 16 returned.
+             |
+             | The Orders tab is being rewritten in this module, but a review
+             | build of the previous app must not start showing an empty list
+             | the moment this deploys.
+             */
             'orders' => $orders->map(OrderPresenter::summary(...))->all(),
         ]);
     }
@@ -230,9 +284,26 @@ final class OrderController
      *
      * @throws ApiException
      */
+    /**
+     * One order, with its timeline. The tracking screen's only call.
+     *
+     * Module 17 enriched this rather than adding a parallel /tracking route.
+     * Two endpoints returning almost the same order would drift, and the day
+     * they did a customer would read one status in a list and another on the
+     * screen they opened from it.
+     *
+     * READ ONLY, and that is the module's central security property. There is
+     * no customer route that writes a status -- no PATCH, no /ready, no
+     * /confirm -- because a phone displays order state and does not decide it.
+     * OrderStatusMutationAbsentTest asserts no such route exists, rather than
+     * trusting that nobody adds one.
+     */
     public function show(Request $request, string $order): JsonResponse
     {
-        return ApiResponse::ok(OrderPresenter::detail($this->ownedOrFail($request, $order)));
+        return ApiResponse::ok(OrderPresenter::tracking(
+            $this->ownedOrFail($request, $order),
+            $this->timeline,
+        ));
     }
 
     /**
