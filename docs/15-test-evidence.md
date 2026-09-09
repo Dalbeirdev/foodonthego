@@ -2352,3 +2352,52 @@ same way: **a control that stays silent has told you something.**
   lines of seeding to reach the same screen. It asserts, from the server, that
   the quote became exactly one order, that it is `AWAITING_PAYMENT`, and that
   `paid_at` is null.
+
+## The device run, and how long it took to read it
+
+Module 15's device coverage is now verified rather than asserted. Run 116 on
+`4c590e9`: seven CI jobs, zero failures, **27 of 27 device tests passing on both
+the iOS simulator and the Android emulator.**
+
+| Job | Result |
+| --- | --- |
+| Backend — Laravel 12 | 1,201 tests, green |
+| Web — React + TypeScript | green |
+| Mobile — Flutter | 938 tests, green |
+| Mobile — iOS build | green |
+| Mobile — iOS simulator | 27/27 device tests |
+| Mobile — Android review build | green |
+| Mobile — Android emulator | 27/27 device tests |
+
+The boundary the module rests on is proved on real hardware, from the server
+rather than the screen: tapping Proceed places exactly one order, the payment
+screen shows the order number the server minted, the order is `AWAITING_PAYMENT`
+and `paid_at` is null.
+
+**Getting there took five runs, and none of the delay was the tests' fault.**
+The failing assertion — `ApiException(UNAUTHENTICATED, status: 401)`, with a
+stack trace naming the file and line — was thrown correctly on the very first
+run. It reached a human on the fifth. The cause was one missing named argument
+in a *test helper*: `ApiClient.get` takes `{bool authenticated = false}`, and
+`ordersFor` took the default, so no `Authorization` header was ever sent. The
+route did precisely its job in rejecting it.
+
+Three defects in the CI plumbing kept that message from being printed, and they
+are recorded in full as **KI-023**. The part worth repeating here, because it is
+about evidence rather than about shell scripting:
+
+> The diagnostic step printed its own header and nothing else. Twice. That was
+> read as "no assertion failed" when it meant "nothing was ever printed."
+
+This document already says, in two places, that a control which stays silent has
+told you something. Applied to the code under test twice — Module 14T's
+`accountUsable`, Module 15's already-paid guard — and not applied to the
+instrumentation itself, which had never been negative-controlled against a
+failing run at all. The scoreboard for the episode: one real bug, three
+self-inflicted tooling bugs, and two diagnoses stated confidently and wrongly
+before the evidence existed to support either.
+
+`scripts/ci-device-report.sh` now carries the report, is exercised against a
+missing log, an empty log, a log with no markers and a log with a real
+assertion, and `device-tests.log` is kept as a CI artifact on every run whether
+it passes or fails.

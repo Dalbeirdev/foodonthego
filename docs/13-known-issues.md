@@ -1308,9 +1308,13 @@ becomes a green tick nobody looks at. Instead:
   by `if: failure()`, and a cancelled job does not satisfy `failure()` — so on
   both occurrences the one step that exists to explain a bad run was skipped.
   Both device jobs now use `if: ${{ failure() || cancelled() }}`.
-- The test run is now `--verbose`. The defining property of this hang is that it
-  produces no evidence; the daemon handshake is exactly what is missing from the
-  log, so the next occurrence should show where it stops.
+- The test run was made `--verbose`, then made plain again. The defining
+  property of this hang is that it produces no evidence, so the daemon
+  handshake was exactly what needed showing. In practice `--verbose` produced a
+  45,213-line log, and that volume is what buried an *unrelated* device failure
+  for five runs (KI-023). The trade was not worth it: verbosity that hides a
+  real failure to catch a hypothetical one is a net loss. Removed in `573d0d0`.
+  If this stall recurs, turn it back on **for that investigation only**.
 - A new step dumps the simulator's own log for the `Runner` process when the
   step does not finish normally.
 
@@ -1360,3 +1364,56 @@ are unverified against the live service.
 
 The first run against real test-mode credentials should be treated as a
 discovery exercise, not a smoke test.
+
+### KI-023 — a device test failure went unread for five CI runs — **High, tooling** — RESOLVED
+
+Not a product defect. A defect in the machinery that reports defects, which is
+worse, because it corrupts every judgement made downstream of it.
+
+**What happened.** A Module 15 device test failed with
+`ApiException(UNAUTHENTICATED, status: 401)` — thrown loudly, on the first run,
+with a full stack trace naming the file and line. Five runs and four commits
+later that message reached a human for the first time. In between, two causes
+were diagnosed and pushed, and both were wrong; one had already been stated as
+fact.
+
+**Three independent defects, each sufficient alone.**
+
+| # | Defect | Why it hid the failure |
+| --- | --- | --- |
+| 1 | `set -e` | GitHub runs a `run:` block as `/bin/bash -e {0}`. In `flutter test … > log 2>&1; code=$?` / `cat log` / `exit $code`, the shell dies at the redirect the moment flutter exits non-zero — so `code=$?`, the `cat` and the `exit` are dead code **on exactly the path they were written for**. The step still reported the right status, because `set -e` propagates it. That is what made it look like it worked. |
+| 2 | An unreachable fallback | `grep -nE '…' log 2>/dev/null \| tail -n 60 \|\| echo 'no markers'` binds `\|\|` to the *pipeline*, whose status is `tail`'s — always 0. A missing log, an empty log, and a log whose failure is not an assertion all printed the same thing: nothing. |
+| 3 | `--verbose` | 45,213 lines. A job log is read as its tail; the one line that mattered was nowhere near it. |
+
+**The reasoning error, which matters more than the bugs.** This repository
+already carries the rule: *a green result is worth nothing until a negative
+control has been seen to fail*, and its corollary, *a control that stays silent
+has told you something — find out what*. The diagnostic step printed its own
+header and nothing else, twice. That was read as "no assertion failed" when it
+meant "nothing was ever printed". Those two readings are not close, and the
+difference between them was the whole investigation. Four runs were spent
+theorising about the tests instead of asking why a control that should have
+spoken had not.
+
+**Fixed, and the fixes exercised rather than assumed.**
+
+- `set +e` around the test invocation, so the capture and the dump actually run.
+- The report moved into the step that runs the tests, as the last thing it does
+  (`scripts/ci-device-report.sh`), bounded to ~100 lines. Anything printed by a
+  *later* step has repeatedly proved unreadable in practice.
+- One script for both platforms; every divergence between the two hand-copied
+  greps had been a bug. POSIX `sh`, verified under dash — the Android job runs
+  its script through the emulator action's `sh -c`, and a bashism there had
+  already killed a run in 98 seconds.
+- Exercised against four cases before commit — no file, empty file, no markers,
+  real assertion — and each produces distinguishable output. Under the previous
+  command the first three were identical.
+- `device-tests.log` is uploaded as an artifact on every run, pass or fail.
+
+**Confirmed by** run 116 on `4c590e9`: seven jobs, zero failures, both device
+jobs green, 27/27 device tests.
+
+**The cost.** Five device runs at ~30 minutes each, four commits, and two
+incorrect public diagnoses. All of it downstream of instrumentation nobody had
+negative-controlled — including the instrumentation written specifically to
+diagnose KI-020, which was itself never tested against a failing run.
