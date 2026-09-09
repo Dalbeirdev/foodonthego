@@ -468,7 +468,99 @@ final class OrderPlacementTest extends TestCase
         app(PickupCredentialService::class)->derive($order);
     }
 
+    // ---------------------------------------------- scenarios 22, 23, 45
+
+    /**
+     * A credential minted for one restaurant cannot validate at another.
+     *
+     * The property Module 21 will lean on when it scans a QR at a counter. It
+     * is arithmetic rather than a check somebody has to remember: the
+     * restaurant id is inside the HMAC, so two otherwise identical orders at
+     * two restaurants derive different credentials and neither verifies against
+     * the other's order.
+     *
+     * Worth testing directly because the failure it prevents is quiet — a chain
+     * with two branches would simply let a code from one open the other, and
+     * nothing would error.
+     */
+    public function test_a_credential_cannot_be_replayed_at_another_restaurant(): void
+    {
+        $credentials = app(PickupCredentialService::class);
+
+        $here = $this->placedOrderAt($this->restaurant);
+        $elsewhere = $this->placedOrderAt(
+            RestaurantFixtures::nearRoute(0.5, 900, 'Roadside Grill'),
+        );
+
+        $this->assertNotSame($here->restaurant_id, $elsewhere->restaurant_id);
+
+        $mine = $credentials->derive($here);
+
+        $this->assertFalse($credentials->matchesCode($elsewhere, $mine->code));
+        $this->assertFalse($credentials->matchesToken($elsewhere, $mine->token));
+
+        // The positive half, so the assertions above cannot pass against an
+        // implementation that matches nothing.
+        $this->assertTrue($credentials->matchesCode($here, $mine->code));
+    }
+
+    /**
+     * Bumping the version invalidates what was issued before.
+     *
+     * The rotation path support will need when a customer says their code has
+     * been seen. Nothing in Module 16 exposes it; this proves the mechanism is
+     * real rather than a column nobody reads.
+     */
+    public function test_rotating_the_credential_version_invalidates_the_old_code(): void
+    {
+        $credentials = app(PickupCredentialService::class);
+
+        [$order] = $this->captureAPayment();
+        $order->refresh();
+
+        $before = $credentials->derive($order);
+
+        $order->pickup_credential_version = 2;
+        $order->save();
+        $order->refresh();
+
+        $after = $credentials->derive($order);
+
+        $this->assertNotSame($before->code, $after->code);
+        $this->assertNotSame($before->token, $after->token);
+
+        // The stored digest still matches the OLD code, because rotation means
+        // re-minting the digests too — proving the version alone is not enough
+        // and the rotation path has to write both.
+        $this->assertTrue($credentials->matchesCode($order, $before->code));
+        $this->assertFalse($credentials->matchesCode($order, $after->code));
+    }
+
     // --- plumbing -------------------------------------------------------------
+
+    /**
+     * A placed order at a named restaurant, built directly.
+     */
+    private function placedOrderAt(Restaurant $restaurant): Order
+    {
+        $order = new Order;
+        $order->customer_id = $this->rahul->id;
+        $order->restaurant_id = $restaurant->id;
+        $order->currency = 'INR';
+        $order->items_subtotal_minor = 24_900;
+        $order->payable_total_minor = 24_900;
+        $order->status = OrderStatus::Placed;
+        $order->pickup_timezone = 'Asia/Kolkata';
+        $order->save();
+        $order->refresh();
+
+        $digests = app(PickupCredentialService::class)->digests($order);
+        $order->pickup_code_hash = $digests->codeHash;
+        $order->pickup_token_hash = $digests->tokenHash;
+        $order->save();
+
+        return $order->refresh();
+    }
 
     /**
      * An order in AWAITING_PAYMENT with a payment against it in a chosen state.
