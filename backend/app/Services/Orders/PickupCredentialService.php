@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Orders;
 
 use App\Exceptions\Orders\PickupCredentialUnavailable;
+use App\Exceptions\Orders\PickupCredentialVersionMissing;
 use App\Models\Order;
 
 /**
@@ -106,8 +107,41 @@ final class PickupCredentialService
         return new PickupCredential(
             code: $this->code($order),
             token: $this->token($order),
-            version: (int) $order->pickup_credential_version,
+            version: $this->version($order),
         );
+    }
+
+    /**
+     * The credential version, or a loud failure.
+     *
+     * THIS GUARD EXISTS BECAUSE THE SILENT VERSION OF IT SHIPPED A REAL BUG.
+     *
+     * `pickup_credential_version` has a database default of 1, so a model that
+     * has been round-tripped reads 1. A model that has only been save()d — never
+     * reloaded — holds NULL for it, because Eloquent does not fetch defaults
+     * back after an insert. `(int) null` is 0, and 0 is a perfectly usable HMAC
+     * input, so the old code cheerfully derived a *different* credential for the
+     * same order depending on whether anybody had reloaded it.
+     *
+     * The customer-visible form of that is the worst kind: the confirmation
+     * screen shows one code, the stored digest is of another, and the code fails
+     * at the counter with no error anywhere to explain why.
+     *
+     * This is the second time this exact shape has appeared in this project —
+     * Module 14T's accountUsable() read `is_active === true` against a model
+     * holding NULL and silently denied every account. A column default that the
+     * model has not seen is not a rare edge; it is what every freshly created
+     * record looks like.
+     */
+    private function version(Order $order): int
+    {
+        $version = $order->pickup_credential_version;
+
+        if (! is_numeric($version) || (int) $version < 1) {
+            throw new PickupCredentialVersionMissing($order->getKey());
+        }
+
+        return (int) $version;
     }
 
     /**
@@ -194,7 +228,7 @@ final class PickupCredentialService
     {
         return implode(':', [
             $purpose,
-            'v'.(int) $order->pickup_credential_version,
+            'v'.$this->version($order),
             (string) $order->uuid,
             (string) $order->restaurant_id,
         ]);
