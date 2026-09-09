@@ -343,21 +343,35 @@ void main() {
     // platforms.
     await waitFor(
       tester,
-      find.byKey(const ValueKey<String>('payment-order-number')),
-      describe: 'the payment screen showing the order number the server minted',
+      // The order CARD, not the order number.
+      //
+      // Since Module 16 the number is minted when the money is captured, and
+      // no money has been captured here — this journey stops deliberately short
+      // of paying. Waiting for a number the server has correctly not issued
+      // would be waiting forever, and the failure would look like a hung
+      // screen rather than a wrong expectation.
+      find.byKey(const ValueKey<String>('payment-order-card')),
+      describe: 'the payment screen showing the order the server created',
     );
 
     // Read from the server, not from the screen: a client cannot know what a
     // backend did, and this is the assertion the boundary rests on.
     final List<Map<String, dynamic>> orders = await ordersFor(api);
 
-    expect(orders, hasLength(1), reason: 'the quote became exactly one order');
+    /*
+     * ZERO, and this is the Module 16 boundary rather than a weakened test.
+     *
+     * /customer/orders lists placed orders. Reaching the payment screen creates
+     * a payment target — a row a payment can be attached to — and no money has
+     * been captured, so no order has been placed and the customer's Orders tab
+     * is correctly empty. Asserting one here would be asserting that an unpaid
+     * basket shows up as a purchase.
+     */
     expect(
-      orders.single['status'],
-      'AWAITING_PAYMENT',
-      reason: 'no credentials exist, so nothing can have been paid',
+      orders,
+      isEmpty,
+      reason: 'nothing was paid for, so nothing may appear as an order',
     );
-    expect(orders.single['paid_at'], isNull);
   });
 
   // ------------------------------------------------------ when things change

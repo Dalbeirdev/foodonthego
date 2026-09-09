@@ -223,7 +223,7 @@ class OrderPaymentSummary {
 class PlacedOrder {
   const PlacedOrder({
     required this.id,
-    required this.orderNumber,
+    this.orderNumber,
     required this.status,
     required this.commercial,
     this.restaurantName,
@@ -237,7 +237,16 @@ class PlacedOrder {
   });
 
   final String id;
-  final String orderNumber;
+
+  /// Null until the order is placed.
+  ///
+  /// A payment target has no number, because there is nothing yet for a
+  /// customer to read out — Module 16 mints it when the money is captured.
+  /// Non-nullable here until this build met a real AWAITING_PAYMENT response
+  /// and refused to parse it, which would have taken down the payment screen
+  /// on device while every widget test passed against a fake that always
+  /// supplied one.
+  final String? orderNumber;
   final PlacedOrderStatus status;
   final CommercialSummary commercial;
   final String? restaurantName;
@@ -270,7 +279,8 @@ class PlacedOrder {
       json['commercial'],
     );
 
-    if (id == null || number == null || commercial == null) return null;
+    // The number is NOT required. See the field.
+    if (id == null || commercial == null) return null;
 
     final Object? pickup = json['pickup'];
     final Map<String, dynamic> pickupMap = pickup is Map<String, dynamic>

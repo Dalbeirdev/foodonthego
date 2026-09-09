@@ -107,8 +107,28 @@ void main() {
       expect(PlacedOrder.fromJson(json), isNull);
     });
 
-    test('a body with no order number is not an order', () {
+    /// Deliberately inverted in Module 16.
+    ///
+    /// This used to assert that a body without an order number is not an order.
+    /// It is now the ordinary shape of a payment target: the number is minted
+    /// when the money is captured, so the response the app receives between
+    /// creating an order and paying for it has none. Refusing to parse it took
+    /// down the payment screen on device while every widget test passed against
+    /// a fake that always supplied a number.
+    ///
+    /// The id and the commercial summary are still required, because a screen
+    /// cannot render without them.
+    test('a body with no order number is still a parsable payment target', () {
       final Map<String, dynamic> json = orderJson()..remove('order_number');
+
+      final PlacedOrder? order = PlacedOrder.fromJson(json);
+
+      expect(order, isNotNull);
+      expect(order!.orderNumber, isNull);
+    });
+
+    test('a body with no id is not an order', () {
+      final Map<String, dynamic> json = orderJson()..remove('id');
 
       expect(PlacedOrder.fromJson(json), isNull);
     });

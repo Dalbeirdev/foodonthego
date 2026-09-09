@@ -115,16 +115,26 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
-          strings.paymentOrderNumber,
-          style: Theme.of(context).textTheme.labelMedium,
-        ),
-        const SizedBox(height: FotgSpacing.x1),
-        Text(
-          order.orderNumber,
-          key: const ValueKey<String>('payment-order-number'),
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+        /*
+         * The number appears when the order does.
+         *
+         * Before the money is captured this is a payment target, and Module 16
+         * mints no number for one — there is nothing yet for a customer to read
+         * out. Rendering an empty line under an "Order number" heading would
+         * invite them to quote nothing at a counter.
+         */
+        if (order.orderNumber case final String number) ...<Widget>[
+          Text(
+            strings.paymentOrderNumber,
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+          const SizedBox(height: FotgSpacing.x1),
+          Text(
+            number,
+            key: const ValueKey<String>('payment-order-number'),
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+        ],
         if (order.restaurantName != null) ...<Widget>[
           const SizedBox(height: FotgSpacing.x2),
           Text(order.restaurantName!),
