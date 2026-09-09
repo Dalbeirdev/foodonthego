@@ -173,7 +173,7 @@ class _OrderRow extends StatelessWidget {
               // an unflexible child overflows rather than wrapping.
               Flexible(
                 child: Text(
-                  order.status.label,
+                  order.statusLabel,
                   key: ValueKey<String>('order-row-status-${order.id}'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.primary,
@@ -181,6 +181,25 @@ class _OrderRow extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+
+          const SizedBox(height: FotgSpacing.x3),
+
+          /*
+           | The way in to tracking.
+           |
+           | On the card rather than on the whole row: a card that navigates
+           | anywhere it is touched is a card a customer opens by accident
+           | while scrolling, and this one carries a total they may be reading.
+           */
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SecondaryButton(
+              key: ValueKey<String>('order-row-track-${order.id}'),
+              label: strings.orderTrackingTrackCta,
+              expand: false,
+              onPressed: () => context.push(Routes.orderTrackingPath(order.id)),
+            ),
           ),
         ],
       ),

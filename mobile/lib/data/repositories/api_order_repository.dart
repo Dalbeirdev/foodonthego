@@ -2,6 +2,7 @@ import '../../core/network/api_client.dart';
 import '../../domain/models/order_status_report.dart';
 import '../../domain/models/pickup_credential.dart';
 import '../../domain/models/placed_order.dart';
+import '../../domain/models/tracked_order.dart';
 import '../../domain/repositories/order_repository.dart';
 
 /// The real implementation, against `/api/v1/customer`.
@@ -69,6 +70,24 @@ class ApiOrderRepository implements OrderRepository {
       authenticated: true,
     ),
   );
+
+  @override
+  Future<TrackedOrder> tracking(String orderId) async {
+    final Map<String, dynamic> data = await _client.get(
+      '/customer/orders/${Uri.encodeComponent(orderId)}',
+      authenticated: true,
+    );
+
+    final TrackedOrder? tracked = TrackedOrder.fromJson(data['data']);
+
+    if (tracked == null) {
+      throw const FormatException(
+        'the server sent an order this app cannot read',
+      );
+    }
+
+    return tracked;
+  }
 
   @override
   Future<List<PlacedOrder>> mine() async {

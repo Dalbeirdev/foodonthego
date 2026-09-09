@@ -154,6 +154,18 @@ class Routes {
   static String orderConfirmationPath(String orderId) =>
       '/orders/$orderId/confirmation';
 
+  /*
+   | Tracking sits beside confirmation, under Orders.
+   |
+   | Same reasoning as the confirmation route: an order is addressed by its own
+   | id because by this point the order, not the journey, is the thing that
+   | exists -- and a customer arriving from a notification or a cold start has
+   | no trip in state to hang the route off.
+   */
+  static const String orderTracking = ':orderId/track';
+
+  static String orderTrackingPath(String orderId) => '/orders/$orderId/track';
+
   static const String comingSoon = '/coming-soon';
 
   static String comingSoonFor({

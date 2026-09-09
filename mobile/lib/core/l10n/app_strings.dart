@@ -133,6 +133,54 @@ class AppStrings {
 
   String get orderPickupCodeLabel => 'Pickup code';
 
+  // -------------------------------------------------------------- Module 17
+
+  String get orderTrackingTitle => 'Order tracking';
+
+  String get orderTrackingProgress => 'Progress';
+
+  /// Not "Live". Module 19 adds a realtime subscription; until then this screen
+  /// polls, and a LIVE badge over a 20-second poll is a claim the app cannot
+  /// support and the customer cannot check.
+  String get orderTrackingUpdatedJustNow => 'Updated just now';
+
+  String orderTrackingUpdatedMinutesAgo(int minutes) =>
+      'Updated $minutes ${minutes == 1 ? 'minute' : 'minutes'} ago';
+
+  String get orderTrackingOfflineTitle => "You're offline";
+
+  String get orderTrackingOfflineBody =>
+      'This is the last status we were able to load. It may have changed since.';
+
+  String get orderTrackingRefresh => 'Refresh';
+
+  String get orderTrackingCouldNotLoad => "We couldn't load this order.";
+
+  String get orderTrackingNotFound => 'This order is not available.';
+
+  String get orderTrackingSessionEnded =>
+      'Please sign in again to see this order.';
+
+  String get orderTrackingUseCodeWhenReady =>
+      'Use this when your order is ready.';
+
+  String get orderTrackingYourOrder => 'Your order';
+
+  String get orderTrackingRequestedPickup => 'Requested pickup';
+
+  /// Requested, never promised. Module 18 owns the ETA engine, and this screen
+  /// must not imply it has one.
+  String get orderTrackingRequestedPickupNote =>
+      'The time you asked to collect. Not a live estimate.';
+
+  String get orderTrackingNoOrders => 'No orders yet';
+
+  String get orderTrackingActiveSection => 'Active';
+
+  String get orderTrackingPastSection => 'Past orders';
+
+  String get orderTrackingTrackCta => 'Track order';
+
   String get orderPickupCodePrivate =>
       'Show this at the counter. Keep it private — anyone with it could collect '
       'your order.';

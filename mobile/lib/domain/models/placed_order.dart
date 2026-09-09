@@ -194,10 +194,37 @@ class OrderPaymentSummary {
   });
 
   final String id;
+
+  /// The wire value, kept raw.
+  ///
+  /// Not parsed into an enum, because a payment status this build has never
+  /// seen must still round-trip to support and to logs rather than collapsing
+  /// into an "unknown" bucket that loses what the server actually said.
   final String status;
+
   final String? provider;
   final String? providerOrderId;
   final DateTime? verifiedAt;
+
+  /// What a customer is told about the money.
+  ///
+  /// **SEPARATE FROM THE ORDER'S STATE, and it stays separate.** A rejected
+  /// order is not a refunded one: whether money came back is a fact about the
+  /// payment, and this app reports the payment's own state rather than
+  /// inferring one from the order.
+  ///
+  /// No refund workflow exists in this build, so REFUNDED cannot currently be
+  /// produced by the server. It is mapped anyway — a build that met it and
+  /// showed "Payment" would be less honest than one that read it correctly —
+  /// but nothing here makes it happen.
+  String get customerLabel => switch (status) {
+    'CAPTURED' => 'Paid',
+    'REFUNDED' => 'Refunded',
+    'REFUND_PENDING' => 'Refund being processed',
+    'FAILED' => 'Payment failed',
+    'AUTHORIZED' || 'CREATED' => 'Payment in progress',
+    _ => 'Payment',
+  };
   final String? verificationSource;
 
   static OrderPaymentSummary? fromJson(Object? json) {
@@ -234,6 +261,8 @@ class PlacedOrder {
     this.paidAt,
     this.items = const <OrderLine>[],
     this.payment,
+    this.statusTitle,
+    this.statusSubtitle,
   });
 
   final String id;
@@ -262,6 +291,27 @@ class PlacedOrder {
 
   final List<OrderLine> items;
   final OrderPaymentSummary? payment;
+
+  /// The server's own wording for [status], when it sent some.
+  ///
+  /// **PREFERRED OVER [PlacedOrderStatus.label].** The local labels exist so an
+  /// old build meeting a new state still renders a sentence, but they are a
+  /// fallback rather than the source: a status this app has never heard of has
+  /// no local label worth showing, and one it has heard of may have been
+  /// reworded on the server since this build shipped.
+  ///
+  /// Null against a server that predates Module 17.
+  final String? statusTitle;
+
+  /// One sentence on what happens next, from the server.
+  final String? statusSubtitle;
+
+  /// What to put on screen for this order's status.
+  ///
+  /// The server's words if it sent any, this build's if not. Written once here
+  /// rather than at each call site, because the fallback is the kind of thing
+  /// one screen remembers and the next forgets.
+  String get statusLabel => statusTitle ?? status.label;
 
   /// Whether this is a placed order rather than a payment target.
   ///
@@ -308,6 +358,8 @@ class PlacedOrder {
           if (OrderLine.fromJson(entry) case final OrderLine line) line,
       ],
       payment: OrderPaymentSummary.fromJson(json['payment']),
+      statusTitle: json['status_title'] as String?,
+      statusSubtitle: json['status_subtitle'] as String?,
     );
   }
 }

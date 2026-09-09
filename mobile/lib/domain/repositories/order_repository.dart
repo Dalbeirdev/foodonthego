@@ -1,6 +1,7 @@
 import '../models/order_status_report.dart';
 import '../models/pickup_credential.dart';
 import '../models/placed_order.dart';
+import '../models/tracked_order.dart';
 
 /// Placing an order and paying for it.
 ///
@@ -34,6 +35,14 @@ abstract interface class OrderRepository {
   });
 
   Future<PlacedOrder> byId(String orderId);
+
+  /// One order with its timeline, for the tracking screen.
+  ///
+  /// The same endpoint as [byId], read into a richer model. Module 17
+  /// deliberately did not add a second route: two endpoints returning almost
+  /// the same order would drift, and the day they did a customer would read
+  /// one status in a list and another on the screen they opened from it.
+  Future<TrackedOrder> tracking(String orderId);
 
   Future<List<PlacedOrder>> mine();
 

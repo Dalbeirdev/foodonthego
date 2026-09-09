@@ -40,6 +40,7 @@ import 'package:foodonthego/domain/models/restaurant_detail.dart';
 import 'package:foodonthego/domain/models/restaurant_menu.dart';
 import 'package:foodonthego/domain/repositories/cart_repository.dart';
 import 'package:foodonthego/domain/models/placed_order.dart';
+import 'package:foodonthego/domain/models/tracked_order.dart';
 import 'package:foodonthego/domain/payments/payment_handoff.dart';
 import 'package:foodonthego/domain/repositories/checkout_repository.dart';
 import 'package:foodonthego/domain/repositories/order_repository.dart';
@@ -2958,6 +2959,16 @@ class FakeOrderRepository implements OrderRepository {
   ApiException? intentFailure;
   ApiException? verifyFailure;
 
+  /// Module 17. What the tracking endpoint answers, and how it fails.
+  ///
+  /// `trackingResponses` is a queue rather than a single value so a test can
+  /// script a sequence -- which is the only way to reproduce a slow response
+  /// arriving after a fast one.
+  TrackedOrder? trackedOrder;
+  final List<TrackedOrder> trackingResponses = <TrackedOrder>[];
+  ApiException? trackingFailure;
+  int trackingCalls = 0;
+
   /// What the server says the order is after verification.
   bool settlesOnVerify = true;
 
@@ -2980,10 +2991,12 @@ class FakeOrderRepository implements OrderRepository {
     String? orderNumber = 'FOTG-260909-7K2M9QX4TB',
     String? restaurantName = 'Highway Spice Kitchen',
     int payableTotalMinor = 83_800,
+    String? statusTitle,
   }) => PlacedOrder(
     id: id,
     orderNumber: orderNumber,
     status: status,
+    statusTitle: statusTitle,
     restaurantName: restaurantName,
     pickupTimezone: 'Asia/Kolkata',
     commercial: CommercialSummary(
@@ -3061,6 +3074,29 @@ class FakeOrderRepository implements OrderRepository {
   @override
   Future<PlacedOrder> byId(String orderId) async =>
       _order(status: PlacedOrderStatus.awaitingPayment);
+
+  /// The tracking view of an order.
+  ///
+  /// Built from whatever the fake has been told to return, and carrying an
+  /// explicit version so a test can script the response race the real client
+  /// has to survive.
+  @override
+  Future<TrackedOrder> tracking(String orderId) async {
+    trackingCalls++;
+
+    if (trackingFailure case final ApiException error) throw error;
+
+    if (trackingResponses.isNotEmpty) {
+      return trackingResponses.removeAt(0);
+    }
+
+    return trackedOrder ??
+        TrackedOrder(
+          order: _order(status: PlacedOrderStatus.placed),
+          version: 1,
+          isActive: true,
+        );
+  }
 
   @override
   Future<List<PlacedOrder>> mine() async {
