@@ -73,7 +73,7 @@ void main() {
     expect(find.byKey(const ValueKey<String>('payment-pay')), findsOne);
   });
 
-  testWidgets('a paid order says paid and stops offering to pay', (
+  testWidgets('a placed order says so and stops offering to pay', (
     WidgetTester tester,
   ) async {
     await open(tester, handoff: ScriptedPaymentHandoff(succeeded));
@@ -81,7 +81,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('payment-pay')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey<String>('payment-status-PAID')), findsOne);
+    expect(
+      find.byKey(const ValueKey<String>('payment-status-PLACED')),
+      findsOne,
+    );
     expect(find.byKey(const ValueKey<String>('payment-pay')), findsNothing);
   });
 
@@ -99,7 +102,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const ValueKey<String>('payment-status-PAID')),
+      find.byKey(const ValueKey<String>('payment-status-PLACED')),
       findsNothing,
     );
     expect(

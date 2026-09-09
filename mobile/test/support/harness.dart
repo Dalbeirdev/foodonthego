@@ -16,6 +16,8 @@ import 'package:foodonthego/data/auth/session_store.dart';
 import 'package:foodonthego/domain/models/auth_models.dart';
 import 'package:foodonthego/domain/models/customer.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
+import 'package:foodonthego/domain/models/order_status_report.dart';
+import 'package:foodonthego/domain/models/pickup_credential.dart';
 import 'package:foodonthego/domain/models/place.dart';
 import 'package:foodonthego/domain/models/saved_address.dart';
 import 'package:foodonthego/domain/models/trip.dart';
@@ -3025,7 +3027,7 @@ class FakeOrderRepository implements OrderRepository {
 
     return _order(
       status: settlesOnVerify
-          ? PlacedOrderStatus.paid
+          ? PlacedOrderStatus.placed
           : PlacedOrderStatus.awaitingPayment,
     );
   }
@@ -3035,9 +3037,55 @@ class FakeOrderRepository implements OrderRepository {
       _order(status: PlacedOrderStatus.awaitingPayment);
 
   @override
-  Future<List<PlacedOrder>> mine() async => <PlacedOrder>[
-    _order(status: PlacedOrderStatus.awaitingPayment),
-  ];
+  Future<List<PlacedOrder>> mine() async => ordersInTab;
+
+  /// What the Orders tab is handed. Empty by default, so a test that expects
+  /// orders has to say so and cannot pass on a fixture it did not choose.
+  List<PlacedOrder> ordersInTab = <PlacedOrder>[];
+
+  /// The status the recovery path reports, and how many times it was asked.
+  ///
+  /// The count matters: the app-restart test has to prove that polling does not
+  /// create a second order, and it can only do that by knowing it polled.
+  OrderStatusReport? statusReport;
+
+  int statusCalls = 0;
+
+  ApiException? statusFailure;
+
+  @override
+  Future<OrderStatusReport> statusOf(String orderId) async {
+    statusCalls++;
+
+    if (statusFailure case final ApiException error) throw error;
+
+    return statusReport ??
+        OrderStatusReport(
+          state: OrderCreationState.placed,
+          isPaidFor: true,
+          order: _order(status: PlacedOrderStatus.placed),
+        );
+  }
+
+  PickupCredential? credential;
+
+  ApiException? credentialFailure;
+
+  int credentialCalls = 0;
+
+  @override
+  Future<PickupCredential> pickupCredential(String orderId) async {
+    credentialCalls++;
+
+    if (credentialFailure case final ApiException error) throw error;
+
+    return credential ??
+        const PickupCredential(
+          code: 'K7M4P2QR',
+          qrPayload: 'foodonthego://pickup/v1/opaque-token-for-tests',
+          version: 1,
+        );
+  }
 }
 
 /// A provider sheet that returns whatever a test tells it to.

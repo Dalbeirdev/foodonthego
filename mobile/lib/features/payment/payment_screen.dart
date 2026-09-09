@@ -105,7 +105,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         ],
         _statusNotice(strings, order),
         const SizedBox(height: FotgSpacing.x4),
-        if (!order.isPaid) _payAction(strings, state),
+        if (!order.isPlaced) _payAction(strings, state),
       ],
     );
   }
@@ -148,10 +148,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   Widget _statusNotice(AppStrings strings, PlacedOrder order) => CartNotice(
     key: ValueKey<String>('payment-status-${order.status.wireValue}'),
-    title: order.isPaid
+    title: order.isPlaced
         ? strings.paymentPaidTitle
         : strings.paymentAwaitingTitle,
-    body: order.isPaid ? strings.paymentPaidBody : strings.paymentAwaitingBody,
+    body: order.isPlaced
+        ? strings.paymentPaidBody
+        : strings.paymentAwaitingBody,
     tone: CartNoticeTone.neutral,
   );
 

@@ -83,7 +83,10 @@ void main() {
     });
 
     test('a paid order reads as paid', () {
-      expect(PlacedOrder.fromJson(orderJson(status: 'PAID'))!.isPaid, isTrue);
+      expect(
+        PlacedOrder.fromJson(orderJson(status: 'PLACED'))!.isPlaced,
+        isTrue,
+      );
     });
 
     /// The important direction. A build meeting a status it has never heard of
@@ -94,7 +97,7 @@ void main() {
         orderJson(status: 'SOMETHING_INVENTED_LATER'),
       )!;
 
-      expect(order.isPaid, isFalse);
+      expect(order.isPlaced, isFalse);
       expect(order.status, PlacedOrderStatus.awaitingPayment);
     });
 
@@ -126,7 +129,7 @@ void main() {
 
       final PlacedOrder withPayment = PlacedOrder.fromJson(
         orderJson(
-          status: 'PAID',
+          status: 'PLACED',
           payment: <String, dynamic>{
             'id': 'payment-uuid',
             'status': 'CAPTURED',
@@ -203,7 +206,7 @@ void main() {
     test('a failed payment leaves the order payable', () {
       expect(PlacedOrderStatus.paymentFailed.acceptsPayment, isTrue);
       expect(PlacedOrderStatus.awaitingPayment.acceptsPayment, isTrue);
-      expect(PlacedOrderStatus.paid.acceptsPayment, isFalse);
+      expect(PlacedOrderStatus.placed.acceptsPayment, isFalse);
       expect(PlacedOrderStatus.cancelled.acceptsPayment, isFalse);
     });
   });

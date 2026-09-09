@@ -12,10 +12,36 @@ import 'pickup.dart';
 /// specified, one of the two goes; until then they are separate because they
 /// describe different things.
 enum PlacedOrderStatus {
+  /// Not an order. A payment target.
+  ///
+  /// Carries no order number and no pickup credential, and never appears in the
+  /// Orders tab. Showing one to a customer as a purchase would tell them they
+  /// had bought food they have not paid for.
   awaitingPayment('AWAITING_PAYMENT'),
-  paid('PAID'),
+
+  /// The order. Reached only from a captured payment.
+  ///
+  /// Replaces `paid` since Module 16. The old name asked a question about money
+  /// of a record that no longer answers it — whether the customer paid is read
+  /// from the payment, and whether an order exists is read from here.
+  placed('PLACED'),
+
   paymentFailed('PAYMENT_FAILED'),
-  cancelled('CANCELLED');
+  cancelled('CANCELLED'),
+
+  /// Declared, and not yet reachable.
+  ///
+  /// The server can send these the moment Modules 18–22 begin setting them, and
+  /// a build that did not know them would fall back to `awaitingPayment` and
+  /// tell a customer their collected order was unpaid. Knowing a state and
+  /// implementing its workflow are different things: nothing here drives any
+  /// screen beyond a label.
+  accepted('ACCEPTED'),
+  rejected('REJECTED'),
+  cooking('COOKING'),
+  ready('READY'),
+  pickedUp('PICKED_UP'),
+  refunded('REFUNDED');
 
   const PlacedOrderStatus(this.wireValue);
 
@@ -36,17 +62,37 @@ enum PlacedOrderStatus {
     return PlacedOrderStatus.awaitingPayment;
   }
 
-  bool get isPaid => this == PlacedOrderStatus.paid;
+  /// Whether this is a real order rather than a payment target.
+  bool get isPlacedOrder =>
+      this != PlacedOrderStatus.awaitingPayment &&
+      this != PlacedOrderStatus.paymentFailed;
 
   bool get acceptsPayment =>
       this == PlacedOrderStatus.awaitingPayment ||
       this == PlacedOrderStatus.paymentFailed;
 
+  /// Whether a pickup credential is worth asking the server for.
+  bool get canBeCollected =>
+      this == PlacedOrderStatus.placed ||
+      this == PlacedOrderStatus.accepted ||
+      this == PlacedOrderStatus.cooking ||
+      this == PlacedOrderStatus.ready;
+
+  /// What a customer is shown.
+  ///
+  /// "Order placed", never "Accepted" — the restaurant has not seen it yet, and
+  /// a label that implied otherwise would be the app promising on their behalf.
   String get label => switch (this) {
     PlacedOrderStatus.awaitingPayment => 'Awaiting payment',
-    PlacedOrderStatus.paid => 'Paid',
+    PlacedOrderStatus.placed => 'Order placed',
     PlacedOrderStatus.paymentFailed => 'Payment failed',
     PlacedOrderStatus.cancelled => 'Cancelled',
+    PlacedOrderStatus.accepted => 'Accepted by the restaurant',
+    PlacedOrderStatus.rejected => 'Declined by the restaurant',
+    PlacedOrderStatus.cooking => 'Being prepared',
+    PlacedOrderStatus.ready => 'Ready for pickup',
+    PlacedOrderStatus.pickedUp => 'Collected',
+    PlacedOrderStatus.refunded => 'Refunded',
   };
 }
 
@@ -208,7 +254,12 @@ class PlacedOrder {
   final List<OrderLine> items;
   final OrderPaymentSummary? payment;
 
-  bool get isPaid => status.isPaid;
+  /// Whether this is a placed order rather than a payment target.
+  ///
+  /// Renamed from isPaid in Module 16: whether the customer's money arrived is
+  /// a question about the payment, and whether an order exists is a question
+  /// about the order. One field cannot answer both without lying about one.
+  bool get isPlaced => status.isPlacedOrder;
 
   static PlacedOrder? fromJson(Object? json) {
     if (json is! Map<String, dynamic>) return null;

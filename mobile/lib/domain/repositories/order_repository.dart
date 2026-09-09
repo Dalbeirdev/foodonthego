@@ -1,3 +1,5 @@
+import '../models/order_status_report.dart';
+import '../models/pickup_credential.dart';
 import '../models/placed_order.dart';
 
 /// Placing an order and paying for it.
@@ -34,4 +36,16 @@ abstract interface class OrderRepository {
   Future<PlacedOrder> byId(String orderId);
 
   Future<List<PlacedOrder>> mine();
+
+  /// Where a purchase stands, for an app that has come back and does not know.
+  ///
+  /// The app-restart path: payment captured, process killed before the
+  /// confirmation rendered. Idempotent on the server, so polling it cannot
+  /// produce a second order.
+  Future<OrderStatusReport> statusOf(String orderId);
+
+  /// The pickup code and QR payload for an order.
+  ///
+  /// Separate from the order on purpose. See [PickupCredential].
+  Future<PickupCredential> pickupCredential(String orderId);
 }

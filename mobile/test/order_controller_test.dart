@@ -54,7 +54,7 @@ void main() {
       expect(orders.intentCalls, 1);
       expect(state.order, isNotNull);
       expect(state.intent, isNotNull);
-      expect(state.isPaid, isFalse);
+      expect(state.isPlaced, isFalse);
       expect(state.failure, isNull);
     });
 
@@ -144,7 +144,7 @@ void main() {
         'provider_payment_id': 'pay_FAKE1',
         'signature': 'a-signature-the-server-will-check',
       });
-      expect(container.read(orderControllerProvider).isPaid, isTrue);
+      expect(container.read(orderControllerProvider).isPlaced, isTrue);
     });
 
     /// **The assertion this whole module exists for.**
@@ -168,7 +168,7 @@ void main() {
       await controller.pay();
 
       expect(orders.verifyCalls, 1);
-      expect(container.read(orderControllerProvider).isPaid, isFalse);
+      expect(container.read(orderControllerProvider).isPlaced, isFalse);
     });
 
     /// And the same when the server refuses the result outright.
@@ -194,7 +194,7 @@ void main() {
 
       final OrderState state = container.read(orderControllerProvider);
 
-      expect(state.isPaid, isFalse);
+      expect(state.isPlaced, isFalse);
       expect(state.failure, OrderFailure.verificationFailed);
       expect(state.isPaying, isFalse);
     });
@@ -291,7 +291,7 @@ void main() {
         final OrderState state = container.read(orderControllerProvider);
 
         expect(state.failure, OrderFailure.paymentUnavailable);
-        expect(state.isPaid, isFalse);
+        expect(state.isPlaced, isFalse);
         expect(
           orders.verifyCalls,
           0,

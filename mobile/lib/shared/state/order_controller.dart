@@ -67,7 +67,7 @@ class OrderState {
   /// neutral note rather than an error.
   final bool wasCancelled;
 
-  bool get isPaid => order?.isPaid ?? false;
+  bool get isPlaced => order?.isPlaced ?? false;
 
   bool get isBusy => isPlacing || isPaying;
 
@@ -160,7 +160,7 @@ class OrderController extends Notifier<OrderState> {
   }
 
   Future<void> _openIntent(PlacedOrder order) async {
-    if (order.isPaid) return;
+    if (order.isPlaced) return;
 
     try {
       final PaymentIntent intent = await _orders.createIntent(

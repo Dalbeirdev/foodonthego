@@ -1,4 +1,6 @@
 import '../../core/network/api_client.dart';
+import '../../domain/models/order_status_report.dart';
+import '../../domain/models/pickup_credential.dart';
 import '../../domain/models/placed_order.dart';
 import '../../domain/repositories/order_repository.dart';
 
@@ -80,6 +82,47 @@ class ApiOrderRepository implements OrderRepository {
           in (data['orders'] as List<Object?>? ?? const <Object?>[]))
         if (PlacedOrder.fromJson(entry) case final PlacedOrder order) order,
     ];
+  }
+
+  @override
+  Future<OrderStatusReport> statusOf(String orderId) async {
+    final Map<String, dynamic> data = await _client.get(
+      '/customer/orders/${Uri.encodeComponent(orderId)}/status',
+      authenticated: true,
+    );
+
+    final OrderStatusReport? report = OrderStatusReport.fromJson(data);
+
+    if (report == null) {
+      throw const FormatException(
+        'The order status response was not the documented shape.',
+      );
+    }
+
+    return report;
+  }
+
+  @override
+  Future<PickupCredential> pickupCredential(String orderId) async {
+    final Map<String, dynamic> data = await _client.get(
+      '/customer/orders/${Uri.encodeComponent(orderId)}/pickup-credential',
+      authenticated: true,
+    );
+
+    final PickupCredential? credential = PickupCredential.fromJson(
+      data['pickup'],
+    );
+
+    // Throwing rather than returning an empty credential. A screen rendering
+    // one would show a customer a blank code, or a QR built from an empty
+    // string, and send them to a counter with something that cannot work.
+    if (credential == null) {
+      throw const FormatException(
+        'The pickup credential response was not the documented shape.',
+      );
+    }
+
+    return credential;
   }
 
   /// A response this build cannot make sense of is not an order.
