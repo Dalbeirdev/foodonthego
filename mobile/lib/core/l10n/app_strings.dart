@@ -90,6 +90,53 @@ class AppStrings {
   ///
   /// Should not happen — the snapshot is written at placement — but a row that
   /// renders "null" is worse than one that admits it does not know.
+  // --- Module 16: order confirmation ---------------------------------------
+  //
+  // THE WORDING HERE IS LOAD-BEARING. Three of these strings are the only thing
+  // standing between a customer whose money has already gone and a second
+  // payment. None of them may be shortened to something that reads as failure,
+  // and none may be paired with a way to pay.
+
+  String get orderConfirmationTitle => 'Your order';
+
+  String get orderPaymentConfirmed => 'Payment confirmed';
+
+  /// Says the money is safe AND says not to pay. Both halves are required.
+  String get orderStillCreating =>
+      "We're finishing your order. Please don't pay again.";
+
+  String get orderNotYours =>
+      'This order is not available on this account. Sign in as the customer who '
+      'placed it.';
+
+  String get orderCouldNotCheck => "We couldn't reach the server";
+
+  /// The network-failure copy, and the most dangerous string in the app.
+  ///
+  /// The app does not know whether the capture happened. It must not guess
+  /// "unpaid", because the screen behind that guess offers a Pay button to
+  /// somebody who may already have been charged.
+  String get orderCouldNotCheckBody =>
+      "If your payment went through, your order is safe and we'll show it as "
+      "soon as we can reach the server. Please don't pay again.";
+
+  String get orderWaitingRestaurantTitle =>
+      'Waiting for restaurant confirmation';
+
+  /// Deliberately does not promise a time or an acceptance.
+  ///
+  /// Nothing has told the restaurant yet and no module exists that lets them
+  /// respond, so anything firmer would be the app promising on their behalf.
+  String get orderWaitingRestaurantBody =>
+      'The restaurant has not confirmed this order yet. Your requested pickup '
+      'window is shown above.';
+
+  String get orderPickupCodeLabel => 'Pickup code';
+
+  String get orderPickupCodePrivate =>
+      'Show this at the counter. Keep it private — anyone with it could collect '
+      'your order.';
+
   String get ordersUnknownRestaurant => 'Restaurant unavailable';
 
   String get ordersEmptyTitle => 'No orders yet';
