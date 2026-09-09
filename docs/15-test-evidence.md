@@ -2401,3 +2401,151 @@ before the evidence existed to support either.
 missing log, an empty log, a log with no markers and a log with a real
 assertion, and `device-tests.log` is kept as a CI artifact on every run whether
 it passes or fails.
+
+# Module 16 — order creation, confirmation, order number and pickup code
+
+## Totals
+
+| Suite | Tests | New in this module |
+| --- | --- | --- |
+| Backend (PHPUnit/Pest, real MySQL) | **1,252 passed**, 5,551 assertions | 51 |
+| Flutter (widget + unit) | **950 passed** | 12 |
+
+Backend duration 97.5s; Flutter 2m08s. Both green with no skips.
+
+The 51 backend tests are `OrderPlacementTest` (23), `OrderConfirmationApiTest`
+(12), `OrderRecoverySweepTest` (9) and `OrderSnapshotImmutabilityTest` (7). Two
+of the 51 — the restaurant-isolation test and the default-grace test — exist
+only because negative controls proved the tests already written could not see
+the properties they claimed.
+
+## Negative controls
+
+Twelve mutations were applied to shipping code, the targeted suite was run, and
+the code was reverted. **Every one of them now fails the suite.** Four did not,
+at first.
+
+| # | Mutation | Result | Target |
+| --- | --- | --- | --- |
+| NC-01 | Remove the captured-status guard | FIRED | `OrderPlacementTest` |
+| NC-02 | Remove the amount/currency agreement check | FIRED | `OrderPlacementTest` |
+| NC-03 | Drop `restaurant_id` from the credential context | **silent → FIRED** | `OrderPlacementTest` |
+| NC-04 | Drop the credential version from the context | FIRED | `OrderPlacementTest` |
+| NC-05 | Store the plaintext code instead of its digest | FIRED | `OrderPlacementTest` |
+| NC-06 | Stop excluding payment targets from the Orders tab | FIRED | `OrderConfirmationApiTest` |
+| NC-07 | Make the credential response cacheable | **silent → FIRED** | `SecurityHeadersTest` |
+| NC-08 | Put the order number into the QR payload | FIRED | `OrderConfirmationApiTest` |
+| NC-09 | Cast a missing credential version instead of refusing | FIRED | `OrderPlacementTest` |
+| NC-10 | Read the legacy `users.phone` for the snapshot | **silent → FIRED** | `OrderPlacementTest` |
+| NC-11 | Put the order total into the outbox payload | FIRED | `OrderRecoverySweepTest` |
+| NC-12 | Set the recovery grace period to zero | **silent → FIRED** | `OrderRecoverySweepTest` |
+
+## The four that stayed silent
+
+Each had a different cause, and only one of them was the control's own fault.
+
+### NC-03 — a test that could not tell which field was doing the work
+
+`test_a_credential_cannot_be_replayed_at_another_restaurant` builds two placed
+orders at two restaurants and asserts neither accepts the other's credential.
+With `restaurant_id` removed from the HMAC context, it stayed green.
+
+It had to. **Two orders at two restaurants also have two different uuids**, so
+the derived credentials differ whether or not the restaurant is in the input.
+The test proves order binding. It never proved tenant binding, and it read as
+though it did — including in the traceability entry written for it.
+
+`test_the_restaurant_id_alone_changes_the_credential` holds the uuid and the
+version constant, moves only `restaurant_id`, and asserts both derived values
+change. It also asserts the uuid and version did *not* change, so the finding
+cannot be explained by something else moving. Re-run with the same mutation,
+the control fires.
+
+### NC-07 — the guarantee was somewhere else entirely
+
+Changing the controller's `Cache-Control` to `private, max-age=60` left
+`test_the_credential_endpoint_returns_a_code_and_forbids_caching` green.
+
+The reason is that `SecureHeaders` sets `Cache-Control: no-store, private` on
+**every** API response and runs after the controller. The property holds — more
+broadly than the module claimed — but not for the reason the controller's own
+docblock gave, and the header set in the controller never ships.
+
+Nothing was wrong except the story. The controller's header is kept, because a
+future narrowing of the middleware should not silently make this one response
+cacheable, and its docblock now says plainly that the middleware is what ships.
+Re-aimed at `SecureHeaders`, the control fails both `SecurityHeadersTest` and
+the credential endpoint's own test.
+
+### NC-10 — the control was pointed at the wrong file
+
+The `phone_e164` guard lives in `OrderPlacementTest`, not in
+`OrderSnapshotImmutabilityTest` where the control was aimed. Re-run against the
+right suite it fails immediately, on the assertion that caught this bug the
+first time.
+
+This one is the control's fault rather than the suite's, and it is recorded
+rather than quietly re-run because **a control aimed at the wrong target is
+indistinguishable, in its output, from a property nothing is testing.** Both
+print a passing suite.
+
+### NC-12 — the default was the one value nothing exercised
+
+Changing `capturedWithoutOrder(int $graceSeconds = 120)` to `0` left all eight
+sweep tests green, because every test that cared about the grace period passed
+`--grace` explicitly.
+
+**The default is the value that runs in production**, where nobody passes a
+flag. `test_the_default_grace_period_leaves_a_fresh_capture_alone` runs
+`orders:recover-captured` with no options against a 30-second-old capture and
+asserts nothing is placed — then ages the same capture to 300 seconds and
+asserts it *is*, so a sweep that never places anything could not pass.
+
+The property being protected: a capture seconds old very likely has a creation
+still in flight, and sweeping it means two workers racing to place the same
+order. The unique index would hold, but the sweep would be manufacturing the
+collision it exists to clean up after.
+
+## What that pattern keeps costing
+
+Four modules in a row have now produced a silent control, and every one of them
+found a defect that the assertions themselves were blind to:
+
+| Module | Silent control exposed |
+| --- | --- |
+| 14T | `accountUsable()` denying by accident, making every "reaches nothing" assertion pass regardless |
+| 15 | An already-paid guard whose test could not distinguish "held" from "gone and wrote the same value" |
+| 16 (during build) | Four HTTP-level guards short-circuited by Module 15 before reaching Module 16's checks |
+| 16 (this pass) | A cross-tenant test proving order binding only; a cache header set in the wrong place; an untested production default |
+
+None of these were found by a test failing. All of them were found by a test
+**not** failing when it should have.
+
+## Defects found by guards rather than by assertions
+
+| Defect | What found it |
+| --- | --- |
+| `customer_phone_snapshot` written as `NULL` — the code read `users.phone`, a legacy column that is never populated | An assertion that the *fixture* was non-empty, placed before the assertion about the snapshot |
+| Two different pickup credentials for one order, depending on whether the model had been reloaded — `(int) null` is `0`, a usable HMAC input | A guard refusing a missing `pickup_credential_version` instead of casting it |
+| `PlacedOrder.orderNumber` non-nullable in Dart: a `FormatException` on the payment screen for every customer | Reading the code. Every widget test passed, because the fake always supplied a number |
+| A QR-payload assertion that matched a substring, which an empty field also satisfies | Rewriting it as equality against `prefix + token` |
+| A 44px overflow in the Orders tab at 320px and 2× text, in two separate rows | Testing at that size instead of the default surface |
+
+## What is not proven
+
+- **No live Razorpay capture has ever reached this module.** Every path
+  downstream of a capture is verified against the deterministic fake gateway.
+  What is unproven is the *shape* of the real provider's data — field names,
+  statuses, amount units — not the logic consuming it. KI-026.
+- **Pickup verification does not exist.** No redemption endpoint, no scanner, no
+  counter flow. The credential is minted and served; nothing consumes it. No
+  claim is made that QR pickup works.
+- **There is no attempt limit on guessing a pickup code**, because there is
+  nothing yet to limit. KI-024.
+- **`payments:reconcile` is still unscheduled.** Noticed while registering this
+  module's three commands, deliberately not changed here. KI-025.
+- **An order cannot move past `PLACED`.** The state machine's empty arrays are
+  the current truth. KI-027.
+- **The device suite has not yet been extended to the confirmation flow.** The
+  existing 27 device tests still pass; they exercise the boundary as Module 15
+  left it.

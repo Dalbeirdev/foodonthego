@@ -1417,3 +1417,69 @@ jobs green, 27/27 device tests.
 incorrect public diagnoses. All of it downstream of instrumentation nobody had
 negative-controlled — including the instrumentation written specifically to
 diagnose KI-020, which was itself never tested against a failing run.
+
+### KI-024 — a pickup code can be guessed without limit — **High, incomplete feature** — OPEN
+
+**What is missing.** The 8-character pickup code is one factor of two, and its
+strength is 2^40. That is only a large number if guessing is expensive. There is
+no redemption endpoint yet, so there is nothing to rate-limit — and therefore
+nothing that will fail if the limit is forgotten when one is built.
+
+**Why it is recorded now rather than when the endpoint exists.** A missing
+control on a feature that does not exist is invisible. The module that builds
+pickup verification will be thinking about scanning, counter flow and staff
+UX; the attempt limit is the thing that will not be on that list unless it is
+written down before the work starts.
+
+**What the fix has to be.** Attempt-limited **per order**, not per IP and not
+per session — the attacker is guessing one order's code and can come from
+anywhere. A small number of attempts, then the code stops working and the
+customer needs a staff-mediated path.
+
+**Not a mitigation, but worth stating:** the QR path carries the 256-bit token
+rather than the code, so the code is the path a human types, not the path the
+scanner uses.
+
+### KI-025 — `payments:reconcile` is not scheduled — **Medium, operational** — OPEN
+
+`ReconcilePaymentsCommand` exists, is tested, and is the third path to a
+confirmed payment — the one that runs when both the client callback and the
+webhook were lost. It is not registered in `routes/console.php`, so in a real
+deployment it would never run.
+
+Module 16 registered its own three commands (`orders:recover-captured`,
+`orders:check-integrity`, `outbox:publish`) and noticed this one's absence while
+doing so. It was deliberately **not** fixed here: it is Module 15's operational
+behaviour, and quietly changing another module's scheduling under cover of this
+one's work is how a schedule ends up with something nobody decided to run.
+
+**Consequence if it ships unscheduled:** a payment whose callback and webhook
+were both lost stays unconfirmed until `orders:check-integrity` reports it — so
+it is *visible*, but nothing resolves it automatically.
+
+### KI-026 — the captured-payment path has never run against live Razorpay — **Medium, environment** — OPEN
+
+Extends KI-022 into Module 16. Everything downstream of a capture is proven
+against the deterministic fake gateway: creation, idempotency, credential
+minting, recovery, the outbox. **A capture produced by the real provider has
+never reached it**, because this environment has no Razorpay credentials and no
+public HTTPS endpoint a webhook could be delivered to.
+
+What is unproven specifically is the *shape* of the real thing — the field
+names, statuses and amount units Razorpay actually sends — not the logic that
+consumes them. Supplying test credentials and a reachable webhook URL is what
+closes this; both remain with the client.
+
+### KI-027 — an order cannot move past PLACED — **Low, by design for now** — OPEN
+
+Every onward transition in `OrderStateMachine::ALLOWED` for
+`OrderStatus::Placed` is an empty array, and `Accepted`, `Rejected`, `Cooking`,
+`Ready`, `PickedUp` and `Refunded` are declared but unreachable.
+
+This is the current truth rather than an oversight, and the empty arrays are
+deliberate: a state machine that permits transitions no code performs is a
+state machine that lies. The restaurant-side workflow that fills them in is not
+in any built module.
+
+Related to KI-021, the two order-status vocabularies, which will have to be
+reconciled at the same time.

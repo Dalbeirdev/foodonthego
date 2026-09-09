@@ -1216,3 +1216,83 @@ is the one that refuses; staging and production decline to boot without keys.
 - A navigation guard that sent a customer to payment on a validation the server
   had refused, because the controller keeps the last good quote in state and the
   readiness flags still read true. Caught by a test.
+
+## Module 16 — order creation, confirmation, order number and secure pickup code
+
+**One captured payment produces at most one order**, and the thing that
+guarantees it is a unique index rather than any check in application code.
+
+This module deviates from its specification's table layout, deliberately and in
+writing: rather than adding a `payment_intents` table and rewriting four
+modules of tested payment code, the `orders` table now holds two kinds of row —
+a payment target before capture, an order after. The migration is named
+`place_orders_only_on_captured_payment` so the deviation is visible in the
+migration list.
+
+### Added
+
+- `PickupCredentialService` — pickup code and QR token derived by HMAC from the
+  order uuid, the restaurant id and a credential version, with only keyed
+  digests stored. No plaintext credential is written anywhere.
+- `OrderNumberGenerator` — `FOTG-YYMMDD-XXXXXXXXXX` from `random_int`, over an
+  alphabet without I, L, O or U, with the unique index as the guarantee and a
+  retry for the collision that will not happen.
+- `CreateOrderFromCapturedPayment` — the single idempotent creation path, shared
+  by the client callback, the webhook and the recovery sweep.
+- `OrderStateMachine`, `OrderCreationState`, `OrderRecoveryService`.
+- `outbox_events`, written inside the creation transaction, payloads carrying
+  identifiers only.
+- `orders:recover-captured`, `orders:check-integrity`, `outbox:publish`, all
+  scheduled.
+- `GET /customer/orders/{order}/status` and
+  `GET /customer/orders/{order}/pickup-credential`, the latter answering
+  `no-store, private, max-age=0`.
+- Party and address snapshots on `orders`.
+- Flutter: `PickupCredential`, `OrderStatusReport`,
+  `OrderConfirmationController`, and the confirmation screen.
+
+### Changed
+
+- `OrderStatus` rewritten. `AWAITING_PAYMENT` is documented as *not an order* —
+  a payment target. `Placed` replaces `Paid`; `Order::isPaid()` became
+  `Order::isPlaced()`.
+- `OrderPlacementService` no longer writes `order_number` or `placed_at` at
+  checkout; `paid_at` now comes from `payments.verified_at`.
+- The customer Orders list is `whereNotNull('placed_at')`, so a payment target
+  never appears in it.
+- `orders.order_number` widened to `varchar(24)` rather than the suffix being
+  shortened — the column was the wrong thing to spend entropy on.
+- The Orders tab header rows became `Wrap` with a `Flexible` status.
+- `PlacedOrder.orderNumber` is now nullable.
+
+### Fixed
+
+- **A `FormatException` on the payment screen for every customer.**
+  `PlacedOrder.orderNumber` was non-nullable, and the API returns null before
+  placement. Every widget test passed, because the fake repository always
+  supplied a number. Found by reading the code, not by running it.
+- **Two different pickup credentials for one order.**
+  `pickup_credential_version` has a database default of 1, but Eloquent does not
+  read defaults back after an insert, so an un-reloaded model held NULL and
+  `(int) null` is a perfectly usable HMAC input. Now
+  `PickupCredentialVersionMissing`. Second time this pattern has shipped a bug
+  here; Module 14T's `accountUsable` was the first.
+- **`customer_phone_snapshot` written as NULL.** The code read `users.phone`, a
+  legacy column that is not populated; the real one is `phone_e164`. Caught by
+  a guard asserting the fixture was non-empty *before* the snapshot assertion.
+- **A QR-payload test that could pass vacuously.** It matched a substring, which
+  an empty field also satisfies; rewritten as equality against `prefix + token`.
+- **A 44px overflow in the Orders tab** at 320px width with 2× text, in two
+  separate rows.
+- **`pickup_token_expires_at` missing its datetime cast**, which made
+  `toIso8601String()` fatal.
+
+### Recorded, not fixed
+
+- KI-024 — no attempt limit on a pickup code, because there is no redemption
+  endpoint to limit yet.
+- KI-025 — `payments:reconcile` is not scheduled. Module 15's operational
+  behaviour; noticed here, deliberately not changed here.
+- KI-026 — the captured-payment path has never run against live Razorpay.
+- KI-027 — an order cannot move past `PLACED`, and the state machine's empty
+  arrays say so honestly.

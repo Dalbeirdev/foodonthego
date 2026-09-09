@@ -1719,3 +1719,283 @@ Inserted between Modules 14 and 15 at the client's direction. Design:
   Nine fired immediately; the tenth stayed silent and exposed a test that could
   not distinguish the guard holding from the guard being absent. See
   15-test-evidence.md.
+
+## Module 16 — order creation, confirmation, order number and pickup code
+
+### The deviation, and the model it produced
+
+- **M16-001 The specification's rule is enforced; its table layout is not.**
+  Modules 12–15 write an `orders` row at checkout. Module 16 requires an order
+  to exist only downstream of a captured payment. One `orders` table was kept
+  and the *meaning* of a row was changed, rather than a fourth module's worth of
+  tested payment code being rewritten to reach the same guarantee.
+- **M16-002 The deviation is visible in the migration list, not only in a
+  document.** `2026_09_17_010000_place_orders_only_on_captured_payment`.
+- **M16-003 An `AWAITING_PAYMENT` row is not an order.** No `order_number`, no
+  `placed_at`, no pickup credentials. `OrderStatus::AwaitingPayment` says so in
+  its own docblock.
+- **M16-004 "Not an order yet" is machine-checkable.** `order_number IS NULL`
+  and `placed_at IS NULL` are what `orders:check-integrity` and the customer's
+  Orders query both key off, so the rule is queryable rather than conventional.
+- **M16-005 The cleaner alternative was rejected deliberately, not overlooked.**
+  A separate `payment_intents` table was the other option and is recorded as
+  such in 35-order-creation-and-pickup-credentials.md.
+- **M16-006 A payment target never appears in the customer's Orders tab.**
+  `whereNotNull('placed_at')`;
+  `test_an_unpaid_payment_target_never_appears_in_the_orders_tab`.
+
+### One captured payment produces at most one order
+
+- **M16-007 The invariant is "at most one", not "usually one".**
+  `test_a_captured_payment_produces_exactly_one_placed_order`.
+- **M16-008 The guarantee is a unique index on
+  `orders.placed_from_payment_id`.** Not a check, not a lock, not a cache.
+- **M16-009 The row lock is the fast path and is documented as such.**
+  `SELECT ... FOR UPDATE` serialises two attempts; it does not decide the
+  second.
+- **M16-010 The status is re-read inside the lock**, so the second attempt sees
+  `PLACED` and returns the existing order rather than racing.
+- **M16-011 A duplicate attempt is a successful call.** The caller is a webhook
+  Razorpay will retry or an app resuming after a crash — neither is
+  misbehaving. `place()` catches the `QueryException`, re-reads, and returns.
+- **M16-012 A duplicate client callback places nothing new.**
+  `test_a_duplicate_callback_does_not_place_a_second_order`.
+- **M16-013 A duplicate webhook places nothing new.**
+  `test_a_duplicate_webhook_does_not_place_a_second_order`.
+- **M16-014 A callback and a webhook for one capture place one order.**
+  `test_a_callback_and_a_webhook_for_one_capture_place_one_order`.
+- **M16-015 Two concurrent workers place one order.**
+  `test_two_workers_placing_the_same_payment_produce_one_order`.
+- **M16-016 The recovery sweep calls the same method as the live paths.** Not a
+  second implementation, so it cannot drift laxer than the path that is
+  watched.
+- **M16-017 A prevented duplicate is logged as
+  `orders.duplicate_creation_prevented`** with identifiers only.
+- **M16-018 Idempotency is proven at the service layer too, not only over
+  HTTP.** `test_the_service_placed_twice_writes_one_order_and_one_event` — one
+  order *and* one outbox event.
+
+### What must be true before an order exists
+
+- **M16-019 Order creation happens only from a payment this server recorded as
+  `CAPTURED` after verifying it with the provider.**
+- **M16-020 `payment_success = true` from a client is not an input.** It is not
+  validated, not rejected, not read. No code path in this module consults a
+  client's claim about a payment.
+- **M16-021 An `AUTHORIZED` payment places nothing.**
+  `test_an_authorized_payment_places_nothing`.
+- **M16-022 A `CREATED` payment places nothing.**
+  `test_a_created_payment_places_nothing`.
+- **M16-023 A `FAILED` payment places nothing.**
+  `test_a_failed_payment_places_nothing`.
+- **M16-024 A capture for the wrong amount places nothing.**
+  `test_a_capture_for_the_wrong_amount_places_nothing`.
+- **M16-025 A capture in the wrong currency places nothing.**
+  `test_a_capture_in_the_wrong_currency_places_nothing`.
+- **M16-026 Those refusals are asserted against the service, not only the
+  route.** `test_the_service_refuses_a_payment_that_is_not_captured`,
+  `..._a_capture_for_the_wrong_amount`, `..._a_capture_in_the_wrong_currency`.
+  This exists because the HTTP-level versions passed with the guards removed —
+  see 09-testing-strategy.md.
+- **M16-027 The order total is exactly what was captured.**
+  `test_the_order_total_is_exactly_what_was_captured`.
+- **M16-028 Placing an order spends the basket, the quote and the event.** The
+  cart becomes `CONVERTED` and the quote `CONSUMED` inside the same
+  transaction. `test_placing_an_order_spends_the_basket_the_quote_and_the_event`.
+
+### The order number
+
+- **M16-029 Shape is `FOTG-YYMMDD-XXXXXXXXXX`.** The date is for humans reading
+  a support ticket; it narrows nothing an attacker holding that day's order did
+  not already know.
+- **M16-030 Drawn from `random_int`**, which is CSPRNG-backed.
+- **M16-031 Not `Math.random`, not a timestamp, not the database id, not a
+  sequence.** A sequential public number tells its holder how many orders the
+  platform has taken and lets them guess their neighbours'.
+- **M16-032 Base-32 alphabet with I, L, O and U removed.** I/1, O/0 and L/1 are
+  the pairs people mishear; U is dropped so no draw can spell something a
+  customer has to say out loud.
+- **M16-033 Uniqueness is the unique index**, not the pre-insert existence
+  check, which is documented as an optimisation.
+- **M16-034 A collision is retried rather than returned.**
+  `test_an_order_number_collision_is_retried_rather_than_returned`, using the
+  injectable RNG, because the natural collision rate over 2^50 suffixes per day
+  is not something a test can wait for.
+- **M16-035 AN ORDER NUMBER DOES NOT AUTHORIZE PICKUP.** It is safe to print,
+  quote and read aloud precisely because knowing one is never sufficient to
+  collect food.
+- **M16-036 No route accepts an order number as an identifier.**
+  `test_no_route_accepts_an_order_number_as_an_identifier`. Routes are keyed by
+  uuid.
+- **M16-037 The column was widened to `varchar(24)` rather than the suffix being
+  shortened.** `FOTG-YYMMDD-` plus ten characters is 22; spending entropy to fit
+  a column would have been the wrong trade.
+
+### Pickup credentials
+
+- **M16-038 THE PLAINTEXT PICKUP CODE IS NEVER STORED.** There is no column it
+  could be read out of.
+- **M16-039 The plaintext QR token is never stored either.**
+- **M16-040 Both are derived on demand.**
+  `code = base32(HMAC-SHA256(pepper, "pickup-code:v{n}:{order_uuid}:{restaurant_id}"))[0..8]`.
+- **M16-041 The token is `base64url` of a 256-bit HMAC** over the same context
+  with the `pickup-token` purpose.
+- **M16-042 What is stored is a keyed digest**, `HMAC-SHA256(pepper,
+  "{purpose}:{value}")` — not a bare SHA-256. 2^40 is enumerable offline, so a
+  plain hash of an 8-character code in a stolen dump is a lookup table away
+  from plaintext.
+- **M16-043 Proven empirically, not by inspection.**
+  `test_no_plaintext_credential_is_ever_written_to_the_database` derives the
+  pair and then searches the stored row for either value.
+- **M16-044 Comparison is `hash_equals`**, for the code and for the token.
+- **M16-045 The order uuid is inside the HMAC input**, so a credential is bound
+  to its order by arithmetic rather than by a check that a new call site could
+  forget.
+- **M16-046 The restaurant id is inside the HMAC input**, giving the same
+  property across tenants — and that is proven by
+  `test_the_restaurant_id_alone_changes_the_credential`, which holds the uuid
+  and the version constant and moves only the restaurant. A negative control
+  showed the cross-restaurant test below could not prove this on its own: two
+  orders at two restaurants also have two different uuids, so removing
+  `restaurant_id` from the context left it green.
+- **M16-047 Cross-restaurant replay fails in both directions.**
+  `test_a_credential_cannot_be_replayed_at_another_restaurant` builds two placed
+  orders at two restaurants and asserts each rejects the other's code and token.
+- **M16-048 That test cannot pass against an implementation that matches
+  nothing.** Each order first asserts its own credential matches — without it,
+  a `return false` would satisfy every negative assertion.
+- **M16-049 Credentials are unpredictable and bound to the order.**
+  `test_the_pickup_credentials_are_unpredictable_and_bound_to_the_order`.
+- **M16-050 `pickup_credential_version` is inside the HMAC input**, so a
+  credential can be invalidated without touching the order.
+- **M16-051 Rotation is not complete until the digests are re-minted.**
+  `test_rotating_the_credential_version_invalidates_the_old_code` asserts the
+  derived values change *and* that the stored digest still matches the old code
+  — recording the cost so a future rotation path cannot quietly leave it
+  working.
+- **M16-052 A missing credential version is a thrown exception, not a cast.**
+  `PickupCredentialVersionMissing`.
+  `test_deriving_from_an_unreloaded_order_is_refused_rather_than_wrong`. This
+  shipped as a real bug: `(int) null` is `0`, a usable HMAC input, so one order
+  derived two different credentials depending on whether anything had reloaded
+  the model.
+- **M16-053 The pepper is the single secret, and that trade is stated in the
+  service rather than hidden.**
+- **M16-054 `ProductionConfigGuard` refuses to boot staging or production
+  without `PICKUP_CREDENTIAL_PEPPER`.**
+- **M16-055 `derive()` throws `PickupCredentialUnavailable` rather than
+  deriving under an empty key.** A scheme that degrades silently to
+  `HMAC(pepper: "")` is worse than one that stops.
+- **M16-056 Eight characters is 2^40 and is one factor, not the boundary.** The
+  256-bit token is the other; the QR path carries the token.
+- **M16-057 OPEN: there is no attempt limit on guessing a code, because there is
+  no redemption endpoint yet.** Named as an inherited obligation for whichever
+  module builds pickup verification rather than left implied. Recorded in
+  13-known-issues.md.
+
+### Where credentials may and may not travel
+
+- **M16-058 The credential has its own endpoint**,
+  `GET /customer/orders/{order}/pickup-credential`, fetched one order at a time.
+- **M16-059 That response is not cacheable, and `SecureHeaders` is what
+  guarantees it.** The middleware sets `Cache-Control: no-store, private` on
+  every API response and runs after the controller, so the controller's own
+  header — still set, as belt to the middleware's braces — is not what ships. A
+  negative control established this: changing the controller's value left the
+  route's test green; changing the middleware's failed both
+  `SecurityHeadersTest` and
+  `test_the_credential_endpoint_returns_a_code_and_forbids_caching`. `no-store`
+  rather than `no-cache` in both places, because `no-cache` permits storage.
+- **M16-060 The order response never carries the credential.**
+  `test_the_order_response_never_carries_the_credential`. Putting it on the
+  order would ship it through every list refresh and status poll.
+- **M16-061 The QR payload is the token and nothing else.**
+  `test_the_qr_payload_is_the_token_and_nothing_else`, asserted as equality
+  against `prefix + token` — the earlier substring form would have passed
+  vacuously against an empty field.
+- **M16-062 The order response leaks no provider material.**
+  `test_the_order_response_leaks_no_provider_material`.
+- **M16-063 Never logged: the plaintext code, the plaintext token, special
+  instructions, payment signatures, provider secrets.**
+- **M16-064 A credential redacts itself when serialised.**
+  `PickupCredential::__toString()` returns `PickupCredential(v2)`;
+  `test_a_credential_redacts_itself_when_serialised`. On the Flutter side the
+  model has no `toJson` and is never written to disk.
+- **M16-065 Another customer cannot read the order.**
+  `test_another_customer_cannot_read_the_order` — 404, not 403, because a 403
+  confirms the order exists.
+- **M16-066 Another customer cannot read the credential.**
+  `test_another_customer_cannot_read_the_pickup_credential`.
+
+### After payment, no answer may read as a payment failure
+
+- **M16-067 Three states, and none of them is an error:** `PLACED` (200),
+  `ORDER_CREATION_PENDING` (202), `ORDER_RECOVERY_REQUIRED` (202).
+- **M16-068 The two 202s are not members of `ApiErrorCode` and cannot become
+  members.** `ErrorContractTest` asserts no error code maps to a 2xx status.
+  They live in `OrderCreationState`.
+- **M16-069 A captured payment with no order yet is a delay, not a failure**,
+  and is presented as one. `test_the_status_endpoint_returns_a_placed_order`
+  and the pending path alongside it.
+- **M16-070 THERE IS NO "PAY AGAIN".** No *Back to Payment*, no retry-payment
+  affordance in any phase of the confirmation screen.
+- **M16-071 A customer returning after a crash gets their order, not a payment
+  screen.**
+  `test_a_customer_returning_after_a_crash_gets_their_order_not_a_payment_screen`.
+- **M16-072 A network failure never invites a second payment.** An app that
+  cannot reach the server knows nothing about the money and must not guess.
+  Flutter: *a network failure never invites a second payment*.
+- **M16-073 An unrecognised `state` reads as `creating`**, not as an error —
+  the client's ignorance must produce a wait, not a payment prompt.
+- **M16-074 A missing `is_paid_for` reads as paid for.** Same direction.
+- **M16-075 `recovering` is rendered identically to `creating`.** The customer
+  gains nothing from being told the first write failed; the distinction exists
+  for support and analytics. Flutter: *a recovering order is shown identically
+  to a creating one*.
+- **M16-076 An order with no payment taken says so honestly**, and that is the
+  one phase where offering payment is correct.
+  `test_an_unpaid_order_reports_awaiting_payment`.
+- **M16-077 Polling is bounded — 10 attempts, 3 seconds apart — and stops as
+  soon as the order is placed.** Flutter: *polling stops as soon as the order is
+  placed*. The endpoint's idempotency is what makes polling safe.
+- **M16-078 A client body with no order number is still parsable.** Flutter: *a
+  body with no order number is still a parsable payment target*. Before this,
+  `PlacedOrder.orderNumber` was non-nullable and would have thrown a
+  `FormatException` on the payment screen for every customer; no widget test
+  could see it, because the fake always supplied a number.
+
+### Snapshots — an order records what happened
+
+- **M16-079 Renaming, repricing or deleting a dish does not rewrite an order.**
+  `test_renaming_the_dish_does_not_rewrite_the_order`,
+  `test_repricing_the_dish_does_not_change_what_was_paid`,
+  `test_deleting_the_dish_leaves_the_order_complete`.
+- **M16-080 Removing a variant or a modifier option leaves it on the order.**
+  `test_removing_the_variant_leaves_the_size_on_the_order`,
+  `test_removing_a_modifier_option_leaves_it_on_the_order`.
+- **M16-081 Renaming the restaurant leaves the order's snapshot alone.**
+  `test_renaming_the_restaurant_leaves_the_order_snapshot_alone`.
+- **M16-082 The customer phone snapshot comes from `users.phone_e164`.** The
+  obvious column, `users.phone`, is legacy and unpopulated; reading it wrote
+  silent `NULL`s. Caught only because the test asserts the fixture is non-empty
+  *before* asserting the snapshot matches it — a pattern now used across the
+  module.
+
+### Recovery, integrity and the outbox
+
+- **M16-083 A captured payment with no order is a critical state with an owner.**
+  `orders:recover-captured` runs every five minutes with a 120-second grace so
+  an in-flight creation is not raced; `orders:check-integrity` runs hourly,
+  writes nothing, and reports both directions of breakage; `outbox:publish`
+  drains events written inside the creation transaction, whose payloads carry
+  identifiers only. `test_the_sweep_places_an_order_for_a_stranded_capture`,
+  `test_the_sweep_is_idempotent`,
+  `test_a_capture_inside_the_grace_period_is_left_alone`,
+  `test_the_default_grace_period_leaves_a_fresh_capture_alone` — the second
+  exists because a control showed every grace-period test passed `--grace`
+  explicitly, leaving the default that actually runs in production untested —
+  `test_a_dry_run_reports_without_placing`,
+  `test_the_integrity_check_is_quiet_when_every_order_has_its_money`,
+  `test_the_integrity_check_reports_an_order_with_no_captured_payment`,
+  `test_publishing_drains_the_outbox_exactly_once`,
+  `test_the_event_payload_is_identifiers_only`.

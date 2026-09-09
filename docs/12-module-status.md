@@ -730,3 +730,46 @@ webhook, and a reconciliation run — and they share one implementation.
   payment-only one and Module 02's speculative Flutter enum — that must be
   reconciled when it is specified.
 - **No operator login**, unchanged since Module 14T.
+
+## Module 16 — order creation, confirmation, order number and secure pickup code
+
+**Complete for what it covers.** A payment this server has verified as captured
+becomes exactly one order, with a number the customer can read out and a pickup
+credential they cannot lose to a database dump.
+
+### The decisions worth knowing
+
+- **One captured payment produces at most one order**, and the guarantee is a
+  unique index on `orders.placed_from_payment_id` — not a lock and not a check.
+  The lock and the status re-read are the fast path.
+- **Three callers, one creation method.** Client callback, webhook and recovery
+  sweep all reach `CreateOrderFromCapturedPayment`, so the sweep cannot drift
+  laxer than the path somebody is watching.
+- **A row before payment is not an order.** It is a payment target: no number,
+  no `placed_at`, no credentials, and never in the customer's Orders tab. This
+  deviates from the specification's table layout, deliberately and in writing;
+  the migration is named for the rule.
+- **No plaintext pickup credential is stored anywhere.** The code and QR token
+  are derived by HMAC from the order uuid, the restaurant id and a credential
+  version; only keyed digests are written.
+- **Cross-order and cross-tenant replay fail by arithmetic**, not by a check a
+  new call site could forget.
+- **An order number authorises nothing.** It is safe to print and say aloud
+  precisely because knowing one never collects food.
+- **After capture, nothing the API returns can be rendered as a payment
+  failure.** The two waiting states are 202s in their own enum, kept out of
+  `ApiErrorCode` by an existing test.
+- **There is no "Pay Again" on the confirmation screen**, in any phase.
+
+### Still handed forward
+
+- **No pickup verification.** No redemption endpoint, no scanner, no counter
+  flow — and therefore no attempt limit on guessing a code (KI-024).
+- **Never run against live Razorpay.** Everything downstream of a capture is
+  proven against the fake gateway; the real provider's data shape is unproven
+  (KI-026).
+- **`payments:reconcile` is still unscheduled** (KI-025). Noticed here,
+  deliberately not changed here.
+- **An order cannot move past `PLACED`** (KI-027), and the state machine says so
+  rather than pretending otherwise.
+- **No operator login**, unchanged since Module 14T.

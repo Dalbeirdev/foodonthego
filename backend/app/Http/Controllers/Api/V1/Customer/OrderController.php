@@ -163,8 +163,21 @@ final class OrderController
      * means the credential is fetched when it is about to be shown and at no
      * other time.
      *
-     * no-store, not no-cache. no-cache permits storing and revalidating; only
-     * no-store tells every intermediary and the browser to keep no copy at all.
+     * ON THE CACHE HEADERS, ACCURATELY. `SecureHeaders` sets
+     * `Cache-Control: no-store, private` on every API response and runs after
+     * this method, so the middleware — not this controller — is what actually
+     * ships. A negative control proved it: changing the value below to
+     * `private, max-age=60` left the route's own test green.
+     *
+     * The header is still set here, and `Pragma` with it, so that the intent
+     * is legible at the one route where it matters most and so that a future
+     * narrowing of the middleware cannot silently make this response
+     * cacheable. It is belt to the middleware's braces, and it is documented
+     * as such rather than being left to read like the guarantee.
+     *
+     * no-store, not no-cache, in both places. no-cache permits storing and
+     * revalidating; only no-store tells every intermediary and the browser to
+     * keep no copy at all.
      *
      * @throws ApiException
      */

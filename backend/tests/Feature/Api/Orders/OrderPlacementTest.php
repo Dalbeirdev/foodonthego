@@ -505,6 +505,44 @@ final class OrderPlacementTest extends TestCase
     }
 
     /**
+     * The restaurant id, isolated.
+     *
+     * THE TEST ABOVE DOES NOT PROVE THIS, AND A NEGATIVE CONTROL SAID SO.
+     * Taking `restaurant_id` out of the HMAC context left that test green,
+     * because two orders at two restaurants also have two different uuids —
+     * the credentials differ either way, so the assertion could not tell which
+     * field was doing the work.
+     *
+     * Here the uuid is held constant and only the restaurant moves, so the
+     * only thing that can change the derived values is the field under test.
+     * This is what fails if `restaurant_id` ever leaves the context: an order
+     * moved between tenants would keep a credential minted for the other one.
+     */
+    public function test_the_restaurant_id_alone_changes_the_credential(): void
+    {
+        $credentials = app(PickupCredentialService::class);
+
+        $order = $this->placedOrderAt($this->restaurant);
+        $uuid = (string) $order->uuid;
+        $version = (int) $order->pickup_credential_version;
+        $before = $credentials->derive($order);
+
+        $elsewhere = RestaurantFixtures::nearRoute(0.5, 900, 'Roadside Grill');
+        $this->assertNotSame($order->restaurant_id, $elsewhere->id);
+
+        // Same row, one field different.
+        $order->restaurant_id = $elsewhere->id;
+        $after = $credentials->derive($order);
+
+        // The two things that could otherwise explain a changed credential.
+        $this->assertSame($uuid, (string) $order->uuid);
+        $this->assertSame($version, (int) $order->pickup_credential_version);
+
+        $this->assertNotSame($before->code, $after->code);
+        $this->assertNotSame($before->token, $after->token);
+    }
+
+    /**
      * Bumping the version invalidates what was issued before.
      *
      * The rotation path support will need when a customer says their code has

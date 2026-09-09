@@ -96,6 +96,45 @@ final class OrderRecoverySweepTest extends TestCase
         $this->assertSame(0, Order::query()->where('status', OrderStatus::Placed)->count());
     }
 
+    /**
+     * The DEFAULT grace period, not a grace period passed by the test.
+     *
+     * A NEGATIVE CONTROL EXPOSED THIS GAP. Changing the service's default from
+     * 120 seconds to 0 left the whole sweep suite green, because every test
+     * that cared about the grace period passed `--grace` explicitly. The
+     * default — the value that actually runs in production, where nobody
+     * passes a flag — was the one thing untested.
+     *
+     * The number matters: a capture seconds old is very likely to have a
+     * creation still in flight, and sweeping it means two workers racing to
+     * place the same order. The unique index would hold, but the sweep would
+     * be manufacturing the collision it exists to clean up after.
+     */
+    public function test_the_default_grace_period_leaves_a_fresh_capture_alone(): void
+    {
+        [, $payment] = $this->strandedCapture();
+
+        // Inside the 120-second default, outside any plausible rounding of it.
+        $payment->verified_at = now()->subSeconds(30);
+        $payment->save();
+
+        $this->artisan('orders:recover-captured')
+            ->expectsOutputToContain('No captured payment is missing an order.')
+            ->assertSuccessful();
+
+        $this->assertSame(0, Order::query()->where('status', OrderStatus::Placed)->count());
+
+        // The guard against a vacuous pass: the same capture, once it is old
+        // enough, IS swept. Without this, a sweep that never places anything
+        // would satisfy the assertion above.
+        $payment->verified_at = now()->subSeconds(300);
+        $payment->save();
+
+        $this->artisan('orders:recover-captured')->assertSuccessful();
+
+        $this->assertSame(1, Order::query()->where('status', OrderStatus::Placed)->count());
+    }
+
     public function test_a_dry_run_reports_without_placing(): void
     {
         $this->strandedCapture();
