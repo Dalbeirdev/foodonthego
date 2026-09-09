@@ -970,3 +970,68 @@ Both header rows are `Wrap` with a `Flexible` status, after the tab overflowed
 by 44px at 320px width with 2× text scaling. Tested at that size and scale
 rather than at the default surface, because a layout test at comfortable
 defaults tests nothing.
+
+## Tracking an order (Module 17)
+
+The current status is the largest thing on the screen. The order number is
+present and quotable but subordinate — what a customer opens this screen to
+learn is whether their food is ready, not what their reference is.
+
+### What the screen shows, in order
+
+| Element | Source |
+| --- | --- |
+| Status hero and subtitle | The server's `status_title` / `status_subtitle` |
+| Customer-safe reason | `customer_safe_reason`, only when one was written |
+| Order number | The order |
+| Timeline | The server, with each step's state already decided |
+| Requested pickup | The order, labelled "Not a live estimate" |
+| Restaurant | The order's snapshot |
+| Items | Module 16's immutable line snapshots |
+| Payment and total | The payment record, read independently of the order |
+
+### The words come from the server
+
+A build that decided "COOKING means your food is being prepared" would need an
+app-store release before the lifecycle could gain a state, and until then every
+un-updated app would show a raw enum value to a customer.
+
+`PlacedOrder.statusLabel` prefers the server's wording and falls back to this
+build's local label — the fallback exists so an old app meeting a new state
+still renders a sentence, not so the client gets to choose.
+
+**This was found half-done by a test.** The hero rendered the client's label
+while the timeline rendered the server's, so one screen could show "Being
+prepared" above "Your food is being prepared".
+
+### Nothing here changes an order
+
+There is no *Mark as ready*, no *Confirm pickup*, and no *Cancel order* — the
+last of those because no cancellation policy has been agreed, and adding a
+button because other food apps have one would be inventing commercial rules. A
+widget test asserts all four strings are absent.
+
+### It does not say LIVE
+
+Module 19 adds a realtime subscription. Until then the screen polls every twenty
+seconds and says **"Updated just now"**. A `LIVE` badge over a poll is a claim
+the app cannot support and the customer cannot check, and a test asserts the
+word does not appear.
+
+The pickup card carries the same discipline: **"Requested pickup … Not a live
+estimate."** Module 18 owns the ETA engine, and a screen that implied it already
+had one would be the hardest kind of claim to walk back.
+
+### Offline
+
+The last order stays on screen behind an advisory notice saying it may have
+changed. Replacing a real order with an error page because one refresh timed out
+on a motorway loses the customer the information they opened the screen for —
+and nothing about the cached state is presented as current.
+
+### The Orders tab
+
+Active orders first, sorted by soonest pickup rather than newest purchase. Each
+card carries a **Track order** button rather than making the whole card tappable:
+a card that navigates anywhere it is touched is a card a customer opens by
+accident while scrolling, and this one carries a total they may be reading.

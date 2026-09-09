@@ -728,3 +728,79 @@ matches the merged semantics tree, not the widget that declared it. The
 assertion is now made on the `Semantics` widget's property directly. Recorded
 here so the next person does not spend the same hour concluding their label is
 wrong when it is right.
+
+## Module 17 — a broken harness looks exactly like a passing suite
+
+This module ran twelve negative controls. Eight fired on the first pass, and
+four appeared silent — but the four were not four findings. They were one
+harness bug and two genuine test defects, and telling those apart is the lesson.
+
+### The harness bug, and how it was noticed
+
+One control removed a line by replacing it with an empty string. The revert then
+did `content.replace("", original)` — and replacing the empty string inserts at
+**position 0**, ahead of `<?php`. Every subsequent control ran against a file
+that no longer parsed, and PHP's "strict_types declaration must be the very
+first statement" contains neither "failed" nor "error", so the harness scored
+them as silent.
+
+**What gave it away was the shape, not the content.** Eight controls going quiet
+at once is not a plausible pattern of eight independent test defects. A single
+silent control invites you to investigate the test; eight invite you to
+investigate the instrument.
+
+Two rules came out of it, and both are now in the harness:
+
+- **Revert from a saved copy, never by reversing a string edit.** A reverse
+  replace is not the inverse of a replace when either side is empty or repeated.
+- **A parse error is not a fired control.** The harness now recognises it
+  explicitly and reports `BROKEN-HARNESS` rather than folding it into either
+  outcome.
+
+This is the second time instrumentation has been the defect rather than the
+code — KI-023 was the first — and both times the instrumentation had never been
+negative-controlled against a known failure.
+
+### The two real defects
+
+| Silent control | What it exposed |
+| --- | --- |
+| Sort active orders by id instead of pickup time | The test created the later pickup **second**, so the newer order also had the sooner pickup. Every plausible sort produced the same list; the assertion was about nothing. It now creates them so id order and pickup order disagree, with a guard asserting they do. |
+| Stop writing the initial `PLACED` history row | The assertion ran against a fixture that wrote the row itself, so it proved the fixture. It is now asserted against a payment captured through the real HTTP surface. |
+
+Both are the same species as Module 16's silent controls: **a test that cannot
+distinguish the guard holding from the guard being absent.**
+
+### Testing a lifecycle
+
+Two habits, both because a state machine is exactly the kind of thing that
+passes a happy-path test while permitting something nobody intended:
+
+- **Illegal transitions are named, not looped.** A loop over "all illegal pairs"
+  proves the table is self-consistent — which it would be even if the table were
+  wrong. Each refusal `PLACED → READY`, `COOKING → ACCEPTED`, `PICKED_UP →
+  READY` is its own test with its own name.
+- **An order is parked in a state directly, not walked there.** A test for
+  `PICKED_UP → READY` should fail if that edge exists, not if some earlier edge
+  is missing.
+
+`COOKING → CANCELLED` is asserted **absent** rather than left untested, so
+adding that edge later is a decision somebody makes rather than a line somebody
+adds while fixing something else.
+
+### Testing concurrency without concurrency
+
+A single PHP process cannot run two requests at the same instant. The
+concurrency tests drive the same collision sequentially through the real service
+with **stale model instances**, which is what a losing worker actually holds —
+so the row lock and the status re-read are exercised for real.
+
+What is not exercised is true parallel execution, and that is written into the
+test file rather than implied by its name.
+
+### Client-side race protection needs its own control
+
+"An older response must not move the screen backwards" passes trivially against
+a client that ignores every response after the first. The suite therefore
+contains its inverse — "a newer response does update the status" — and the two
+together say something the regression test alone does not.

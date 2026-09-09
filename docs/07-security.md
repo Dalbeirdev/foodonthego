@@ -852,3 +852,92 @@ amount and currency agree with `orders.payable_total_minor`.
 a code yet.** Whichever module builds pickup verification inherits that: a
 typed code must be attempt-limited per order, or 2^40 stops being a large
 number. Tracked in [13-known-issues.md](13-known-issues.md).
+
+## Order tracking and status transitions (Module 17)
+
+### The customer app cannot change an order
+
+There is no `PATCH /customer/orders/{id}/status`, no `/ready`, no `/confirm`.
+The customer surface over orders is read-only, and that is this module's central
+security property rather than a convention.
+
+**Asserted, not assumed.** `OrderTrackingApiTest` walks the registered routes and
+fails if any route under `customer/orders` accepts `POST`, `PUT`, `PATCH` or
+`DELETE` — excepting Module 15's payment routes, which write a payment and never
+a fulfilment status. A route named something nobody predicted is still caught.
+
+### The actor is derived from the authenticated principal
+
+`OrderTransitionActor` exposes only named factories. Nothing constructs one from
+a request body, so `actor_id`, `actor_role` and `restaurant_id` cannot arrive as
+claims. A client able to name its own source could write `RESTAURANT` into the
+audit trail of an order it does not own — which would make the trail worse than
+not having one.
+
+### Cross-tenant transitions are refused in the service
+
+A restaurant actor may only move an order whose `restaurant_id` matches the one
+they were authenticated for. The check lives in `OrderTransitionService`, where
+every transition passes, rather than at each call site.
+
+That placement is the Module 14T lesson applied before the fact: a boundary
+checked at the call site is a boundary somebody forgets when they add the second
+call site. The restaurant screens do not exist yet, so the check is tested with
+controlled identities — a refusal in both directions, plus a positive assertion
+so a service that refused everything could not pass.
+
+The refusal says nothing about the order. An operator probing other tenants' ids
+learns only that they were refused, not whether the id was real.
+
+### Terminal states have no override
+
+`REJECTED`, `PICKED_UP` and `CANCELLED` map to empty transition lists. There is
+no force flag and no `allowUnsafe` parameter anywhere in the state machine, so
+reopening a terminal order is not something a caller can do by passing the wrong
+argument. A deliberate recovery workflow would be a new, separately authorised
+service.
+
+### What a customer never receives
+
+| Held in `order_status_history` | Sent to the customer |
+| --- | --- |
+| `source_type`, `actor_type`, `actor_id` | No |
+| `reason_code` | No |
+| `correlation_id` | No |
+| `customer_safe_note` | Yes, when deliberately written |
+
+Asserted against the serialised response rather than field by field, and with a
+guard first proving the fixture really carried those values — so the absence is
+a property of the presenter rather than of the fixture.
+
+### The credential is not in the tracking response
+
+Tracking is polled. A pickup code riding along would travel every twenty seconds
+through every proxy between the phone and the server. The response carries
+`pickup_credential.available` — a boolean is not a credential — and the code
+stays on its own `no-store` endpoint from Module 16.
+
+### Logging
+
+Logged on a transition: order id, restaurant id, from, to, version, source
+category, internal reason code, correlation id.
+
+Not logged: the customer-safe note (the one field an operator might paste into a
+ticket), the pickup code, the QR token, special instructions, any actor's
+identity beyond its numeric id.
+
+Refusals log too — `orders.transition_refused` and
+`orders.cross_tenant_transition_refused` — because a pattern of them is the
+signal that something is probing.
+
+### The QA harness is not a backdoor
+
+`dev:order-transition` exists because verifying customer tracking needs orders
+that can leave `PLACED`, and the restaurant dashboard is several modules away.
+The alternative was a customer-facing endpoint that moves an order.
+
+It is a console command with no HTTP surface; it refuses to run outside `local`
+and `testing` as its first act; it records `source_type = TEST_HARNESS` so a
+production database can be **queried** for rows that should not exist; and it
+validates through the same service, so an illegal transition asked for there is
+refused exactly as it would be anywhere.

@@ -1483,3 +1483,57 @@ in any built module.
 
 Related to KI-021, the two order-status vocabularies, which will have to be
 reconciled at the same time.
+
+### KI-028 — the restaurant cannot move an order — **High, incomplete feature** — OPEN
+
+Module 17 built the service that changes an order's status, tested it, and gave
+it no user. The only thing that can drive a real order through ACCEPTED,
+COOKING, READY and PICKED_UP today is `dev:order-transition`, which refuses to
+run outside local and testing.
+
+**So in a production deployment every order would sit at PLACED forever.** The
+customer app would faithfully report that, which is correct behaviour and no
+comfort at all.
+
+This is not a defect in Module 17 — the restaurant surface is explicitly a later
+module — but it is the gap that makes the platform unusable end to end, and it
+is recorded here rather than left implicit in a module boundary.
+
+### KI-029 — status transitions are tested for concurrency, not under it — **Medium, test coverage** — OPEN
+
+`OrderTransitionConcurrencyTest` drives collisions sequentially through the real
+service using stale model instances, which is what a losing worker actually
+holds. The row lock and the status re-read are genuinely exercised.
+
+What is not exercised is two processes running at literally the same instant.
+The unique index on `(order_id, to_status)` is what would hold in that case, and
+it is tested directly by inserting a duplicate row — but the interleaving itself
+is not reproduced.
+
+Closing this properly needs a test harness that can run parallel PHP processes
+against one database. Recorded rather than papered over, because "we tested
+concurrency" is exactly the kind of claim that gets believed.
+
+### KI-030 — no cancellation policy, so no cancellation — **Medium, undecided commercial rule** — OPEN
+
+`PLACED → CANCELLED` and `ACCEPTED → CANCELLED` exist in the transition table.
+Nothing calls them, and the customer app has no cancel button.
+
+That is deliberate. Whether a customer may cancel, until when, and who bears the
+cost once a kitchen has started are commercial decisions nobody has taken, and
+adding a button because other food apps have one would be inventing them.
+`COOKING → CANCELLED` is asserted **absent** so that adding it later is a
+decision somebody makes rather than a line somebody adds while fixing something
+else.
+
+### KI-031 — a stale tracking screen has no upper bound on how stale — **Low, design** — OPEN
+
+The tracking screen shows a cached order behind an advisory banner when it
+cannot reach the server. The banner says the status may have changed; it does
+not say how long ago the order was read, and there is no point at which the
+screen refuses to show a cached order at all.
+
+Half an hour old and two days old currently look the same. `server_time` and
+`fetchedAt` are both already carried, so the fix is presentational rather than
+structural — but it is a real way for a customer to be misled by something that
+was true once.

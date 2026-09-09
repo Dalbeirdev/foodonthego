@@ -1999,3 +1999,213 @@ Inserted between Modules 14 and 15 at the client's direction. Design:
   `test_the_integrity_check_reports_an_order_with_no_captured_payment`,
   `test_publishing_drains_the_outbox_exactly_once`,
   `test_the_event_payload_is_identifiers_only`.
+
+## Module 17 — customer order tracking, status timeline and order state presentation
+
+### The Orders tab and the way in
+
+- **M17-001 The Orders tab shows real data**, from `GET /customer/orders`.
+  `test_the_orders_tab_separates_active_from_finished`.
+- **M17-002 Active orders are separated from finished ones**, and "active" is
+  derived from `OrderStateMachine::activeStatuses()` rather than a list kept in
+  the controller — so the API's notion of active cannot drift from the
+  lifecycle's.
+- **M17-003 Each card opens tracking** through a *Track order* button rather
+  than a tappable card, so a scroll cannot open it by accident.
+- **M17-004 The tracking API is the existing order endpoint, enriched.** Two
+  endpoints returning almost the same order would drift; the day they did, a
+  customer would read one status in a list and another on the screen opened
+  from it.
+- **M17-005 The current status comes from the server** and is the largest
+  element on the screen.
+
+### The state machine
+
+- **M17-006 One writer.** `OrderStateMachine` is the only thing that assigns
+  `order.status`; `OrderTransitionService` is the only general caller.
+- **M17-007 The transition matrix is explicit and complete**, including empty
+  lists for terminal states. Documented in
+  [36-customer-order-tracking.md](36-customer-order-tracking.md).
+- **M17-008 PLACED** — reached by Module 16; may go to ACCEPTED, REJECTED or
+  CANCELLED.
+- **M17-009 ACCEPTED** — may go to COOKING or CANCELLED.
+  `test_an_order_walks_the_whole_lifecycle`.
+- **M17-010 REJECTED** — terminal.
+  `test_a_rejected_order_cannot_be_accepted_after_all`.
+- **M17-011 COOKING** — may go to READY only.
+  `test_an_order_already_cooking_cannot_be_cancelled` asserts the absence of the
+  cancellation edge deliberately, so adding it later is a decision rather than a
+  line somebody adds while fixing something else.
+- **M17-012 READY** — may go to PICKED_UP only.
+- **M17-013 PICKED_UP** — terminal.
+  `test_a_picked_up_order_cannot_be_reopened`.
+- **M17-014 CANCELLED** — terminal, reachable from PLACED and ACCEPTED only.
+  `test_a_cancelled_order_cannot_start_cooking`.
+- **M17-015 Payment state is separate from order state.** `REFUNDED` stays an
+  unreachable order status; a refunded rejection is two facts on two records.
+  **No refund workflow exists**, so nothing claims one.
+- **M17-016 Terminal states have no override.** Empty lists, no force flag, no
+  `allowUnsafe` parameter anywhere in the state machine.
+- **M17-017 Illegal transitions are refused and tested by name** —
+  `PLACED → READY`, `PLACED → PICKED_UP`, `ACCEPTED → READY`,
+  `COOKING → ACCEPTED`, `READY → COOKING`. Named rather than looped: a loop
+  proves the table is self-consistent, which it would be even if it were wrong.
+
+### History and timestamps
+
+- **M17-018 `order_status_history` records every transition**, append-only,
+  with from/to, source, actor, internal reason, customer-safe note, correlation
+  id and `occurred_at`.
+- **M17-019 Placement writes the first entry.**
+  `test_a_captured_payment_starts_the_orders_history`, asserted against a real
+  captured payment — the earlier version ran against a fixture that wrote the
+  row itself and so proved the fixture.
+- **M17-020 Milestone timestamps** for accepted, rejected, cooking, ready,
+  picked-up and cancelled, written once each by the state machine.
+  `test_a_milestone_timestamp_is_not_rewritten_by_a_duplicate`.
+- **M17-021 The history is immutable.** No update path in the model, none in any
+  service; a correction would be an appended row through a workflow that does
+  not exist.
+- **M17-022 `order_version` increments on every transition.**
+  `test_the_version_increments_once_per_transition`.
+- **M17-023 Transitions are concurrency-safe** — row lock, status re-read under
+  the lock, unique index behind both.
+  `test_two_identical_transitions_produce_one_history_entry`,
+  `test_conflicting_transitions_leave_one_coherent_history`.
+- **M17-024 A duplicate transition writes nothing** — no history row, no event,
+  no version bump.
+  `test_asking_for_the_state_it_is_already_in_writes_nothing`.
+- **M17-025 Domain events** `OrderAccepted`, `OrderRejected`,
+  `OrderCookingStarted`, `OrderReady`, `OrderPickedUp`, `OrderCancelled`, on
+  Module 16's outbox rather than a second delivery architecture.
+- **M17-026 Events are idempotent**, keyed `{order_uuid}:{status}` against the
+  outbox's own unique index.
+  `test_each_transition_queues_exactly_one_domain_event`.
+
+### The timeline
+
+- **M17-027 The timeline renders from the server's steps**, each arriving with
+  its state already decided.
+- **M17-028 The status hero is the most prominent element**, above the order
+  number.
+- **M17-029 Completed steps carry their timestamp.**
+- **M17-030 The current step is marked by weight and icon**, not by colour
+  alone.
+- **M17-031 Upcoming steps carry no timestamp.**
+  `test_a_placed_order_shows_one_current_step_and_four_upcoming` asserts every
+  unreached step is null — a fabricated time is the one error a customer cannot
+  detect.
+- **M17-032 A rejected order shows no steps it will never reach.**
+  `test_a_rejected_order_shows_no_cooking_or_ready_step`, plus the widget test.
+- **M17-033 A cancelled order keeps the steps it reached** and shows no future.
+  `test_a_cancelled_order_keeps_the_steps_it_reached`.
+- **M17-034 A picked-up order shows every step complete.**
+  `test_a_picked_up_order_shows_every_step_complete`.
+- **M17-035 Status copy comes from the server**, with the client's labels as a
+  documented fallback for an older backend.
+- **M17-036 Customer-safe reasons are authored, never derived** from an internal
+  code at render time.
+
+### The rest of the screen
+
+- **M17-037 Restaurant summary**, from the order's snapshot.
+- **M17-038 Requested pickup**, labelled "Not a live estimate".
+- **M17-039 Order items**, from Module 16's immutable snapshots.
+- **M17-040 Commercial summary**, from the order's frozen totals.
+- **M17-041 Payment summary read from the payment record**, independently of
+  the order's state.
+- **M17-042 The pickup code stays on its own endpoint.** Tracking carries
+  `pickup_credential.available` — a boolean is not a credential.
+  `test_the_tracking_response_never_carries_the_pickup_code`.
+- **M17-043 The QR payload likewise.** Available from placement, with the
+  tracking screen saying when to use it.
+- **M17-044 QR verification is not implemented and is not claimed.** Module 21.
+
+### Refresh
+
+- **M17-045 Manual refresh** by pull-to-refresh and an app-bar action.
+- **M17-046 Polling is implemented and named temporary.** 20s from
+  `FOTG_ORDER_TRACKING_REFRESH_SECONDS`, floored at 5s.
+- **M17-047 Polling stops when the app is backgrounded.**
+- **M17-048 Polling stops for a terminal order**, on the server's `is_active`
+  rather than a client-side list of terminal states.
+- **M17-049 One refresh on resume.**
+- **M17-050 Offline shows the cached order, marked stale**, rather than an
+  error page. Widget: *a lost connection keeps the order and says it is stale*.
+- **M17-051 Freshness is a time, never a `LIVE` badge.** Widget: *the screen
+  never claims to be live*.
+- **M17-052 A restored connection reconciles** on the next refresh.
+- **M17-053 An older response cannot move the screen backwards.** Widget: *an
+  older response cannot move the status backwards*, with its control *a newer
+  response does update the status* — without which a client that ignored every
+  response would pass.
+- **M17-054 Version comparison is arithmetic, not lifecycle knowledge.** The
+  client compares two integers and never infers that READY follows COOKING.
+- **M17-055 Multiple active orders are supported**, sorted soonest-pickup first.
+  `test_two_live_orders_are_listed_soonest_pickup_first`.
+
+### Security
+
+- **M17-056 Another customer's order answers 404.**
+  `test_another_customer_cannot_track_this_order`.
+- **M17-057 An order number is not an identifier.**
+  `test_an_order_number_is_not_an_identifier_for_tracking`.
+- **M17-058 The pickup credential is ownership-checked**, unchanged from
+  Module 16 and re-asserted here.
+- **M17-059 Orders stay bound to their restaurant**, through `BelongsToTenant`.
+- **M17-060 A restaurant actor cannot move another tenant's order.**
+  `test_a_restaurant_cannot_move_another_restaurants_order`, with
+  `test_a_restaurant_may_move_its_own_order` as the positive control.
+- **M17-061 No customer route writes an order status.**
+  `test_no_customer_route_can_change_an_order_status` walks the router rather
+  than trying guessed URLs.
+- **M17-062 Nothing internal reaches the customer** — no actor, no reason code,
+  no correlation id. `test_the_tracking_response_carries_nothing_internal`,
+  asserted against the serialised body with a guard proving the fixture carried
+  them.
+- **M17-063 Logs carry identifiers and categories only**, never the
+  customer-safe note, the pickup code or the QR token.
+- **M17-064 Performance** — the list eager-loads restaurants and is capped at
+  50; tracking loads items, modifiers, restaurant and history in one go.
+- **M17-065 Cost control** — twenty refreshes make zero Google and zero
+  Razorpay calls. `test_twenty_refreshes_touch_no_external_provider`.
+
+### Verification
+
+- **M17-066 Android runtime** — see the completion report.
+- **M17-067 iOS runtime** — see the completion report.
+- **M17-068 Accessibility** — three signals per timeline step, weight rather
+  than colour for the current one, one spoken sentence per step, and a layout
+  test at 320px with 2× text.
+- **M17-069 Backend unit and service tests** — state machine, transition
+  service, timeline service.
+- **M17-070 Backend API tests** — list, tracking, timeline branches, privacy,
+  IDOR, route-surface.
+- **M17-071 Flutter unit tests** — version handling, timeline parsing, status
+  mapping.
+- **M17-072 Flutter widget tests** — 11, covering every rendered phase.
+- **M17-073 Integration test** — see the completion report.
+- **M17-074 Database verification** — see the completion report.
+- **M17-075 Live view verification** — see the completion report.
+- **M17-076 Review APK rebuild** — see the completion report.
+- **M17-077 Client documentation updated.**
+- **M17-078 Modules 01–16 regression** — full suite green.
+- **M17-079 Module 18 handoff** — status, timing, payment and credential state
+  are separate objects in the tracking response, so an ETA can be added beside
+  the pickup window without touching the lifecycle.
+- **M17-080 Module 19 handoff** — every transition already queues a domain
+  event on the outbox, and the client's version handling already tolerates
+  updates arriving out of order.
+
+### Discovered during implementation
+
+- **M17-081 One response, one clock.** The timeline, the credential expiry and
+  `server_time` first shipped in UTC while every other instant was on the
+  restaurant's clock; Module 13's invariant caught it. The zone helper is now
+  shared rather than duplicated.
+- **M17-082 The status hero and the timeline must use the same wording.** They
+  did not, and one screen could show "Being prepared" above "Your food is being
+  prepared".
+- **M17-083 A negative-control harness must revert from a copy**, never by
+  reversing a string edit, and must not score a parse error as a fired control.
+  See 09-testing-strategy.md.

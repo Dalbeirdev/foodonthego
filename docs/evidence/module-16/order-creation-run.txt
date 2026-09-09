@@ -10,21 +10,21 @@ state changes and the credential arithmetic are real; the provider is not.
 Customer:            Rahul Sharma
 Phone (snapshot):    +91********01
 Restaurant:          Highway Spice Kitchen
-Trip uuid:           6562544c-a2b1-46b4-b4aa-b55eff52d5e6
+Trip uuid:           da24330e-eab4-4738-8de8-34a8dff53452
 
 --- the order ---
-Order uuid:          cdd5d019-df05-49ad-a0d7-2db1265512e8
-Order number:        FOTG-260907-PJC2MTX3K8
+Order uuid:          6e414c87-4eae-4212-b2ed-bcff677cdd06
+Order number:        FOTG-260907-S3CW89DSFC
 Status:              PLACED
 Placed at:           2026-09-07T06:30:00+00:00
 Paid at:             2026-09-07T06:30:00+00:00
-Placed from payment: id 1 (unique index)
+Placed from payment: id 2 (unique index)
 Payable total:       24900 minor units, INR
 Items:               1
 Item modifiers:      0
 
 --- the payment ---
-Payment uuid:        c20a5733-6402-4de6-ae15-c587fbe37d45
+Payment uuid:        246b15a4-c961-42fe-9acf-44a503061e1f
 Payment status:      CAPTURED
 Amount:              24900 minor units, INR
 Amounts agree:       YES
@@ -32,7 +32,7 @@ Verified at:         2026-09-07T06:30:00+00:00
 
 --- pickup credential (nothing plaintext recorded) ---
 Code length:         8 characters
-Code masked:         V4******
+Code masked:         GM******
 Token length:        43 characters (base64url of 256 bits)
 Credential version:  1
 Code digest present: YES
@@ -47,8 +47,8 @@ Quote status:        CONSUMED (consumed)
 --- the outbox ---
 Events written:      1
 Event name:          OrderPlaced
-Event id:            e3526743-f782-4fe1-8937-bbc41990af35
-Dedupe key:          cdd5d019-df05-49ad-a0d7-2db1265512e8 (the order uuid)
+Event id:            c44bfc7b-52ee-4fdc-8699-e2bf13198d0f
+Dedupe key:          6e414c87-4eae-4212-b2ed-bcff677cdd06 (the order uuid)
 Payload keys:        order_uuid, payment_uuid, restaurant_id
 Payload carries money or personal data: NO
 
@@ -59,6 +59,6 @@ payments:            1
 outbox_events:       1
 
 --- observed cost of the verify call that created the order ---
-Wall clock:          31.0 ms
+Wall clock:          25.9 ms
 Database queries:    28
 One run, one machine, MySQL on the same host. An observation, not a benchmark.

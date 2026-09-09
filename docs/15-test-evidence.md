@@ -2549,3 +2549,136 @@ None of these were found by a test failing. All of them were found by a test
 - **The device suite has not yet been extended to the confirmation flow.** The
   existing 27 device tests still pass; they exercise the boundary as Module 15
   left it.
+
+# Module 17 — customer order tracking, status timeline and order state presentation
+
+## Totals
+
+| Suite | Tests | New in this module |
+| --- | --- | --- |
+| Backend (PHPUnit/Pest, real MySQL) | **1,293 passed**, 5,720 assertions | 41 |
+| Flutter (widget + unit) | **962 passed** | 11 |
+| Device (integration_test) | 29 per platform | 1 |
+
+Backend 72.6s; Flutter 1m43s. No skips.
+
+## The evidence file
+
+`evidence/module-17/tracking-lifecycle-run.txt` is produced by
+`ModuleSeventeenEvidenceTest`, which walks one real order from a captured
+payment through `ACCEPTED → COOKING → READY → PICKED_UP`, reading the tracking
+API after each step and writing down what it saw. It asserts as it goes, so a
+broken run produces a failure rather than a confident file of wrong numbers.
+
+Two limitations are printed on the face of the file: the capture is from the
+deterministic fake gateway, and the transitions are driven by the `TEST_HARNESS`
+actor because no restaurant UI exists. The service, the locking, the tenant
+check and the audit trail are the real ones.
+
+**The clock moves two minutes between steps, and that is not decoration.** With
+a frozen clock every milestone lands on the same instant, and the file could
+show five identical timestamps while describing a build that wrote `placed_at`
+five times. The run shows 12:00, 12:02, 12:04, 12:06, 12:08 — and four
+assertions require each milestone to be strictly later than the one before.
+
+## Negative controls
+
+Twelve mutations, applied to shipping code, targeted suite run, reverted. **All
+twelve now fail the suite.**
+
+| # | Mutation | Result |
+| --- | --- | --- |
+| NC-01 | Validate the caller's stale model instead of re-reading under the lock | FIRED |
+| NC-02 | Make the transition table permit anything | FIRED |
+| NC-03 | Drop the cross-tenant actor check | FIRED |
+| NC-04 | Stop bumping `order_version` | FIRED |
+| NC-05 | Give upcoming timeline steps the current time | FIRED |
+| NC-06 | Keep the happy path going after a rejection | FIRED |
+| NC-07 | Send the internal reason code as the customer note | FIRED |
+| NC-08 | Put the pickup credential into the tracking response | FIRED |
+| NC-09 | Sort active orders by id instead of soonest pickup | **silent → FIRED** |
+| NC-10 | Treat every order as active | FIRED |
+| NC-11 | Remove the already-in-that-state early return | FIRED |
+| NC-12 | Stop writing the initial `PLACED` history row | **silent → FIRED** |
+
+## The harness was the defect, not the code
+
+Eight controls appeared silent on the first pass. They were not eight findings.
+
+One control removed a line by replacing it with an empty string, and the revert
+did `content.replace("", original)` — which inserts at **position 0**, ahead of
+`<?php`. Every control after it ran against a file that no longer parsed, and
+PHP's *"strict_types declaration must be the very first statement"* contains
+neither "failed" nor "error", so the harness scored those runs as silent.
+
+**What gave it away was the shape.** Eight controls going quiet at once is not a
+plausible pattern of eight independent test defects. One silent control invites
+you to investigate the test; eight invite you to investigate the instrument.
+
+Two rules, now in the harness:
+
+- **Revert from a saved copy**, never by reversing a string edit. A reverse
+  replace is not the inverse of a replace when either side is empty.
+- **A parse error is not a fired control.** It is reported as
+  `BROKEN-HARNESS` rather than folded into either outcome.
+
+Second time instrumentation has been the defect rather than the code — KI-023
+was the first — and both times the instrumentation had never been
+negative-controlled against a known failure.
+
+## The two real defects the controls found
+
+### NC-09 — a test that every sort would pass
+
+Active orders sort by soonest pickup. The test created the later pickup
+**second**, so the newer order also had the sooner pickup, and sorting by id
+descending produced the same list as sorting by pickup time.
+
+The two orderings now disagree — the order placed first is the one to be
+collected soonest — and a guard asserts `$sooner->id < $later->id` so the
+disagreement is a fact of the test rather than an accident of fixture order.
+
+### NC-12 — an assertion about its own fixture
+
+"Placement writes the first history entry" ran against a test helper that wrote
+the row itself. Commenting out the save in `CreateOrderFromCapturedPayment` left
+it green, because the claim was about the fixture.
+
+It is now asserted against a payment captured through the real HTTP surface,
+including that the history row's `occurred_at` equals the order's `placed_at` —
+the same instant on the live path, and deliberately not the same instant when a
+recovery sweep finishes a stranded capture hours later.
+
+## A defect caught by an existing invariant
+
+The timeline, the credential expiry and `server_time` all shipped in UTC while
+every other instant in the order response was on the restaurant's clock. Module
+13's `every instant in one order response is on one clock` failed immediately.
+
+The presenter's zone helper is now shared rather than duplicated, which is what
+stops a fourth producer of instants introducing a fourth clock.
+
+## A defect caught by writing the test, not by running it
+
+The status hero rendered the client's own label while the timeline rendered the
+server's wording, so one screen could show *"Being prepared"* above *"Your food
+is being prepared"*. The server sends the copy precisely so the client does not
+decide it.
+
+`PlacedOrder` now carries `status_title` and `status_subtitle`, and the fake
+carries them too — a fake more complete than reality is what made Module 16's
+nullable order number invisible to every widget test.
+
+## What is not proven
+
+- **No restaurant has ever moved an order.** Every transition in every test was
+  driven by the system, payment or test-harness actor. The restaurant path is
+  tested with controlled identities at the service layer; no screen exists.
+  KI-028.
+- **Concurrency is tested sequentially.** The collisions run through the real
+  service with stale model instances, which is what a losing worker holds, but
+  two processes at the same instant are not reproduced. KI-029.
+- **No live Razorpay capture**, unchanged since Module 15.
+- **No refund exists to display.** `PaymentStatus` has no `REFUNDED` case.
+- **No realtime, no ETA, no push, no pickup verification** — and tests assert
+  the app does not claim any of them.

@@ -575,3 +575,46 @@ revalidation, which is not the same promise.
 
 The general rule this sets for the rest of the API: **material that authorises
 something is never a field on a resource that is routinely listed.**
+
+## A list that groups is still one resource (Module 17)
+
+`GET /customer/orders` returns `active`, `past` **and** `orders`.
+
+The first two are the grouping the Orders tab renders. The third is the flat
+list Module 16 returned, kept because a review build of the previous app must
+not start showing an empty list the moment this deploys. A response may carry a
+superseded shape while clients catch up; it may not change the meaning of a key
+that already existed.
+
+"Active" is derived from the state machine rather than from a list of statuses
+in the controller, so the API's notion of active cannot drift from the
+lifecycle's.
+
+## Freshness metadata, and the badge it does not justify (Module 17)
+
+A tracking response carries `order_version`, `status_updated_at`, `is_active`
+and `server_time`.
+
+- **`order_version`** increments on every status transition. A client uses it to
+  discard a response that overtook a newer one. It is not an ordering of
+  *states* and must never be used to infer one.
+- **`server_time`** is sent because a phone's clock may be wrong by hours, and
+  "updated 4 minutes ago" computed against a wrong clock is worse than saying
+  nothing.
+- **`is_active`** tells a client when to stop polling without the client keeping
+  its own list of terminal states.
+
+**None of this makes the response realtime**, and no client may present it as
+such. Until a realtime subscription exists, freshness is stated as a time, not
+as a `LIVE` badge.
+
+## Internal identifiers do not become customer copy (Module 17)
+
+`order_status_history` carries `reason_code` — internal, free-form, useful to
+operations. The customer sees `customer_safe_note`, written deliberately by
+whoever performed the transition, and null whenever there is nothing safe to
+say.
+
+The rule: **customer-facing text is authored for customers, never derived from
+an internal code at render time.** Deriving it is how "Staff shortage: employee
+#47 failed shift" reaches a phone.

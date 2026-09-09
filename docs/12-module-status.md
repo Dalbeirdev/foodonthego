@@ -773,3 +773,40 @@ credential they cannot lose to a database dump.
 - **An order cannot move past `PLACED`** (KI-027), and the state machine says so
   rather than pretending otherwise.
 - **No operator login**, unchanged since Module 14T.
+
+## Module 17 — customer order tracking, status timeline and order state presentation
+
+**Complete for what it covers.** A customer can open an order, see where it
+stands, see when each step happened, and watch it move as a restaurant would
+move it — with the restaurant's own screens still several modules away.
+
+### The decisions worth knowing
+
+- **The app displays order state and does not decide it.** No customer route
+  writes a status, and a test walks the router to keep it that way.
+- **A status is now a history.** `orders.status` is a denormalised cache of the
+  latest row in an append-only `order_status_history`; where they disagree the
+  history is right and `orders:check-integrity` notices.
+- **One writer, with the locking and tenant checking already done.** The
+  restaurant screens will inherit `OrderTransitionService` rather than write
+  their own — which is the point of building it before them.
+- **Cancellation stops at ACCEPTED.** Allowing it from COOKING would be
+  inventing a rule about who pays for food already made.
+- **`REFUNDED` is payment state and stays unreachable as an order status.** No
+  refund workflow exists, so nothing claims a refund.
+- **`order_version` lets a client discard a stale response** without knowing the
+  lifecycle — enough to order two answers, deliberately not enough to predict a
+  third.
+- **Polling is called polling.** No `LIVE` badge, no ETA, and tests asserting
+  both absences.
+
+### Still handed forward
+
+- **No restaurant UI.** Nothing a restaurant can press; transitions are driven
+  in QA by a console command that refuses to run outside local and testing.
+- **No realtime** (Module 19), **no ETA** (Module 18), **no push**
+  (Module 20), **no pickup verification** (Module 21).
+- **No customer cancellation**, because no cancellation policy has been agreed.
+- **No refunds**, anywhere in the platform.
+- **No order history, reorder or invoice** (Module 22). The list is capped at 50.
+- **Still no live Razorpay capture**, unchanged since Module 15.

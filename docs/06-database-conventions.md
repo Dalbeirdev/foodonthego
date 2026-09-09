@@ -435,3 +435,39 @@ than a cast.
 calculation — especially a cryptographic one — either refresh the model or
 refuse to proceed. This is the second time the pattern has bitten this project;
 Module 14T's `accountUsable` was the first.
+
+## Append-only tables, and what that forbids (Module 17)
+
+`order_status_history` has no update path — not in the model, not in any
+service. A timeline whose past can be rewritten is not an audit trail; it is a
+display cache with extra steps.
+
+Correcting a wrong row is therefore **not** an `UPDATE`. It would be a
+privileged, separately authorised workflow that appends a correction, and no
+such workflow exists.
+
+Two columns support this: `occurred_at` is when the thing happened, `created_at`
+is when the row was written. They are the same instant on the live path and
+different instants when a recovery sweep finishes a stranded capture hours
+later — and a timeline built on row-creation time would then lie about the
+order.
+
+## A denormalised column needs an integrity check, not a promise (Module 17)
+
+`orders.status` and the milestone timestamps duplicate what
+`order_status_history` already says, because the Orders tab must not join a
+history table to sort a list.
+
+Duplication is allowed. Silent duplication is not: where the two disagree the
+history is right, and `orders:check-integrity` is what notices. **A
+denormalised field without something that checks it is a field that will be
+wrong and nobody will know.**
+
+## Ordering needs a tie-break or it is not ordering (Module 17)
+
+`order_status_history` is indexed and read as `(order_id, occurred_at, id)`.
+
+Two transitions inside the same second are routine in a test harness and
+possible in production. Ordering by `occurred_at` alone leaves which one a
+customer sees first up to the storage engine — which is stable right up until
+it is not.

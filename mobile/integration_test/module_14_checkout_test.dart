@@ -466,6 +466,77 @@ void main() {
     );
   });
 
+  // ------------------------------------------- Module 17, as far as it reaches
+
+  /*
+   | Order tracking on a real device, for an order nobody has paid for.
+   |
+   | WHAT THIS REACHES. The tracking screen's job is to render whatever status
+   | the server reports. Reaching ACCEPTED or COOKING on a device would need
+   | either a captured payment (impossible here -- no provider credentials) or
+   | a customer-facing endpoint that moves an order, which is exactly the
+   | security defect Module 17 exists to avoid. So what runs on hardware is the
+   | part that does not need either: the route exists, the screen loads against
+   | a real server, and it renders the real status of a real order.
+   |
+   | The transition-driven states are covered by backend tests against the real
+   | service and by widget tests against the real screen. That is a weaker
+   | claim than a device run and is recorded as one.
+   */
+  testWidgets('the tracking screen opens cold and shows the server status', (
+    WidgetTester tester,
+  ) async {
+    await prepare();
+    await seedOrderReadyToCheckOut();
+
+    final Checkout checkout = await serverCheckout();
+    final String? checkoutId = checkout.checkoutId;
+
+    if (checkoutId == null) {
+      fail('the server prepared no quote, so there is nothing to track');
+    }
+
+    final String orderId = (await orderApi.place(
+      tripId: trip.id,
+      checkoutId: checkoutId,
+    )).id;
+
+    // A cold start straight at the route, as a customer returning to a killed
+    // app would arrive.
+    await launchSignedIn(
+      tester,
+      customer: customer,
+      location: Routes.orderTrackingPath(orderId),
+    );
+
+    await waitFor(
+      tester,
+      find.byKey(const ValueKey<String>('tracking-loaded')),
+      describe: 'the tracking screen to load this order from the server',
+    );
+
+    // The timeline came from the server, not from anything this app worked out.
+    expect(find.byKey(const ValueKey<String>('tracking-timeline')), findsOne);
+    expect(find.byKey(const ValueKey<String>('tracking-status')), findsOne);
+
+    /*
+     * The Module 17 rule, checked where it is cheapest to break: the screen
+     * offers nothing that would change the order. A control here would be a
+     * security defect rather than a feature, and a device run is the only
+     * place a stray debug button would actually be reachable.
+     */
+    for (final String forbidden in <String>[
+      'Mark as ready',
+      'Confirm pickup',
+      'Cancel order',
+    ]) {
+      expect(find.text(forbidden), findsNothing, reason: forbidden);
+    }
+
+    // And it does not claim to be something it is not.
+    expect(find.text('LIVE'), findsNothing);
+  });
+
   // ------------------------------------------------------ when things change
 
   testWidgets('editing the cart makes the quote stale and it refreshes', (

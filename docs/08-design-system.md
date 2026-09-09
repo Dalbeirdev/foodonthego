@@ -462,3 +462,33 @@ relying on a tooltip.**
 The rule chip beside a group name reads "Required" or "Optional" in the primary
 or neutral surface. Colour alone is not information, and an asterisk is a
 convention rather than a sentence.
+
+## Status is never colour alone (Module 17)
+
+The order timeline is the first component whose whole job is conveying state, so
+it is where the rule gets written down.
+
+Each step carries **three** signals: an icon whose shape differs (a tick, a
+filled ring, an empty ring, a cross), a text label, and a semantics sentence
+saying what state it is in. Colour is the least of them.
+
+A customer who cannot distinguish green from grey still has to be able to tell
+whether their food is ready. So the current step is marked by **font weight**,
+which survives greyscale and colour blindness, rather than by a colour the
+design system happens to like.
+
+Semantic colour roles are used where colour does appear — `primary` for
+progress, `error` for an exception, `outline` for something not yet reached —
+and no component in this module holds a literal colour value.
+
+### The timeline's screen-reader form
+
+One sentence per step, in the order a person would say it:
+
+> "Restaurant accepted your order. Completed. at 4:03 PM."
+> "Your food is being prepared. Current status. at 4:05 PM."
+> "Ready for pickup. Not started."
+
+`excludeSemantics: true` on the wrapper, because the default merged tree
+announces an icon name and a bare number, which tells somebody nothing about
+their order.

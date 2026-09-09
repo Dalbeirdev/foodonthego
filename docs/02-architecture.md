@@ -356,3 +356,42 @@ Two smaller structural choices follow from the same place:
 - **Pickup credentials are derived from the order, not stored on it.** That
   removes a class of leak rather than guarding it, and it means "show me my
   code again" costs an HMAC rather than a secret at rest.
+
+## Module 17 — a status becomes a history
+
+Module 16 wrote `orders.status` from one place. Module 17 makes that column a
+**cache of the latest row in `order_status_history`**, and the shift is the
+module's central architectural decision.
+
+```
+OrderTransitionService  ──lock──▶ orders.status        (denormalised, indexed)
+        │                         orders.<milestone>_at
+        │                         orders.order_version
+        │
+        ├──append──▶ order_status_history               (the record)
+        └──queue───▶ outbox_events                      (Module 16's outbox)
+```
+
+**Why two representations.** The Orders tab lists many orders and sorts them; it
+must not join a history table per row. So the row carries the answer and the
+history carries the evidence, and `orders:check-integrity` gains a test for them
+disagreeing.
+
+**One writer, and it is not a controller.** Nothing assigns `order.status`
+outside `OrderStateMachine`, and nothing reaches `OrderStateMachine` outside the
+placement service, the payment services and `OrderTransitionService`. The
+restaurant screens that will drive the lifecycle do not exist yet; the service
+they will call does, with its locking, auditing and tenant checking already
+written and tested — because the alternative is writing those under the
+deadline of the first screen that needs them.
+
+**The customer app is not in this diagram**, and that is the point. It reads
+`GET /customer/orders/{order}`; there is no customer route that writes a status,
+and a test walks the router to keep it that way.
+
+### `order_version` is a client concern in a server column
+
+It exists so a phone can discard a response that overtook a newer one without
+knowing the lifecycle. That is a deliberate inversion: the client is given
+enough to order two answers and deliberately not enough to predict a third.
+See [36-customer-order-tracking.md](36-customer-order-tracking.md).

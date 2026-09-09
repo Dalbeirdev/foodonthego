@@ -1296,3 +1296,74 @@ migration list.
 - KI-026 — the captured-payment path has never run against live Razorpay.
 - KI-027 — an order cannot move past `PLACED`, and the state machine's empty
   arrays say so honestly.
+
+## Module 17 — customer order tracking, status timeline and order state presentation
+
+**An order's status stopped being a value and became a history**, and the
+customer app got a screen that reads it without ever deciding it.
+
+### Added
+
+- `order_status_history` — append-only, unique on `(order_id, to_status)`,
+  carrying from/to, source category, actor, internal reason code, a separate
+  customer-safe note, correlation id, and `occurred_at` kept apart from
+  `created_at`.
+- Milestone timestamps `accepted_at`, `rejected_at`, `cooking_started_at`,
+  `ready_at`, `picked_up_at`; `order_version`; `customer_safe_reason`.
+- `OrderTransitionService` — lock, re-read under the lock, early return on a
+  duplicate, edge validation, tenant check, milestone, version bump, history
+  append, outbox event, commit.
+- `OrderTransitionActor` with named factories only, so a source cannot arrive
+  from a request body.
+- `OrderTimelineService`, `OrderStatusCopy`, `OrderTimelineStepState`,
+  `OrderTransitionSource`.
+- Domain events `OrderAccepted`, `OrderRejected`, `OrderCookingStarted`,
+  `OrderReady`, `OrderPickedUp`, `OrderCancelled`, on Module 16's outbox.
+- `dev:order-transition` — console only, refuses outside local and testing,
+  records `TEST_HARNESS`.
+- Flutter: `TrackedOrder`, `OrderTimelineStep`, `OrderTrackingController`,
+  `OrderTimelineView`, `OrderTrackingScreen`, `TrackingConfig`, and the
+  `/orders/:orderId/track` route.
+
+### Changed
+
+- `OrderStateMachine` gained the fulfilment edges by extending its existing
+  table. Cancellation is permitted from `PLACED` and `ACCEPTED` only.
+- `GET /customer/orders` now returns `active` and `past` alongside the original
+  flat `orders`, which is kept so an older review build does not start showing
+  an empty list.
+- `GET /customer/orders/{order}` is the tracking response: timeline,
+  `order_version`, `status_updated_at`, `is_active`, `server_time`,
+  `customer_safe_reason`, and `pickup_credential.available`.
+- Order placement now writes the first history row.
+- `PlacedOrder` carries `statusTitle`/`statusSubtitle`; `statusLabel` prefers
+  the server's wording and falls back to the local label.
+- `OrderPresenter::zone()` and `local()` are public, so one clock rule serves
+  every producer of instants in an order response.
+- The Orders tab card gained a *Track order* button.
+
+### Fixed
+
+- **Three new fields shipped on the wrong clock.** The timeline, the credential
+  expiry and `server_time` were UTC while every other instant in the response
+  was on the restaurant's clock. Caught by Module 13's "every instant in one
+  order response is on one clock" invariant.
+- **The status hero and the timeline disagreed.** One rendered the client's
+  label, the other the server's, so a screen could show "Being prepared" above
+  "Your food is being prepared".
+- **An ordering test that could not fail.** Active orders sorted by soonest
+  pickup, but the test created them so that id order and pickup order agreed —
+  every plausible sort passed it.
+- **A history assertion that proved its own fixture.** "Placement writes the
+  first history entry" ran against a helper that wrote the row itself.
+- **A negative-control harness that inserted code at position 0** when reverting
+  a control whose mutation was an empty string, silently breaking eight
+  subsequent controls. See 09-testing-strategy.md.
+
+### Recorded, not fixed
+
+- KI-028 — no restaurant UI, so in production every order would sit at PLACED.
+- KI-029 — concurrency is tested sequentially with stale models, not under true
+  parallelism.
+- KI-030 — no cancellation policy, so no cancel button.
+- KI-031 — a stale tracking screen does not say how stale.
