@@ -1364,6 +1364,12 @@ customer app got a screen that reads it without ever deciding it.
   the order. Found on a device, because all 962 widget tests then in the suite drive a fake
   repository and the code that turns an HTTP body into a model had never once
   run. `mobile/test/order_repository_wire_test.dart` is the missing layer.
+- **A restaurant seeded "open all week" was shut for one second every night**
+  (KI-033). `alwaysOpen` wrote `00:00:00 – 23:59:59`, and `covers()` asks
+  `$time < closes_at`, so a device job that ran through 23:59:59 IST had a
+  checkout refused `RESTAURANT_NOT_ACCEPTING_ORDERS` — correctly. Both the
+  seeder and the test fixture now write an overnight `00:00:00 – 00:00:00`,
+  which is what "open twenty-four hours" already means in this schema.
 - **The device CI backend answered one request at a time** (KI-032).
   `scripts/ci-backend-up.sh` ran `php artisan serve` with its default single
   worker, so the nine requests an app fires when a screen opens cold queued
@@ -1380,3 +1386,5 @@ customer app got a screen that reads it without ever deciding it.
 - KI-032 — recorded as FIXED, because the diagnosis is worth more than the
   one-line change: the failure looked platform-specific and looked like a flake,
   and was neither.
+- KI-033 — likewise, and it is the second time the same fixture has failed on
+  the clock for the same reason. `23:59:59` was standing in for midnight.

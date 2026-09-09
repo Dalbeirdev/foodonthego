@@ -838,8 +838,29 @@ true about the product, and would have swallowed the next real one. The screen
 giving up and saying so is the behaviour under test; the queue in front of it
 was the bug.
 
-The general form, and it is the third instance in this project: **when a test
-fails, ask what the harness was doing before asking what the code was doing.**
-A silent negative control, a reverted mutation that never applied, and now a
-one-request-at-a-time server — all three looked like results and none of them
+### And a fixture that was shut for one second a night
+
+The next run turned up a third, on Android this time: one checkout test refused
+with `RESTAURANT_NOT_ACCEPTING_ORDERS`. The server was right. The fixture
+restaurant is seeded "open all week", which wrote `00:00:00 – 23:59:59`, and the
+availability rule asks `$time < closes_at` — so for the whole of the 23:59:59
+second it was closed. That job ran from 23:46 to 00:06 in Asia/Kolkata.
+
+**This fixture has now failed on the clock twice, for the same reason both
+times.** The first was half an hour a night, when a restaurant open around the
+clock read CLOSING_SOON from 23:30 and a docs-only commit went red. Fixing the
+symptom then left the cause in place: `23:59:59` was standing in for midnight,
+and it is not midnight. It is now written as an overnight `00:00:00 – 00:00:00`,
+which is what "open twenty-four hours" already means in this schema, so there is
+no stand-in left to be wrong.
+
+The test that pins it asserts every second from 23:59:57 to 00:00:01, not just
+the guilty one — a test that checked 23:59:59 alone would pass against a fixture
+that had merely moved the hole somewhere else.
+
+The general form, and it is now the fourth instance in this project: **when a
+test fails, ask what the harness was doing before asking what the code was
+doing.** A silent negative control, a reverted mutation that never applied, a
+one-request-at-a-time server, and a fixture whose comment promised "a test never
+fails on the clock" while it did — all four looked like results and none of them
 were.

@@ -128,15 +128,29 @@ final class RestaurantFixtures
     /**
      * Open every hour of every day, so a test never fails on the clock.
      *
-     * That promise was false for half an hour a night until the availability
-     * rule was fixed. `23:59:59` is a closing time, and a restaurant within
-     * thirty minutes of closing reads CLOSING_SOON — so every assertion of OPEN
-     * against this fixture failed between 23:30 and 23:59 local, which is 18:00
-     * to 18:29 UTC. CI found it on a docs-only commit.
+     * That promise has now been false twice, and both times for the same
+     * reason: `23:59:59` was standing in for midnight, and it is not midnight.
      *
-     * It holds now because `closesWithin` asks whether the restaurant will be
-     * *shut* soon rather than whether the current window ends soon, and a
-     * window that hands straight over to the next one is not closing.
+     * First it was false for half an hour a night. `23:59:59` is a closing
+     * time, and a restaurant within thirty minutes of closing read
+     * CLOSING_SOON, so every assertion of OPEN against this fixture failed
+     * between 23:30 and 23:59 local — 18:00 to 18:29 UTC. That was fixed in
+     * `closesWithin`, which now asks whether the restaurant will be *shut*
+     * soon rather than whether the current window ends soon; a window that
+     * hands straight over to the next one is not closing.
+     *
+     * Then it was false for one second a night. `covers()` asks
+     * `$time < closes_at`, so from 23:59:59.000 to 23:59:59.999 this fixture
+     * was CLOSED. CI run 160's Android device job ran from 23:46 to 00:06 in
+     * Asia/Kolkata, went through that second, and a checkout test that had
+     * passed minutes earlier was refused RESTAURANT_NOT_ACCEPTING_ORDERS.
+     *
+     * So it no longer says 23:59:59 at all. A twenty-four hour restaurant
+     * closes at midnight and opens at midnight, which is exactly what an
+     * overnight window already means — `isOvernight()` is
+     * `closes_at <= opens_at` — and `covers()` holds such a window open from
+     * `opens_at` to the end of the day. No stand-in, no gap, nothing to get
+     * wrong a third time.
      */
     public static function openAllWeek(Restaurant $restaurant): void
     {
@@ -144,7 +158,7 @@ final class RestaurantFixtures
             $restaurant->openingHours()->create([
                 'day_of_week' => $day,
                 'opens_at' => '00:00:00',
-                'closes_at' => '23:59:59',
+                'closes_at' => '00:00:00',
             ]);
         }
     }

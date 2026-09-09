@@ -1606,3 +1606,60 @@ item and tracking screens still give up after one failed load rather than
 retrying. Both are product decisions from earlier modules. Raising a timeout or
 adding a silent retry to make a test pass would have hidden the next real
 failure, which is the thing these device jobs exist to catch.
+
+### KI-033 — a restaurant "open all week" was shut for one second every night — **Medium, fixture and test data** — FIXED at Module 17
+
+The Android device job on CI run 160 failed one test — `module_14`'s *the
+confirmation screen opens cold on a real order id* — with:
+
+```
+ApiException(RESTAURANT_NOT_ACCEPTING_ORDERS, status: 409)
+  at ApiMenuRepository.addToCart
+  at seedOrderReadyToCheckOut (module_14_checkout_test.dart:188)
+```
+
+The server was right and the app was right. `[TEST] Highway Spice Kitchen` is
+seeded `alwaysOpen`, which wrote `00:00:00 – 23:59:59` for all seven days.
+`RestaurantAvailabilityService::covers()` asks `$time < closes_at`, so from
+23:59:59.000 to 23:59:59.999 the restaurant is **closed** — and a closed
+restaurant refuses a cart line, exactly as designed.
+
+That job ran from **23:46:53 to 00:06:57 in Asia/Kolkata**. It went through the
+second. A test that had added to the same cart minutes earlier was refused.
+
+Reproduced, not inferred:
+
+```
+IST 23:59:58  availability=OPEN          ordering=OPEN_ACCEPTING  canOrder=YES
+IST 23:59:59  availability=OPENING_SOON  ordering=CLOSED          canOrder=NO
+IST 00:00:00  availability=OPEN          ordering=OPEN_ACCEPTING  canOrder=YES
+```
+
+**This is the second time this fixture has failed on the clock, for the same
+underlying reason.** The first was a half-hour a night: `23:59:59` is a closing
+time, so a restaurant open around the clock read CLOSING_SOON from 23:30, and a
+docs-only commit went red. That was fixed in `closesWithin`, which now asks
+whether the restaurant will be *shut* soon rather than whether the current
+window ends soon. Both bugs come from the same place: **`23:59:59` was standing
+in for midnight, and it is not midnight.**
+
+**Fixed** by not using a stand-in. A twenty-four hour restaurant closes at
+midnight and opens at midnight, which is precisely what an overnight window
+already means in this schema — `RestaurantOpeningHour::isOvernight()` is
+`closes_at <= opens_at`, and `covers()` then holds such a window open from
+`opens_at` to the end of the day. So `alwaysOpen` in
+`DiscoveryTestRestaurantSeeder` and `openAllWeek` in `RestaurantFixtures` both
+now write `00:00:00 – 00:00:00`. No gap, and nothing left to get wrong a third
+time.
+
+Pinned by `test_a_restaurant_open_around_the_clock_is_open_through_midnight`,
+which asserts every second from 23:59:57 to 00:00:01 rather than only the
+guilty one — a test that checked 23:59:59 alone would pass against a fixture
+that had merely moved the hole. Control: restoring `23:59:59` fails it.
+
+**Not changed:** `covers()` itself. `$time < closes_at` is correct — a
+restaurant whose stated closing time is 23:59:59 really is shut during that
+second. The defect was in what the fixture claimed, not in how the rule reads
+it. And `PickupWindowGeneratorTest` still passes `00:00:00 – 23:59:59` to
+`openDaily` deliberately, on a frozen clock, as an explicit window rather than a
+claim of being always open.

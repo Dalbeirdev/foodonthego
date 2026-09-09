@@ -10,11 +10,11 @@ state changes and the credential arithmetic are real; the provider is not.
 Customer:            Rahul Sharma
 Phone (snapshot):    +91********01
 Restaurant:          Highway Spice Kitchen
-Trip uuid:           b6a7d465-2d2a-48b3-b7d8-80ec2e6addea
+Trip uuid:           3a006e59-714e-4b84-883d-c2fd80115e8e
 
 --- the order ---
-Order uuid:          ad790951-b0eb-4824-9beb-9bbd77f56303
-Order number:        FOTG-260907-019XPK3EJA
+Order uuid:          edf5bd60-6126-415f-afde-23d16715cfdd
+Order number:        FOTG-260907-XJSJGHKKQX
 Status:              PLACED
 Placed at:           2026-09-07T06:30:00+00:00
 Paid at:             2026-09-07T06:30:00+00:00
@@ -24,7 +24,7 @@ Items:               1
 Item modifiers:      0
 
 --- the payment ---
-Payment uuid:        b74d8be4-5aac-4226-a6d3-a6b189748365
+Payment uuid:        fb3861a2-d59f-4d19-bc0c-81eb65e35c07
 Payment status:      CAPTURED
 Amount:              24900 minor units, INR
 Amounts agree:       YES
@@ -32,7 +32,7 @@ Verified at:         2026-09-07T06:30:00+00:00
 
 --- pickup credential (nothing plaintext recorded) ---
 Code length:         8 characters
-Code masked:         M0******
+Code masked:         B2******
 Token length:        43 characters (base64url of 256 bits)
 Credential version:  1
 Code digest present: YES
@@ -47,8 +47,8 @@ Quote status:        CONSUMED (consumed)
 --- the outbox ---
 Events written:      1
 Event name:          OrderPlaced
-Event id:            8376c32c-5b56-4e5e-ab63-620c867fd635
-Dedupe key:          ad790951-b0eb-4824-9beb-9bbd77f56303 (the order uuid)
+Event id:            504b8dff-1111-428a-b618-4cbdcbd33c67
+Dedupe key:          edf5bd60-6126-415f-afde-23d16715cfdd (the order uuid)
 Payload keys:        order_uuid, payment_uuid, restaurant_id
 Payload carries money or personal data: NO
 
@@ -59,6 +59,6 @@ payments:            1
 outbox_events:       1
 
 --- observed cost of the verify call that created the order ---
-Wall clock:          28.5 ms
+Wall clock:          31.0 ms
 Database queries:    28
 One run, one machine, MySQL on the same host. An observation, not a benchmark.

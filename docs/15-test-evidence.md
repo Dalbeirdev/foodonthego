@@ -2556,7 +2556,7 @@ None of these were found by a test failing. All of them were found by a test
 
 | Suite | Tests | New in this module |
 | --- | --- | --- |
-| Backend (PHPUnit/Pest, real MySQL) | **1,293 passed**, 5,720 assertions | 41 |
+| Backend (PHPUnit/Pest, real MySQL) | **1,294 passed**, 5,725 assertions | 42 |
 | Flutter (widget + unit) | **966 passed** | 15 |
 | Device (integration_test) | 29 per platform | 1 |
 
@@ -2711,6 +2711,26 @@ at the measurement showed **no difference at all** between one worker and eight,
 because Laravel silently declines `PHP_CLI_SERVER_WORKERS` without `--no-reload`
 and both arms were the control. The script now greps its own log for that
 warning.
+
+## The Android run, and the third harness fault
+
+The next run put the tracking fix on both devices and turned up one more
+failure, on Android: `module_14`'s *the confirmation screen opens cold on a real
+order id*, refused `RESTAURANT_NOT_ACCEPTING_ORDERS` while adding to the cart.
+
+The server was right. The fixture restaurant is seeded "open all week", which
+wrote `00:00:00 – 23:59:59`; `covers()` asks `$time < closes_at`; so it was shut
+for the whole 23:59:59 second, every night. That job ran from **23:46:53 to
+00:06:57 in Asia/Kolkata**. Reproduced locally rather than inferred — see KI-033
+for the three-line table that shows OPEN, then CLOSED, then OPEN across the
+boundary.
+
+Both the seeder and `RestaurantFixtures::openAllWeek` now write an overnight
+`00:00:00 – 00:00:00`. `test_a_restaurant_open_around_the_clock_is_open_through_midnight`
+pins it across five consecutive seconds, and restoring `23:59:59` fails it.
+
+Backend after the change: **1,294 passed**, one more than before, and that one
+is the new test.
 
 ## Tracking screenshots
 

@@ -181,10 +181,10 @@ final class RestaurantAvailabilityTest extends TestCase
         $restaurant = $this->restaurant();
         RestaurantFixtures::openAllWeek($restaurant);
 
-        // 18:02:13 UTC is 23:32:13 in Kolkata — twenty-eight minutes before the
-        // 23:59:59 that "open all week" writes, and so inside the thirty-minute
-        // closing-soon window. This exact instant turned CI red on a docs-only
-        // commit, and would have done so for half an hour every night.
+        // 18:02:13 UTC is 23:32:13 in Kolkata — inside the last half hour of
+        // the day, which is where the closing-soon window used to catch this
+        // fixture. This exact instant turned CI red on a docs-only commit, and
+        // would have done so for half an hour every night.
         //
         // The restaurant is not closing. Tomorrow's window opens the moment
         // tonight's ends, and a driver told "Closing soon" at 23:40 would drive
@@ -196,6 +196,43 @@ final class RestaurantAvailabilityTest extends TestCase
                 CarbonImmutable::parse('2026-09-07 18:02:13', 'UTC'),
             ),
         );
+    }
+
+    public function test_a_restaurant_open_around_the_clock_is_open_through_midnight(): void
+    {
+        $restaurant = $this->restaurant();
+        RestaurantFixtures::openAllWeek($restaurant);
+        $loaded = $restaurant->load('openingHours');
+
+        // The sibling of the test above, and the second time this fixture has
+        // failed on the clock. It used to write `23:59:59` as a stand-in for
+        // midnight; `covers()` asks `$time < closes_at`, so for the whole of
+        // the 23:59:59 second the restaurant was CLOSED. CI run 160's Android
+        // device job ran from 23:46 to 00:06 in Asia/Kolkata, crossed that
+        // second, and a checkout test that had passed minutes earlier was
+        // refused with RESTAURANT_NOT_ACCEPTING_ORDERS.
+        //
+        // Every second across the boundary, not just the guilty one: a test
+        // that checked only 23:59:59 would pass against a fixture that had
+        // simply moved the hole somewhere else.
+        foreach ([
+            '2026-09-07 18:29:57',  // 23:59:57 IST
+            '2026-09-07 18:29:58',  // 23:59:58
+            '2026-09-07 18:29:59',  // 23:59:59  <- the second that broke CI
+            '2026-09-07 18:30:00',  // 00:00:00, the next day in Kolkata
+            '2026-09-07 18:30:01',  // 00:00:01
+        ] as $utc) {
+            $now = CarbonImmutable::parse($utc, 'UTC');
+
+            $this->assertSame(
+                RestaurantAvailability::Open,
+                $this->availability->availabilityOf($loaded, $now),
+                sprintf(
+                    'a restaurant open around the clock must be open at %s IST',
+                    $now->setTimezone('Asia/Kolkata')->format('H:i:s'),
+                ),
+            );
+        }
     }
 
     public function test_back_to_back_windows_do_not_read_as_closing(): void

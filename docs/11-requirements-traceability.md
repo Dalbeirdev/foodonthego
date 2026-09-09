@@ -2225,3 +2225,14 @@ Inserted between Modules 14 and 15 at the client's direction. Design:
   `scripts/ci-backend-up.sh` with `PHP_CLI_SERVER_WORKERS=8 --no-reload`, and
   the script now warns loudly if Laravel ever declines the worker count.
   Evidence: `docs/evidence/module-17/serve-concurrency-run.txt`. KI-032.
+- **M17-086 "Always open" must mean always.** The `alwaysOpen` seeder flag and
+  the `openAllWeek` test fixture both wrote `00:00:00 – 23:59:59`, and
+  `RestaurantAvailabilityService::covers()` asks `$time < closes_at` — so the
+  restaurant was closed for the whole 23:59:59 second, every night. CI run
+  160's Android device job ran from 23:46 to 00:06 in Asia/Kolkata and a
+  checkout was correctly refused `RESTAURANT_NOT_ACCEPTING_ORDERS`. Both now
+  write an overnight `00:00:00 – 00:00:00`, which is what a twenty-four hour
+  restaurant already means in this schema. Covered by
+  `test_a_restaurant_open_around_the_clock_is_open_through_midnight`, which
+  asserts every second from 23:59:57 to 00:00:01. Control: restoring
+  `23:59:59` fails it. KI-033.

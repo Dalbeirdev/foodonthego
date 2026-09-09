@@ -415,7 +415,23 @@ final class DiscoveryTestRestaurantSeeder extends Seeder
             return;
         }
 
-        $window = $alwaysOpen ? ['00:00:00', '23:59:59'] : $hours;
+        // A twenty-four hour restaurant closes at midnight and opens at
+        // midnight, which is what an overnight window already means:
+        // RestaurantOpeningHour::isOvernight() is closes_at <= opens_at, and
+        // RestaurantAvailabilityService::covers() then holds the window open
+        // from opens_at to the end of the day.
+        //
+        // It used to say 23:59:59, and that is not "always open". covers()
+        // asks `$time < closes_at`, so between 23:59:59.000 and 23:59:59.999
+        // the restaurant was CLOSED -- one second every night, every night. CI
+        // run 160's Android job ran from 23:46 to 00:06 in Asia/Kolkata, went
+        // straight through that second, and a device test that had passed
+        // minutes earlier was refused with RESTAURANT_NOT_ACCEPTING_ORDERS.
+        //
+        // This is the second time this fixture has failed on the clock, and it
+        // is the same shape both times: honest about its intent, wrong about
+        // its effect, because 23:59:59 was standing in for midnight.
+        $window = $alwaysOpen ? ['00:00:00', '00:00:00'] : $hours;
 
         if ($window !== null) {
             foreach (range(0, 6) as $day) {

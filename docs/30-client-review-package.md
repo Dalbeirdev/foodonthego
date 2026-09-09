@@ -503,7 +503,7 @@ configured" and "configured as zero" is enforced in code and in tests.
 
 | | |
 | --- | --- |
-| Backend | **1,293 tests**, Pint clean |
+| Backend | **1,294 tests**, Pint clean |
 | Flutter | **966 tests**, `analyze --fatal-infos` clean, `format` clean |
 | Web | typecheck, tests and both builds clean |
 | Android device run | **29 integration tests on an emulator** |
