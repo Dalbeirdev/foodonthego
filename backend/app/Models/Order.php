@@ -7,7 +7,6 @@ namespace App\Models;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Models\Concerns\BelongsToTenant;
-use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -63,32 +62,16 @@ final class Order extends Model
     {
         self::creating(static function (self $order): void {
             $order->uuid ??= (string) Str::uuid();
-            $order->order_number ??= self::mintOrderNumber();
+
+            // The order number is NOT minted here any more.
+            //
+            // A row created at checkout is a payment target, and a payment
+            // target has no number because there is nothing yet for a customer
+            // to read out. CreateOrderFromCapturedPayment mints it at the
+            // moment the money is captured, which is the moment the row becomes
+            // an order. Minting it here would put a customer-facing number on
+            // every abandoned checkout.
         });
-    }
-
-    /**
-     * A number a customer can read out loud.
-     *
-     * Date prefix plus ten random base-32 characters, uppercase, with the
-     * letters that get misheard or mistyped removed — no I, L, O or U. Not
-     * sequential: a sequential order number tells anybody who has one roughly
-     * how many orders the platform has taken, and lets them guess their
-     * neighbours.
-     *
-     * Uniqueness is the column's unique index; this only has to make a
-     * collision unlikely enough that the retry never happens in practice.
-     */
-    public static function mintOrderNumber(?CarbonImmutable $now = null): string
-    {
-        $alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-        $suffix = '';
-
-        for ($i = 0; $i < 10; $i++) {
-            $suffix .= $alphabet[random_int(0, 31)];
-        }
-
-        return ($now ?? CarbonImmutable::now())->format('ymd').'-'.$suffix;
     }
 
     public function getRouteKeyName(): string
@@ -120,6 +103,25 @@ final class Order extends Model
         return $this->belongsTo(CheckoutQuote::class);
     }
 
+    /** @return BelongsTo<Cart, $this> */
+    public function cart(): BelongsTo
+    {
+        return $this->belongsTo(Cart::class);
+    }
+
+    /**
+     * The captured payment this order was placed from.
+     *
+     * Unique at the database level: this column is the one-payment-one-order
+     * invariant, not a convenience.
+     *
+     * @return BelongsTo<Payment, $this>
+     */
+    public function placedFromPayment(): BelongsTo
+    {
+        return $this->belongsTo(Payment::class, 'placed_from_payment_id');
+    }
+
     /** @return HasMany<OrderItem, $this> */
     public function items(): HasMany
     {
@@ -148,8 +150,15 @@ final class Order extends Model
             ->first();
     }
 
-    public function isPaid(): bool
+    /**
+     * Whether this is a placed order rather than a payment target.
+     *
+     * Renamed from isPaid() in Module 16, because the old name asked a question
+     * about money of a record that no longer answers it. "Has the customer
+     * paid" is now read from the payment; this asks whether an order exists.
+     */
+    public function isPlaced(): bool
     {
-        return $this->status === OrderStatus::Paid;
+        return $this->status === OrderStatus::Placed;
     }
 }

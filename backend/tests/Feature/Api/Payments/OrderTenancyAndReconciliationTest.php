@@ -14,6 +14,7 @@ use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Restaurant;
 use App\Models\User;
+use App\Services\Orders\OrderNumberGenerator;
 use App\Services\Payments\PaymentGateway;
 use App\Services\Payments\ReconciliationService;
 use Carbon\CarbonImmutable;
@@ -75,7 +76,7 @@ final class OrderTenancyAndReconciliationTest extends TestCase
 
         $order->forceFill([
             'uuid' => (string) Str::uuid(),
-            'order_number' => Order::mintOrderNumber(),
+            'order_number' => (new OrderNumberGenerator)->candidate(CarbonImmutable::now()),
             'customer_id' => $this->customer->id,
             'restaurant_id' => $restaurant->id,
             'currency' => 'INR',
@@ -270,7 +271,7 @@ final class OrderTenancyAndReconciliationTest extends TestCase
         $order->refresh();
 
         $this->assertSame(1, $result['settled']);
-        $this->assertSame(OrderStatus::Paid, $order->status);
+        $this->assertSame(OrderStatus::Placed, $order->status);
         $this->assertSame(PaymentVerificationSource::Reconciliation, $payment->fresh()->verification_source);
     }
 
@@ -308,7 +309,7 @@ final class OrderTenancyAndReconciliationTest extends TestCase
 
         $this->assertSame(0, $result['settled']);
         $this->assertSame(1, $result['failed']);
-        $this->assertNotSame(OrderStatus::Paid, $order->fresh()->status);
+        $this->assertNotSame(OrderStatus::Placed, $order->fresh()->status);
     }
 
     public function test_reconciliation_reports_an_unreachable_provider_without_settling(): void

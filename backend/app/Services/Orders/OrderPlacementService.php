@@ -163,7 +163,11 @@ final class OrderPlacementService
         }
 
         $order->status = OrderStatus::AwaitingPayment;
-        $order->placed_at = $now;
+
+        // placed_at is NOT set here since Module 16. This row is a payment
+        // target; nothing has been placed until the money is captured, and the
+        // Orders tab sorts on that timestamp. Setting it at checkout would put
+        // every abandoned basket in the customer's order history.
         $order->save();
 
         $this->copyLines($order, $cart);

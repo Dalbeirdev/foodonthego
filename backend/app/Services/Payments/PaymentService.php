@@ -11,9 +11,11 @@ use App\Enums\PaymentVerificationSource;
 use App\Exceptions\ApiException;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Services\Orders\CreateOrderFromCapturedPayment;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Everything that decides whether an order has been paid for.
@@ -39,6 +41,7 @@ final class PaymentService
 {
     public function __construct(
         private readonly PaymentGateway $gateway,
+        private readonly CreateOrderFromCapturedPayment $orderCreation,
     ) {}
 
     /**
@@ -74,7 +77,15 @@ final class PaymentService
             $gatewayOrder = $this->gateway->createOrder(
                 amountMinor: $order->payable_total_minor,
                 currency: $order->currency,
-                receipt: $order->order_number,
+                // The uuid, not the order number.
+                //
+                // Since Module 16 the number is minted at placement, so a
+                // payment target has none — this call happens strictly before
+                // there is anything for a customer to read out. The uuid is
+                // the identity that exists at this point and is also what the
+                // provider's dashboard needs to point back at, which is what a
+                // receipt is for.
+                receipt: (string) $order->uuid,
             );
         } catch (PaymentGatewayException $e) {
             Log::error('payments.intent_failed', [
@@ -229,12 +240,27 @@ final class PaymentService
     }
 
     /**
-     * Mark the money received, exactly once.
+     * Mark the money received, exactly once, and then place the order.
      *
-     * The whole transition is inside one transaction with the order row locked,
-     * and it re-reads the order's status after taking the lock. Two deliveries —
-     * a client callback and a webhook about the same payment, arriving together —
-     * would otherwise both see AWAITING_PAYMENT and both write `paid_at`.
+     * TWO STEPS, TWO TRANSACTIONS, IN THIS ORDER — and the order matters.
+     *
+     * The capture is recorded first and on its own. Whatever happens next, the
+     * fact that the customer's money was taken is durable: a crash between the
+     * two leaves a captured payment with no order, which the recovery sweep
+     * finds and finishes. The opposite ordering would risk an order for money
+     * nobody has, which is not recoverable by any sweep.
+     *
+     * Placement then runs through CreateOrderFromCapturedPayment — the single
+     * idempotent path every capture converges on, whether it arrived as a
+     * client callback, a webhook, or a reconciliation run. It is deliberately
+     * NOT inside the transaction above: it takes its own locks, and nesting
+     * would hold the payment row for the whole of order creation for no benefit.
+     *
+     * Placement failing does not un-capture the payment. It cannot: the money
+     * is gone and pretending otherwise would be a lie the customer pays for.
+     * The exception is logged and swallowed here so that a webhook still gets
+     * its 200 — Razorpay retrying a delivery we already recorded helps nobody —
+     * and the order is created by the recovery path instead.
      */
     public function settle(
         Order $order,
@@ -245,7 +271,7 @@ final class PaymentService
     ): Payment {
         $now ??= CarbonImmutable::now();
 
-        return DB::transaction(function () use ($order, $payment, $providerPaymentId, $source, $now): Payment {
+        $payment = DB::transaction(function () use ($order, $payment, $providerPaymentId, $source, $now): Payment {
             /** @var Order $locked */
             $locked = Order::query()->lockForUpdate()->findOrFail($order->id);
 
@@ -258,23 +284,47 @@ final class PaymentService
                 $payment->verification_source = $source;
                 $payment->failure_reason = null;
                 $payment->save();
-            }
 
-            if ($locked->status !== OrderStatus::Paid) {
-                $locked->status = OrderStatus::Paid;
-                $locked->paid_at = $now;
-                $locked->save();
-
-                Log::info('payments.order_paid', [
+                Log::info('payments.captured', [
                     'order_id' => $locked->id,
+                    'payment_id' => $payment->id,
                     'source' => $source->value,
                 ]);
             }
 
-            $order->setRawAttributes($locked->getAttributes(), true);
-
             return $payment;
         });
+
+        $this->placeOrderFor($order, $payment, $now);
+
+        return $payment;
+    }
+
+    /**
+     * Turn a captured payment into a placed order, and survive not being able to.
+     *
+     * @see CreateOrderFromCapturedPayment for why this is one service and not
+     *      one handler per delivery route.
+     */
+    private function placeOrderFor(Order $order, Payment $payment, CarbonImmutable $now): void
+    {
+        try {
+            $placed = $this->orderCreation->place($payment, $now);
+
+            // Refresh the caller's instance from the placed order, so a
+            // controller that responds with $order shows the number and status
+            // the customer is about to be told about.
+            $order->setRawAttributes($placed->getAttributes(), true);
+        } catch (Throwable $e) {
+            // Loud, and specifically not fatal. A captured payment whose order
+            // could not be written is the single most important thing to alert
+            // on in this module, and the recovery sweep is what fixes it.
+            Log::error('orders.creation_requires_recovery', [
+                'order_id' => $order->id,
+                'payment_id' => $payment->id,
+                'reason' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -303,7 +353,7 @@ final class PaymentService
      */
     private function refuseUnlessPayable(Order $order): void
     {
-        if ($order->status === OrderStatus::Paid) {
+        if ($order->status === OrderStatus::Placed) {
             throw new ApiException(
                 ApiErrorCode::OrderAlreadyPaid,
                 'This order has already been paid for.',

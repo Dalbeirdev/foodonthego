@@ -49,3 +49,8 @@ coverage/
 
 # Deployment secrets. The example is committed; the real one never is.
 deploy/.env
+
+# A stray SQLite file this project does not use. Written once by a mistaken
+# `migrate:fresh --database=sqlite` and committed before it was noticed; ignored
+# so the next mistake is caught by git rather than by a reviewer.
+backend/foodonthego_local

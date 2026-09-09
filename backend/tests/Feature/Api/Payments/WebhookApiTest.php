@@ -192,7 +192,7 @@ final class WebhookApiTest extends TestCase
 
         $this->order->refresh();
 
-        $this->assertSame(OrderStatus::Paid, $this->order->status);
+        $this->assertSame(OrderStatus::Placed, $this->order->status);
         $this->assertNotNull($this->order->paid_at);
     }
 
@@ -210,7 +210,7 @@ final class WebhookApiTest extends TestCase
 
         $this->deliver($this->body('payment.captured', 'pay_hook'), eventId: 'evt_only')->assertOk();
 
-        $this->assertSame(OrderStatus::Paid, $this->order->fresh()->status);
+        $this->assertSame(OrderStatus::Placed, $this->order->fresh()->status);
     }
 
     // --- the signature --------------------------------------------------------
@@ -292,7 +292,7 @@ final class WebhookApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.outcome', PaymentEventOutcome::Applied->value);
 
-        $this->assertSame(OrderStatus::Paid, $this->order->fresh()->status);
+        $this->assertSame(OrderStatus::Placed, $this->order->fresh()->status);
     }
 
     // --- idempotency ----------------------------------------------------------
@@ -413,7 +413,7 @@ final class WebhookApiTest extends TestCase
         $this->deliver($this->body('payment.captured', 'pay_short', null, 100), eventId: 'evt_short')
             ->assertOk();
 
-        $this->assertNotSame(OrderStatus::Paid, $this->order->fresh()->status);
+        $this->assertNotSame(OrderStatus::Placed, $this->order->fresh()->status);
     }
 
     // --- the payload is not kept ---------------------------------------------

@@ -189,7 +189,13 @@ final class OrderAndPaymentApiTest extends TestCase
         $this->assertSame($quote->payable_total_minor, $order->payable_total_minor);
         $this->assertSame($quote->items_subtotal_minor, $order->items_subtotal_minor);
         $this->assertSame(OrderStatus::AwaitingPayment, $order->status);
-        $this->assertNotEmpty($order->order_number);
+        // Deliberately inverted since Module 16. A quote that has been
+        // accepted produces a payment target, not an order: no number, no
+        // placed_at, nothing a customer could be shown as a purchase. The
+        // number is minted when the money is captured.
+        $this->assertNull($order->order_number);
+        $this->assertNull($order->placed_at);
+        $this->assertSame(OrderStatus::AwaitingPayment, $order->status);
     }
 
     /**
@@ -330,7 +336,7 @@ final class OrderAndPaymentApiTest extends TestCase
         $this->verify($order, $providerOrderId, 'pay_ok', null, ['amount' => 1, 'amount_minor' => 1])
             ->assertOk();
 
-        $this->assertSame(OrderStatus::Paid, $order->fresh()->status);
+        $this->assertSame(OrderStatus::Placed, $order->fresh()->status);
     }
 
     // --- the payment intent ---------------------------------------------------
@@ -346,7 +352,8 @@ final class OrderAndPaymentApiTest extends TestCase
 
         $this->assertCount(1, $this->gateway->createdOrders);
         $this->assertSame($order->payable_total_minor, $this->gateway->createdOrders[0]['amount']);
-        $this->assertSame($order->order_number, $this->gateway->createdOrders[0]['receipt']);
+        // The uuid, because at intent time there is no order number to send.
+        $this->assertSame((string) $order->uuid, $this->gateway->createdOrders[0]['receipt']);
     }
 
     /**
@@ -428,11 +435,11 @@ final class OrderAndPaymentApiTest extends TestCase
 
         $this->verify($order, $providerOrderId, 'pay_ok')
             ->assertOk()
-            ->assertJsonPath('data.status', OrderStatus::Paid->value);
+            ->assertJsonPath('data.status', OrderStatus::Placed->value);
 
         $order->refresh();
 
-        $this->assertSame(OrderStatus::Paid, $order->status);
+        $this->assertSame(OrderStatus::Placed, $order->status);
         $this->assertNotNull($order->paid_at);
         $this->assertSame(PaymentStatus::Captured, $order->settledPayment()?->status);
     }
@@ -489,7 +496,7 @@ final class OrderAndPaymentApiTest extends TestCase
             ->assertStatus(409)
             ->assertJsonPath('error.code', ApiErrorCode::PaymentAmountMismatch->value);
 
-        $this->assertNotSame(OrderStatus::Paid, $order->fresh()->status);
+        $this->assertNotSame(OrderStatus::Placed, $order->fresh()->status);
     }
 
     public function test_a_declined_payment_leaves_the_order_payable(): void

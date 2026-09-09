@@ -34,6 +34,11 @@
             cannot create. The database is separate from development and is
             rebuilt by RefreshDatabase.
         -->
+        <!-- A known pepper, so pickup credentials are derivable under test and
+             a test can assert the exact code an order will produce. Never a
+             production value: ProductionConfigGuard refuses to boot without a
+             real one. -->
+        <env name="PICKUP_CREDENTIAL_PEPPER" value="testing-pickup-pepper-not-a-secret"/>
         <env name="DB_CONNECTION" value="mysql"/>
         <env name="DB_DATABASE" value="foodonthego_testing"/>
         <env name="DB_URL" value=""/>

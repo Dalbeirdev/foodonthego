@@ -144,7 +144,7 @@ final class WebhookService
             return PaymentEventOutcome::Applied;
         }
 
-        if ($order->isPaid()) {
+        if ($order->isPlaced()) {
             // Already settled, most likely by the client callback getting back
             // first. Nothing to do, and specifically nothing to write again.
             return PaymentEventOutcome::Ignored;

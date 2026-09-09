@@ -164,6 +164,16 @@ final class ProductionConfigGuard
             $failures[] = 'RAZORPAY_WEBHOOK_SECRET must be set, or every webhook is rejected and paid orders stay unpaid.';
         }
 
+        /*
+         | An empty pepper does not fail closed on its own — it derives
+         | credentials anybody holding this source can compute. So the boot is
+         | refused here rather than left to fail later at the first order, when
+         | a customer has already paid.
+         */
+        if ((string) config('foodonthego.orders.pickup_pepper') === '') {
+            $failures[] = 'PICKUP_CREDENTIAL_PEPPER must be set, or every pickup code and QR token is derivable by anyone who can read the source.';
+        }
+
         return $failures;
     }
 

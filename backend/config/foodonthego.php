@@ -444,6 +444,40 @@ return [
     | Checkout (Module 14)
     |--------------------------------------------------------------------------
     */
+    /*
+    |--------------------------------------------------------------------------
+    | Orders and pickup credentials (Module 16)
+    |--------------------------------------------------------------------------
+    */
+    'orders' => [
+
+        /*
+         | The single secret behind every pickup credential.
+         |
+         | Pickup codes and QR tokens are derived from this rather than stored,
+         | so a stolen database contains no credential at all. The cost of that
+         | design is concentrated here: this value must live outside the
+         | database, must never be committed, and rotating it invalidates every
+         | outstanding pickup credential at once. Rotate a single order instead
+         | by bumping its pickup_credential_version.
+         |
+         | Empty in local and testing on purpose — ProductionConfigGuard refuses
+         | to boot a real environment without it, which is the only place the
+         | requirement can be enforced rather than remembered.
+         */
+        'pickup_pepper' => (string) env('PICKUP_CREDENTIAL_PEPPER', ''),
+
+        /*
+         | How long after the pickup window a credential stays usable.
+         |
+         | Generous on purpose: a customer stuck in traffic on a highway is the
+         | normal case for this product, and a credential that expires while
+         | they are still driving towards the food turns a support call into a
+         | refund. Module 21 may narrow it once real collection data exists.
+         */
+        'pickup_credential_grace_hours' => (int) env('PICKUP_CREDENTIAL_GRACE_HOURS', 24),
+    ],
+
     'checkout' => [
         // How long a quote stays usable.
         //

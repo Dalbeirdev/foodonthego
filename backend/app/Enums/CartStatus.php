@@ -26,6 +26,19 @@ enum CartStatus: string
      */
     case Closed = 'CLOSED';
 
+    /**
+     * The basket became an order. Module 16.
+     *
+     * Distinct from CLOSED, which means abandoned or superseded. Kept rather
+     * than deleted: the cart is the audit trail behind a purchase, and a
+     * support question about what somebody actually ordered is answered by
+     * following the order back to the basket it came from.
+     *
+     * A converted cart is not active, so the customer cannot reopen it and
+     * check out the same food twice.
+     */
+    case Converted = 'CONVERTED';
+
     public function isActive(): bool
     {
         return $this === self::Active;

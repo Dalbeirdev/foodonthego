@@ -6,6 +6,7 @@ use App\Providers\AppServiceProvider;
 use App\Providers\AuthServiceProvider;
 use App\Providers\CheckoutServiceProvider;
 use App\Providers\DiscoveryServiceProvider;
+use App\Providers\OrderServiceProvider;
 use App\Providers\PaymentServiceProvider;
 use App\Providers\PickupServiceProvider;
 use App\Providers\PlacesServiceProvider;
@@ -16,6 +17,7 @@ return [
     AuthServiceProvider::class,
     CheckoutServiceProvider::class,
     DiscoveryServiceProvider::class,
+    OrderServiceProvider::class,
     PaymentServiceProvider::class,
     PickupServiceProvider::class,
     PlacesServiceProvider::class,
