@@ -527,3 +527,51 @@ apart. Both halves were individually defensible. The rule that came out of it:
 The database is unaffected and unambiguous: every timestamp is stored in UTC,
 as [06-database-conventions.md](06-database-conventions.md) requires. The
 offset is a presentation decision made at the edge.
+
+## 202 is not an error (Module 16)
+
+Every other non-2xx answer in this API carries an `ApiErrorCode`. Module 16
+introduced two responses that are neither success nor failure, and the standard
+they set is worth stating separately because getting it wrong costs a customer
+money.
+
+| `state` | Status | Meaning |
+| --- | --- | --- |
+| `PLACED` | 200 | The order exists; the body carries it. |
+| `ORDER_CREATION_PENDING` | 202 | The payment is captured. The order is being written. Ask again. |
+| `ORDER_RECOVERY_REQUIRED` | 202 | The payment is captured. Creation failed and a recovery process owns it. |
+
+These are **not** members of `ApiErrorCode`, and cannot become members of it:
+`ErrorContractTest` asserts that no error code maps to a 2xx status. They live
+in `OrderCreationState` instead.
+
+The rule behind it:
+
+> **Once money is captured, no API response may be renderable as a payment
+> failure.** A client that receives one will offer a retry, and the retry pays
+> twice for the same food.
+
+So `GET /customer/orders/{order}/status` returns 202 with a `message` and
+`is_paid_for: true` rather than a 4xx or 5xx, however badly order creation has
+gone. A 404 on that route means the order id is not this customer's — a
+question about *identity*, not about the payment.
+
+## Credentials get their own endpoint, and never a cached one (Module 16)
+
+`GET /customer/orders/{order}/pickup-credential` is deliberately not part of
+the order resource.
+
+An order is listed, polled, and refreshed; anything inside it travels every
+time, through every proxy and cache in between. The pickup code and QR token
+are authentication material for collecting food, so they are fetched
+explicitly, one order at a time, and the response carries:
+
+```
+Cache-Control: no-store, private, max-age=0
+```
+
+`no-store` rather than `no-cache`: `no-cache` permits storage and requires
+revalidation, which is not the same promise.
+
+The general rule this sets for the rest of the API: **material that authorises
+something is never a field on a resource that is routinely listed.**

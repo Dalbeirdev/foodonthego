@@ -371,3 +371,67 @@ index instead, which is equivalent and legal.
 then items, then categories. Every one of those tables is held to the next by a
 composite key, and deleting upwards fails. Any script that empties menu data has
 to follow the same order.
+
+## A unique index is a guarantee; a check is a hope (Module 16)
+
+Module 15 established this for webhook deliveries. Module 16 relies on it for
+the thing the whole platform is built to protect, so it is worth stating as a
+convention rather than as two coincidences.
+
+**Where correctness depends on something happening at most once, the constraint
+goes in the schema.**
+
+| Constraint | What becomes impossible |
+| --- | --- |
+| `orders.placed_from_payment_id` unique | Two orders from one captured payment |
+| `orders.order_number` unique | Two orders a customer cannot tell apart |
+| `orders.pickup_token_hash` unique | Two orders one QR scan could satisfy |
+| `outbox_events (event_name, dedupe_key)` unique | The same event queued twice |
+| `payment_events (provider, provider_event_id)` unique | A replayed webhook applied twice |
+
+Application code still checks first — a `SELECT ... FOR UPDATE`, a status
+re-read inside the lock — because the common path should be cheap and should
+return a useful answer rather than an exception. But **the check is the
+optimisation and the index is the guarantee**, and code that treats it the
+other way round is wrong even while it is passing. Two workers can both find a
+row absent before either writes.
+
+The corollary is that every one of these has a handler for its own violation.
+`CreateOrderFromCapturedPayment` catches the `QueryException`, re-reads the
+order that must now exist for that payment, and returns it as a success —
+because the caller retrying is a webhook doing its job, not a client
+misbehaving.
+
+## Nullable columns that encode a lifecycle (Module 16)
+
+`orders.order_number`, `orders.placed_at`, `orders.pickup_code_hash` and
+`orders.pickup_token_hash` are all nullable, and all four are null together or
+populated together.
+
+That is not laxity — it is how one table carries two kinds of row. Before
+payment, the row is a payment target and none of those things exist yet;
+after, it is an order and all of them do. `order_number IS NULL` is the
+machine-checkable form of "this is not an order yet", which is what
+`orders:check-integrity` and the customer's Orders query
+(`whereNotNull('placed_at')`) both key off.
+
+Where a nullable column means "not yet", say so in the migration and give
+something the job of noticing rows stuck in the wrong half. The migration is
+named `place_orders_only_on_captured_payment` for exactly that reason.
+
+## Eloquent does not read defaults back (Module 16)
+
+`pickup_credential_version` has a database default of `1`. A model that has
+been round-tripped reads `1`. **A model that has only been `save()`d — never
+reloaded — holds `NULL`**, because Eloquent does not fetch column defaults back
+after an insert.
+
+`(int) null` is `0`, and `0` is a perfectly usable HMAC input, so this shipped
+as two different pickup credentials for one order depending on whether anything
+had reloaded it. It is now a thrown `PickupCredentialVersionMissing` rather
+than a cast.
+
+**A database default is not a value your model has.** Where a default feeds a
+calculation — especially a cryptographic one — either refresh the model or
+refuse to proceed. This is the second time the pattern has bitten this project;
+Module 14T's `accountUsable` was the first.

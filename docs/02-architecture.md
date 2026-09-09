@@ -314,3 +314,45 @@ Eligibility still goes through Module 09's `orderingContext()`, which still goes
 through Module 07's cached corridor read. Adding to a cart therefore calls no
 routing provider, for the same structural reason opening a menu does not — and
 without anybody having written a rule about carts.
+
+## Module 16 — what a captured payment is allowed to become
+
+Modules 12–15 answer "what does this cost" and "did the money arrive". Module
+16 answers the question between them and the kitchen: **given a payment this
+server has verified as captured, what exactly comes into existence?**
+
+The architectural decision is that the `orders` table holds two different kinds
+of row, distinguished by whether `order_number` is null:
+
+```
+checkout ──▶ orders row, AWAITING_PAYMENT ──▶ payment ──▶ CreateOrderFromCapturedPayment
+             (a payment target;                                      │
+              not an order)                                          ▼
+                                                       orders row, PLACED
+                                                       + order number
+                                                       + credential digests
+                                                       + party snapshots
+                                                       + outbox event
+```
+
+Three callers can reach `CreateOrderFromCapturedPayment`: the client's verify
+call, the Razorpay webhook, and the recovery sweep. **All three call the same
+method.** Three creation paths with three sets of conditions is how one of them
+ends up laxer, and the sweep — the path with nobody waiting on it — is exactly
+where that would go unnoticed. This is the same reasoning as Module 15's single
+`confirmAgainstProvider()`, applied one layer up.
+
+What makes it safe to have three callers is that creation is idempotent, and
+what makes it idempotent is a unique index on `orders.placed_from_payment_id`
+rather than any check in application code. See
+[35-order-creation-and-pickup-credentials.md](35-order-creation-and-pickup-credentials.md).
+
+Two smaller structural choices follow from the same place:
+
+- **The outbox is written inside the creation transaction.** An order cannot
+  commit without its event, and an event cannot survive a rolled-back order.
+  Publishing is a separate command, so a slow or broken consumer cannot fail an
+  order that a customer has already paid for.
+- **Pickup credentials are derived from the order, not stored on it.** That
+  removes a class of leak rather than guarding it, and it means "show me my
+  code again" costs an HMAC rather than a secret at rest.

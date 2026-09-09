@@ -881,3 +881,92 @@ not decoration — the safe choice should be the one under the thumb.
 The notice is amber rather than red. A conflict is not a failure: the customer
 has a cart, which is a perfectly good thing to have, and it happens to be
 somewhere else.
+
+## Order confirmation, and the button that is not there (Module 16)
+
+The confirmation screen is the first screen in the app whose job is defined by
+what it must **not** show.
+
+> **After a payment is captured, the customer is never shown "Payment failed",
+> and is never offered a way back to paying.**
+
+There is no *Pay Again*, no *Back to Payment*, no *Retry payment* on this
+screen in any phase. A captured payment that has not yet become an order is a
+delay, and presenting a delay as a failure invites a customer to pay twice for
+the same food. When the app runs out of patience it offers a support path, not
+a payment path.
+
+### Seven phases, and which of them may mention paying
+
+| Phase | Shown as | May offer payment? |
+| --- | --- | --- |
+| `loading` | First read, nothing known | No |
+| `creating` | Money taken, order being written | **No** |
+| `recovering` | Same screen as `creating` | **No** |
+| `placed` | The order, its number, and the pickup entry point | No |
+| `awaitingPayment` | Nothing has been taken | **Yes — this is the honest case** |
+| `networkError` | Could not reach the server | **No** |
+| `unauthorized` | Session gone, or not this customer's order | No |
+
+`recovering` renders identically to `creating` on purpose. The customer gains
+nothing from being told the first write failed; the distinction exists so
+support and analytics can tell a slow path from a broken one.
+
+`networkError` is the phase where the rule is easiest to break. An app that
+cannot reach the server **knows nothing about the money** — including whether
+it was taken — so it must not guess in either direction.
+
+### Defaults point away from the mistake
+
+The client's parsing defaults are chosen to fail toward "you have paid":
+
+- An unrecognised `state` reads as `creating`, not as an error.
+- A missing `is_paid_for` reads as **paid for**.
+
+Both mean that a server the app does not fully understand produces a wait, not
+a payment prompt.
+
+### Polling
+
+`status` is polled 10 times, 3 seconds apart. The endpoint is idempotent, so
+polling cannot create a second order — that is a property of the backend, not
+a promise made by the screen. After the tenth attempt the screen stops and
+offers support with the order reference.
+
+### Two identifiers, presented differently
+
+| | Order number | Pickup code |
+| --- | --- | --- |
+| On the confirmation screen | In the order card | In its own pickup card, once the order is `placed` |
+| In the Orders tab list | Yes | **No** |
+| Fetched | With the order | **Separate call**, answered `no-store` |
+| Safe to say out loud | Yes — that is its job | It is the thing that collects the food |
+
+Both appear on the confirmation screen; the difference is in how they travel.
+The order number arrives with the order and is listed everywhere. The
+credential is fetched by its own call, only for the one order being confirmed,
+only once that order is `placed`, and the response is never stored.
+
+`PickupCredential` has no `toJson` and is never cached to disk. Its
+`toString()` returns `PickupCredential(v2)` — the version and nothing else — so
+an accidental interpolation into a log cannot spill it.
+
+The code is displayed as-is and given a `Semantics` label of its digit-spaced
+form (`spokenCode`), because a screen reader pronouncing `7K4M9PQ2` as a word
+is unusable for a value the customer has to say at a counter. The QR is not an
+accessible alternative to it — a QR cannot be spoken at all — so the spoken
+code **is** the accessible path rather than a fallback from one.
+
+### The Orders tab shows orders only
+
+The list is `whereNotNull('placed_at')`, so a checkout row awaiting payment
+never appears in it. A row that is a payment target is not an order, and the
+customer's Orders tab is the place where that distinction is most likely to
+confuse somebody.
+
+### Layout
+
+Both header rows are `Wrap` with a `Flexible` status, after the tab overflowed
+by 44px at 320px width with 2× text scaling. Tested at that size and scale
+rather than at the default surface, because a layout test at comfortable
+defaults tests nothing.

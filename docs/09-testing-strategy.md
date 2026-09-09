@@ -650,3 +650,81 @@ the inconsistency visible as "12:50 am" above a list starting "6:20 am".
 
 A test suite that only ever checks one endpoint at a time cannot see a
 disagreement between two of them.
+
+## Module 16 — what the guards caught that the assertions did not
+
+Module 16 is the clearest evidence yet for the project's rule that **a green
+result is worth nothing until a negative control has been seen to fail** — and
+for its corollary, which cost more time this module than the rule itself:
+
+> **A control that stays silent has told you something. Find out what.**
+
+### The four silent controls
+
+Four negative controls were written against the HTTP surface — attempt creation
+from an uncaptured payment, from a mismatched amount, twice from one payment,
+and against another customer's order. **All four passed while the guard they
+targeted was commented out.** They were not testing what they claimed: Module
+15's placement path short-circuits earlier, so none of the requests ever
+reached Module 16's checks.
+
+The fix was to test the service directly. `CreateOrderFromCapturedPayment` is
+now exercised through `place()` as well as over HTTP, and the same four
+controls fail as intended when their guards are removed. The HTTP tests were
+kept — they assert the surface — but they are no longer the evidence for the
+guards.
+
+The general lesson: **a control that exercises a route proves the route.** If
+the property lives in a service three layers down, the control has to reach it.
+
+### Defects found by guards rather than by assertions
+
+Every one of these was a real bug that the module's own assertions passed over:
+
+| Defect | What actually found it |
+| --- | --- |
+| `customer_phone_snapshot` written as `NULL` (read `users.phone`, a legacy column; the real one is `phone_e164`) | An assertion that the *fixture* was non-empty, placed **before** the assertion about the snapshot |
+| Two different pickup credentials for one order, depending on whether the model had been reloaded | A guard that refused a missing `pickup_credential_version` instead of casting it |
+| `PlacedOrder.orderNumber` non-nullable in Dart — a `FormatException` on the payment screen for *every* customer | Reading the code. Every widget test passed, because the fake always supplied a number |
+| A QR-payload test that passed on a substring match and would have passed vacuously against an empty field | Rewriting the assertion as equality against `prefix + token` |
+
+The third row is the one worth internalising. **A fake that is more complete
+than reality makes a suite that cannot fail.** `FakeOrderRepository` always
+returned an order number, so no test could ever see the null the real API
+returns before placement.
+
+### Assert the fixture, then assert the behaviour
+
+The phone-snapshot bug is now a pattern used across the module: where a test
+asserts that a value was *copied*, it first asserts the source value was there
+to copy. Without that, `assertNull` and `assertSame(null, null)` are the same
+passing test, and a snapshot that silently copies nothing looks identical to
+one that works.
+
+### Testing "at most once"
+
+Idempotency is tested at both layers, because they fail differently:
+
+- **The application path** — call `place()` twice, assert one order and that
+  the second call returns the first.
+- **The constraint** — that the unique index on `placed_from_payment_id` is
+  what actually stops it, by asserting the duplicate attempt is caught and
+  resolved rather than propagated.
+
+A test that only covers the first proves the fast path and says nothing about
+the guarantee.
+
+### Layout is tested at the sizes that break it
+
+The Orders tab overflowed by 44px at 320px width with 2× text scaling, in two
+separate `Row`s. Neither was visible at the default test surface size. Widget
+tests for this module set the constrained size and the text scale explicitly,
+because a layout test at comfortable defaults tests nothing.
+
+### `find.bySemanticsLabel` and merged nodes
+
+A correct semantics label failed `find.bySemanticsLabel` because the finder
+matches the merged semantics tree, not the widget that declared it. The
+assertion is now made on the `Semantics` widget's property directly. Recorded
+here so the next person does not spend the same hour concluding their label is
+wrong when it is right.

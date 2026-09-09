@@ -745,3 +745,110 @@ nothing is indistinguishable from a provider that has stopped sending.
 
 **As this project stands there are no Razorpay credentials, and none were
 invented.**
+
+## Order creation and pickup credentials (Module 16)
+
+### The property being protected
+
+A pickup credential is the thing that causes food to be handed to a person. It
+is authentication material, and it is treated the way authentication material
+is treated rather than the way an order field is treated.
+
+### Nothing plaintext is stored
+
+The code and the QR token are **derived on demand** and never written:
+
+```
+code   = base32   ( HMAC-SHA256( pepper, "pickup-code:v{n}:{order_uuid}:{restaurant_id}"  ) )[0..8]
+token  = base64url( HMAC-SHA256( pepper, "pickup-token:v{n}:{order_uuid}:{restaurant_id}" ) )
+digest =            HMAC-SHA256( pepper, "{purpose}:{value}" )
+```
+
+`orders` holds the two digests. There is no column a plaintext code can be read
+out of, so a database dump, a backup, a support tool or a `SELECT *` in a log
+cannot leak one. Verification is `hash_equals` against the digest.
+
+The digest is **keyed with the pepper**, not a bare SHA-256. An 8-character
+code over a 32-character alphabet is 2^40 — small enough to enumerate offline,
+so a plain hash in a stolen dump is a lookup table away from plaintext. A keyed
+digest is not, unless the pepper was stolen too.
+
+### Replay resistance is arithmetic, not a check
+
+The order uuid and the restaurant id are **inside the HMAC input**. A
+credential minted for order A at restaurant X does not equal the one for order
+B at restaurant Y, so cross-order and cross-tenant replay fail without any call
+site having to remember to compare anything.
+
+This matters because checks get forgotten when a second call site appears —
+which is exactly what the Module 14T tenancy work was about. Here there is
+nothing to forget. `OrderPlacementTest` asserts it in both directions across
+two restaurants, with a positive assertion alongside so an implementation that
+matched *nothing* could not pass the negatives.
+
+### Rotation
+
+`orders.pickup_credential_version` is inside the HMAC input, so bumping it
+changes both derived values. The tests record the part that is easy to get
+wrong: **rotation is not complete until the stored digests are re-minted**,
+because the old digest otherwise keeps matching the old code.
+
+### The pepper
+
+`PICKUP_CREDENTIAL_PEPPER` is the single secret the scheme rests on, and that
+trade is stated in the service rather than hidden. `ProductionConfigGuard`
+refuses to boot staging or production without it. `derive()` throws
+`PickupCredentialUnavailable` rather than deriving under an empty key — a
+scheme that silently degrades to `HMAC(pepper: "")` is worse than one that
+stops.
+
+### An order number authorises nothing
+
+`FOTG-YYMMDD-XXXXXXXXXX` is drawn from `random_int` (CSPRNG) over the same
+32-character alphabet. It is **not** the database id, a timestamp,
+`Math.random`, or any sequence — a sequential public number tells its holder
+how many orders the platform has ever taken and lets them guess their
+neighbours'.
+
+But the reason it can be printed, read aloud at a counter and quoted in a
+support ticket is not its entropy. It is that **knowing an order number is
+never sufficient to collect food.** Entropy here defends against enumeration of
+other customers' references, not against pickup.
+
+### Not logged
+
+Never, on any path: the plaintext pickup code, the plaintext QR token, special
+instructions, payment signatures, provider secrets.
+`PickupCredential::toString()` returns `PickupCredential(v2)` so that an
+accidental interpolation cannot spill the value.
+
+### Credentials are not served with the order
+
+`GET /customer/orders/{order}/pickup-credential` is a separate, per-order,
+authenticated call answering with `Cache-Control: no-store, private,
+max-age=0`. Putting the credential on the order resource would ship it through
+every list refresh and every status poll, and every proxy in between.
+
+Ownership is `where('customer_id', $customer->id)` and a miss is a 404, not a
+403 — a 403 confirms the order exists, which is the fact an attacker trying
+identifiers is trying to learn.
+
+### At most one order per captured payment
+
+The security-relevant half of idempotency: a duplicate webhook, a retried
+client call and the recovery sweep all reach the same
+`CreateOrderFromCapturedPayment`, and the **unique index on
+`orders.placed_from_payment_id`** is what makes a second order impossible. The
+lock and the status re-read are the fast path; the index is the guarantee.
+
+No client assertion is an input to order creation. `payment_success = true` in
+a request body is not read. The only thing that causes an order is a payment
+this server recorded as `CAPTURED` after verifying it with the provider, whose
+amount and currency agree with `orders.payable_total_minor`.
+
+### Open, and named rather than implied
+
+**There is no redemption endpoint yet, so there is no attempt limit on guessing
+a code yet.** Whichever module builds pickup verification inherits that: a
+typed code must be attempt-limited per order, or 2^40 stops being a large
+number. Tracked in [13-known-issues.md](13-known-issues.md).

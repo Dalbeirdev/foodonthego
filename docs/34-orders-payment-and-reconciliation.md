@@ -160,3 +160,22 @@ and a mismatch between them is the thing worth detecting.
   server against the provider; it says nothing about what a restaurant is owed.
 - **No operator login**, unchanged since Module 14T. The tenant-scoped order
   endpoints exist and are tested; nothing mints a token for them yet.
+
+## What Module 16 changed here
+
+Module 15 created the `orders` row at checkout and moved it to `PAID`. Module
+16 changed what that row *means* before payment and what it becomes after.
+
+| Module 15 | Now |
+| --- | --- |
+| Checkout writes an order with `order_number` and `placed_at` | Checkout writes a **payment target**: `AWAITING_PAYMENT`, no number, no `placed_at` |
+| `paid_at` set by the placement service | Set from `payments.verified_at` at creation time |
+| A verified capture marks the existing order paid | A verified capture **creates the order**, once, via `CreateOrderFromCapturedPayment` |
+| `Order::isPaid()` | `Order::isPlaced()` |
+
+The three paths that could reach `confirmAgainstProvider()` — client callback,
+webhook, reconciliation — now also all reach one creation method, and
+idempotency there rests on a unique index on `orders.placed_from_payment_id`
+for the same reason it rests on `(provider, provider_event_id)` here.
+
+Full detail: [35-order-creation-and-pickup-credentials.md](35-order-creation-and-pickup-credentials.md).
