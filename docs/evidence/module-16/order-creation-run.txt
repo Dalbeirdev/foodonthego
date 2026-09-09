@@ -10,11 +10,11 @@ state changes and the credential arithmetic are real; the provider is not.
 Customer:            Rahul Sharma
 Phone (snapshot):    +91********01
 Restaurant:          Highway Spice Kitchen
-Trip uuid:           c31c4039-01cf-4f2f-a31c-be23be87d378
+Trip uuid:           6562544c-a2b1-46b4-b4aa-b55eff52d5e6
 
 --- the order ---
-Order uuid:          c34fe11e-711c-4a76-995c-a3a476373dd3
-Order number:        FOTG-260907-MYTKXF7M2R
+Order uuid:          cdd5d019-df05-49ad-a0d7-2db1265512e8
+Order number:        FOTG-260907-PJC2MTX3K8
 Status:              PLACED
 Placed at:           2026-09-07T06:30:00+00:00
 Paid at:             2026-09-07T06:30:00+00:00
@@ -24,7 +24,7 @@ Items:               1
 Item modifiers:      0
 
 --- the payment ---
-Payment uuid:        940c2bfb-b08b-4749-8ff5-d1c82c695385
+Payment uuid:        c20a5733-6402-4de6-ae15-c587fbe37d45
 Payment status:      CAPTURED
 Amount:              24900 minor units, INR
 Amounts agree:       YES
@@ -32,7 +32,7 @@ Verified at:         2026-09-07T06:30:00+00:00
 
 --- pickup credential (nothing plaintext recorded) ---
 Code length:         8 characters
-Code masked:         MZ******
+Code masked:         V4******
 Token length:        43 characters (base64url of 256 bits)
 Credential version:  1
 Code digest present: YES
@@ -47,8 +47,8 @@ Quote status:        CONSUMED (consumed)
 --- the outbox ---
 Events written:      1
 Event name:          OrderPlaced
-Event id:            7783c805-db7e-4f3f-b00c-c9f41385eb63
-Dedupe key:          c34fe11e-711c-4a76-995c-a3a476373dd3 (the order uuid)
+Event id:            e3526743-f782-4fe1-8937-bbc41990af35
+Dedupe key:          cdd5d019-df05-49ad-a0d7-2db1265512e8 (the order uuid)
 Payload keys:        order_uuid, payment_uuid, restaurant_id
 Payload carries money or personal data: NO
 
@@ -59,6 +59,6 @@ payments:            1
 outbox_events:       1
 
 --- observed cost of the verify call that created the order ---
-Wall clock:          45.3 ms
-Database queries:    27
+Wall clock:          31.0 ms
+Database queries:    28
 One run, one machine, MySQL on the same host. An observation, not a benchmark.

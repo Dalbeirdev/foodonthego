@@ -20,10 +20,14 @@ use Illuminate\Support\Facades\Date;
  * have to grep for.
  *
  * WHAT THIS DELIBERATELY DOES NOT DO. There is no endpoint behind it and no
- * general `setStatus`. Module 16 needs exactly one transition — a payment
- * target becoming a placed order — and every other edge in the table below is
- * either Module 15's or refused outright. Later modules extend the table; they
- * do not get a bypass.
+ * general `setStatus`. Module 17 added the fulfilment edges, and it did so by
+ * extending the table below rather than by giving anybody a bypass — which is
+ * the whole reason the table was written while it had three rows in it.
+ *
+ * NO CUSTOMER PATH REACHES THIS CLASS. The customer API is read-only over
+ * orders; the only writers are the placement service, the payment services, and
+ * OrderTransitionService, which every restaurant and admin path must go
+ * through.
  */
 final class OrderStateMachine
 {
@@ -49,20 +53,110 @@ final class OrderStateMachine
             OrderStatus::Cancelled,
         ],
 
-        // Module 18 adds Accepted and Rejected. Module 22 adds Refunded.
-        OrderStatus::Placed->value => [],
+        /*
+         | The order exists and the restaurant has not answered yet.
+         |
+         | CANCELLED is reachable from here and from ACCEPTED, and no further,
+         | because cancellation policy has not been agreed. Permitting it from
+         | COOKING or READY would be inventing the rule that a customer may
+         | walk away from food already made — a commercial decision nobody has
+         | taken. When it is taken, it is one line here and a test beside it.
+         */
+        OrderStatus::Placed->value => [
+            OrderStatus::Accepted,
+            OrderStatus::Rejected,
+            OrderStatus::Cancelled,
+        ],
 
-        // Module 19.
-        OrderStatus::Accepted->value => [],
-        OrderStatus::Cooking->value => [],
-        OrderStatus::Ready->value => [],
+        OrderStatus::Accepted->value => [
+            OrderStatus::Cooking,
+            OrderStatus::Cancelled,
+        ],
 
-        // Terminal.
+        /*
+         | Once the kitchen has started, forward only.
+         |
+         | COOKING → CANCELLED is absent deliberately. See above: the food
+         | exists by this point and somebody has to decide who pays for it.
+         */
+        OrderStatus::Cooking->value => [
+            OrderStatus::Ready,
+        ],
+
+        /*
+         | READY → PICKED_UP is the only edge, and Module 21 owns it.
+         |
+         | Nothing in Module 17 may mark an order collected: doing so requires
+         | a verified pickup credential, and nothing verifies one yet.
+         */
+        OrderStatus::Ready->value => [
+            OrderStatus::PickedUp,
+        ],
+
+        /*
+         | Terminal. Every one of these is an empty list, and the emptiness is
+         | the protection: there is no privileged flag, no force parameter and
+         | no admin override in this class. A deliberate recovery workflow would
+         | be a new, separately authorised service — not an argument here that
+         | somebody could pass by accident.
+         */
         OrderStatus::Rejected->value => [],
         OrderStatus::PickedUp->value => [],
         OrderStatus::Cancelled->value => [],
+
+        /*
+         | Unreachable, and Module 17 keeps it that way.
+         |
+         | REFUNDED IS PAYMENT STATE, NOT ORDER STATE. A rejected order whose
+         | money came back is `order.status = REJECTED` with a refunded
+         | payment, which is two facts on two records; folding it into one
+         | status forces a single string to answer two questions and loses one
+         | of the answers. The case stays declared so this table can refuse it
+         | by name. No refund workflow exists, so nothing refunds anything yet.
+         */
         OrderStatus::Refunded->value => [],
     ];
+
+    /**
+     * The states an order can still move out of.
+     *
+     * Defined here rather than in the enum because "active" is a property of
+     * the transition table — a state is active exactly when something can still
+     * happen to it — and keeping the two definitions in one place stops them
+     * drifting apart the next time an edge is added.
+     *
+     * @return list<OrderStatus>
+     */
+    public static function activeStatuses(): array
+    {
+        return [
+            OrderStatus::Placed,
+            OrderStatus::Accepted,
+            OrderStatus::Cooking,
+            OrderStatus::Ready,
+        ];
+    }
+
+    /**
+     * The happy path, in order, for rendering a timeline.
+     *
+     * NOT DERIVED FROM THE TABLE ABOVE, because the table is a graph and a
+     * timeline is a line. Every branch out of the happy path — rejection,
+     * cancellation — is an exception the presenter handles explicitly rather
+     * than a step it tries to lay out.
+     *
+     * @return list<OrderStatus>
+     */
+    public static function happyPath(): array
+    {
+        return [
+            OrderStatus::Placed,
+            OrderStatus::Accepted,
+            OrderStatus::Cooking,
+            OrderStatus::Ready,
+            OrderStatus::PickedUp,
+        ];
+    }
 
     public function permits(OrderStatus $from, OrderStatus $to): bool
     {
@@ -97,8 +191,25 @@ final class OrderStateMachine
 
         // The timestamp that belongs to the state being entered. placed_at is
         // what the Orders tab sorts on, so it is set here and nowhere else.
+        $this->stamp($order, $to, $now);
+    }
+
+    /**
+     * The timestamp that belongs to the state being entered.
+     *
+     * WRITTEN ONCE. A transition into a state the order has already been in is
+     * refused by the table above, so each of these fires at most once per
+     * order and a milestone cannot be quietly overwritten by a replayed event.
+     */
+    private function stamp(Order $order, OrderStatus $to, CarbonImmutable $now): void
+    {
         match ($to) {
             OrderStatus::Placed => $order->placed_at = $now,
+            OrderStatus::Accepted => $order->accepted_at = $now,
+            OrderStatus::Rejected => $order->rejected_at = $now,
+            OrderStatus::Cooking => $order->cooking_started_at = $now,
+            OrderStatus::Ready => $order->ready_at = $now,
+            OrderStatus::PickedUp => $order->picked_up_at = $now,
             OrderStatus::Cancelled => $order->cancelled_at = $now,
             default => null,
         };

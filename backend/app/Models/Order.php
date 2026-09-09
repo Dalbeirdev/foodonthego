@@ -43,6 +43,16 @@ final class Order extends Model
             'paid_at' => 'immutable_datetime',
             'cancelled_at' => 'immutable_datetime',
 
+            // Module 17. One per fulfilment state, so a timeline can be read
+            // off this row without joining the history table -- and so a
+            // status with no matching timestamp is a detectable fault.
+            'accepted_at' => 'immutable_datetime',
+            'rejected_at' => 'immutable_datetime',
+            'cooking_started_at' => 'immutable_datetime',
+            'ready_at' => 'immutable_datetime',
+            'picked_up_at' => 'immutable_datetime',
+            'order_version' => 'integer',
+
             // Module 16. The expiry was missing a cast and reached the
             // presenter as a raw string, where ->toIso8601String() is a fatal
             // error rather than a wrong value — which is the good kind of bug,
@@ -128,6 +138,22 @@ final class Order extends Model
     public function placedFromPayment(): BelongsTo
     {
         return $this->belongsTo(Payment::class, 'placed_from_payment_id');
+    }
+
+    /**
+     * Everything that has happened to this order, oldest first.
+     *
+     * Ordered by occurred_at and then id, never by occurred_at alone: two
+     * transitions can land inside the same second, and which of them a
+     * customer sees first must not be up to the storage engine.
+     *
+     * @return HasMany<OrderStatusHistory, $this>
+     */
+    public function statusHistory(): HasMany
+    {
+        return $this->hasMany(OrderStatusHistory::class)
+            ->orderBy('occurred_at')
+            ->orderBy('id');
     }
 
     /** @return HasMany<OrderItem, $this> */

@@ -7,9 +7,11 @@ namespace App\Services\Orders;
 use App\Enums\CartStatus;
 use App\Enums\CheckoutQuoteStatus;
 use App\Enums\OrderStatus;
+use App\Enums\OrderTransitionSource;
 use App\Enums\PaymentStatus;
 use App\Exceptions\Orders\OrderCreationRefused;
 use App\Models\Order;
+use App\Models\OrderStatusHistory;
 use App\Models\OutboxEvent;
 use App\Models\Payment;
 use Carbon\CarbonImmutable;
@@ -150,6 +152,26 @@ final class CreateOrderFromCapturedPayment
         $order->save();
 
         $this->closeTheBasket($order);
+
+        /*
+         | The first row of the order's history, written where the order is.
+         |
+         | Module 17 made an order's status a history rather than a value, and
+         | that history has to start here or it starts with a gap: a timeline
+         | whose first entry is ACCEPTED cannot say when the order was placed.
+         |
+         | occurred_at is placed_at rather than $now. They are the same instant
+         | on the live path, but a recovery sweep finishing a stranded capture
+         | hours later must record when the order was placed, not when the
+         | sweep noticed.
+         */
+        $history = new OrderStatusHistory;
+        $history->order_id = $order->id;
+        $history->from_status = null;
+        $history->to_status = OrderStatus::Placed;
+        $history->source_type = OrderTransitionSource::System;
+        $history->occurred_at = $order->placed_at ?? $now;
+        $history->save();
 
         // In the same transaction as the order. An OrderPlaced event that
         // survives a rolled-back order would tell a restaurant about food
