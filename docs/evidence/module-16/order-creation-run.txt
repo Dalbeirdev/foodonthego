@@ -1,0 +1,64 @@
+FoodOnTheGo — Module 16 evidence: one journey from capture to pickup credential
+Produced by ModuleSixteenEvidenceTest. Every value below was read back from the
+database after the run, not written by hand.
+
+THE CAPTURE IS FROM THE DETERMINISTIC FAKE GATEWAY. No Razorpay credentials
+exist for this project, so no live provider was involved. The row counts, the
+state changes and the credential arithmetic are real; the provider is not.
+
+--- customer and journey ---
+Customer:            Rahul Sharma
+Phone (snapshot):    +91********01
+Restaurant:          Highway Spice Kitchen
+Trip uuid:           c31c4039-01cf-4f2f-a31c-be23be87d378
+
+--- the order ---
+Order uuid:          c34fe11e-711c-4a76-995c-a3a476373dd3
+Order number:        FOTG-260907-MYTKXF7M2R
+Status:              PLACED
+Placed at:           2026-09-07T06:30:00+00:00
+Paid at:             2026-09-07T06:30:00+00:00
+Placed from payment: id 1 (unique index)
+Payable total:       24900 minor units, INR
+Items:               1
+Item modifiers:      0
+
+--- the payment ---
+Payment uuid:        940c2bfb-b08b-4749-8ff5-d1c82c695385
+Payment status:      CAPTURED
+Amount:              24900 minor units, INR
+Amounts agree:       YES
+Verified at:         2026-09-07T06:30:00+00:00
+
+--- pickup credential (nothing plaintext recorded) ---
+Code length:         8 characters
+Code masked:         MZ******
+Token length:        43 characters (base64url of 256 bits)
+Credential version:  1
+Code digest present: YES
+Token digest present:YES
+Plaintext in row:    NO (asserted by searching the stored attributes)
+Expires at:          2026-09-08T08:20:00+00:00
+
+--- the basket and the quote were spent ---
+Cart status:         CONVERTED (converted)
+Quote status:        CONSUMED (consumed)
+
+--- the outbox ---
+Events written:      1
+Event name:          OrderPlaced
+Event id:            7783c805-db7e-4f3f-b00c-c9f41385eb63
+Dedupe key:          c34fe11e-711c-4a76-995c-a3a476373dd3 (the order uuid)
+Payload keys:        order_uuid, payment_uuid, restaurant_id
+Payload carries money or personal data: NO
+
+--- row counts after the run ---
+orders (total):      1
+orders (placed):     1
+payments:            1
+outbox_events:       1
+
+--- observed cost of the verify call that created the order ---
+Wall clock:          45.3 ms
+Database queries:    27
+One run, one machine, MySQL on the same host. An observation, not a benchmark.
