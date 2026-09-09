@@ -29,6 +29,7 @@ import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/cart_repository.dart';
 import '../../domain/payments/payment_handoff.dart';
 import '../../domain/repositories/checkout_repository.dart';
+import '../../domain/models/placed_order.dart';
 import '../../domain/repositories/order_repository.dart';
 import '../../domain/repositories/pickup_repository.dart';
 import '../../domain/repositories/customer_repository.dart';
@@ -294,6 +295,15 @@ final checkoutRepositoryProvider = Provider<CheckoutRepository>(
 /// identifiers and nothing else.
 final orderRepositoryProvider = Provider<OrderRepository>(
   (Ref ref) => ApiOrderRepository(ref.watch(apiClientProvider)),
+);
+
+/// This customer's placed orders, newest first.
+///
+/// autoDispose, so switching accounts cannot leave one customer's orders in
+/// memory for the next. Account isolation is not something a list widget should
+/// have to remember; the provider simply does not outlive the screen.
+final myOrdersProvider = FutureProvider.autoDispose<List<PlacedOrder>>(
+  (Ref ref) => ref.watch(orderRepositoryProvider).mine(),
 );
 
 /// Handing the customer to the provider's checkout sheet.

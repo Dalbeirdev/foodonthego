@@ -2969,6 +2969,32 @@ class FakeOrderRepository implements OrderRepository {
   /// more usefully, what was not.
   Map<String, String>? lastVerification;
 
+  /// A placed order a test can hand straight to a list.
+  ///
+  /// Static and parameterised, because the Orders tab needs several orders that
+  /// differ from one another and the instance builder below always produces the
+  /// same one.
+  static PlacedOrder orderFor({
+    required String id,
+    required PlacedOrderStatus status,
+    String? orderNumber = 'FOTG-260909-7K2M9QX4TB',
+    String? restaurantName = 'Highway Spice Kitchen',
+    int payableTotalMinor = 83_800,
+  }) => PlacedOrder(
+    id: id,
+    orderNumber: orderNumber,
+    status: status,
+    restaurantName: restaurantName,
+    pickupTimezone: 'Asia/Kolkata',
+    commercial: CommercialSummary(
+      itemsSubtotal: Money(amountMinor: payableTotalMinor, currency: 'INR'),
+      payableTotal: Money(amountMinor: payableTotalMinor, currency: 'INR'),
+    ),
+  );
+
+  /// What `mine()` throws, when a test wants the failure path.
+  ApiException? listFailure;
+
   PlacedOrder _order({required PlacedOrderStatus status}) => PlacedOrder(
     id: 'order-uuid-1',
     orderNumber: orderNumber,
@@ -3037,7 +3063,11 @@ class FakeOrderRepository implements OrderRepository {
       _order(status: PlacedOrderStatus.awaitingPayment);
 
   @override
-  Future<List<PlacedOrder>> mine() async => ordersInTab;
+  Future<List<PlacedOrder>> mine() async {
+    if (listFailure case final ApiException error) throw error;
+
+    return ordersInTab;
+  }
 
   /// What the Orders tab is handed. Empty by default, so a test that expects
   /// orders has to say so and cannot pass on a fixture it did not choose.

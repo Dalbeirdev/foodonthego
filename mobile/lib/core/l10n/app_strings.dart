@@ -85,6 +85,13 @@ class AppStrings {
   String get tripsEmptyTitle => 'No journeys yet';
   String get tripsEmptyBody =>
       'Plan a journey and FoodOnTheGo will find restaurants conveniently placed along your route.';
+
+  /// When an order arrives without its restaurant.
+  ///
+  /// Should not happen — the snapshot is written at placement — but a row that
+  /// renders "null" is worse than one that admits it does not know.
+  String get ordersUnknownRestaurant => 'Restaurant unavailable';
+
   String get ordersEmptyTitle => 'No orders yet';
   String get ordersEmptyBody =>
       'Your current and past FoodOnTheGo orders will appear here.';
