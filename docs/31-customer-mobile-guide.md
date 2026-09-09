@@ -204,24 +204,86 @@ Screenshots: [`evidence/module-14/`](evidence/module-14/) states 01–06.
 
 ## 12. Paying
 
-**You cannot.** Payment is Module 15.
+**Not in this build, and the app says so in those words.**
 
 **Proceed to payment** is present and enabled when the server says your order is
-ready. Tapping it asks the server one last time and then tells you plainly:
+ready. Tapping it places a payment target — the order the payment will attach
+to — and opens the payment screen, which reports:
 
-> **Payment arrives in the next release.** Your order is checked and ready.
-> Card, UPI, wallet and net banking aren't switched on yet.
+> **Payment isn't enabled yet.** No card, UPI, wallet or net banking provider is
+> configured for this deployment.
 
-Nothing is charged, no order is created, and no payment record exists. The
-database has no `orders` or `payments` table at all.
+That is the literal state of this deployment rather than a placeholder. The
+payment code is built and tested: an order can have a payment opened against it,
+a provider's result is verified by the server, and a verified capture creates
+the order. **No payment provider credentials exist for this project**, so none of
+it has ever run against a live provider, and the app refuses to pretend
+otherwise rather than showing a checkout sheet that cannot work.
+
+Nothing is charged. The row created when you reach this screen is not an order:
+it has no order number, and it does not appear in your Orders tab.
 
 ---
 
-## 13. Orders, alerts and the rest
+## 13. After paying — your order number and pickup code
 
-The **Orders** and **Alerts** tabs exist in the navigation and are empty. They
-belong to modules that have not been built, and the app says so rather than
-showing a spinner that never resolves.
+This is what a customer sees once a payment goes through. It is built and
+tested; you cannot reach it in this build because no payment can be captured
+without a provider.
+
+**The moment the payment succeeds, you leave the payment screen.** There is no
+way back to it — no *Pay Again*, no *Back to Payment*, at any point. That is
+deliberate: once your money has left, a button offering to pay again is a button
+that charges you twice for one meal.
+
+### While your order is being written
+
+You may see a brief wait that says your payment is confirmed and your order is
+being prepared. If something goes wrong behind the scenes, you still see that
+same message — never a payment failure — because your money is safe and the
+order will be created either way. If the app cannot reach the server at all, it
+says exactly that and offers to check again. It never guesses that your payment
+failed, because it has no way of knowing.
+
+### Your order number
+
+Something like **FOTG-260917-94FBX0ZS1M** — a real draw from the generator this
+build ships, not a made-up example.
+
+This is your reference. Read it out, quote it in a message, screenshot it — it
+is safe to share. **It does not collect your food.** Knowing an order number is
+never enough for anyone, including you, to be handed a meal.
+
+### Your pickup code
+
+Eight characters, shown on the confirmation screen along with a QR code.
+
+**This is the one you keep to yourself.** It is what proves the order is yours
+at the counter. A few things worth knowing about it:
+
+- It is never stored in readable form anywhere — not in the app, not on the
+  server, not in a backup. It is worked out fresh each time you ask for it.
+- It belongs to that one order at that one restaurant. It will not work for
+  another order, or at another restaurant, even a different branch.
+- A screen reader reads it out character by character, because "7K4M9PQ2" said
+  as a word is no use to anyone standing at a counter.
+
+**Scanning is not built yet.** The QR code is generated and shown; nothing reads
+it. Collecting food with it belongs to a later module.
+
+### Your Orders tab
+
+Orders you have paid for appear here, newest first, with the restaurant, the
+total and the order number. A basket you started paying for and did not finish
+does not appear — it is not an order.
+
+---
+
+## 14. Alerts and the rest
+
+The **Alerts** tab exists in the navigation and is empty. It belongs to a module
+that has not been built, and the app says so rather than showing a spinner that
+never resolves.
 
 ---
 
@@ -242,3 +304,7 @@ showing a spinner that never resolves.
 | Pickup time | Yes | Yes (module-14) |
 | Checkout | Yes | Yes (module-14) |
 | Payment | Yes — as unavailable | n/a |
+| Order confirmation | Yes — built, unreachable without a provider | n/a |
+| Order number | Yes | n/a |
+| Pickup code and QR | Yes — minted and shown; scanning not built | n/a |
+| Orders tab | Yes | Yes (module-02, empty state) |

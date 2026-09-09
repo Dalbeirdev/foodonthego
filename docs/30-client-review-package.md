@@ -1,6 +1,6 @@
-# 30 — Client review package (end of Module 14)
+# 30 — Client review package (end of Module 16)
 
-Everything a reviewer needs to look at the product as it stands after Module 14,
+Everything a reviewer needs to look at the product as it stands after Module 16,
 and an honest account of what they will not be able to do.
 
 Written to be read by somebody who has not been following the build. Where a
@@ -14,16 +14,28 @@ local development database.
 
 ---
 
-## A — What Module 14 delivers
+## A — What Modules 14 to 16 deliver
 
 A customer can plan a journey, find a restaurant on their route, browse its
 menu, configure a dish, put it in a cart, choose a pickup window, and reach a
 **checkout screen showing an authoritative payable amount**.
 
-That is where it stops. **No payment is taken, no order is created, and nothing
-is marked paid.** The button that would start a payment is present, enabled when
-the server says the order is ready, and honest about the fact that Module 15
-owns what happens next.
+Behind that screen, the whole path from a payment to a collectable order is now
+built and tested: a payment can be opened against an order, a provider's result
+is verified by the server rather than believed from the app, and **a verified
+capture creates exactly one order** with a number the customer can read out and
+a pickup credential that is never stored in readable form.
+
+**Where it stops, and why.**
+
+- **No payment provider credentials exist for this project**, so no payment has
+  ever been taken and no order has ever been created from a real capture. The
+  app says exactly that on the payment screen rather than opening a checkout
+  sheet that cannot work.
+- **Nothing scans a pickup code.** It is minted, shown and verifiable
+  server-side; the counter flow that would redeem it is a later module.
+- **An order stops at PLACED.** No restaurant accepts, cooks or hands anything
+  over yet, and the state machine permits no transition it cannot perform.
 
 ---
 
@@ -252,14 +264,22 @@ Read this as *what a customer can do*, not *what a screen exists for*.
 | Manage the cart, revalidate prices | 12 | **Complete** |
 | Choose a pickup window | 13 | **Complete** |
 | Checkout with an authoritative total | 14 | **Complete** |
-| **Take a payment** | 15 | **Not started** |
-| **Create an order** | 15+ | **Not started** |
+| Take a payment | 15 | **Built, never executed** — no provider credentials exist |
+| Verify a payment server-side | 15 | **Complete** — signature, binding, amount; three paths, one implementation |
+| Create an order from a capture | 16 | **Complete** — at most one order per captured payment, guaranteed by a unique index |
+| Order number | 16 | **Complete** — CSPRNG, authorises nothing |
+| Pickup code and QR token | 16 | **Complete** — derived, never stored in readable form |
+| See your orders and confirmation | 16 | **Complete** |
+| **Collect food with a pickup code** | later | **Not started** — nothing scans or redeems one |
+| **An order past PLACED** | later | **Not started** — no accept, cook, ready or handover |
 | **Restaurant operations** | later | **Not started** — shell only |
 | **Admin operations** | later | **Not started** — shell only |
 | Support, finance, rider surfaces | later | **Not started** — nothing at all |
 
-Tables that do not exist in the database today: `orders`, `order_items`,
-`payments`, `pickup_codes`. Asserted by a test rather than by memory.
+`orders`, `order_items`, `order_item_modifiers`, `payments`, `payment_events`
+and `outbox_events` all exist as of Modules 15 and 16. There is no
+`pickup_codes` table and there will not be one: a pickup code is derived from
+the order rather than stored, so there is nothing for such a table to hold.
 
 ---
 
@@ -391,9 +411,16 @@ configured" and "configured as zero" is enforced in code and in tests.
 
 ## K — Known limitations
 
-1. **No payment.** Module 15.
-2. **No orders.** No `orders` table exists.
-3. **Nothing deployed.** No review URL for any surface.
+1. **No payment has ever been taken.** The integration is written and tested
+   against a deterministic double; no provider credentials exist, so it has
+   never spoken to Razorpay (KI-022, KI-026).
+2. **No order has ever been created from a real capture**, for the same reason.
+   Every path downstream of a capture is proven against the fake gateway.
+3. **Nothing collects food.** No redemption endpoint, no scanner — and so no
+   attempt limit on guessing a pickup code, which is recorded now rather than
+   discovered later (KI-024).
+4. **An order cannot move past PLACED** (KI-027).
+5. **Nothing deployed.** No review URL for any surface.
 4. **Six of seven roles have no login and no API.**
 5. **The AAB cannot go to Play** — debug-signed, no upload keystore.
 6. **No iOS installable build** — no Apple signing environment.
@@ -413,8 +440,8 @@ configured" and "configured as zero" is enforced in code and in tests.
 
 | | |
 | --- | --- |
-| Backend | **1,119 tests**, Pint clean |
-| Flutter | **904 tests**, `analyze --fatal-infos` clean, `format` clean |
+| Backend | **1,252 tests**, Pint clean |
+| Flutter | **951 tests**, `analyze --fatal-infos` clean, `format` clean |
 | Web | typecheck, tests and both builds clean |
 | Android device run | **27 integration tests on an emulator**, including 5 for Module 14 |
 | iOS device run | the same suite on a simulator |
@@ -435,9 +462,13 @@ In the order it matters:
    waits on this.
 2. **Stand up a staging environment** so a reviewer can open a URL and a review
    build has something to talk to.
-3. **Module 15** — Razorpay, server-side verification, webhooks, reconciliation.
-4. **Orders** — the lifecycle Module 15's payment attaches to.
-5. **A restaurant operations surface** — the kitchen cannot see an order today.
+3. **Razorpay test credentials and a public HTTPS webhook endpoint**, both
+   owned by the client. Until these exist, no payment can be taken and no order
+   can be created from one — the code is written and waiting on configuration.
+4. **Pickup verification** — scanning, redemption, and the attempt limit that
+   must come with it.
+5. **A restaurant operations surface** — the kitchen cannot see an order today,
+   and an order cannot move past PLACED.
 6. **An upload keystore and an Apple Developer account**, both owned by the
    client, before either store can be reached.
 7. **The live ETA engine**, replacing the planned-route approximation.
