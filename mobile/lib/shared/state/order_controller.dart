@@ -52,6 +52,7 @@ class OrderState {
     this.failure,
     this.failureMessage,
     this.wasCancelled = false,
+    this.capturedOrderId,
   });
 
   final PlacedOrder? order;
@@ -67,6 +68,20 @@ class OrderState {
   /// neutral note rather than an error.
   final bool wasCancelled;
 
+  /// The order whose payment the provider reported as succeeded.
+  ///
+  /// THE POINT OF NO RETURN. Set the instant the handoff comes back succeeded
+  /// and before the server is asked anything, because from here on the money
+  /// may already be gone and nothing on this screen may suggest paying again.
+  ///
+  /// It does NOT mean the order was placed — only the server decides that, and
+  /// the confirmation screen is where the customer waits to find out. It means
+  /// the payment screen is finished.
+  final String? capturedOrderId;
+
+  /// Whether the customer must be moved off the payment screen.
+  bool get isPaymentFinished => capturedOrderId != null;
+
   bool get isPlaced => order?.isPlaced ?? false;
 
   bool get isBusy => isPlacing || isPaying;
@@ -79,6 +94,7 @@ class OrderState {
     OrderFailure? failure,
     String? failureMessage,
     bool? wasCancelled,
+    String? capturedOrderId,
     bool clearFailure = false,
   }) => OrderState(
     order: order ?? this.order,
@@ -90,6 +106,8 @@ class OrderState {
         ? null
         : (failureMessage ?? this.failureMessage),
     wasCancelled: wasCancelled ?? this.wasCancelled,
+    // Never cleared. A capture does not un-happen.
+    capturedOrderId: capturedOrderId ?? this.capturedOrderId,
   );
 }
 
@@ -216,6 +234,18 @@ class OrderController extends Notifier<OrderState> {
         providerPaymentId: final String providerPaymentId,
         signature: final String signature,
       ):
+        /*
+         | Recorded BEFORE the server is asked.
+         |
+         | Everything after this line can fail — the verify call can time out,
+         | the connection can drop, the app can be killed. None of those mean
+         | the payment failed, and the screen that offers a Pay button must be
+         | left behind before any of them can happen. The order still gets
+         | created: the webhook and the recovery sweep reach the same creation
+         | path this call does.
+         */
+        state = state.copyWith(capturedOrderId: intent.order.id);
+
         await _verify(
           orderId: intent.order.id,
           providerOrderId: providerOrderId,
@@ -244,8 +274,29 @@ class OrderController extends Notifier<OrderState> {
 
       state = state.copyWith(order: order, isPaying: false, clearFailure: true);
     } on ApiException catch (error) {
+      /*
+       | After a capture, a failed verification is not a payment failure.
+       |
+       | The customer's money is with the provider. Whatever went wrong here
+       | went wrong on this device or on the way to the server, and the order
+       | will still be created by the webhook or the recovery sweep. Rendering
+       | this as a declined payment — beside a Pay button — is how somebody
+       | pays twice for one meal.
+       */
+      if (state.isPaymentFinished) {
+        state = state.copyWith(isPaying: false);
+
+        return;
+      }
+
       _fail(error, isPaying: true);
     } catch (_) {
+      if (state.isPaymentFinished) {
+        state = state.copyWith(isPaying: false);
+
+        return;
+      }
+
       _failUnknown(isPaying: true);
     }
   }

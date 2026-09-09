@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_strings.dart';
+import '../../core/routing/routes.dart';
 import '../../core/theme/tokens.dart';
 import '../../domain/models/placed_order.dart';
 import '../../shared/state/order_controller.dart';
@@ -52,6 +54,27 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   Widget build(BuildContext context) {
     final AppStrings strings = AppStrings.of(context);
     final OrderState state = ref.watch(orderControllerProvider);
+
+    /*
+     | Off this screen the moment the provider says the money went through.
+     |
+     | `go`, not `push`: the payment screen must not be underneath the
+     | confirmation screen, because a back gesture would land the customer on a
+     | Pay button after they have already paid. This is the only navigation out
+     | of a captured payment, and it goes forward.
+     |
+     | Watched rather than fired from the controller, so that nothing in the
+     | state layer needs a BuildContext, and so a screen that is no longer
+     | mounted simply never navigates.
+     */
+    ref.listen<String?>(
+      orderControllerProvider.select((OrderState it) => it.capturedOrderId),
+      (String? was, String? now) {
+        if (now == null || was == now || !mounted) return;
+
+        context.go(Routes.orderConfirmationPath(now));
+      },
+    );
 
     return Scaffold(
       appBar: AppBar(title: Text(strings.paymentTitle)),
@@ -167,10 +190,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     tone: CartNoticeTone.neutral,
   );
 
+  /// Belt to the navigation's braces.
+  ///
+  /// `isPaymentFinished` disables this button as well as triggering the move to
+  /// the confirmation screen. Navigation takes a frame and can be prevented —
+  /// a router guard, a screen already popped — and a button that can still take
+  /// money in that window is a button that charges somebody twice.
   Widget _payAction(AppStrings strings, OrderState state) => PrimaryButton(
     key: const ValueKey<String>('payment-pay'),
     label: state.isPaying ? strings.paymentPaying : strings.paymentPayNow,
-    onPressed: state.isPaying || state.intent == null
+    onPressed: state.isPaying || state.intent == null || state.isPaymentFinished
         ? null
         : () => ref.read(orderControllerProvider.notifier).pay(),
   );

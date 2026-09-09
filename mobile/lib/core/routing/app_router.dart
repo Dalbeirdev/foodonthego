@@ -8,6 +8,7 @@ import '../../features/auth/registration_screen.dart';
 import '../../features/auth/welcome_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/notifications/notifications_screen.dart';
+import '../../features/orders/order_confirmation_screen.dart';
 import '../../features/orders/orders_screen.dart';
 import '../../features/placeholder/coming_soon_screen.dart';
 import '../../features/profile/profile_screen.dart';
@@ -323,6 +324,15 @@ GoRouter createRouter({
                 path: Routes.orders,
                 builder: (BuildContext context, GoRouterState state) =>
                     const OrdersScreen(),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: Routes.orderConfirmation,
+                    builder: (BuildContext context, GoRouterState state) =>
+                        OrderConfirmationScreen(
+                          orderId: state.pathParameters['orderId'] ?? '',
+                        ),
+                  ),
+                ],
               ),
             ],
           ),

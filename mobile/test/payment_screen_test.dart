@@ -4,6 +4,7 @@ import 'package:foodonthego/core/network/api_error_code.dart';
 import 'package:foodonthego/core/network/api_exception.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
+import 'package:foodonthego/domain/models/order_status_report.dart';
 import 'package:foodonthego/domain/payments/payment_handoff.dart';
 
 import 'support/harness.dart';
@@ -73,7 +74,12 @@ void main() {
     expect(find.byKey(const ValueKey<String>('payment-pay')), findsOne);
   });
 
-  testWidgets('a placed order says so and stops offering to pay', (
+  /// Since Module 16 this ends somewhere else, and that is the improvement.
+  ///
+  /// The screen used to report the placed order in place and simply hide its
+  /// Pay button. It now leaves for the confirmation screen the instant the
+  /// provider reports a capture, so the assertion moved with the customer.
+  testWidgets('a placed order is shown on the confirmation screen, not here', (
     WidgetTester tester,
   ) async {
     await open(tester, handoff: ScriptedPaymentHandoff(succeeded));
@@ -81,34 +87,107 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('payment-pay')));
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const ValueKey<String>('payment-pay')), findsNothing);
+    expect(find.byKey(const ValueKey<String>('confirmation-placed')), findsOne);
     expect(
-      find.byKey(const ValueKey<String>('payment-status-PLACED')),
+      find.byKey(const ValueKey<String>('confirmation-order-number')),
       findsOne,
     );
-    expect(find.byKey(const ValueKey<String>('payment-pay')), findsNothing);
   });
 
   /// The screen must follow the server, not the sheet.
   testWidgets('a handoff claiming success does not turn the screen paid', (
     WidgetTester tester,
   ) async {
+    // The server disagrees on BOTH the questions the client can ask it: the
+    // verification does not settle the order, and the status the confirmation
+    // screen fetches afterwards does not report it placed either. Without the
+    // second, the fake's cheerful default would answer PLACED and the test
+    // would prove nothing about the sheet being disbelieved.
     await open(
       tester,
-      orders: FakeOrderRepository()..settlesOnVerify = false,
+      orders: FakeOrderRepository()
+        ..settlesOnVerify = false
+        ..statusReport = const OrderStatusReport(
+          state: OrderCreationState.creating,
+          isPaidFor: true,
+          order: null,
+          message: 'We are still writing your order.',
+        ),
+      handoff: ScriptedPaymentHandoff(succeeded),
+    );
+
+    await tester.tap(find.byKey(const ValueKey<String>('payment-pay')));
+
+    // `pump`, not `pumpAndSettle`. The confirmation screen polls while the
+    // order is still being written, so there is a pending timer by design and
+    // settling would wait for a quiet frame that correctly never comes.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // The sheet said the money went through, and the server did not agree.
+    // Nothing anywhere claims this order is placed.
+    expect(
+      find.byKey(const ValueKey<String>('payment-status-PLACED')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('confirmation-placed')),
+      findsNothing,
+    );
+
+    // The customer is on the confirmation screen either way, because the
+    // capture is what moves them and the server's answer is what they wait
+    // for. What they are NOT offered is another payment.
+    expect(find.byKey(const ValueKey<String>('payment-pay')), findsNothing);
+  });
+
+  /*
+   | THE POINT OF NO RETURN.
+   |
+   | Once the provider reports a capture, the money may already be gone. From
+   | that instant the payment screen is finished: it must not show a failure,
+   | must not offer to pay, and must hand the customer to the confirmation
+   | screen — which has no route backwards to paying.
+   |
+   | The case tested here is the nasty one. The capture succeeded and the
+   | server call that would have turned it into an order did NOT. Before this
+   | wiring existed, that combination rendered "we could not verify your
+   | payment" beside a live Pay button.
+   */
+  testWidgets('a capture the server never confirmed still leaves the payment '
+      'screen behind', (WidgetTester tester) async {
+    final FakeOrderRepository orders = FakeOrderRepository()
+      ..verifyFailure = const ApiException(
+        code: ApiErrorCode.paymentNotFound,
+        message: 'the server never heard about this payment',
+        status: 404,
+      );
+
+    await open(
+      tester,
+      orders: orders,
       handoff: ScriptedPaymentHandoff(succeeded),
     );
 
     await tester.tap(find.byKey(const ValueKey<String>('payment-pay')));
     await tester.pumpAndSettle();
 
+    // Gone from the payment screen entirely.
+    expect(find.byKey(const ValueKey<String>('payment-pay')), findsNothing);
+
+    // And no failure notice was ever rendered for it. This is the assertion
+    // that fails if a captured payment is reported as a payment problem.
     expect(
-      find.byKey(const ValueKey<String>('payment-status-PLACED')),
+      find.byKey(const ValueKey<String>('payment-failure-verificationFailed')),
       findsNothing,
     );
-    expect(
-      find.byKey(const ValueKey<String>('payment-status-AWAITING_PAYMENT')),
-      findsOne,
-    );
+    expect(find.textContaining('declined'), findsNothing);
+
+    // On the confirmation screen. Which phase it settles into depends on what
+    // the server says when asked afresh; what matters is that the customer is
+    // here, on a screen with no route back to paying, rather than there.
+    expect(find.byKey(const ValueKey<String>('confirmation-placed')), findsOne);
   });
 
   /// This build's real state, on screen. Not dressed up as a card failure.

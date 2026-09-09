@@ -136,6 +136,24 @@ class Routes {
 
   /// The controlled destination for anything not built yet. Takes the feature
   /// name and owning module as query parameters so one screen serves them all.
+  /*
+   | Order confirmation lives under Orders, NOT under the trip checkout stack.
+   |
+   | This is the screen a customer lands on after paying, and the case it has
+   | to survive is the app being killed mid-payment. Hanging it off
+   | /trips/:tripId/checkout/payment would make it reachable only while that
+   | whole stack is intact; a cold start has no trip in state and would have
+   | nowhere to land. An order is addressed by its own id because by this point
+   | the order, not the journey, is the thing that exists.
+   |
+   | Back from here goes to the Orders tab, which is correct: there is no route
+   | backwards to payment, and that is the point.
+   */
+  static const String orderConfirmation = ':orderId/confirmation';
+
+  static String orderConfirmationPath(String orderId) =>
+      '/orders/$orderId/confirmation';
+
   static const String comingSoon = '/coming-soon';
 
   static String comingSoonFor({

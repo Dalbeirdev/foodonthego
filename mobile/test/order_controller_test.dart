@@ -194,9 +194,23 @@ void main() {
 
       final OrderState state = container.read(orderControllerProvider);
 
+      // Still not placed. Only the server decides that, and it did not.
       expect(state.isPlaced, isFalse);
-      expect(state.failure, OrderFailure.verificationFailed);
       expect(state.isPaying, isFalse);
+
+      /*
+       | AND STILL NOT A FAILURE, since Module 16.
+       |
+       | The provider's sheet reported a capture before this call was made, so
+       | the customer's money may already be gone. A `verificationFailed` here
+       | would render beside a Pay button, and paying again is the one thing
+       | that must not be offered. The order is not lost by staying quiet: the
+       | webhook and the recovery sweep reach the same creation path this call
+       | was trying to reach.
+       */
+      expect(state.failure, isNull);
+      expect(state.capturedOrderId, isNotNull);
+      expect(state.isPaymentFinished, isTrue);
     });
 
     /// A rejected signature is not a card problem, and the customer must not be
@@ -221,14 +235,16 @@ void main() {
       await controller.place(tripId: 't1', checkoutId: 'c1');
       await controller.pay();
 
-      expect(
-        container.read(orderControllerProvider).failure,
-        OrderFailure.verificationFailed,
-      );
-      expect(
-        container.read(orderControllerProvider).failure,
-        isNot(OrderFailure.declined),
-      );
+      final OrderState state = container.read(orderControllerProvider);
+
+      // The original property, and it still holds: an amount the server would
+      // not accept is never told to the customer as a card problem.
+      expect(state.failure, isNot(OrderFailure.declined));
+
+      // Since Module 16 it is stronger than that. After a capture the screen
+      // reports nothing the customer could answer by paying again.
+      expect(state.failure, isNull);
+      expect(state.isPaymentFinished, isTrue);
     });
 
     test('a cancelled sheet is not a failure', () async {
