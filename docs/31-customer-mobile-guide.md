@@ -279,7 +279,78 @@ does not appear — it is not an order.
 
 ---
 
-## 14. Alerts and the rest
+## 14. Tracking your order
+
+Once an order exists, the **Orders** tab lists it. Active orders come first,
+sorted by the one you have to collect soonest — not the one you bought last.
+
+Tap **Track order** on a card.
+
+### What you see
+
+**Your current status, in the largest type on the screen.** That is the thing
+you opened the screen to find out. Your order number is there too, smaller,
+because it is a reference rather than an answer.
+
+**A timeline**, showing what has happened and what has not:
+
+> ✓ Order placed — 4:01 PM
+> ✓ Restaurant accepted your order — 4:03 PM
+> ● Your food is being prepared — 4:05 PM
+> ○ Ready for pickup
+> ○ Picked up
+
+A step with no time next to it has not happened yet. **The app never guesses a
+time for a step that has not happened** — if there is no time, there is no time.
+
+Below that: your requested pickup window, the restaurant, what you ordered at
+the prices you paid, and what the payment came to.
+
+### If your order is refused or cancelled
+
+The timeline stops where the order stopped. You will not see "Cooking" and
+"Ready" sitting ahead of a refused order as though they are still coming,
+because they are not.
+
+If the restaurant gave a reason that is safe to pass on, you will see it. If
+they did not, you will see the status and nothing invented to fill the gap.
+
+### Refreshing
+
+Pull down, or use the refresh button in the top corner. The screen also checks
+by itself every twenty seconds while you have it open — and stops when you leave
+the app, and stops once your order is finished.
+
+**It does not say "Live", and that is deliberate.** Live updates arrive in a
+later release. Until then the screen tells you when it last checked rather than
+implying it is watching continuously.
+
+### If you lose signal
+
+You keep the last status the app managed to load, with a note saying you are
+offline and that it may have changed. Nothing is hidden from you, and nothing
+stale is presented as current.
+
+### Your pickup code
+
+Available from the moment your order exists. The tracking screen reminds you to
+use it when your order is ready.
+
+### What this release cannot do
+
+- **Nobody can move your order yet.** The restaurant screens that accept and
+  prepare orders are a later release, so in practice an order stays at "Order
+  placed".
+- **No live estimate.** The pickup window is the time you asked for, not a
+  prediction. The screen says so.
+- **No notifications.** You will not be told when something changes; you have to
+  look.
+- **No cancelling.** There is no cancel button, because the rules for
+  cancelling have not been decided.
+
+---
+
+## 15. Alerts and the rest
 
 The **Alerts** tab exists in the navigation and is empty. It belongs to a module
 that has not been built, and the app says so rather than showing a spinner that
@@ -308,3 +379,6 @@ never resolves.
 | Order number | Yes | n/a |
 | Pickup code and QR | Yes — minted and shown; scanning not built | n/a |
 | Orders tab | Yes | Yes (module-02, empty state) |
+| Order tracking | Yes | n/a — needs an order past PLACED |
+| Status timeline | Yes | n/a |
+| Refresh and offline | Yes | n/a |

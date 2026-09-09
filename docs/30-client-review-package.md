@@ -1,6 +1,6 @@
-# 30 — Client review package (end of Module 16)
+# 30 — Client review package (end of Module 17)
 
-Everything a reviewer needs to look at the product as it stands after Module 16,
+Everything a reviewer needs to look at the product as it stands after Module 17,
 and an honest account of what they will not be able to do.
 
 Written to be read by somebody who has not been following the build. Where a
@@ -14,7 +14,7 @@ local development database.
 
 ---
 
-## A — What Modules 14 to 16 deliver
+## A — What Modules 14 to 17 deliver
 
 A customer can plan a journey, find a restaurant on their route, browse its
 menu, configure a dish, put it in a cart, choose a pickup window, and reach a
@@ -34,8 +34,14 @@ a pickup credential that is never stored in readable form.
   sheet that cannot work.
 - **Nothing scans a pickup code.** It is minted, shown and verifiable
   server-side; the counter flow that would redeem it is a later module.
-- **An order stops at PLACED.** No restaurant accepts, cooks or hands anything
-  over yet, and the state machine permits no transition it cannot perform.
+- **An order can now move through its whole lifecycle** — accepted, cooking,
+  ready, picked up — and the customer app shows where it stands, when each step
+  happened, and what happens next. Every transition is validated, locked,
+  audited and tenant-checked.
+- **But nothing a restaurant can press exists yet.** The service is built and
+  tested; the screens that will call it are a later module. In a production
+  deployment today, every order would sit at PLACED and the app would
+  faithfully report that (KI-028).
 
 ---
 
@@ -270,8 +276,18 @@ Read this as *what a customer can do*, not *what a screen exists for*.
 | Order number | 16 | **Complete** — CSPRNG, authorises nothing |
 | Pickup code and QR token | 16 | **Complete** — derived, never stored in readable form |
 | See your orders and confirmation | 16 | **Complete** |
+| Order tracking and status timeline | 17 | **Complete** |
+| Order state machine and transition validation | 17 | **Complete** — illegal and terminal transitions refused |
+| Immutable status history and audit trail | 17 | **Complete** |
+| Manual refresh | 17 | **Complete** |
+| Temporary tracking refresh (polling) | 17 | **Complete** — 20s, configurable; **not realtime** |
+| **Restaurant status controls** | later | **Not started** — no screen can move an order (KI-028) |
 | **Collect food with a pickup code** | later | **Not started** — nothing scans or redeems one |
-| **An order past PLACED** | later | **Not started** — no accept, cook, ready or handover |
+| **Realtime updates (WebSocket)** | 19 | **Not started** — and not claimed anywhere in the app |
+| **Live ETA** | 18 | **Not started** — the app says "Not a live estimate" |
+| **Push notifications** | 20 | **Not started** |
+| **Customer cancellation** | later | **Not started** — no cancellation policy agreed (KI-030) |
+| **Refunds** | later | **Not started** — nothing in the platform can refund |
 | **Restaurant operations** | later | **Not started** — shell only |
 | **Admin operations** | later | **Not started** — shell only |
 | Support, finance, rider surfaces | later | **Not started** — nothing at all |
@@ -411,7 +427,10 @@ configured" and "configured as zero" is enforced in code and in tests.
 
 ## K — Known limitations
 
-1. **No payment has ever been taken.** The integration is written and tested
+1. **No restaurant can move an order.** The transition service is built,
+   locked, audited and tested, but no screen calls it — so a production
+   deployment would leave every order at PLACED (KI-028).
+2. **No payment has ever been taken.** The integration is written and tested
    against a deterministic double; no provider credentials exist, so it has
    never spoken to Razorpay (KI-022, KI-026).
 2. **No order has ever been created from a real capture**, for the same reason.
@@ -440,10 +459,10 @@ configured" and "configured as zero" is enforced in code and in tests.
 
 | | |
 | --- | --- |
-| Backend | **1,252 tests**, Pint clean |
-| Flutter | **951 tests**, `analyze --fatal-infos` clean, `format` clean |
+| Backend | **1,293 tests**, Pint clean |
+| Flutter | **962 tests**, `analyze --fatal-infos` clean, `format` clean |
 | Web | typecheck, tests and both builds clean |
-| Android device run | **27 integration tests on an emulator**, including 5 for Module 14 |
+| Android device run | **29 integration tests on an emulator** |
 | iOS device run | the same suite on a simulator |
 | Review APK | downloaded, installed and launched on the emulator; alive, correct version, clean crash buffer |
 
@@ -465,7 +484,9 @@ In the order it matters:
 3. **Razorpay test credentials and a public HTTPS webhook endpoint**, both
    owned by the client. Until these exist, no payment can be taken and no order
    can be created from one — the code is written and waiting on configuration.
-4. **Pickup verification** — scanning, redemption, and the attempt limit that
+4. **A restaurant order screen.** Everything else in the fulfilment chain now
+   exists; this is the missing link that makes the platform usable end to end.
+5. **Pickup verification** — scanning, redemption, and the attempt limit that
    must come with it.
 5. **A restaurant operations surface** — the kitchen cannot see an order today,
    and an order cannot move past PLACED.
