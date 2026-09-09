@@ -226,7 +226,16 @@ final class CreateOrderFromCapturedPayment
         $restaurant = $order->restaurant;
 
         $order->customer_name_snapshot = $customer?->name;
-        $order->customer_phone_snapshot = $customer?->phone;
+        // phone_e164, not phone.
+        //
+        // `users.phone` is a column from the original scaffold that Module 03's
+        // authentication superseded and never populates — it is NULL for every
+        // real customer. Reading it here wrote a blank snapshot, which is the
+        // quiet kind of failure: nothing errors, and a restaurant simply has no
+        // number to ring when somebody does not turn up for their food. Caught
+        // by a test guard asserting the fixture was non-empty before checking
+        // the value was absent from a QR payload.
+        $order->customer_phone_snapshot = $customer?->phone_e164;
         $order->restaurant_name_snapshot = $restaurant?->name;
         $order->restaurant_address_snapshot = $restaurant?->formatted_address;
     }

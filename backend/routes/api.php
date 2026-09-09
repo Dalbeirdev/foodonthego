@@ -382,6 +382,29 @@ Route::prefix('v1')->group(function (): void {
 
             Route::post('/customer/orders/{order}/payment/verify', [PaymentController::class, 'verify'])
                 ->name('api.v1.customer.orders.payment.verify');
+
+            /*
+             |------------------------------------------------------------------
+             | Order confirmation and recovery (Module 16)
+             |------------------------------------------------------------------
+             |
+             | `status` is what a customer's app calls after a payment when it
+             | does not know whether the order was written — after a crash, a
+             | lost connection, or a cold start. It is idempotent, so polling it
+             | cannot create a second order, and it never answers in a way a
+             | client could render as a failed payment.
+             |
+             | `pickup-credential` is separate from the order on purpose. The
+             | code and QR token are authentication material for collecting
+             | food; putting them in the order response would mean shipping them
+             | in every list refresh and every poll, through every proxy in
+             | between. See the controller for the no-store handling.
+             */
+            Route::get('/customer/orders/{order}/status', [OrderController::class, 'status'])
+                ->name('api.v1.customer.orders.status');
+
+            Route::get('/customer/orders/{order}/pickup-credential', [OrderController::class, 'pickupCredential'])
+                ->name('api.v1.customer.orders.pickup-credential');
         });
 
     /*

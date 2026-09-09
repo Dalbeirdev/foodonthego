@@ -109,6 +109,20 @@ final class OrderPlacementTest extends TestCase
         $this->assertNotNull($order->placed_at);
         $this->assertNotNull($order->placed_from_payment_id);
 
+        /*
+         | Scenario 26 — the operational snapshots a counter needs, asserted
+         | non-empty rather than merely present.
+         |
+         | A NULL here does not throw and does not fail any other test; it just
+         | means the restaurant has no name to call out and no number to ring.
+         | The first version of this wrote users.phone, a column Module 03
+         | superseded and nothing populates, and every test still passed.
+         */
+        $this->assertNotEmpty($order->customer_name_snapshot);
+        $this->assertNotEmpty($order->customer_phone_snapshot);
+        $this->assertNotEmpty($order->restaurant_name_snapshot);
+        $this->assertSame($this->restaurant->name, $order->restaurant_name_snapshot);
+
         // Scenario 46 — nothing may set a fulfilment state because payment
         // succeeded. The restaurant has not seen this order yet.
         $this->assertNotSame(OrderStatus::Accepted, $order->status);

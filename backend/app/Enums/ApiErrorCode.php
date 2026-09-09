@@ -234,6 +234,25 @@ enum ApiErrorCode: string
     case PaymentGatewayUnavailable = 'PAYMENT_GATEWAY_UNAVAILABLE';
     case WebhookSignatureInvalid = 'WEBHOOK_SIGNATURE_INVALID';
 
+    /*
+     | Module 16.
+     |
+     | ORDER_CREATION_PENDING and ORDER_RECOVERY_REQUIRED are deliberately NOT
+     | here. They were, and ErrorContractTest rejected them: every code in this
+     | enum must map to a 4xx or 5xx, and neither of those is an error. A
+     | captured payment whose order is still being written is a purchase in
+     | progress — the money is safe and the customer must never see anything
+     | resembling a failure, because a client that renders it as one invites
+     | them to pay twice.
+     |
+     | They live on the success path instead, as OrderCreationState, returned
+     | with a 202 body from the status endpoint. The existing invariant was
+     | right and the codes were in the wrong place.
+     */
+    case PaymentNotCaptured = 'PAYMENT_NOT_CAPTURED';
+    case PaymentCurrencyMismatch = 'PAYMENT_CURRENCY_MISMATCH';
+    case PickupCredentialUnavailable = 'PICKUP_CREDENTIAL_UNAVAILABLE';
+
     public function httpStatus(): int
     {
         return match ($this) {
@@ -377,7 +396,13 @@ enum ApiErrorCode: string
             // error in the request.
             self::OrderNotPayable,
             self::OrderAlreadyPaid,
-            self::PaymentAmountMismatch => 409,
+            self::PaymentAmountMismatch,
+            self::PaymentCurrencyMismatch,
+            self::PaymentNotCaptured,
+            // The order is real and the credential is simply not available for
+            // it — collected already, cancelled, refunded. A conflict with the
+            // order's state, not a missing resource.
+            self::PickupCredentialUnavailable => 409,
 
             // 422 and deliberately not 403. A signature that does not verify is
             // a malformed claim, not a permission problem, and 403 would suggest

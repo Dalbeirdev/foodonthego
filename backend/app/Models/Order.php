@@ -42,6 +42,14 @@ final class Order extends Model
             'placed_at' => 'immutable_datetime',
             'paid_at' => 'immutable_datetime',
             'cancelled_at' => 'immutable_datetime',
+
+            // Module 16. The expiry was missing a cast and reached the
+            // presenter as a raw string, where ->toIso8601String() is a fatal
+            // error rather than a wrong value — which is the good kind of bug,
+            // and the reason the credential endpoint failed loudly on its first
+            // run instead of quietly serving an unparseable date.
+            'pickup_token_expires_at' => 'immutable_datetime',
+            'pickup_credential_version' => 'integer',
             'items_subtotal_minor' => 'integer',
             'tax_minor' => 'integer',
             'packaging_fee_minor' => 'integer',
