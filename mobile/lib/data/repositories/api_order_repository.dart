@@ -78,11 +78,26 @@ class ApiOrderRepository implements OrderRepository {
       authenticated: true,
     );
 
-    final TrackedOrder? tracked = TrackedOrder.fromJson(data['data']);
+    /*
+     * `data`, not `data['data']`.
+     *
+     * ApiClient.get already returns the envelope's `data` member, which every
+     * other method in this class relies on -- `mine()` reads data['orders'],
+     * not data['data']['orders']. The first version of this method unwrapped a
+     * second time, so TrackedOrder.fromJson was handed null on every real call
+     * and every tracking request threw a FormatException.
+     *
+     * NOTHING IN THE WIDGET SUITE COULD CATCH IT. Those tests use a fake
+     * repository, so this parsing had never once run against a real response;
+     * it took a device test against a real server to fail. The same shape as
+     * Module 16's nullable order number, and the same lesson: a seam that only
+     * the fake implements is a seam nothing tests.
+     */
+    final TrackedOrder? tracked = TrackedOrder.fromJson(data);
 
     if (tracked == null) {
       throw const FormatException(
-        'the server sent an order this app cannot read',
+        'The tracking response was not the documented shape.',
       );
     }
 
