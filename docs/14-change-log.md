@@ -1392,6 +1392,11 @@ customer app got a screen that reads it without ever deciding it.
   and was neither.
 - KI-033 — likewise, and it is the second time the same fixture has failed on
   the clock for the same reason. `23:59:59` was standing in for midnight.
+- KI-035 — **new, and recorded rather than fixed.** A real customer's home
+  screen shows no journey and no active order, and the code comment explaining
+  why names a module that shipped. Both APIs now exist; what does not exist is
+  a decision about which order, which journey, and whether the card may show a
+  countdown before Module 18 builds an ETA.
 - KI-020 — **re-measured, not fixed.** The iOS stall has not recurred in six
   completed runs, all of which printed their tests. Left OPEN because nothing
   was diagnosed, only bounded — and with the number that matters recorded: the

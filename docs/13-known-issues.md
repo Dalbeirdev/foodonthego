@@ -1828,3 +1828,54 @@ they are testing that a stale response is discarded rather than that a current
 one arrived. This is the same distinction Module 12 drew about the confirmation
 snackbar: a fixed wait against a known duration is a wait; a fixed wait against
 "however long this takes" is a coin toss.
+
+### KI-035 — a real customer's home screen still shows nothing, and the recorded reason has expired — **Medium, stale scaffolding** — OPEN
+
+`UnconfiguredHomeRepository` is what a real signed-in customer gets. It returns
+a dashboard with a name and nothing else:
+
+```dart
+/// Module 08 replaces this with an implementation backed by `/api/v1`.
+Future<HomeDashboard> loadDashboard() async {
+  return HomeDashboard(customer: CustomerSummary(fullName: customerName));
+}
+```
+
+**The comment names a module that shipped.** Module 08 was search, filters and
+ranking. The two things this repository declines to invent both exist now:
+
+| What the home screen omits | Where it exists | Since |
+| --- | --- | --- |
+| The active journey | `ApiTripRepository.currentTrip()`, `GET /customer/trips` | Module 05 |
+| The active order | `ApiOrderRepository.mine()`, `GET /customer/orders` (`active`) | Module 16, enriched by 17 |
+
+So the decision recorded here — *"it never invents a trip or an order"* — was
+right when it was made and is now doing something different from what it says.
+It is no longer refusing to invent data. It is withholding data the app already
+has, and the reader of that comment would not know it.
+
+**What a customer sees today.** Somebody with food being cooked opens the app
+and gets the new-customer home: no journey card, no active-order card. The
+Orders tab lists that order and the tracking screen tracks it live. One screen
+says "nothing is happening" while two others disagree.
+
+**Why this is recorded rather than fixed.** Wiring it is small — both
+repositories are already in the app and already tested. What is not small is
+the design, and none of it has been specified:
+
+- **Which order?** The Orders tab handles several active orders by listing
+  them. A single card has to choose, or stop being a single card.
+- **Which journey?** `currentTrip()` answers one question; whether a trip from
+  last Tuesday still counts as current is a product decision, not a query.
+- **What the card claims.** The fixture card shows a countdown to an estimated
+  pickup. Module 17 was explicit that this app must not show an ETA before
+  Module 18 builds one, and the fixture predates that rule.
+
+Building it now would mean answering three product questions with my own
+guesses on a screen every customer sees first. **The gap is the smaller
+problem; a home screen that quietly invents a policy would be the larger one.**
+
+**To clear:** decide the three questions above, then wire `HomeDashboard` to
+the two repositories. Until then, the comment in
+`unconfigured_home_repository.dart` should be read as "waiting for a decision",
+not "waiting for an API".

@@ -8,9 +8,23 @@ import '../../domain/repositories/home_repository.dart';
 /// a real customer sees the new-customer home, which is the truthful state for
 /// an account with nothing in it. It never invents a trip or an order.
 ///
-/// Module 08 replaces this with an implementation backed by `/api/v1`. The name
-/// is deliberate — anyone reading a stack trace should see immediately that no
-/// backend is wired up.
+/// **The APIs it was waiting for now exist (KI-035).** This comment used to say
+/// Module 08 would replace it; Module 08 was search and ranking, and this is
+/// still here. `ApiTripRepository.currentTrip()` has answered the journey
+/// question since Module 05 and `ApiOrderRepository.mine()` has answered the
+/// order question since Module 16.
+///
+/// So this class is no longer refusing to invent data — it is withholding data
+/// the app already has, which is a different thing and a worse one. A customer
+/// whose food is being cooked sees the new-customer home while the Orders tab
+/// lists that order and the tracking screen tracks it.
+///
+/// It stays until three product questions are answered, because wiring it
+/// without them would mean this screen inventing a policy: which of several
+/// active orders a single card shows, how old a trip may be and still be
+/// "current", and whether the card may show a countdown at all before Module 18
+/// builds an ETA. Read the name as "waiting for a decision", not "waiting for
+/// an API".
 class UnconfiguredHomeRepository implements HomeRepository {
   const UnconfiguredHomeRepository({this.customerName = 'there'});
 
