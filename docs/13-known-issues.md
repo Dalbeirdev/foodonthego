@@ -2,52 +2,98 @@
 
 ## Open — environment blockers
 
-### KI-001 · Android build cannot be validated
+*Entries keep their number and their position when they close, and carry their status in the
+heading, so a reference to KI-001 from another document still lands on the right thing. Read the
+headings, not the section title: several of the entries below are resolved.*
 
-**Severity:** High (blocks a Module 01 acceptance item)
 
-`flutter build apk` requires the Android SDK, downloaded from `dl.google.com`. In the build
-environment used for Module 01 that host is denied by the network egress policy:
+### KI-001 · Android build cannot be validated — **RESOLVED in CI; the dev container is the residue**
 
-```
-curl: (56) CONNECT tunnel failed, response 403
-proxy: dl.google.com:443 | gateway answered 403 to CONNECT (policy denial)
-```
+**Severity when recorded:** High. It is no longer a High-severity product issue, and leaving it
+looking like one was itself the problem — see the note at the end.
 
-`flutter doctor` accordingly reports `✗ Android toolchain — Unable to locate Android SDK`.
+**The verdict this entry carried was wrong by Module 14.** It said, in bold,
+*ANDROID BUILD = PENDING. ANDROID DEVICE TEST = PENDING*, and further down
+*"It has never been executed."* CI does all of it, and has for several modules:
 
-**What was verified instead:** `flutter analyze` (clean), 19 widget tests, and the real widget tree
-rendered and screenshotted at four phone sizes plus dark mode.
+| CI job | What it actually does |
+| --- | --- |
+| `Mobile — Android review build` | builds the review APK and AAB, uploads them as an artefact |
+| `Mobile — Android emulator` | **downloads that artefact**, installs it on an emulator — `api-level: 34`, `target: google_apis`, `arch: x86_64`, `profile: pixel_6` — launches it and runs `flutter test integration_test/` against a real Laravel server and a real MySQL |
 
-**ANDROID BUILD = PENDING. ANDROID DEVICE TEST = PENDING.** Not claimed as passed.
+**29 integration tests pass on the emulator**, against the app a client would be handed rather
+than a rebuild that happens to share its source. Alongside them: 986 Flutter widget tests, not
+the 19 this entry still cited.
 
-**To clear:** allow `dl.google.com` for the CI runner, install `cmdline-tools`, accept licences, run
-`flutter build apk --debug`, then run the widget tests on an emulator.
-
-**Re-checked at Module 11**, because "still blocked" is worth being precise
-about. Only one host is denied, and only one device node is missing:
+**What is genuinely still true, and it is about the development container, not the product:**
 
 | | |
 | --- | --- |
-| `services.gradle.org`, `maven.google.com`, Maven Central | reachable — the dependency side is fine |
-| `dl.google.com` | **403** — and it is the only source of `cmdline-tools`, `platform-tools`, `platforms;android-NN` and `build-tools` at the versions Flutter pins |
-| Ubuntu's own `android-sdk` packages | a dead end: the only platform packaged is **API 23**, far below this app's `compileSdk`, and the `google-android-cmdline-tools-*-installer` packages just download from `dl.google.com` anyway |
-| `/dev/kvm` | absent — so even with an SDK an x86_64 emulator will not start, and an ARM image under full software emulation is too slow to drive a run through |
-| USB passthrough | none, so a physical handset is not reachable either |
+| `dl.google.com` | 403 from this container's egress policy — so no local Android SDK |
+| Ubuntu's `android-sdk` packages | still a dead end (API 23 only; the installers fetch from `dl.google.com` anyway) |
+| `/dev/kvm` | absent here, so no local emulator |
+| USB passthrough | none, so no physical handset from here |
 
-So clearing this needs **three** things, not one: the egress allowlist, the SDK
-packages, and `/dev/kvm` exposed to the container. With only the first, a
-`flutter build apk` would compile — worth having, and still not a runtime pass.
+None of that reaches CI, which has the SDK, KVM and an emulator. It means **a developer working
+in this container cannot build or run Android locally** — a real constraint on the workflow, and
+a different claim entirely from "the Android build is unvalidated".
 
-**What is now ready for the day it clears.** `integration_test/` holds a driver
-that walks Module 11 on a real handset —
-[03-development-setup.md](03-development-setup.md) has the two commands.
+**Still genuinely unverified:** a **physical Android handset**. Everything above is an emulator.
+Emulators do not catch vendor skins, real GPS drift, battery-saver throttling of background
+timers, or an OEM's notification policy.
 
-**It has never been executed.** See KI-013 below: an attempt to rehearse it in a
-browser produced a false pass, and the attempt is what uncovered that. What can
-be said for it is narrower and worth stating exactly: it compiles, the analyzer
-is clean, and every string it looks for is a string the widget tests or the
-34-state live-view run already assert against. That is not the same as a run.
+**To clear the remainder:** run `integration_test/` on real hardware.
+
+---
+
+### KI-002 · iOS build and device test cannot be performed — **RESOLVED in CI; signing is the residue**
+
+**Severity when recorded:** High. Same correction as KI-001, and the same reason.
+
+This entry's own **To clear** read: *"run on a macOS runner — `flutter build ios --no-codesign`,
+then the simulator matrix"*. CI has been doing the first two parts of that for several modules:
+
+| CI job | What it actually does |
+| --- | --- |
+| `Mobile — iOS build` | `macos-latest`, `flutter build ios --no-codesign --debug`, green |
+| `Mobile — iOS simulator` | `macos-latest`, boots the first available iPhone simulator by udid, runs `integration_test/` — **29 tests pass** |
+
+So *IOS BUILD = PENDING* and *IOS DEVICE TEST = PENDING* were both false. The safe-area,
+keyboard, bottom-sheet and navigation behaviour this entry listed as "unverified on iOS" is
+exercised by those 29 tests on a booted simulator.
+
+**What is genuinely still open:**
+
+- **The simulator *matrix*.** One iPhone, chosen as "first available by udid" — deliberately, so
+  a hard-coded model name cannot rot when the runner's Xcode changes. The iPhone SE / standard /
+  Pro Max spread this entry asked for has **not** been run, so the smallest and largest screens
+  are unproven. That is the real remainder and it is narrower than "iOS is unverified".
+- **A signed build.** `iOS REVIEW BUILD = PENDING — APPLE SIGNING/TESTFLIGHT ENVIRONMENT
+  UNAVAILABLE` still holds. There is no IPA and none was faked.
+- **A physical iPhone.** As with Android, a simulator is not a handset.
+- **KI-020**, the simulator job's stall, which is bounded rather than diagnosed.
+
+**To clear the remainder:** add two more simulators to the matrix; obtain Apple signing for an
+IPA; run once on real hardware.
+
+---
+
+### Both of the above — the reason they went wrong, which is the useful part
+
+Neither entry was ever *dishonest*. Each was accurate the day it was written, and each described
+a **development container** while stating its verdict about the **product**. Then CI grew the
+capability the entry said was missing, and nothing prompted a re-read, because nothing ever does.
+
+They failed in the opposite direction to KI-008, which quietly **understated a risk** while the
+surface it described grew. These **understated the verification** — telling a reader of the
+project's own honest-list document that the app had never been built or run on either platform,
+when both had been running green in CI for modules.
+
+That is the third and fourth entry in this file found stale in two days, after KI-008 and KI-003.
+The pattern is now explicit enough to state as a rule: **a known issue records the system as it
+was on the day it was written, and both its severity and its verdict decay.** An entry that names
+an environment is especially prone to it, because environments are the thing most likely to change
+without anyone revisiting the prose.
 
 ---
 
@@ -172,24 +218,6 @@ reproduce this issue by a different route — a cart containing nothing blocking
 every other journey.
 
 ---
-### KI-002 · iOS build and device test cannot be performed
-
-**Severity:** High (blocks a Module 01 acceptance item)
-
-Building or simulating iOS requires macOS with Xcode. The environment is Linux; `xcodebuild` does
-not exist and cannot.
-
-**IOS BUILD = PENDING. IOS DEVICE TEST = PENDING.** Not claimed as passed.
-
-Safe-area handling, Dynamic Island clearance, keyboard behaviour, bottom-sheet layout, navigation
-gestures and orientation are **unverified on iOS**. The code uses `SafeArea` rather than hard-coded
-insets, and the platform font resolves to San Francisco, but that is design intent, not evidence.
-
-**To clear:** run on a macOS runner — `flutter build ios --no-codesign`, then the simulator matrix
-(iPhone SE, a standard iPhone, a Pro Max).
-
----
-
 ### KI-003 · No PHP static analysis — **FIXED after Module 17**
 
 **Severity when open:** Medium, and correctly rated. It found four real defects on its
@@ -320,15 +348,20 @@ deliberately rather than as a step toward a number.
 
 ---
 
-### KI-004 · CI mobile jobs are unexercised
+### KI-004 · CI mobile jobs are unexercised — **RESOLVED long ago; the entry simply never said so**
 
-**Severity:** Medium
+**Severity when recorded:** Medium.
 
-`.github/workflows/ci.yml` defines the Flutter analyze/test job and an Android build job, but they
-have never run — this repository has had no CI execution yet, and the Android job will fail until
-KI-001 is cleared. The iOS job is written but gated behind a macOS runner.
+It read: *"they have never run — this repository has had no CI execution yet"*, and **To clear:
+first push to GitHub**. That happened at Module 01. Since then every push has run CI, and the
+pull-request runs execute all seven jobs — Backend, Web, Mobile Flutter, iOS build, iOS simulator,
+Android review build, Android emulator — with the two device jobs gated to `pull_request` and
+`main` because a macOS runner and an emulator boot are not worth spending on every push to a work
+branch.
 
-**To clear:** first push to GitHub; fix whatever the first run surfaces.
+Nothing had to be done to close this. It was closed by the first CI run and stayed open in this
+file for sixteen modules, which is the same failure as KI-001 and KI-002 above: the work moved and
+the prose did not.
 
 ---
 

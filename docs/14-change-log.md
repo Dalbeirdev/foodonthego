@@ -1531,3 +1531,33 @@ customer app got a screen that reads it without ever deciding it.
 
   So the gate stays at 3, and the reason is written down where the next person
   to see "0 errors at level 3" and reach for a bigger number will find it.
+- **KI-001, KI-002 and KI-004 were re-read and found stale — all three understated
+  what had been verified.** This is the same failure as KI-008 and KI-003 earlier,
+  pointing the other way.
+
+  KI-001 declared *ANDROID BUILD = PENDING. ANDROID DEVICE TEST = PENDING* and, in
+  its own words, *"It has never been executed."* CI builds the review APK and AAB,
+  downloads that artefact, installs it on a Pixel 6 / API 34 emulator and runs 29
+  integration tests against a real Laravel server. It cited 19 widget tests; there
+  are 986.
+
+  KI-002 declared *IOS BUILD = PENDING. IOS DEVICE TEST = PENDING*, and its own
+  "to clear" asked for exactly what CI already does — `flutter build ios
+  --no-codesign` on a macOS runner, then the simulator, 29 tests green.
+
+  KI-004 said *"this repository has had no CI execution yet"*. It was closed by the
+  first CI run at Module 01 and stayed open here for sixteen modules.
+
+  What is genuinely left is narrower and now stated as such: the **development
+  container** cannot build either platform locally (no SDK, no `/dev/kvm`, no
+  macOS), no **physical handset** has run the app on either platform, the iOS
+  **simulator matrix** is one device rather than three, and there is still no
+  signed IPA.
+
+  Both entries described a *development container* while stating their verdict
+  about the *product*. Then CI grew the capability and nothing prompted a re-read,
+  because nothing ever does. Four stale entries in two days is enough to state the
+  rule outright: **a known issue records the system as it was on the day it was
+  written, and both its severity and its verdict decay.** Entries that name an
+  environment decay fastest, because environments change without anyone revisiting
+  the prose.

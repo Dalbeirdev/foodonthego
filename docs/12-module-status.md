@@ -48,8 +48,8 @@ older planning documents remain readable.
 
 | ID | Requirement | Blocker |
 | --- | --- | --- |
-| M01-R41 | Android build validation | `dl.google.com` denied by egress policy (KI-001) |
-| M01-R42 | iOS build validation | Requires macOS + Xcode; environment is Linux (KI-002) |
+| ~~M01-R41~~ | ~~Android build validation~~ | **DELIVERED** — CI builds the review APK/AAB and runs 29 integration tests on a Pixel 6 / API 34 emulator. Only the *local dev container* still lacks an SDK (KI-001) |
+| ~~M01-R42~~ | ~~iOS build validation~~ | **DELIVERED** — CI builds on `macos-latest` and runs 29 integration tests on an iPhone simulator. A signed IPA and a wider simulator matrix remain (KI-002) |
 | ~~M01-R43~~ | ~~PHP static analysis in CI~~ | **DELIVERED after Module 17** — PHPStan + Larastan gate the backend job at level 3 (KI-003) |
 
 **115 automated tests pass.** All static checks pass. Both web shells and the Flutter app were run
@@ -68,10 +68,18 @@ Eight defects were found and fixed during the module; none left open.
 
 ## Module 05 detail
 
-**48 of 51 requirements COMPLETE or PASSED.** Three are pending, none of them a
-code failure: Android (KI-001), iOS (KI-002), and live Google Places verification
-(KI-004 — no API key in this environment; the adapter is verified against a
-stubbed transport).
+**50 of 51 requirements COMPLETE or PASSED.** One is pending, and it is not a code
+failure: **live Google Places verification** (KI-010 — no API key in this
+environment; the adapter is verified against a stubbed transport).
+
+Android and iOS were listed here as pending too, citing KI-001 and KI-002. Both
+are now delivered by CI — the app is built and run on a Pixel 6 / API 34 emulator
+and on an iPhone simulator, 29 integration tests each. The entries themselves were
+stale; see docs/13.
+
+The Places line also pointed at **KI-004**, which is about CI mobile jobs and has
+nothing to do with API keys. Corrected to KI-010. A cross-reference to the wrong
+entry is worse than none: it sends a reader somewhere plausible and wrong.
 
 The module was **reworked**. A first pass built a journey planner — departure
 times, traveller counts, notes, upcoming/past/cancelled scopes — derived from the
