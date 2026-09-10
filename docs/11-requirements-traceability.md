@@ -7,6 +7,46 @@ TESTING · BLOCKED · FAILED · PASSED · VERIFIED · COMPLETE
 
 Legend: ✅ done · ➖ not applicable to this requirement · ⛔ blocked by environment
 
+---
+
+> ### ⚠ Read this before the Android and iOS columns
+>
+> **The `⛔` marks and "environment unavailable" reasons on the ANDROID and iOS rows are
+> stale, and they understate what has been verified.** They were written when this project
+> had no runner that could build or run the app. It has had one for several modules.
+>
+> *This note covers those rows only.* The live-provider rows that say the same words —
+> Google Places (KI-010), the Maps SDK render (KI-011), the Routes API (KI-012) — are
+> **genuinely** environment-limited: no API keys exist for this project and none were
+> invented. Those are accurate as written.
+>
+> CI today builds the review APK/AAB, installs **that artefact** on a Pixel 6 / API 34
+> emulator, and runs the on-device suite; and on `macos-latest` it builds
+> `flutter build ios --no-codesign` and runs the same suite on an iPhone simulator.
+> **29 integration tests pass on each platform, every pull request.**
+>
+> **What is still genuinely unverified on a device is a narrower and different thing.**
+> The on-device suite covers **Modules 11–14** (add to cart, cart management, pickup
+> timing, checkout) plus the Module 16 confirmation and Module 17 tracking screens. It
+> does **not** exercise Modules 02–06 — the navigation shell, OTP sign-in, profile and
+> addresses, the trip planner, or routing and the map layer. Those rows are correct that
+> they are unverified on a handset; they are **wrong about why**.
+>
+> The blocker changed from *"there is no environment"* to *"no device test has been
+> written for this module"*, and that changes what someone would do about it: write the
+> tests, rather than wait for a runner that already exists.
+>
+> Individual rows below are left as written rather than rewritten in bulk — 37 of them,
+> in about twenty different phrasings, and a botched sweep through a traceability matrix
+> would be worse than the staleness it fixed. Read them with this note in hand.
+>
+> Also still true, and unchanged: **no physical handset** has run the app on either
+> platform, the iOS simulator matrix is **one device** rather than three, and there is no
+> signed IPA. See KI-001 and KI-002 in [13-known-issues.md](13-known-issues.md), both
+> corrected.
+
+---
+
 ## Module 01 — Foundation, Architecture & Design System
 
 | ID | Feature | Role | FE | BE | API | DB | Sec | Tests | Android | iOS | Web | Docs | Status | Evidence |
@@ -167,8 +207,12 @@ in a rendered widget tree, but not run on an Android emulator or iOS simulator (
 40 of 42 Module 03 requirements COMPLETE or PASSED. Two (M03-040 Android, M03-041 iOS) remain
 **BLOCKED** by the same environment restrictions recorded in Module 01 — not by the code.
 
-**Android runtime verification = PENDING — environment unavailable.**
-**iOS runtime verification = PENDING — environment unavailable.**
+**Android runtime verification = PENDING — no device test for this module.** (Not an
+environment limit: CI runs the on-device suite on an emulator every pull request. See the
+note at the top of this document.)
+**iOS runtime verification = PENDING — no device test for this module.** (Not an
+environment limit: CI runs the on-device suite on a simulator every pull request. See the
+note at the top of this document.)
 
 ---
 
@@ -228,8 +272,12 @@ but not run on an Android emulator or iOS simulator (KI-001, KI-002).
 M04-028 iOS) remain **BLOCKED** by the same environment restrictions recorded in
 Module 01 — not by the code.
 
-**Android runtime verification = PENDING — environment unavailable.**
-**iOS runtime verification = PENDING — environment unavailable.**
+**Android runtime verification = PENDING — no device test for this module.** (Not an
+environment limit: CI runs the on-device suite on an emulator every pull request. See the
+note at the top of this document.)
+**iOS runtime verification = PENDING — no device test for this module.** (Not an
+environment limit: CI runs the on-device suite on a simulator every pull request. See the
+note at the top of this document.)
 
 ---
 
@@ -306,9 +354,11 @@ of the three is a code failure:
   No API key is configured here and the provider is unreachable, so the adapter is
   verified against a stubbed HTTP transport rather than against Google. See
   KI-010.
-- **M05-046 Android runtime verification = PENDING — environment unavailable.**
+- **M05-046 Android runtime verification = PENDING — no device test for this module.**
+  (Not an environment limit; see the note at the top.)
   KI-001.
-- **M05-047 iOS runtime verification = PENDING — environment unavailable.**
+- **M05-047 iOS runtime verification = PENDING — no device test for this module.**
+  (Not an environment limit; see the note at the top.)
   KI-002.
 
 The ID range grew from the specification's 46 to 51 because five of its

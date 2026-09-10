@@ -1561,3 +1561,27 @@ customer app got a screen that reads it without ever deciding it.
   written, and both its severity and its verdict decay.** Entries that name an
   environment decay fastest, because environments change without anyone revisiting
   the prose.
+- **The traceability matrix carried the same stale verdict, 37 times.** Android and
+  iOS rows across Modules 02–06 read `⛔ BLOCKED — environment unavailable`, citing
+  KI-001 and KI-002. This is the document the pull request calls the fastest way
+  into the project.
+
+  The correction is more interesting than a status flip. Those rows are **right that
+  the requirements are unverified on a handset and wrong about why**. The on-device
+  suite covers Modules 11–14 plus the Module 16 confirmation and Module 17 tracking
+  screens; it does not exercise the navigation shell, OTP sign-in, profile, the trip
+  planner or the map layer. So the blocker changed from *"there is no environment"*
+  to *"no device test has been written for this module"* — which changes what
+  somebody would do about it: write the tests, rather than wait for a runner that
+  has existed for modules.
+
+  A banner at the top of the document says so. The 37 rows are deliberately **not**
+  rewritten in bulk: they carry about twenty different phrasings, and a botched
+  sweep through a traceability matrix would be worse than the staleness it fixed.
+
+  One thing the first draft of that banner got wrong, caught on re-reading it: it
+  said the "environment unavailable" reasons *below* were stale, full stop. The
+  live-provider rows — Places, the Maps SDK render, the Routes API — say the same
+  words and are **genuinely** environment-limited, because no API keys exist for
+  this project and none were invented. The banner now names them as excluded. A
+  correction that over-reaches is just a new inaccuracy.
