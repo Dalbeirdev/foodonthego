@@ -1392,6 +1392,11 @@ customer app got a screen that reads it without ever deciding it.
   and was neither.
 - KI-033 — likewise, and it is the second time the same fixture has failed on
   the clock for the same reason. `23:59:59` was standing in for midnight.
+- KI-020 — **re-measured, not fixed.** The iOS stall has not recurred in six
+  completed runs, all of which printed their tests. Left OPEN because nothing
+  was diagnosed, only bounded — and with the number that matters recorded: the
+  slowest completed step used 79% of its 30-minute budget, so a slower runner
+  would produce this issue's exact signature while being nothing but slow.
 - KI-021 — **now fixed**. The speculative Module 02 `OrderStatus` is deleted;
   Module 17 specified the fulfilment workflow that entry was waiting for, so
   `PlacedOrderStatus` is now the app's only order vocabulary. A latent bug came

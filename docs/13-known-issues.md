@@ -1318,17 +1318,55 @@ becomes a green tick nobody looks at. Instead:
 - A new step dumps the simulator's own log for the `Runner` process when the
   step does not finish normally.
 
-**Since the fix.** The first bounded run passed in 21 minutes 8 seconds, well
-inside the new 30-minute limit — a third successful run, and the first one where
-a hang would have been caught and explained rather than swallowed. That is one
-data point, not a resolution: the stall has not recurred and has not been
-root-caused.
+**Since the fix — re-measured after Module 17, because "seen twice" with no
+follow-up reads as though it is still happening.** Every completed run of this
+job on this branch, with the duration of the test step against its 30-minute
+limit:
 
-**What this costs, stated plainly.** iOS on-device verification is **not
-currently reliable in this CI environment**. It has passed — 27 tests, three
-times now — and the passes were real. But it cannot be depended on per-commit
-until this is understood, and no iOS on-device claim should be made from a run
-that did not actually print its tests.
+| Run | Test step | Result |
+| --- | --- | --- |
+| 168 | 18.7 min | success (29/29) |
+| 164 | 20.4 min | success (29/29) |
+| 162 | 11.3 min | success (29/29) |
+| 160 | 10.7 min | success (29/29) |
+| 158 | 23.8 min | **failure — with test names and assertions** |
+| 146 | 22.6 min | success |
+
+Runs cancelled by a subsequent push are excluded; they prove nothing either way.
+
+**The stall has not recurred in six completed runs.** Every one of them printed
+its tests, including the failure: run 158's two failures were a real defect and
+a real timeout, both with output, which is the opposite of this issue's
+signature. The bound works, and iOS device results have been dependable enough
+this module to have found a genuine defect nothing else could reach.
+
+**It is still OPEN, and the reason is not superstition.** The cause — the VM
+service attach, on the evidence of `dartvm` and `simctl` surviving cleanup —
+was never diagnosed. The stall was intermittent when it happened (twice on
+consecutive commits, then never), so six clean runs is weak evidence of absence.
+Nothing was fixed; something was bounded.
+
+**The number to watch is 23.8 against 30.** That is 79% of the step budget on
+the slowest completed run. A runner a quarter slower than that one would trip
+the timeout and produce *exactly this issue's signature* — a killed step — while
+being nothing but a slow machine. If this recurs, the first question is no
+longer "did it hang" but "how far had it got", and the answer is in the log the
+diagnostic step now always prints.
+
+**Module 17's backend-concurrency fix did not measurably change this.** Runs
+162 onwards use an eight-worker `php artisan serve` (KI-032); the step times
+either side of that change are 11.3 / 20.4 / 18.7 versus 10.7 / 23.8 / 22.6.
+Three runs each and a variance dominated by which runner GitHub allocated — the
+sample cannot support a claim in either direction, and the iOS job is dominated
+by Xcode rebuilds between test files rather than by API latency. Recorded
+because it would have been easy, and wrong, to attribute the faster runs to
+that fix.
+
+**What this costs, stated plainly.** iOS on-device verification is **more
+reliable than this entry used to say, and still not proven**. It has now passed
+29 tests on five separate commits, and those passes were real. It cannot be
+depended on per-commit until the stall is understood, and no iOS on-device claim
+should be made from a run that did not actually print its tests.
 
 ### KI-021 — two order-status vocabularies — **Low, design debt** — FIXED after Module 17
 
