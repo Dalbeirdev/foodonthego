@@ -26,12 +26,39 @@
 # it found on adoption was a real defect, including two the whole test suite
 # could not see.
 #
-# What levels 4-6 add is almost entirely missing generics and array value types
-# (`array` that could hold anything, `Collection` without its element type).
-# That is genuine work worth doing and it is a lot of it; done badly, in a rush
-# to reach a number, it produces `array<mixed, mixed>` everywhere and a codebase
-# that is no better described than before. Raise the level when the annotations
-# are real.
+# WHY NOT 4. This was examined rather than deferred, and the answer turned out
+# to be more interesting than "not yet".
+#
+# 35 of level 4's 45 findings rest on Larastan believing it knows an Eloquent
+# attribute's type, which it takes from the migration. `carts.status` is NOT
+# NULL, so it reads `$this->status?->value` as an unnecessary nullsafe.
+#
+# An Eloquent attribute is ABSENT, not defaulted, until something loads it:
+#
+#     $cart = new App\Models\Cart;
+#     var_export($cart->status);   // NULL
+#     $cart->status->value;        // Attempt to read property "value" on null
+#
+# The schema says NOT NULL; the object in hand says null. Taking level 4's
+# advice at Cart::toCustomerArray() -- an API serialiser -- turns a cheap `?->`
+# into a 500 for any partially hydrated cart.
+#
+# This codebase already knew: PickupCredentialService::version() guards exactly
+# that case, says so in its docblock, and is covered by a test named
+# `test_deriving_from_an_unreloaded_order_is_refused_rather_than_wrong`. Level 4
+# asks, twice, for that guard's deletion.
+#
+# So level 4 is not refused for being strict. It is refused because here a
+# majority of its findings are advice to delete correct defensive code, and a
+# gate whose every finding must be argued with is not a gate -- it is a
+# discussion that eventually gets suppressed wholesale.
+#
+# What would change it is NOT "writing the missing annotations". It is @property
+# blocks declaring the in-memory truth (nullable until loaded) rather than the
+# column truth, across every model -- a deliberate piece of work, not a step on
+# the way to a number.
+#
+# Full reasoning and the proof: docs/evidence/module-17/ki-003-why-not-level-4.txt
 #
 # No baseline file, deliberately. A baseline records "this was already broken
 # when we started" and then never runs out. The findings above are written down

@@ -276,8 +276,47 @@ to write the migration, and unreadable to anything parsing the file without exec
 
 **Evidence:** `docs/evidence/module-17/ki-003-static-analysis-adoption.txt`.
 
-**To raise the level:** work levels 4 → 6 by writing the missing generics and array value
-types honestly. The counts above are the cost.
+**On raising the level — examined, and the answer is not yet, for a specific reason.**
+
+Level 4 was worked through rather than deferred. **35 of its 45 findings rest on Larastan
+believing it knows an Eloquent attribute's type**, which it takes from the migration:
+`carts.status` is NOT NULL, so `$this->status?->value` reads as an unnecessary nullsafe.
+
+That belief is wrong in a way that matters. An Eloquent attribute is *absent*, not
+defaulted, until something loads it — a model newly constructed, saved but not refreshed,
+or hydrated by a `select()` that omitted the column has nothing there:
+
+```
+$cart = new App\Models\Cart;
+var_export($cart->status);   // NULL
+$cart->status->value;        // Attempt to read property "value" on null
+```
+
+The schema says NOT NULL; the object in hand says null. Applying level 4's advice at
+`Cart::toCustomerArray()` — an API serialiser — converts a cheap `?->` into a **500** for
+any caller holding a partially hydrated cart.
+
+**This codebase already knew.** `PickupCredentialService::version()` guards exactly that
+case and says so — *"a model has not seen is not a rare edge; it is what every freshly
+created record looks like"* — with a test named
+`test_deriving_from_an_unreloaded_order_is_refused_rather_than_wrong`. Because
+`orders.pickup_credential_version` is `unsignedInteger()->default(1)`, Larastan reports
+that guard's `is_numeric()` as always true and the test's `assertNull()` as always false.
+Level 4 asks, in two separate findings, for the deletion of a guard whose absence is a
+mis-minted pickup credential.
+
+So level 4 is **not refused for being strict**. It is refused because in this
+configuration most of its findings are advice to delete correct defensive code, and a gate
+whose every finding must be argued with is not a gate — it is a discussion that eventually
+gets suppressed wholesale.
+
+**What would actually change it** is not "writing the missing annotations", which is what
+this entry originally assumed. It is `@property` blocks declaring the *in-memory* truth
+(nullable until loaded) rather than the column truth, across every model — work that
+changes what the analyser believes rather than what the code does, and worth doing
+deliberately rather than as a step toward a number.
+
+**Evidence:** `docs/evidence/module-17/ki-003-why-not-level-4.txt`.
 
 ---
 

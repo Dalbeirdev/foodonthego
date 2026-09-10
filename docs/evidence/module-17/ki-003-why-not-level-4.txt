@@ -1,0 +1,88 @@
+KI-003 — why the static-analysis gate stays at level 3
+======================================================
+
+KI-003 said "add phpstan at level 6". The gate is at 3. This records why
+that is a decision rather than a shortfall, and what would have to change.
+
+THE LADDER, RE-MEASURED ON THE CURRENT HEAD
+
+    level 3     0 errors    <- the gate
+    level 4    45
+    level 5    50
+    level 6   133
+
+Level 4 is the next rung, so level 4 is what was examined.
+
+WHAT LEVEL 4 IS MOSTLY MADE OF
+
+    23 of 45   nullsafe.neverNull   "using ?-> on a non-nullable type"
+     7 of 45   always-true/always-false comparisons and instanceof
+     5 of 45   test assertions that "can never fail"
+    10 of 45   genuinely mechanical (unused return types, array offsets)
+
+The first three groups -- 35 of the 45 -- rest on Larastan believing it
+knows an Eloquent attribute's type. It gets that from the migration:
+`carts.status` is NOT NULL, so `$cart->status` is a non-nullable
+CartStatus, so `$this->status?->value` is an unnecessary nullsafe.
+
+THAT BELIEF IS WRONG, AND HERE IS THE PROOF
+
+An Eloquent attribute is absent, not defaulted, until something loads it.
+A model that was newly constructed, or saved and not refreshed, or
+hydrated by a select() that omitted the column, has no value there at all:
+
+    $cart = new App\Models\Cart;
+    var_export($cart->status);        // NULL
+
+    $cart->status->value;             // ErrorException:
+                                      //   Attempt to read property
+                                      //   "value" on null
+
+The schema says NOT NULL. The object says null. Both are true, and only
+one of them is what the code at runtime is holding.
+
+So applying level 4's advice at Cart::toCustomerArray() -- an API
+serialiser -- converts a cheap `?->` into a 500 for any caller that hands
+it a partially hydrated cart. The analyser cannot see that case, and the
+`?->` exists for it.
+
+THE CODEBASE ALREADY KNEW THIS, IN WRITING
+
+PickupCredentialService::version() guards exactly this, and says so:
+
+    "a model has not seen is not a rare edge; it is what every freshly
+     created record looks like"
+
+It is covered by a test whose name is the whole argument --
+`test_deriving_from_an_unreloaded_order_is_refused_rather_than_wrong` --
+and `orders.pickup_credential_version` is `unsignedInteger()->default(1)`,
+NOT NULL. Larastan therefore reports the guard's `is_numeric()` check as
+always true, and the test's `assertNull()` as always false.
+
+Level 4 asks, in two separate findings, for the deletion of a guard whose
+purpose is documented, whose absence is a mis-minted credential, and whose
+test is named after the bug it prevents.
+
+THE DECISION
+
+Level 3 stays. It is clean, it is enforced in CI, and everything it found
+on adoption was real -- including an API request log that had never
+recorded an actor.
+
+Level 4 is not refused for being strict. It is refused because in THIS
+configuration a majority of its findings are advice to delete correct
+defensive code, and a gate whose findings must each be argued with is not
+a gate -- it is a discussion that eventually gets suppressed wholesale.
+
+WHAT WOULD ACTUALLY CHANGE THIS
+
+Not "writing the missing annotations", which is what KI-003 assumed. The
+fix is to stop Larastan inferring attribute nullability from the schema
+alone -- @property blocks that declare the in-memory truth (nullable until
+loaded) rather than the column truth. That is a real piece of work across
+every model, it changes what the analyser believes rather than what the
+code does, and it should be done deliberately rather than as a step on the
+way to a number.
+
+Until then, the honest ordering is: level 3 enforced, levels 4-6 measured
+and written down here.

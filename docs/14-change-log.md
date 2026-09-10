@@ -1510,3 +1510,24 @@ customer app got a screen that reads it without ever deciding it.
   The iOS *simulator* job runs `pod install` too and shares the exposure. It is
   deliberately left alone: it did not fail, and widening a fix past the thing
   that broke is how a small change becomes an unreviewable one.
+- **Level 4 static analysis was examined and declined, which is the finding.**
+  KI-003 left "raise it to 6" as the follow-up and assumed the cost was writing
+  the missing annotations. Working level 4 showed that assumption to be wrong in
+  a way that would have done damage.
+
+  35 of its 45 findings rest on Larastan taking an Eloquent attribute's type
+  from the migration. `carts.status` is NOT NULL, so `$this->status?->value`
+  reads as an unnecessary nullsafe — but an Eloquent attribute is *absent*, not
+  defaulted, until something loads it. `new Cart` has `status` NULL, and
+  `->value` on it raises *Attempt to read property "value" on null*. Taking that
+  advice inside `Cart::toCustomerArray()`, an API serialiser, is a 500.
+
+  Proved rather than argued: the probe and its output are in
+  `docs/evidence/module-17/ki-003-why-not-level-4.txt`.
+
+  The codebase already knew — `PickupCredentialService::version()` guards exactly
+  this and is covered by a test named after the bug it prevents. Level 4 asks
+  twice for that guard's deletion.
+
+  So the gate stays at 3, and the reason is written down where the next person
+  to see "0 errors at level 3" and reach for a bigger number will find it.
