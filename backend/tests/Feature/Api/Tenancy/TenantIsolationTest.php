@@ -262,19 +262,67 @@ final class TenantIsolationTest extends TestCase
 
         $this->as($this->priya)
             ->getJson('/api/v1/restaurant/restaurants/'.$this->spice->uuid)
-            ->assertNotFound();
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCOUNT_DISABLED');
+
+        $this->assertReachesNothingAtTheTenantLayer($this->priya);
     }
 
     public function test_a_suspended_account_reaches_nothing_it_was_assigned_to(): void
     {
         // The assignment is untouched and still says 'active'. The account is
-        // not. KI-008 records that a token outlives a suspension; this is what
-        // stops that token still reaching a restaurant.
+        // not.
         $this->priya->forceFill(['status' => AccountStatus::Suspended->value])->save();
 
         $this->as($this->priya)
             ->getJson('/api/v1/restaurant/restaurants/'.$this->spice->uuid)
-            ->assertNotFound();
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCOUNT_SUSPENDED');
+
+        $this->assertReachesNothingAtTheTenantLayer($this->priya);
+    }
+
+    /**
+     * The half of those two tests the HTTP assertion above can no longer see.
+     *
+     * WHY THIS EXISTS, AND WHY IT IS NOT DUPLICATION. Both tests used to assert
+     * a 404: the request got as far as the tenant scope, which found nothing for
+     * a suspended account, and the controller answered like the restaurant did
+     * not exist. Closing KI-008 put a standing check in EnsureRole, which now
+     * refuses at the surface gate before the tenant layer is consulted at all.
+     *
+     * That is the correct answer to send -- and it means the HTTP assertion
+     * alone would stay green if somebody deleted `accountUsable()` from
+     * TenantAccessService, because the request never reaches it. A green test
+     * that cannot fail is worse than no test: it reports a boundary that is not
+     * there. So the service is asked directly, and the two layers are proven
+     * separately rather than one hiding behind the other.
+     *
+     * On the status code changing from 404 to 403: the 404 in this suite exists
+     * so a caller cannot tell "not yours" from "not real" about somebody else's
+     * restaurant. This says nothing about a restaurant -- it says something
+     * about the caller's own account, which they already know and which the
+     * sign-in path has always told them in exactly these words. Nothing about
+     * the platform leaks, and a suspended operator gets an answer they can act
+     * on instead of a restaurant that appears to have vanished.
+     */
+    private function assertReachesNothingAtTheTenantLayer(User $user): void
+    {
+        $access = $this->app->make(TenantAccessService::class);
+
+        $this->assertNull(
+            $access->capabilityFor($user->fresh(), $this->spice),
+            'The tenant layer still granted a capability to an unusable account.',
+        );
+
+        $this->assertSame(
+            [],
+            Restaurant::query()
+                ->tap(static fn ($query) => $access->reachableBy($query, $user->fresh()))
+                ->pluck('uuid')
+                ->all(),
+            'The tenant scope still returned restaurants to an unusable account.',
+        );
     }
 
     // --- the surface gate -----------------------------------------------------

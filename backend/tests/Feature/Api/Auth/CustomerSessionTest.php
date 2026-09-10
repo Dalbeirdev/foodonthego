@@ -146,18 +146,77 @@ final class CustomerSessionTest extends TestCase
             ->assertJsonPath('error.code', 'UNAUTHENTICATED');
     }
 
-    public function test_an_account_suspended_after_sign_in_keeps_its_token_until_it_is_revoked(): void
+    public function test_an_account_suspended_after_sign_in_is_refused_on_its_next_request(): void
     {
-        // Documents the current behaviour honestly: Sanctum tokens are bearer
-        // credentials and this module does not re-check status per request. The
-        // admin tooling that suspends an account is responsible for deleting its
-        // tokens, and that module does not exist yet — recorded as KI-004.
+        // A Sanctum token is a bearer credential, so suspending the account does
+        // not reach into the handset holding it. What ends the session is the
+        // server refusing to honour it, and the refusal has to happen on the
+        // request rather than at sign-in: the account was healthy when it signed
+        // in, which is precisely the case that matters.
         $this->customer->forceFill(['status' => AccountStatus::Suspended->value])->save();
 
-        $this->asCustomer()->getJson('/api/v1/customer/me')->assertOk();
+        $this->asCustomer()->getJson('/api/v1/customer/me')
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCOUNT_SUSPENDED');
+    }
 
-        // Revoking the tokens is what actually ends the session today.
+    public function test_a_suspended_account_is_refused_on_the_surface_where_money_is_spent(): void
+    {
+        // The reason this gap could not stay open. When it was first recorded the
+        // customer surface read a profile; it now places orders and pays for
+        // them. A suspended account reaching /customer/me is a privacy problem,
+        // and a suspended account reaching the ordering surface is a commercial
+        // one -- so the boundary is asserted on both rather than on the endpoint
+        // that happens to be easiest to call.
+        $this->customer->forceFill(['status' => AccountStatus::Suspended->value])->save();
+
+        $this->asCustomer()->getJson('/api/v1/customer/orders')
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCOUNT_SUSPENDED');
+    }
+
+    public function test_a_deactivated_account_is_refused_on_its_next_request(): void
+    {
+        // The other column, and it means something different: `status` is the
+        // account's standing, `is_active` is the switch. Both are checked,
+        // because an operator who reaches for one of them expects the account to
+        // stop working and does not know which one this codebase considers
+        // authoritative.
+        $this->customer->forceFill(['is_active' => false])->save();
+
+        $this->asCustomer()->getJson('/api/v1/customer/me')
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCOUNT_DISABLED');
+    }
+
+    public function test_an_account_in_good_standing_still_reaches_the_api(): void
+    {
+        // THE CONTROL THAT MAKES THE THREE ABOVE WORTH ANYTHING.
+        //
+        // A gate that denied every request would pass all three refusal tests
+        // and lock out every real customer, so the passing case is asserted
+        // beside them rather than assumed.
+        //
+        // The first draft of this control tried to write `is_active` NULL, on
+        // the strength of TenantAccessService::accountUsable()'s note that an
+        // unsaved model holds NULL. MySQL refused it: `users.is_active` is
+        // `boolean NOT NULL default true`, so a STORED row cannot be NULL and a
+        // request -- which always loads its user from the database -- cannot
+        // carry one. The note is about an in-memory model and is right about
+        // that; it is not a statement about rows. Recorded here because the
+        // failing write is what established the difference.
+        $this->asCustomer()->getJson('/api/v1/customer/me')->assertOk();
+        $this->asCustomer()->getJson('/api/v1/customer/orders')->assertOk();
+    }
+
+    public function test_revoking_the_tokens_also_ends_the_session(): void
+    {
+        // Still true, and still the thing admin tooling should do on suspension:
+        // the per-request check stops a suspended account being served, and
+        // deleting the tokens stops the credential existing at all. Neither
+        // replaces the other.
         $this->customer->tokens()->delete();
+
         $this->asCustomer()->getJson('/api/v1/customer/me')->assertStatus(401);
     }
 

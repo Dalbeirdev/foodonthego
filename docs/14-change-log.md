@@ -182,7 +182,8 @@ retested — full table in [13-known-issues.md](13-known-issues.md). The ones wo
 
 - Android and iOS device verification — KI-001, KI-002 (environment).
 - Token revocation when an account is suspended — KI-008; belongs with the admin module that
-  performs the suspension.
+  performs the suspension. (Read alongside the entry after Module 17: the *serving* half of this
+  was closed there. What is still outstanding is deleting the token row, not refusing the request.)
 - Profile editing, saved addresses, social sign-in, biometric unlock — later modules.
 
 ## Module 04 — Customer Profile & Saved Addresses
@@ -1416,3 +1417,25 @@ customer app got a screen that reads it without ever deciding it.
   schedule now has a test, because it had none — a deleted `Schedule::command`
   line was invisible to the whole suite, which is why this one went unnoticed
   through two modules.
+- KI-008 — **mostly fixed**, and found by an adversarial security pass over the
+  branch rather than by anything routine. A suspended account kept working for
+  up to 30 days, because nothing re-checked its standing once a token existed.
+  `EnsureRole` now refuses on every authenticated request, on every surface.
+
+  Two things are worth more than the fix. First, **the entry had gone stale in
+  the direction that matters**: it was recorded when the customer surface
+  returned a profile, and it described "`/customer/me`". One middleware group
+  covers the whole customer surface, so by Module 16 the same gap meant a
+  suspended customer could place an order and pay for it — and nothing prompts
+  a known issue to be re-read when the surface it describes grows underneath
+  it. Second, **the cost it was waiting on did not exist**: measured at two
+  queries with the check and two without, because Sanctum has already loaded
+  the user row to resolve the token. The decision the entry deferred was a
+  decision about nothing.
+
+  The tenancy suite made the same point from the other side. Two tests there
+  asserted a 404 for a suspended operator and now get a 403 from the earlier
+  gate; accepting the new code and moving on would have left both green with
+  `TenantAccessService::accountUsable()` deleted, because the request no longer
+  reaches it. They now assert both layers, and a mutation confirms the inner
+  one still fails when broken.

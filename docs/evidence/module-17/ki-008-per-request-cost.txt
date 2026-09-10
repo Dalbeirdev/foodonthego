@@ -1,0 +1,46 @@
+KI-008 — what a per-request account-standing check actually costs
+=================================================================
+
+The known issue was left open partly on cost: "decide whether a per-request
+status check is worth its cost". This measures it instead of estimating it.
+
+METHOD
+  A throwaway feature test (not kept: it asserts nothing, it only counts)
+  issued a real Sanctum token, warmed one request cycle, then registered a
+  DB::listen and made one further GET /api/v1/customer/me, printing every
+  SQL statement the request executed. Guards were forgotten between calls so
+  Sanctum re-resolved the token from the database, as it does in production.
+
+  Run twice, on the same commit, changing one thing: whether
+  EnsureRole::refuseUnlessUsable() runs.
+
+CONTROL — EnsureRole as it was, no standing check
+
+  QUERY COUNT: 2
+    1. select * from `personal_access_tokens` where `personal_access_tokens`.`id` = ? limit 1
+    2. select * from `users` where `users`.`id` = ? and `users`.`deleted_at` is null limit 1
+
+AFTER — EnsureRole checking status and is_active on every request
+
+  QUERY COUNT: 2
+    1. select * from `personal_access_tokens` where `personal_access_tokens`.`id` = ? limit 1
+    2. select * from `users` where `users`.`id` = ? and `users`.`deleted_at` is null limit 1
+
+RESULT
+  Identical. The check costs no query at all.
+
+WHY
+  Query 2 is Sanctum's own: to resolve a bearer token it loads the token row
+  and then the user row it belongs to. `users.status` and `users.is_active`
+  are columns on that row, so by the time any middleware runs they are
+  already in memory. The check reads two attributes off a model the request
+  had to load regardless.
+
+  The cost concern assumed the check would have to go and fetch something.
+  It does not, so there was nothing to trade off, and the half of KI-008 that
+  was waiting on that decision did not need to wait.
+
+  What this does NOT close: revoking an account's tokens when it is
+  suspended. That still belongs with the admin module. This stops a
+  suspended account being SERVED; token revocation is what stops the
+  credential existing.

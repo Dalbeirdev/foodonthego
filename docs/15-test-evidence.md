@@ -2556,11 +2556,18 @@ None of these were found by a test failing. All of them were found by a test
 
 | Suite | Tests | New in this module |
 | --- | --- | --- |
-| Backend (PHPUnit/Pest, real MySQL) | **1,297 passed**, 5,739 assertions | 45 |
+| Backend (PHPUnit/Pest, real MySQL) | **1,301 passed**, 5,752 assertions | 45 |
 | Flutter (widget + unit) | **986 passed** | 34 |
 | Device (integration_test) | 29 per platform | 1 |
 
-Backend 72.6s; Flutter 1m43s. No skips.
+Backend 78.2s; Flutter 1m43s. No skips.
+
+The backend total moved from 1,297 to 1,301 after the module closed: KI-008's
+session tests were rewritten from one test pinning the old behaviour into five
+covering the new one — three refusals, one control proving the gate still lets a
+healthy account through, and one asserting that revoking the tokens still ends
+the session too. The two tenancy tests affected by the same change did not move
+the count; they gained assertions.
 
 ## The evidence file
 

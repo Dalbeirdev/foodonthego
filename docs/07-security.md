@@ -149,6 +149,17 @@ The customer flow, its threat model and every decision behind it are documented 
 - The OTP request response is identical whether or not an account exists (no enumeration).
 - A production or staging deployment **refuses to boot** on an OTP sender that reports it cannot
   reach a real handset, and the development sender refuses to be constructed in production at all.
+- **An account's standing is re-checked on every authenticated request, not only at sign-in.**
+  `EnsureRole` refuses with 403 (`ACCOUNT_SUSPENDED` / `ACCOUNT_DISABLED`) when `users.status`
+  cannot authenticate or `users.is_active` is explicitly false. Checking only at sign-in secures
+  the case that does not need securing: a token is a bearer credential already on a handset, and
+  the account worth suspending is the one that signed in while it was still in good standing. The
+  check lives in `EnsureRole` because every authenticated route group carries `role:`, so it is the
+  one gate every authenticated request passes through — a separate middleware would be a second
+  thing to remember on the next route group somebody adds. It costs no query: Sanctum has already
+  loaded the user row to resolve the token (measured — `docs/evidence/module-17/ki-008-per-request-cost.txt`).
+  It does not replace revoking tokens on suspension, which stops the credential existing rather
+  than merely stops it being served.
 
 ## Owning your own data
 
@@ -368,9 +379,12 @@ Named rather than implied:
 - **Authentication for the restaurant and admin surfaces** — those shells still render
   clearly-labelled test personas. The **customer** surface is built: phone + OTP, Sanctum sessions,
   role and ability gates. See [18-customer-authentication.md](18-customer-authentication.md).
-- **Token revocation on account suspension** — a suspended account cannot obtain a new session, but
-  an existing token keeps working until it expires. KI-008; the fix belongs with the admin module
-  that does the suspending.
+- **Token revocation on account suspension** — the *serving* half is built: `EnsureRole` re-checks
+  `users.status` and `users.is_active` on every authenticated request, so a suspended account is
+  refused 403 the next time it calls anything, on every surface. What is still missing is deleting
+  the token itself (`$user->tokens()->delete()`), which needs the admin module that performs the
+  suspension. One stops a suspended account being served; the other stops the credential existing.
+  KI-008.
 - **Per-resource authorisation policies** — with the modules that own the resources. Module 04's
   saved addresses are authorised in one service method rather than a policy class; a policy layer
   arrives with the first resource that more than one role can reach. A restaurant is that resource.

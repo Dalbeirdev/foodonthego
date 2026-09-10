@@ -362,25 +362,87 @@ would be a lie told to a real customer about food somebody is supposedly cooking
 
 **To clear:** Module 08 supplies an order-backed implementation.
 
-### KI-008 · Suspending an account does not revoke its live tokens
+### KI-008 · A suspended account kept working until its token expired — **mostly FIXED after Module 17**
 
-**Severity:** Medium — a real gap, not a design choice.
+**Severity when open:** Medium as recorded. It should have been High by Module 16, and the
+re-reading below is the more useful half of this entry.
 
-Sanctum access tokens are bearer credentials, and `/customer/me` does not re-check
-`users.status` on every request. So an account suspended while a customer's phone is in their
-pocket keeps working until the token expires (30 days) or somebody deletes the row.
+**What was wrong.** A Sanctum access token is a bearer credential sitting on a handset. Nothing
+can reach into the handset and take it back, so the only thing that ends a session is the server
+declining to honour the token — and nothing declined it. `CustomerAuthService::issueSession()`
+refuses to *mint* a token for a suspended account, which stops a suspended person signing in and
+does nothing at all about the account suspended *after* signing in. That is the case suspension
+exists for. The account kept full access for the token's remaining lifetime: up to **30 days**
+(`foodonthego.auth.token_ttl_seconds`, `60 * 60 * 24 * 30`).
 
-`CustomerAuthService::issueSession()` **does** refuse a suspended or disabled account, so the
-account cannot obtain a *new* session — the gap is only about sessions that already exist.
+**How the entry went stale, which is the part worth reading.** As written it says
+"`/customer/me` does not re-check `users.status`" — one endpoint, returning a profile. That was
+true when it was recorded. It has not been true since Module 15. There is one middleware group
+covering the whole customer surface (`routes/api.php`, `auth:sanctum` + `role:customer` +
+`abilities:customer`), so the gap was never about one endpoint; it was about every endpoint behind
+that group. By Module 16 those included placing an order and paying for it. A suspended customer
+could still spend money.
 
-It is not closed here because the tooling that suspends an account is the admin module, which does
-not exist yet; the correct fix belongs with it (`$user->tokens()->delete()` on suspension, plus a
-periodic status check for long-lived sessions). The current behaviour is pinned by a test that
-documents it honestly rather than pretending otherwise:
-`CustomerSessionTest::test_an_account_suspended_after_sign_in_keeps_its_token_until_it_is_revoked`.
+Nothing changed in this entry while that happened, because nothing prompts a known issue to be
+re-read when the surface it describes grows underneath it. Found by an adversarial pass over the
+branch rather than by anything routine, which is the actual lesson: **a known issue records the
+system as it was on the day it was written, and the severity it was given decays.**
 
-**To clear:** revoke tokens in the admin suspension path (Module 13), and decide whether a
-per-request status check is worth its cost.
+**The cost argument was wrong too.** The old "to clear" asked somebody to "decide whether a
+per-request status check is worth its cost". Measured rather than estimated
+(`docs/evidence/module-17/ki-008-per-request-cost.txt`): a request carrying a bearer token runs
+**two** queries with the check and **two** without it. Sanctum has already loaded the user row to
+resolve the token, so `users.status` and `users.is_active` are in memory before any middleware
+runs. The check costs nothing, so there was never a trade-off to decide — the decision the entry
+was waiting on did not exist.
+
+**What was done.** `EnsureRole` now refuses a request whose account cannot authenticate or whose
+`is_active` is explicitly false, answering **403** with `ACCOUNT_SUSPENDED` or `ACCOUNT_DISABLED`
+and the same sentence the sign-in path has always used. It went in `EnsureRole` rather than a new
+middleware because every authenticated route group in `routes/api.php` already carries `role:`,
+which makes it the one place every authenticated request passes through — a separate `active`
+middleware would be a second thing to remember on the next route group somebody adds.
+
+The rule is spelled exactly as `TenantAccessService::accountUsable()` spells it, including
+`is_active !== false` rather than `=== true`, so there is one rule about whether an account is
+usable rather than two that can drift.
+
+**Controls.** The three refusal tests in `CustomerSessionTest` were written first and all three
+were red against the old middleware (403 expected, 200 received). A fourth asserts an account in
+good standing still reaches both `/customer/me` and `/customer/orders` — a gate that denied
+everything would pass the other three.
+
+A fifth control was written and **failed to write its own fixture**, which was more informative
+than passing: it tried to store `is_active` NULL on the strength of `accountUsable()`'s note about
+an unsaved model holding NULL. MySQL refused — `users.is_active` is `boolean NOT NULL default
+true`, so a *stored* row cannot be NULL and a request, which always loads its user from the
+database, can never carry one. The note is about an in-memory model and is correct about that; it
+is not a statement about rows. Recorded in the test.
+
+**A consequence in the tenancy suite, and the trap in it.** Two tests in `TenantIsolationTest`
+asserted that a suspended or deactivated operator gets a 404 from a restaurant they are assigned
+to. They now get a 403, because the surface gate refuses before the tenant layer is consulted.
+Changing the expected status code and moving on would have been the wrong fix: the request no
+longer reaches `TenantAccessService::accountUsable()` at all, so both tests would have stayed
+green with that method deleted — a test reporting a boundary that is not there. Both now assert
+the 403 *and* ask the service directly. Verified by mutation: replacing `accountUsable()`'s body
+with `return true` turns both red.
+
+On the status code itself: the 404 in that suite exists so a caller cannot tell "not yours" from
+"not real" about somebody else's restaurant. This tells them nothing about a restaurant — it tells
+them about their own account, which they already know, and which the sign-in path has always told
+them in these words. Nothing leaks, and a suspended operator gets an answer they can act on
+instead of a restaurant that appears to have vanished.
+
+**Still open — the half that is genuinely somebody else's:** revoking an account's tokens when it
+is suspended (`$user->tokens()->delete()`). This stops a suspended account being *served*; token
+revocation is what stops the credential existing. It needs the admin tooling that performs a
+suspension, which does not exist yet. The old entry pointed at "Module 13" for that; Module 13
+turned out to be pickup time planning, and the admin module is not yet numbered in the current
+plan.
+
+**To clear the remainder:** revoke tokens in the admin suspension path, whenever that module
+arrives.
 
 ---
 
