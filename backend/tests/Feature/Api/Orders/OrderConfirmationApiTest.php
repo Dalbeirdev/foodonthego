@@ -294,7 +294,7 @@ final class OrderConfirmationApiTest extends TestCase
         $payment->amount_minor = (int) $order->payable_total_minor;
         $payment->currency = $order->currency;
         $payment->status = PaymentStatus::Captured;
-        $payment->verified_at = now();
+        $payment->verified_at = now()->toImmutable();
         $payment->save();
 
         $this->assertNull($order->refresh()->order_number);

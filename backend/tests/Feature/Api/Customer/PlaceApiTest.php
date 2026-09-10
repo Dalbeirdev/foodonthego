@@ -46,6 +46,16 @@ final class PlaceApiTest extends TestCase
         return $this->withHeader('Authorization', 'Bearer '.$this->token);
     }
 
+    /**
+     * Generic for the same reason as TripRouteApiTest's: the interface is what
+     * the container is told about, and the concrete fake is what the assertions
+     * read from.
+     *
+     * @template T of PlaceProvider
+     *
+     * @param  T  $provider
+     * @return T
+     */
     private function useProvider(PlaceProvider $provider): PlaceProvider
     {
         $this->app->instance(PlaceProvider::class, $provider);

@@ -248,7 +248,12 @@ final class OrderTrackingApiTest extends TestCase
     {
         $offenders = [];
 
-        foreach (app('router')->getRoutes() as $route) {
+        // ->getRoutes()->getRoutes(): the outer call hands back a
+        // RouteCollectionInterface, which is not declared iterable even though
+        // the concrete collection is. The inner call returns the plain array
+        // the interface does promise, so this walks the router without relying
+        // on an implementation detail of whichever collection is installed.
+        foreach (app('router')->getRoutes()->getRoutes() as $route) {
             $uri = $route->uri();
 
             if (! str_contains($uri, 'customer/orders')) {
@@ -305,11 +310,11 @@ final class OrderTrackingApiTest extends TestCase
     public function test_two_live_orders_are_listed_soonest_pickup_first(): void
     {
         $sooner = $this->placedOrder('FOTG-260918-TEST000003');
-        $sooner->pickup_start_at = now()->addHour();
+        $sooner->pickup_start_at = now()->addHour()->toImmutable();
         $sooner->save();
 
         $later = $this->placedOrder('FOTG-260918-TEST000004');
-        $later->pickup_start_at = now()->addHours(3);
+        $later->pickup_start_at = now()->addHours(3)->toImmutable();
         $later->save();
 
         // The guard that makes the assertion meaningful: id order and pickup
@@ -400,9 +405,9 @@ final class OrderTrackingApiTest extends TestCase
         $order->status = OrderStatus::Placed;
         $order->order_number = $number;
         $order->pickup_timezone = 'Asia/Kolkata';
-        $order->pickup_start_at = now()->addHours(2);
-        $order->pickup_end_at = now()->addHours(2)->addMinutes(10);
-        $order->placed_at = now();
+        $order->pickup_start_at = now()->addHours(2)->toImmutable();
+        $order->pickup_end_at = now()->addHours(2)->addMinutes(10)->toImmutable();
+        $order->placed_at = now()->toImmutable();
         $order->save();
         $order->refresh();
 

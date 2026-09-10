@@ -115,7 +115,7 @@ final class OrderRecoverySweepTest extends TestCase
         [, $payment] = $this->strandedCapture();
 
         // Inside the 120-second default, outside any plausible rounding of it.
-        $payment->verified_at = now()->subSeconds(30);
+        $payment->verified_at = now()->subSeconds(30)->toImmutable();
         $payment->save();
 
         $this->artisan('orders:recover-captured')
@@ -127,7 +127,7 @@ final class OrderRecoverySweepTest extends TestCase
         // The guard against a vacuous pass: the same capture, once it is old
         // enough, IS swept. Without this, a sweep that never places anything
         // would satisfy the assertion above.
-        $payment->verified_at = now()->subSeconds(300);
+        $payment->verified_at = now()->subSeconds(300)->toImmutable();
         $payment->save();
 
         $this->artisan('orders:recover-captured')->assertSuccessful();
@@ -170,7 +170,7 @@ final class OrderRecoverySweepTest extends TestCase
         $order->payable_total_minor = 24_900;
         $order->status = OrderStatus::Placed;
         $order->order_number = 'FOTG-260909-NOMONEY01';
-        $order->placed_at = now();
+        $order->placed_at = now()->toImmutable();
         $order->save();
 
         $this->artisan('orders:check-integrity')
@@ -257,7 +257,7 @@ final class OrderRecoverySweepTest extends TestCase
         $payment->amount_minor = 24_900;
         $payment->currency = 'INR';
         $payment->status = PaymentStatus::Captured;
-        $payment->verified_at = now()->subMinutes(30);
+        $payment->verified_at = now()->subMinutes(30)->toImmutable();
         $payment->save();
 
         return [$order, $payment];

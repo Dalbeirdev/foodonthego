@@ -199,7 +199,7 @@ final class OrderTransitionTest extends TestCase
         $duplicate->from_status = OrderStatus::Placed;
         $duplicate->to_status = OrderStatus::Accepted;
         $duplicate->source_type = OrderTransitionSource::System;
-        $duplicate->occurred_at = now();
+        $duplicate->occurred_at = now()->toImmutable();
 
         $this->expectException(QueryException::class);
 
@@ -308,7 +308,15 @@ final class OrderTransitionTest extends TestCase
 
         $order->refresh();
 
-        $latest = $order->statusHistory()->get()->last();
+        // Asked of the database rather than fetched-then-discarded. The
+        // relation orders by (occurred_at, id) ascending, so BOTH columns are
+        // inverted here -- reversing only the timestamp would leave two rows
+        // written in the same second to be separated by whatever the storage
+        // engine felt like, which is the tie-break the relation exists to pin.
+        $latest = $order->statusHistory()
+            ->reorder('occurred_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->first();
 
         $this->assertSame($order->status, $latest->to_status);
     }
@@ -381,7 +389,7 @@ final class OrderTransitionTest extends TestCase
         $order->status = OrderStatus::Placed;
         $order->order_number = 'FOTG-260918-TEST000001';
         $order->pickup_timezone = 'Asia/Kolkata';
-        $order->placed_at = now();
+        $order->placed_at = now()->toImmutable();
         $order->save();
         $order->refresh();
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Logging;
 
 use Illuminate\Log\Logger;
+use Monolog\Logger as MonologLogger;
 
 /**
  * A Monolog "tap" for the `structured` channel (config/logging.php).
@@ -18,7 +19,23 @@ final class StructuredLogger
 {
     public function __invoke(Logger $logger): void
     {
-        foreach ($logger->getLogger()->getHandlers() as $handler) {
+        $monolog = $logger->getLogger();
+
+        /*
+         | Narrowed rather than assumed.
+         |
+         | Laravel types getLogger() as the PSR LoggerInterface, which has no
+         | getHandlers(); the object is a Monolog Logger and always has been,
+         | so the call worked and static analysis was right to object anyway.
+         | A driver that returned some other PSR logger would have fatalled
+         | here on the first log line. Now it formats nothing instead, which is
+         | the safer of the two ways to be wrong.
+         */
+        if (! $monolog instanceof MonologLogger) {
+            return;
+        }
+
+        foreach ($monolog->getHandlers() as $handler) {
             if (method_exists($handler, 'setFormatter')) {
                 $handler->setFormatter(new StructuredFormatter);
             }

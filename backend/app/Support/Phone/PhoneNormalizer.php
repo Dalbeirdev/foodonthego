@@ -20,7 +20,15 @@ final class PhoneNormalizer
     /**
      * Supported calling codes and their national-number rules.
      *
-     * @var array<string, array{min: int, max: int, mobilePrefixes: array<int, string>, iso: string, name: string}>
+     * The keys are int, not string, and that is PHP rather than a choice: a
+     * numeric string array key is silently converted, so '91' becomes 91 the
+     * moment this literal is written. The code below already knows -- see the
+     * cast at `array_keys()` -- but this tag said `array<string, ...>` and was
+     * simply untrue. Found by static analysis (KI-003); it is exactly the kind
+     * of thing a docblock gets wrong and nobody notices, because a docblock
+     * that lies still runs.
+     *
+     * @var array<int|string, array{min: int, max: int, mobilePrefixes: list<string>, iso: string, name: string}>
      */
     private const COUNTRIES = [
         // India: 10 digits, mobile numbers begin 6-9.

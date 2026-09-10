@@ -190,19 +190,94 @@ insets, and the platform font resolves to San Francisco, but that is design inte
 
 ---
 
-### KI-003 · No PHP static analysis
+### KI-003 · No PHP static analysis — **FIXED after Module 17**
 
-**Severity:** Medium
+**Severity when open:** Medium, and correctly rated. It found four real defects on its
+first run, one of which had been silently wrong since Module 01.
 
-PHPStan/Larastan could not be installed: Composer resolves dist archives to GitHub zipball URLs, and
-the environment's egress policy rejects them with *"Could not authenticate against github.com"*.
-Packagist metadata itself is reachable — only the archive download fails.
+**The recorded diagnosis was wrong, and that is the more useful half of this entry.**
+It said: "Composer resolves dist archives to GitHub zipball URLs, and the environment's
+egress policy rejects them." Re-checked before working around it — the proxy's own
+status endpoint reported no relay failures whatsoever, and the 403 body says something
+different:
 
-**Mitigation in place:** Laravel Pint runs in CI (style, `declare(strict_types=1)`, import order),
-all code is written with explicit types, and 67 tests cover behaviour.
+```
+{"message":"GitHub access to this repository is not enabled for this session.
+ Use add_repo to request access. ..."}
+```
 
-**To clear:** allow GitHub archive downloads, or vendor PHPStan into an internal mirror, then add
-`vendor/bin/phpstan analyse` at level 6 to CI.
+That is this *development session's* repository scoping, not an organisation egress
+policy — and CI has never been subject to it at all, which is where the analysis
+actually needed to run. Two of the three packages then installed from git source
+first time; only `phpstan/phpstan` is published dist-only (no `source` entry in the
+lock), so it alone had to be assembled by hand locally. **The entry blamed the
+component that reports failures rather than the one causing them, and nobody re-read
+it for sixteen modules.**
+
+**Configured:** PHPStan 2.2.13 + Larastan 3.12.0, `backend/phpstan.neon`, wired into
+the backend CI job before `migrate` (Larastan reads the schema from migration files,
+so it needs no database and fails fast). `composer analyse` runs it locally.
+
+**434 errors on the first run, 210 of which were not real.** Larastan could not see
+the models' types, so every attribute was unknown and every comparison against a cast
+enum reported "always false" against perfectly correct code. Two settings fix it and
+**both** are required: `databaseMigrationsPath` says which columns exist,
+`parseModelCastsMethod` says what they are cast to. Adding the first alone moved the
+count from 434 to **exactly 434** — a control that stayed silent, which is how the
+second was found. (This project declares casts in Laravel 11's `casts()` *method*,
+which Larastan does not read unless asked.)
+
+**The ladder, measured rather than intended:**
+
+| Level | Errors |
+| --- | --- |
+| **3** | **0 — the CI gate** |
+| 4 | 45 |
+| 5 | 50 |
+| 6 | 133 |
+
+KI-003 named level 6. Level 3 is what the code passes today, and a gate is only a gate
+if it is green — one set where the code does not pass is one somebody turns off in a
+hurry. Levels 4–6 are almost entirely missing generics and array value types: real work,
+and not work worth rushing to reach a number, since done carelessly it yields
+`array<mixed, mixed>` everywhere and describes nothing. **No baseline file**, deliberately:
+a baseline records "this was already broken" and then never runs out. The counts above
+live here, where a person reads them, instead.
+
+**Four real defects, none of which 1,301 tests could see:**
+
+1. **The API request log had no actor. At all.** `LogApiRequests` read
+   `is_string($user->role ?? null) ? $user->role : null` — true when `users.role` was a
+   string column, permanently false once it became a backed enum. Fixing that exposed the
+   larger fault: the whole block sat *above* `$next()`, while these middleware are
+   prepended to the `api` **group** and `auth:sanctum` is applied per route group. At that
+   point nothing had authenticated anybody, and `$request->user()` fell through to the
+   default `web` session guard — which a stateless API request never satisfies. So
+   `setActor()` was never called even once, and **every `api.request` line ever written
+   carried no actor id and no actor role.** Now read after `$next()` and before the line
+   is written. `tests/Feature/Logging/ActorContextTest.php` asserts both, with an
+   anonymous-request control; its first assertion failed before the fix.
+2. **An unreachable guard in the polyline decoder.** `if ($points === [])` after the decode
+   loop could never fire — an empty string is refused at the top of the method, so the loop
+   always runs at least once and its error message was unproducible. No test could find it:
+   no input reaches an unreachable branch.
+3. **Outbox timestamps cast mutable, written immutable.** `available_at` and `published_at`
+   were cast `'datetime'` while every writer assigned a `CarbonImmutable`. Harmless until
+   something mutates one in place.
+4. **A docblock that lied about its own keys.** `PhoneNormalizer::COUNTRIES` was tagged
+   `array<string, ...>`; PHP converts numeric string keys to int, so `'91'` has always been
+   `91`. The code knew — it casts at `array_keys()` — and the tag did not.
+
+Plus 14 sites assigning a mutable `Carbon` to an immutable-cast column, 10 Eloquent
+relations with no generic annotation, and `Trip`, which needed `@property` annotations
+because its migration declares the endpoint columns in a
+`foreach (['origin','destination'] as $end)` loop as `"{$end}_latitude"` — the right way
+to write the migration, and unreadable to anything parsing the file without executing it.
+
+**Evidence:** `docs/evidence/module-17/ki-003-static-analysis-adoption.txt`.
+
+**To raise the level:** work levels 4 → 6 by writing the missing generics and array value
+types honestly. The counts above are the cost.
 
 ---
 

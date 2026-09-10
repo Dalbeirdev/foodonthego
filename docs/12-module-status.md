@@ -50,7 +50,7 @@ older planning documents remain readable.
 | --- | --- | --- |
 | M01-R41 | Android build validation | `dl.google.com` denied by egress policy (KI-001) |
 | M01-R42 | iOS build validation | Requires macOS + Xcode; environment is Linux (KI-002) |
-| M01-R43 | PHP static analysis in CI | PHPStan uninstallable via Composer here (KI-003) |
+| ~~M01-R43~~ | ~~PHP static analysis in CI~~ | **DELIVERED after Module 17** — PHPStan + Larastan gate the backend job at level 3 (KI-003) |
 
 **115 automated tests pass.** All static checks pass. Both web shells and the Flutter app were run
 and visually inspected.

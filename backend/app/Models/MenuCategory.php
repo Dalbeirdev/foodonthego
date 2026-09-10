@@ -49,6 +49,7 @@ final class MenuCategory extends Model
     }
 
     /** Every item, withdrawn ones included. For the operator side, later. */
+    /** @return HasMany<MenuItem, $this> */
     public function allItems(): HasMany
     {
         return $this->hasMany(MenuItem::class);

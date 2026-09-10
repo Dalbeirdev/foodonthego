@@ -49,16 +49,19 @@ final class RestaurantMembership extends Model
         return 'uuid';
     }
 
+    /** @return BelongsTo<Restaurant, $this> */
     public function restaurant(): BelongsTo
     {
         return $this->belongsTo(Restaurant::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function grantedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'granted_by_user_id');

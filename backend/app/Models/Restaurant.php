@@ -128,6 +128,7 @@ final class Restaurant extends Model
      * unable to answer "who had a key in March". Anything deciding *access*
      * filters with `->active()`.
      */
+    /** @return HasMany<RestaurantMembership, $this> */
     public function memberships(): HasMany
     {
         return $this->hasMany(RestaurantMembership::class);
@@ -147,6 +148,7 @@ final class Restaurant extends Model
         app(TenantAccessService::class)->reachableBy($query, $user);
     }
 
+    /** @return HasMany<RestaurantOpeningHour, $this> */
     public function openingHours(): HasMany
     {
         return $this->hasMany(RestaurantOpeningHour::class)->orderBy('opens_at');

@@ -173,7 +173,7 @@ final class OrderTransitionConcurrencyTest extends TestCase
         $order->status = OrderStatus::Placed;
         $order->order_number = 'FOTG-260918-CONC00001';
         $order->pickup_timezone = 'Asia/Kolkata';
-        $order->placed_at = now();
+        $order->placed_at = now()->toImmutable();
         $order->save();
         $order->refresh();
 

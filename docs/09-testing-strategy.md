@@ -232,7 +232,21 @@ map-unavailable state at 320dp.
   against the API (above), but the restaurant and admin shells still have nothing to authenticate
   with. That arrives with the module that gives them a sign-in.
 - **No Android instrumentation or iOS UI test** — see [13-known-issues.md](13-known-issues.md).
-- **No PHP static analysis** — PHPStan could not be installed; see the same document.
+- ~~**No PHP static analysis**~~ — **now in place** (KI-003). PHPStan 2.2.13 + Larastan 3.12.0,
+  gating the backend CI job at level 3, clean. It found four defects the 1,301-test suite could
+  not: an API request log that had never recorded an actor, an unreachable guard in the polyline
+  decoder, two model timestamps cast mutable while every writer assigned immutable, and a docblock
+  that misdescribed its own array keys.
+
+  **The part worth carrying into how this project tests.** Every one of those is invisible to a
+  test suite *by construction*, not by oversight. A test exercises code that runs; dead branches,
+  unreachable guards and a log field nobody asserts on are precisely the places tests cannot
+  reach. Adding more tests would never have found them. That is the gap static analysis fills,
+  and it is why "1,301 tests pass" was never the same claim as "this code does what it says".
+
+  The adoption also produced a familiar lesson in a new costume: the first configuration change
+  moved the error count from 434 to **exactly 434**. A control that stays silent has told you
+  something — here, that the schema was only half the information the analyser was missing.
 
 ---
 

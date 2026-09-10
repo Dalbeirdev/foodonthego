@@ -1439,3 +1439,33 @@ customer app got a screen that reads it without ever deciding it.
   `TenantAccessService::accountUsable()` deleted, because the request no longer
   reaches it. They now assert both layers, and a mutation confirms the inner
   one still fails when broken.
+- KI-003 — **now fixed**, sixteen modules after it was recorded, and the entry
+  was wrong about why it was blocked. It blamed the network egress policy;
+  the proxy reported no failures at all, and the 403 came from this
+  development session's repository scoping — a restriction CI has never had,
+  which is where the analysis needed to run in the first place. **The entry
+  blamed the component that reports failures rather than the one causing
+  them**, and nobody re-read it for sixteen modules. Second time in two days
+  a stale known-issue entry has turned out to be the actual obstacle.
+
+  PHPStan 2.2.13 + Larastan 3.12.0 now gate the backend CI job at level 3,
+  clean. The measured ladder to KI-003's stated level 6 is 45 / 50 / 133
+  errors at levels 4 / 5 / 6 — written down rather than baselined, because a
+  baseline records "already broken" and then never runs out.
+
+  It found four defects in code 1,301 tests had passed over, the largest
+  being that **the API request log had never recorded an actor at all**:
+  `LogApiRequests` is prepended to the `api` group while `auth:sanctum` is
+  applied per route, so `$request->user()` fell through to the default `web`
+  session guard and returned null on every stateless request. `setActor()`
+  was never called once. A dead `is_string()` test on a backed enum was what
+  static analysis actually flagged; the dead branch turned out to live inside
+  a block that was itself dead.
+
+  All four are invisible to a test suite by construction rather than by
+  oversight — a test exercises code that runs, and none of this ran. More
+  tests would never have found them.
+
+  The adoption also repeated this project's most-learned lesson in a new
+  costume: the first config change moved the error count from 434 to exactly
+  434. The schema was only half of what the analyser was missing.

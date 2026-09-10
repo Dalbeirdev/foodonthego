@@ -77,11 +77,13 @@ final class User extends Authenticatable
      * checks the surface and the account's standing. This is for showing
      * somebody their own list.
      */
+    /** @return HasMany<RestaurantMembership, $this> */
     public function restaurantMemberships(): HasMany
     {
         return $this->hasMany(RestaurantMembership::class);
     }
 
+    /** @return HasMany<PlatformTenantGrant, $this> */
     public function platformTenantGrants(): HasMany
     {
         return $this->hasMany(PlatformTenantGrant::class);

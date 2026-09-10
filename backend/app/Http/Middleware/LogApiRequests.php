@@ -24,15 +24,43 @@ final class LogApiRequests
     {
         $startedAt = microtime(true);
 
-        $user = $request->user();
-        if ($user !== null) {
+        $response = $next($request);
+
+        /*
+         | THE ACTOR IS READ AFTER THE REQUEST, NOT BEFORE IT, AND THAT IS THE
+         | WHOLE POINT.
+         |
+         | This block used to sit above `$next()`. It could never work there.
+         | These middleware are prepended to the `api` GROUP, while
+         | `auth:sanctum` is applied per route group in routes/api.php -- so at
+         | that moment nothing had authenticated anybody, and `$request->user()`
+         | fell through to the DEFAULT guard, which is `web` (session). A
+         | stateless API request carries no session, so the guard returned null,
+         | the `if` never ran, and `setActor()` was never called even once.
+         |
+         | Every api.request line ever written has therefore carried no actor at
+         | all: no id, no role. Not a formatting problem -- the fields were
+         | simply never set.
+         |
+         | After `$next()`, the route's own auth middleware has run and Sanctum
+         | has installed a user resolver on the request, so this reads the
+         | principal the request was actually served as. Late enough to be true,
+         | and still before the line below is written, which is the only
+         | ordering that matters.
+         |
+         | Found by static analysis (KI-003): it flagged `is_string()` on a
+         | backed enum, and the dead branch turned out to be inside a block that
+         | was itself dead.
+         */
+        if (($user = $request->user()) !== null) {
             RequestContext::setActor(
                 (string) $user->getAuthIdentifier(),
-                is_string($user->role ?? null) ? $user->role : null,
+                // The enum's VALUE. The previous `is_string($user->role)` test
+                // was written while `users.role` was a string column and has
+                // answered false ever since it became a backed enum.
+                $user->role?->value,
             );
         }
-
-        $response = $next($request);
 
         $durationMs = round((microtime(true) - $startedAt) * 1000, 2);
         $status = $response->getStatusCode();

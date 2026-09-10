@@ -49,7 +49,21 @@ final class TripRouteApiTest extends TestCase
         return $this->withHeader('Authorization', 'Bearer '.$this->token);
     }
 
-    /** Swaps the routing provider, and the service that captured it. */
+    /**
+     * Swaps the routing provider, and the service that captured it.
+     *
+     * Generic on purpose. Declared as taking and returning the INTERFACE, this
+     * helper handed every caller back a `RouteProvider` -- so `$provider->calls`,
+     * which only the recording fake has, was invisible to static analysis and to
+     * an editor. The template says what the helper actually does: it gives back
+     * the very object it was passed, so a caller that put a RecordingRouteProvider
+     * in gets one out, counters and all.
+     *
+     * @template T of RouteProvider
+     *
+     * @param  T  $provider
+     * @return T
+     */
     private function useProvider(RouteProvider $provider): RouteProvider
     {
         $this->app->instance(RouteProvider::class, $provider);

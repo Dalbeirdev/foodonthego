@@ -72,8 +72,20 @@ jobs:
       - name: Code style (Pint)
         run: vendor/bin/pint --test
 
-      # NOTE: PHP static analysis is deliberately absent — see docs/13-known-issues.md
-      # (KI-003). Add `vendor/bin/phpstan analyse` here once PHPStan is installable.
+      # Static analysis (KI-003, closed). Level 3 and clean; the ladder to
+      # level 6 and what stands between is in phpstan.neon and
+      # docs/13-known-issues.md.
+      #
+      # Runs BEFORE migrate, and can: Larastan reads the schema from the
+      # migration files rather than from a database, so this step needs no
+      # MySQL and fails fast when it is going to fail.
+      #
+      # --no-progress because a progress bar in a log file is a log file full
+      # of a progress bar. The result cache is not used here -- a fresh
+      # checkout has none, and a stale one is how a run reports the previous
+      # commit's findings, which cost an hour of confusion during adoption.
+      - name: Static analysis (PHPStan + Larastan)
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=2G
 
       - name: Migrate
         run: php artisan migrate --force

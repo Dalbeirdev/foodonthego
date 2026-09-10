@@ -114,10 +114,24 @@ cd mobile  && flutter test            # 155 tests
 
 ```bash
 cd backend && vendor/bin/pint --test  # code style
+cd backend && composer analyse        # PHPStan + Larastan, level 3
 cd web     && npm run typecheck       # TypeScript, all workspaces
 cd mobile  && flutter analyze --fatal-infos
 cd mobile  && dart format --set-exit-if-changed .
 ```
+
+**If `composer install` cannot fetch `phpstan/phpstan` here**, that is expected in this
+development container and not a problem with the project: GitHub access is scoped to
+this repository, `phpstan/phpstan` is published dist-only (no `source` entry to clone
+instead), and the archive host answers 403. CI has no such restriction and installs it
+normally. Locally you can point `vendor/bin/phpstan` at a `phpstan.phar` obtained any
+way you like — the analysis is identical, and `phpstan.neon` is what actually
+configures it.
+
+**If the results look like the previous commit's**, clear the result cache:
+`vendor/bin/phpstan clear-result-cache`. It caches aggressively and does not always
+notice a changed model cast; this cost an hour during adoption, twice. The CI step does
+not use a cache at all.
 
 ---
 

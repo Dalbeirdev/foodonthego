@@ -1,0 +1,80 @@
+#
+# Static analysis for the FoodOnTheGo backend.
+#
+# KI-003 recorded this as impossible from Module 01 and blamed the network
+# egress policy. That diagnosis was wrong: the archives are refused because this
+# development container's GitHub access is scoped to the project's own
+# repository, and CI has never had that restriction at all. The tooling
+# installed on the first attempt once the actual cause was known.
+#
+# ---------------------------------------------------------------------------
+# LEVEL 3, AND WHY NOT 6
+# ---------------------------------------------------------------------------
+#
+# KI-003 named level 6. Level 6 is the goal and this is not it, so here is the
+# measured ladder rather than an intention:
+#
+#     level 3   0 errors   <- the gate, enforced in CI
+#     level 4  45 errors
+#     level 5  50 errors
+#     level 6 133 errors
+#
+# A gate is only a gate if it is green, and a gate set where the code does not
+# yet pass is a gate somebody turns off in a hurry. Level 3 already refuses the
+# things that matter most -- unknown methods and properties, wrong return types,
+# a value assigned to a property that cannot hold it -- and every one of those
+# it found on adoption was a real defect, including two the whole test suite
+# could not see.
+#
+# What levels 4-6 add is almost entirely missing generics and array value types
+# (`array` that could hold anything, `Collection` without its element type).
+# That is genuine work worth doing and it is a lot of it; done badly, in a rush
+# to reach a number, it produces `array<mixed, mixed>` everywhere and a codebase
+# that is no better described than before. Raise the level when the annotations
+# are real.
+#
+# No baseline file, deliberately. A baseline records "this was already broken
+# when we started" and then never runs out. The findings above are written down
+# in docs/13-known-issues.md where a person will read them, not in a file the
+# tool reads and silences.
+#
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 3
+
+    paths:
+        - app
+        - config
+        - database
+        - routes
+        - tests
+
+    # Tests are analysed too, deliberately. A test is the code that decides
+    # whether everything else is correct, and a test with a wrong type is a test
+    # that can assert the wrong thing confidently. Four of the defects found on
+    # adoption were in tests.
+
+    # THE TWO SETTINGS THAT MAKE THE ANALYSIS TRUE RATHER THAN NOISY.
+    #
+    # Without them Larastan cannot see an Eloquent attribute's type, so every
+    # model property is unknown and every comparison against the enum a column is
+    # cast to reads as "always false". The first run reported 434 errors; 210 of
+    # them were that one blind spot wearing different hats.
+    #
+    # They are needed together and neither is enough alone. The migrations say
+    # which columns exist; only the model says that `orders.status` is cast to an
+    # OrderStatus. Adding the migrations by themselves changed the count from 434
+    # to exactly 434 -- a control that stayed silent, which is how the second
+    # setting was found.
+    #
+    # Migrations rather than a live database, so the analysis is reproducible on
+    # a machine with no MySQL running, which is what the CI job is.
+    databaseMigrationsPath:
+        - database/migrations
+
+    # This project declares casts in Laravel 11's `casts()` METHOD rather than
+    # the older `$casts` property, and Larastan does not read that method unless
+    # asked. The default is false.
+    parseModelCastsMethod: true

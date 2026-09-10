@@ -667,7 +667,7 @@ final class OrderPlacementTest extends TestCase
         $payment->amount_minor = 24_900;
         $payment->currency = 'INR';
         $payment->status = $status;
-        $payment->verified_at = $status === PaymentStatus::Captured ? now() : null;
+        $payment->verified_at = $status === PaymentStatus::Captured ? now()->toImmutable() : null;
         $payment->save();
 
         return [$order, $payment];

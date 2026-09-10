@@ -12,6 +12,7 @@ use App\Models\Trip;
 use App\Models\TripRoute;
 use App\Support\Trip\EndpointFingerprint;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +41,19 @@ use Illuminate\Support\Facades\Log;
  */
 final class RouteCalculationService
 {
+    /**
+     * The cache is required to be a lock provider, and now says so.
+     *
+     * `lock()` is the only thing this service asks of it, and `lock()` lives on
+     * LockProvider rather than on the Repository contract -- so the native type
+     * alone described a dependency that could not do the one job it is here
+     * for. The intersection is documented rather than declared because the
+     * container autowires the native type; a store without locking would fail
+     * at the call either way, and this at least makes the requirement legible
+     * before that happens.
+     *
+     * @param  Cache&LockProvider  $cache
+     */
     public function __construct(
         private readonly RouteProvider $provider,
         private readonly RouteValidator $validator,

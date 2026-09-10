@@ -28,6 +28,50 @@ use Illuminate\Support\Str;
  * request body containing `status`, `route_status`, `customer_id` or
  * `distance_metres` has nowhere to land even if a future caller passes the whole
  * array through.
+ *
+ * THE @property BLOCK IS LOAD-BEARING, not decoration. Static analysis (KI-003)
+ * learns a model's columns by parsing the migrations, and this table's are
+ * declared inside a `foreach (['origin', 'destination'] as $end)` loop as
+ * `"{$end}_latitude"`. That loop is the right way to write the migration -- the
+ * two endpoints are the same fourteen columns twice, and spelling them out
+ * would invite them to drift -- but an analyser reading the file without
+ * executing it cannot evaluate the interpolation, so it concludes the columns
+ * do not exist. Forty-one findings on this one model, all of them false.
+ *
+ * So the columns are declared here instead, and this block is the schema's
+ * second home: when a migration adds or changes a column on `trips`, it changes
+ * here too, or the analysis quietly goes back to guessing. The types below are
+ * the migration's types as narrowed by `casts()` -- note the four coordinate
+ * columns are `string`, deliberately, for the reason given on the cast.
+ *
+ * @property int $id
+ * @property string $uuid
+ * @property int $customer_id
+ * @property TripStatus $status
+ * @property RouteStatus $route_status
+ * @property LocationSourceType $origin_source_type
+ * @property int|null $origin_saved_address_id
+ * @property string|null $origin_place_id
+ * @property string $origin_name
+ * @property string $origin_formatted_address
+ * @property string $origin_latitude
+ * @property string $origin_longitude
+ * @property string|null $origin_city
+ * @property string|null $origin_region
+ * @property string|null $origin_country_code
+ * @property string|null $origin_postal_code
+ * @property LocationSourceType $destination_source_type
+ * @property int|null $destination_saved_address_id
+ * @property string|null $destination_place_id
+ * @property string $destination_name
+ * @property string $destination_formatted_address
+ * @property string $destination_latitude
+ * @property string $destination_longitude
+ * @property string|null $destination_city
+ * @property string|null $destination_region
+ * @property string|null $destination_country_code
+ * @property string|null $destination_postal_code
+ * @property CarbonImmutable|null $cancelled_at
  */
 final class Trip extends Model
 {

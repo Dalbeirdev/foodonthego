@@ -90,9 +90,21 @@ final class PolylineCodec
             }
         }
 
-        if ($points === []) {
-            throw new PolylineException('The polyline decoded to no points.');
-        }
+        /*
+         | There is deliberately no "decoded to no points" guard here.
+         |
+         | There used to be, and static analysis (KI-003) showed it could never
+         | fire: an empty string is refused at the top of this method, so
+         | $length is at least 1, the while loop runs at least once, and
+         | $points has at least one pair by the time control reaches here.
+         | The check read as though it were handling a case; it was handling a
+         | case that had already been handled twenty lines earlier.
+         |
+         | Not a bug -- nothing behaved wrongly -- but 1,301 tests could never
+         | have found it, because no input reaches an unreachable branch. This
+         | is the class of defect static analysis is for, and the note stays so
+         | the guard is not helpfully added back.
+         */
 
         return $points;
     }

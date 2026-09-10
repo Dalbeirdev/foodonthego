@@ -31,8 +31,20 @@ final class OutboxEvent extends Model
     {
         return [
             'payload' => 'array',
-            'available_at' => 'datetime',
-            'published_at' => 'datetime',
+
+            /*
+             | Immutable, matching what the code that writes them actually
+             | assigns.
+             |
+             | Both were cast as plain 'datetime', so Eloquent handed back a
+             | MUTABLE Carbon while every writer passed a CarbonImmutable --
+             | a disagreement static analysis (KI-003) reported and nothing
+             | else could, because the two are interchangeable until somebody
+             | mutates one in place and half the codebase sees it change.
+             | Nothing does that today; this makes sure nothing can start.
+             */
+            'available_at' => 'immutable_datetime',
+            'published_at' => 'immutable_datetime',
         ];
     }
 
