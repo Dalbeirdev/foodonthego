@@ -38,6 +38,11 @@ None of that reaches CI, which has the SDK, KVM and an emulator. It means **a de
 in this container cannot build or run Android locally** — a real constraint on the workflow, and
 a different claim entirely from "the Android build is unvalidated".
 
+**Since corrected:** the Module 02 shell now has a device test of its own
+(`integration_test/module_02_shell_test.dart`), which is what M02-017 and M02-018 actually
+asked for. Its first run took the iOS simulator from 29 tests to **31**, which is how the
+file is known to have executed rather than been skipped.
+
 **Still genuinely unverified:** a **physical Android handset**. Everything above is an emulator.
 Emulators do not catch vendor skins, real GPS drift, battery-saver throttling of background
 timers, or an OEM's notification policy.

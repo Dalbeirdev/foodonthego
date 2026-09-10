@@ -1585,3 +1585,16 @@ customer app got a screen that reads it without ever deciding it.
   words and are **genuinely** environment-limited, because no API keys exist for
   this project and none were invented. The banner now names them as excluded. A
   correction that over-reaches is just a new inaccuracy.
+- **The shell device test ran, and the count is how we know.** Its first CI run took
+  the iOS simulator from 29 tests to **31** — the number is the evidence that the
+  new file executed rather than being silently collected and skipped, which a green
+  suite alone would not have distinguished.
+
+  M02-017 and M02-018 are verified on device as a result: the five destinations
+  render and each is reachable by tapping, on a real simulator and emulator.
+
+  **One thing deliberately not claimed.** The Android job passed the identical
+  `flutter test integration_test/` invocation, but its log tail kept landing past
+  the test summary and the count was never actually read. It is recorded as green
+  on the same suite rather than as "31 per platform". Assuming symmetry would have
+  been reasonable and would still have been a number nobody checked.

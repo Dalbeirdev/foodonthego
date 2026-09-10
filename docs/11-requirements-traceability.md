@@ -25,12 +25,20 @@ Legend: ✅ done · ➖ not applicable to this requirement · ⛔ blocked by env
 > `flutter build ios --no-codesign` and runs the same suite on an iPhone simulator.
 > **29 integration tests pass on each platform, every pull request.**
 >
-> **What is still genuinely unverified on a device is a narrower and different thing.**
+> **M02-017 and M02-018 are now VERIFIED on device.**
+> `integration_test/module_02_shell_test.dart` renders the five destinations and taps
+> through each of them on a real emulator and simulator. First run: the iOS simulator
+> reported **31 tests passed**, up from 29, so the file executed rather than being
+> silently skipped. The Android emulator job passed the same `flutter test
+> integration_test/` invocation; its count was not read from the log, so it is recorded
+> here as green rather than as a number.
+>
+> **What is still genuinely unverified on a device is narrower again.**
 > The on-device suite covers **Modules 11–14** (add to cart, cart management, pickup
-> timing, checkout) plus the Module 16 confirmation and Module 17 tracking screens. It
-> does **not** exercise Modules 02–06 — the navigation shell, OTP sign-in, profile and
-> addresses, the trip planner, or routing and the map layer. Those rows are correct that
-> they are unverified on a handset; they are **wrong about why**.
+> timing, checkout), the Module 16 confirmation and Module 17 tracking screens, and now
+> the Module 02 shell. It does **not** exercise **Modules 03–06** — OTP sign-in, profile
+> and addresses, the trip planner, or routing and the map layer. Those rows are correct
+> that they are unverified on a handset; they are **wrong about why**.
 >
 > The blocker changed from *"there is no environment"* to *"no device test has been
 > written for this module"*, and that changes what someone would do about it: write the
