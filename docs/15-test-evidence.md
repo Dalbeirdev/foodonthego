@@ -2557,10 +2557,38 @@ None of these were found by a test failing. All of them were found by a test
 | Suite | Tests | New in this module |
 | --- | --- | --- |
 | Backend (PHPUnit/Pest, real MySQL) | **1,303 passed**, 5,758 assertions | 45 |
+| Static analysis (PHPStan 2.2.13 + Larastan 3.12.0) | **level 3, 0 errors** | new (KI-003) |
 | Flutter (widget + unit) | **986 passed** | 34 |
 | Device (integration_test) | 29 per platform | 1 |
 
 Backend 78.2s; Flutter 1m43s. No skips.
+
+### CI, as verified rather than assumed
+
+Commit `8170e28`, read back from the GitHub API rather than inferred from a green
+badge:
+
+| Run | Event | Result |
+| --- | --- | --- |
+| 34480687056 | `pull_request` | **success — 7/7** |
+| 34480680997 | `push` | success |
+| 34480680959 | `push` (deploy) | success |
+
+**The `pull_request` run is the one that counts.** Device jobs run only on
+`pull_request` and `main`, so a green push run says nothing about the handsets — its
+three mobile device jobs report `skipped`, which is not a pass. All seven jobs are
+green on the PR run: Backend, Web, Mobile Flutter, iOS build, iOS simulator, Android
+review build, Android emulator.
+
+The backend job's steps, in order and all green:
+
+```
+Pint → Static analysis (PHPStan + Larastan) → Migrate → Test → composer audit
+```
+
+That third line is new, and it is also the proof that KI-003's recorded diagnosis was
+wrong: `composer install` fetched `phpstan/phpstan` in CI without incident. The
+restriction was only ever the development container's repository scoping.
 
 The backend total moved from 1,297 to 1,301 after the module closed: KI-008's
 session tests were rewritten from one test pinning the old behaviour into five
