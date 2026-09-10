@@ -1492,3 +1492,21 @@ customer app got a screen that reads it without ever deciding it.
   up *before* each test that uses it. The first full run produced 132 failures
   from a committed fixture that outlived its test. The test worked and broke the
   suite around it; it now empties the tables on the way out.
+- **The iOS build job now retries, and only the part that touches the network.**
+  `flutter build ios` runs `pod install`, which fetches the CocoaPods spec repo;
+  on 2026-09-10 it failed with `Could not resolve host: cdn.cocoapods.org` on a
+  commit that changed two markdown files and nothing else, minutes after the
+  identical build passed. DNS on the runner, not the app.
+
+  Re-running the job was not available — the API answered 403 — so the step was
+  made robust instead of the failure being waited out. Three bounded attempts,
+  each announcing itself in the log.
+
+  **It cannot hide a broken build**, and that was tested rather than asserted: a
+  command that always fails still fails all three attempts and exits 1; one that
+  fails twice then succeeds passes; one that succeeds first time runs once. A
+  compile error is deterministic and a retry does nothing for it.
+
+  The iOS *simulator* job runs `pod install` too and shares the exposure. It is
+  deliberately left alone: it did not fail, and widening a fix past the thing
+  that broke is how a small change becomes an unreviewable one.

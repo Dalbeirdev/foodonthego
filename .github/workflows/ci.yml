@@ -349,8 +349,43 @@ jobs:
 
       # No code signing in CI: this validates that the iOS target compiles.
       # Simulator UI testing is tracked separately (KI-002).
+      #
+      # RETRIED, AND ONLY BECAUSE OF WHAT SITS INSIDE IT. `flutter build ios`
+      # runs `pod install`, which fetches the CocoaPods spec repo over the
+      # network. On 2026-09-10 that step failed with
+      #
+      #     fatal: unable to access 'https://cdn.cocoapods.org/':
+      #     Could not resolve host: cdn.cocoapods.org
+      #
+      # on a commit that changed two markdown files and nothing else, minutes
+      # after the identical build passed. DNS on the runner, not the app.
+      #
+      # THIS DOES NOT PAPER OVER A BROKEN BUILD. A compile error is
+      # deterministic and fails all three attempts just as it failed one; what
+      # a retry can rescue is a name that did not resolve. The attempts are
+      # bounded and each one announces itself, so a job that needed two tries
+      # says so in its log rather than looking clean.
+      #
+      # If this ever passes only on the third attempt as a matter of routine,
+      # that is a finding about the runner and not a reason to raise the bound.
       - name: Build iOS (no codesign)
-        run: flutter build ios --no-codesign --debug
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::flutter build ios — attempt $attempt of 3"
+            if flutter build ios --no-codesign --debug; then
+              echo "::endgroup::"
+              echo "iOS build succeeded on attempt $attempt"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "attempt $attempt failed"
+            if [ "$attempt" -lt 3 ]; then
+              echo "retrying in 15s — see the note in ci.yml for why this is retried"
+              sleep 15
+            fi
+          done
+          echo "iOS build failed three times; this is not a transient name-resolution failure."
+          exit 1
 
   # ---------------------------------------------------------------------------
   # The two on-device runs.
