@@ -5,7 +5,7 @@ import 'package:foodonthego/data/fixtures/development_personas.dart';
 import 'package:foodonthego/data/repositories/fixture_home_repository.dart';
 import 'package:foodonthego/data/repositories/unconfigured_home_repository.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
-import 'package:foodonthego/domain/models/order_status.dart';
+import 'package:foodonthego/domain/models/placed_order.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
 
 /// The contract that keeps demo content out of a customer's hands.
@@ -81,7 +81,7 @@ void main() {
       expect(dashboard.customer.fullName, 'Rahul Sharma');
       expect(dashboard.activeOrder?.reference, 'FOTG-1024');
       expect(dashboard.activeOrder?.restaurantName, 'Highway Spice Kitchen');
-      expect(dashboard.activeOrder?.status, OrderStatus.cooking);
+      expect(dashboard.activeOrder?.status, PlacedOrderStatus.cooking);
     });
 
     test('the new-customer persona genuinely has nothing', () async {

@@ -4,7 +4,7 @@ import 'package:foodonthego/core/theme/app_theme.dart';
 import 'package:foodonthego/domain/models/active_order_summary.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
-import 'package:foodonthego/domain/models/order_status.dart';
+import 'package:foodonthego/domain/models/placed_order.dart';
 import 'package:foodonthego/domain/models/trip.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
 
@@ -20,7 +20,7 @@ Trip _delhiToJaipur() => sampleTrip();
 ActiveOrderSummary _cookingOrder(DateTime now) => ActiveOrderSummary(
   reference: 'FOTG-1024',
   restaurantName: 'Highway Spice Kitchen',
-  status: OrderStatus.cooking,
+  status: PlacedOrderStatus.cooking,
   itemCount: 3,
   estimatedPickup: now.add(const Duration(minutes: 35)),
   totalMinorUnits: 74000,
@@ -160,7 +160,10 @@ void main() {
       await tester.scrollUntilVisible(find.text('Your order'), 300);
       expect(find.text('Highway Spice Kitchen'), findsOneWidget);
       expect(find.textContaining('FOTG-1024'), findsOneWidget);
-      expect(find.text('Cooking'), findsOneWidget);
+      // "Being prepared" since KI-021 folded the speculative Module 02
+      // vocabulary into PlacedOrderStatus. One enum, one set of words, and
+      // Module 17's are the ones that survived.
+      expect(find.text('Being prepared'), findsOneWidget);
     });
 
     testWidgets('leads with when to be there, not what was ordered', (
@@ -198,7 +201,7 @@ void main() {
                 reference: 'FOTG-100482',
                 restaurantName:
                     'Shree Rajasthan Highway Family Restaurant & Food Court',
-                status: OrderStatus.ready,
+                status: PlacedOrderStatus.ready,
                 itemCount: 12,
                 estimatedPickup: DateTime.now().add(const Duration(minutes: 8)),
               ),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/status_palette.dart';
 import '../../core/theme/tokens.dart';
-import '../../domain/models/order_status.dart';
+import '../../domain/models/placed_order.dart';
 
 /// A compact order-state indicator: icon + label + colour.
 ///
@@ -11,7 +11,7 @@ import '../../domain/models/order_status.dart';
 class OrderStatusChip extends StatelessWidget {
   const OrderStatusChip({required this.status, this.dense = false, super.key});
 
-  final OrderStatus status;
+  final PlacedOrderStatus status;
   final bool dense;
 
   @override
@@ -59,27 +59,39 @@ class OrderStatusChip extends StatelessWidget {
 
 /// The five-step progress track shown on an active order.
 ///
-/// A cancelled order does not render a track at all — drawing the remaining steps
-/// as "still to come" for an order that will never reach them is a lie.
+/// An order that is not on the fulfilment path does not render a track at all —
+/// drawing the remaining steps as "still to come" for an order that will never
+/// reach them is a lie.
+///
+/// It used to ask `status == cancelled`, which was right for the six states the
+/// old client-side enum knew. On [PlacedOrderStatus] there are five ways off the
+/// path, not one, and a rejected order would have drawn four steps still to
+/// come. Asking whether the state has a place on the track instead of naming the
+/// states that do not is what stops the next one being missed.
 class OrderStatusTrack extends StatelessWidget {
   const OrderStatusTrack({required this.status, super.key});
 
-  final OrderStatus status;
+  final PlacedOrderStatus status;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    if (status == OrderStatus.cancelled) return const SizedBox.shrink();
+    if (!status.isOnFulfilmentPath) return const SizedBox.shrink();
 
-    final int current = status.stepIndex;
+    final int current = status.fulfilmentStep;
 
     return Semantics(
       label:
-          'Progress: step ${current + 1} of ${OrderStatus.progression.length}, ${status.label}',
+          'Progress: step ${current + 1} of '
+          '${PlacedOrderStatus.fulfilmentProgression.length}, ${status.label}',
       excludeSemantics: true,
       child: Row(
         children: <Widget>[
-          for (int i = 0; i < OrderStatus.progression.length; i++) ...<Widget>[
+          for (
+            int i = 0;
+            i < PlacedOrderStatus.fulfilmentProgression.length;
+            i++
+          ) ...<Widget>[
             if (i > 0) const SizedBox(width: 4),
             Expanded(
               child: TweenAnimationBuilder<double>(

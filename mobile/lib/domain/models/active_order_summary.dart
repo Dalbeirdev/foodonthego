@@ -1,4 +1,4 @@
-import 'order_status.dart';
+import 'placed_order.dart';
 
 /// An order in progress, as the home screen needs it.
 class ActiveOrderSummary {
@@ -15,7 +15,7 @@ class ActiveOrderSummary {
   /// The short human-quotable code, e.g. FOTG-1024.
   final String reference;
   final String restaurantName;
-  final OrderStatus status;
+  final PlacedOrderStatus status;
   final int? itemCount;
 
   /// When the food should be ready. Module 08 computes it; this only displays it.

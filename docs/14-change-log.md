@@ -1392,6 +1392,14 @@ customer app got a screen that reads it without ever deciding it.
   and was neither.
 - KI-033 — likewise, and it is the second time the same fixture has failed on
   the clock for the same reason. `23:59:59` was standing in for midnight.
+- KI-021 — **now fixed**. The speculative Module 02 `OrderStatus` is deleted;
+  Module 17 specified the fulfilment workflow that entry was waiting for, so
+  `PlacedOrderStatus` is now the app's only order vocabulary. A latent bug came
+  out with it: the progress track named `cancelled` as the one way off the path
+  and would have drawn a rejected order with four steps still to come.
+- KI-034 — **new and fixed**. A test slept 20 ms instead of waiting for a
+  condition, and failed once under load. Not a flake — a race, with a control
+  that proves the replacement still catches a broken retry.
 - KI-025 — **now fixed**, on its own rather than under cover of another
   module's work: `payments:reconcile` is scheduled every fifteen minutes, the
   interval derived from the grace period the command already insists on. The

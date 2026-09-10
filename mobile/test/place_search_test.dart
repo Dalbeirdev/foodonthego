@@ -49,6 +49,32 @@ void main() {
     kPlaceSearchDebounce + (extra ?? const Duration(milliseconds: 20)),
   );
 
+  /// Waits for something to become true, rather than for a duration.
+  ///
+  /// The difference matters. A sleep long enough on an idle machine is a coin
+  /// toss on a loaded one, and this file had one: `retry re-runs the current
+  /// query` slept 20 ms and then asserted the retry had finished. It failed
+  /// once during a full-suite run on a busy machine and passed on the next four
+  /// runs, which is exactly how a race presents itself.
+  ///
+  /// The deadline is generous because it is only reached when the test is
+  /// genuinely going to fail — a passing run leaves as soon as the condition
+  /// holds, so this is faster than the sleep it replaces as well as sound.
+  Future<void> waitUntil(
+    bool Function() condition, {
+    Duration timeout = const Duration(seconds: 5),
+    String? describe,
+  }) async {
+    final DateTime deadline = DateTime.now().add(timeout);
+
+    while (DateTime.now().isBefore(deadline)) {
+      if (condition()) return;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+
+    fail('Timed out waiting for ${describe ?? 'the condition'}.');
+  }
+
   group('what reaches the provider', () {
     test('one letter is never sent', () async {
       controller().query('J');
@@ -266,7 +292,14 @@ void main() {
       expect(state().failure, isNotNull);
 
       c.retry();
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      // Waited for, not slept through. retry() bypasses the debounce and fires
+      // at once, so the old 20 ms was standing in for "the request has come
+      // back" -- which it does not on a machine with anything else running.
+      await waitUntil(
+        () => state().failure == null && state().results.isNotEmpty,
+        describe: 'the retried query to come back',
+      );
 
       expect(places.queries, <String>['jaipur', 'jaipur']);
       expect(state().failure, isNull);

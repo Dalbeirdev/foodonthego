@@ -511,7 +511,7 @@ configured" and "configured as zero" is enforced in code and in tests.
 | | |
 | --- | --- |
 | Backend | **1,297 tests**, Pint clean |
-| Flutter | **984 tests**, `analyze --fatal-infos` clean, `format` clean |
+| Flutter | **986 tests**, `analyze --fatal-infos` clean, `format` clean |
 | Web | typecheck, tests and both builds clean |
 | Android device run | **29 integration tests on an emulator** |
 | iOS device run | the same suite on a simulator |

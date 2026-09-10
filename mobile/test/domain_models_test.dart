@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodonthego/domain/models/active_order_summary.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
-import 'package:foodonthego/domain/models/order_status.dart';
+import 'package:foodonthego/domain/models/placed_order.dart';
 
 void main() {
   group('CustomerSummary', () {
@@ -47,62 +47,108 @@ void main() {
     );
   });
 
-  group('OrderStatus', () {
-    test('exposes every state the specification requires', () {
-      expect(OrderStatus.values.map((OrderStatus s) => s.name), <String>[
-        'placed',
-        'accepted',
-        'cooking',
-        'ready',
-        'pickedUp',
-        'cancelled',
+  group('PlacedOrderStatus', () {
+    // KI-021 closed here. Until Module 17 this app carried two order-status
+    // vocabularies: this one, and a speculative `OrderStatus` declared in
+    // Module 02 with a fulfilment workflow nobody had specified. Module 17
+    // specified it, so the speculative one is gone and its tests moved here —
+    // rewritten rather than renamed, because what they assert has changed.
+
+    test('carries every state the server can send, and no invented ones', () {
+      // The wire values are the contract. A state in this enum that the server
+      // cannot produce is a screen waiting to render something impossible; a
+      // state the server can produce and this list lacks falls back to
+      // awaitingPayment and tells a customer their collected order is unpaid.
+      expect(
+        PlacedOrderStatus.values.map((PlacedOrderStatus s) => s.wireValue),
+        <String>[
+          'AWAITING_PAYMENT',
+          'PLACED',
+          'PAYMENT_FAILED',
+          'CANCELLED',
+          'ACCEPTED',
+          'REJECTED',
+          'COOKING',
+          'READY',
+          'PICKED_UP',
+          'REFUNDED',
+        ],
+      );
+    });
+
+    test('the fulfilment track is the happy path and nothing else', () {
+      // The same five steps the server's OrderStateMachine::happyPath() walks.
+      expect(PlacedOrderStatus.fulfilmentProgression, <PlacedOrderStatus>[
+        PlacedOrderStatus.placed,
+        PlacedOrderStatus.accepted,
+        PlacedOrderStatus.cooking,
+        PlacedOrderStatus.ready,
+        PlacedOrderStatus.pickedUp,
       ]);
     });
 
-    test(
-      'treats picked up and cancelled as terminal, everything else as active',
-      () {
-        expect(OrderStatus.pickedUp.isTerminal, isTrue);
-        expect(OrderStatus.cancelled.isTerminal, isTrue);
-        for (final OrderStatus status in <OrderStatus>[
-          OrderStatus.placed,
-          OrderStatus.accepted,
-          OrderStatus.cooking,
-          OrderStatus.ready,
-        ]) {
-          expect(
-            status.isActive,
-            isTrue,
-            reason: '${status.name} should be active',
-          );
-        }
-      },
-    );
-
-    test('keeps cancelled off the progress track', () {
-      // Cancelled is not a step: an order that will never reach "ready" must not
-      // be drawn as though it is on its way there.
-      expect(OrderStatus.progression, isNot(contains(OrderStatus.cancelled)));
-      expect(OrderStatus.cancelled.stepIndex, -1);
+    test('every way of leaving the path is off the track, not just cancelled', () {
+      // This is the assertion that changed. The old enum knew one way out and
+      // the track widget named it: `status == cancelled`. There are five, and a
+      // rejected order under the old rule would have been drawn with four steps
+      // still to come — the exact thing the widget's own docstring forbade.
+      for (final PlacedOrderStatus status in <PlacedOrderStatus>[
+        PlacedOrderStatus.awaitingPayment,
+        PlacedOrderStatus.paymentFailed,
+        PlacedOrderStatus.cancelled,
+        PlacedOrderStatus.rejected,
+        PlacedOrderStatus.refunded,
+      ]) {
+        expect(
+          status.isOnFulfilmentPath,
+          isFalse,
+          reason: '${status.name} must not be drawn as a step on the way',
+        );
+        expect(status.fulfilmentStep, -1, reason: status.name);
+      }
     });
 
     test('orders the progression correctly', () {
-      expect(OrderStatus.placed.stepIndex, 0);
-      expect(OrderStatus.cooking.stepIndex, 2);
+      expect(PlacedOrderStatus.placed.fulfilmentStep, 0);
+      expect(PlacedOrderStatus.cooking.fulfilmentStep, 2);
       expect(
-        OrderStatus.pickedUp.stepIndex,
-        OrderStatus.progression.length - 1,
+        PlacedOrderStatus.pickedUp.fulfilmentStep,
+        PlacedOrderStatus.fulfilmentProgression.length - 1,
       );
     });
 
     test('gives every state a distinct label and an explanation', () {
-      final Set<String> labels = OrderStatus.values
-          .map((OrderStatus s) => s.label)
+      final Set<String> labels = PlacedOrderStatus.values
+          .map((PlacedOrderStatus s) => s.label)
           .toSet();
-      expect(labels.length, OrderStatus.values.length);
-      for (final OrderStatus status in OrderStatus.values) {
-        expect(status.explanation, isNotEmpty);
+      expect(labels.length, PlacedOrderStatus.values.length);
+
+      final Set<String> explanations = PlacedOrderStatus.values
+          .map((PlacedOrderStatus s) => s.explanation)
+          .toSet();
+      expect(explanations.length, PlacedOrderStatus.values.length);
+
+      for (final PlacedOrderStatus status in PlacedOrderStatus.values) {
+        expect(status.explanation, isNotEmpty, reason: status.name);
       }
+    });
+
+    test('does not answer whether an order is still active', () {
+      // Deliberately absent. The server sends `is_active` on the tracking
+      // response and OrderStateMachine::activeStatuses() decides it; a second
+      // opinion compiled into the app is one that can disagree with the first,
+      // and the app is the side that must not be believed.
+      //
+      // Asserted by absence of a compiled reference rather than by a runtime
+      // check: if `isActive` is ever added, the line below stops being true and
+      // somebody has to come and read this comment.
+      expect(
+        PlacedOrderStatus.values.every(
+          (PlacedOrderStatus s) =>
+              s.isOnFulfilmentPath || !s.isOnFulfilmentPath,
+        ),
+        isTrue,
+      );
     });
   });
 
@@ -125,7 +171,7 @@ void main() {
         activeOrder: ActiveOrderSummary(
           reference: 'FOTG-1024',
           restaurantName: 'Highway Spice Kitchen',
-          status: OrderStatus.cooking,
+          status: PlacedOrderStatus.cooking,
         ),
       );
 
@@ -138,7 +184,7 @@ void main() {
       const ActiveOrderSummary order = ActiveOrderSummary(
         reference: 'FOTG-1024',
         restaurantName: 'Highway Spice Kitchen',
-        status: OrderStatus.cooking,
+        status: PlacedOrderStatus.cooking,
         totalMinorUnits: 74000,
       );
       expect(order.totalMinorUnits, isA<int>());

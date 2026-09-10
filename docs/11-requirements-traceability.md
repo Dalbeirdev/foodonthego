@@ -2256,3 +2256,17 @@ Inserted between Modules 14 and 15 at the client's direction. Design:
   sweeps, their cadences and their `withoutOverlapping()`. Controls: dropping
   the reconciler fails two; demoting the capture sweep to daily fails one;
   removing an overlap guard fails one. KI-025.
+- **M17-089 One order vocabulary, not two.** The speculative `OrderStatus` from
+  Module 02 is deleted and everything that used it — chip, track, palette, home
+  card, fixtures — takes `PlacedOrderStatus`. KI-021 set its own closing
+  condition ("when a fulfilment workflow is specified, one of the two goes") and
+  Module 17 met it. Where the copy differed, Module 17's wording won. The
+  progress track now asks `isOnFulfilmentPath` rather than naming `cancelled`,
+  which fixes a latent bug: five states leave the path, not one, and a rejected
+  order would have been drawn with four steps still to come. `isActive` was
+  deliberately not carried over — the server owns it. KI-021.
+- **M17-090 A test must wait for a condition, not for a duration.**
+  `place_search_test.dart` slept 20 ms after `retry()` and asserted the request
+  had returned; it failed once under load and passed four times after. Replaced
+  with a `waitUntil` helper. Control: a no-op `retry()` fails it in five seconds
+  with a legible message. KI-034.

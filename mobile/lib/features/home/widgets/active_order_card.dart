@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../domain/models/active_order_summary.dart';
-import '../../../domain/models/order_status.dart';
 import '../../../shared/widgets/buttons.dart';
 import '../../../shared/widgets/order_status_chip.dart';
 
@@ -133,7 +132,7 @@ class ActiveOrderCard extends StatelessWidget {
                 ],
               ),
 
-              if (order.status != OrderStatus.cancelled) ...<Widget>[
+              if (order.status.isOnFulfilmentPath) ...<Widget>[
                 const SizedBox(height: FotgSpacing.x4),
                 OrderStatusTrack(status: order.status),
                 const SizedBox(height: FotgSpacing.x2),

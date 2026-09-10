@@ -1330,24 +1330,41 @@ times now — and the passes were real. But it cannot be depended on per-commit
 until this is understood, and no iOS on-device claim should be made from a run
 that did not actually print its tests.
 
-### KI-021 — two order-status vocabularies — **Low, design debt** — OPEN
+### KI-021 — two order-status vocabularies — **Low, design debt** — FIXED after Module 17
 
-The server's `OrderStatus` is payment state only: `AWAITING_PAYMENT`, `PAID`,
-`PAYMENT_FAILED`, `CANCELLED`. The Flutter app also carries an `OrderStatus`
-declared speculatively in Module 02 with `placed`, `accepted`, `cooking`,
-`ready`, `pickedUp` and `cancelled` — a fulfilment workflow nobody has specified
-and the API does not send.
+The Flutter app carried an `OrderStatus` declared speculatively in Module 02
+with `placed`, `accepted`, `cooking`, `ready`, `pickedUp` and `cancelled` — a
+fulfilment workflow nobody had specified and the API did not send — alongside
+`PlacedOrderStatus`, which carries the states the server actually produces.
 
-Module 15 did not reconcile them. It added a separate `PlacedOrderStatus` for
-the states the server actually produces, so no screen switches on a state the
-API cannot send. The Module 02 enum still drives the home dashboard's fixture
-data.
+This entry set its own condition for closing: *"When a fulfilment workflow is
+specified, one of the two goes."* **Module 17 specified it.** `PlacedOrderStatus`
+now covers the whole lifecycle, is wire-backed, and is separate from payment
+state exactly as this entry asked — "has the customer paid" is read from the
+payment, "has the kitchen finished" from the order.
 
-**Deliberate, not an oversight.** Deleting the older enum would have meant
-inventing a fulfilment vocabulary to replace it, which is the thing Module 15
-declined to do. When a fulfilment workflow is specified, one of the two goes —
-and it should be a separate column from payment state, because "has the customer
-paid" and "has the kitchen finished" are independent questions.
+So the speculative enum is deleted and its six states are gone. Everything that
+used it — the status chip, the progress track, the palette, the home dashboard's
+active-order card, the persona fixtures — now takes `PlacedOrderStatus`.
+
+**Where the copy differed, Module 17's wording won.** The home card now says
+"Being prepared" rather than "Cooking", because the tracking timeline says "Your
+food is being prepared" and two parts of one app must not describe the same
+state differently. That is the same class of defect Module 17 found between its
+own status hero and timeline.
+
+**A latent bug came out with it.** `OrderStatusTrack` asked
+`status == cancelled` to decide whether to draw a progress track, which was
+right for the six states the old enum knew. `PlacedOrderStatus` has **five** ways
+off the fulfilment path — awaiting payment, payment failed, cancelled, rejected,
+refunded — so a rejected order would have been drawn with four steps still to
+come, the exact lie the widget's own docstring forbade. It now asks
+`status.isOnFulfilmentPath`, so the next state added cannot reintroduce it.
+
+**Deliberately not added: `isActive`.** The old enum had one. The server sends
+`is_active` on the tracking response and `OrderStateMachine::activeStatuses()`
+decides it; a second opinion compiled into the app is one that can disagree with
+the first, and the app is the side that must not be believed.
 
 ### KI-022 — the Razorpay integration has never been executed — **Medium, environment** — OPEN
 
@@ -1740,3 +1757,36 @@ second. The defect was in what the fixture claimed, not in how the rule reads
 it. And `PickupWindowGeneratorTest` still passes `00:00:00 – 23:59:59` to
 `openDaily` deliberately, on a frozen clock, as an explicit window rather than a
 claim of being always open.
+
+### KI-034 — a test slept instead of waiting, and failed once under load — **Low, test reliability** — FIXED after Module 17
+
+Found by a single failure during a full-suite run while three other things were
+running on the same machine: `place_search_test.dart`'s *retry re-runs the
+current query*. It passed on the next four runs — one targeted, three full —
+which is precisely how a race presents itself and precisely the shape that gets
+written off as a flake.
+
+It was not a flake. The test called `retry()` and then did:
+
+```dart
+await Future<void>.delayed(const Duration(milliseconds: 20));
+```
+
+`retry()` bypasses the debounce and fires immediately, so those 20 ms were
+standing in for "the request has come back". On an idle machine they are enough.
+On a loaded one they are not, and the assertions run against a request still in
+flight.
+
+**Fixed** with a `waitUntil(condition)` helper in that file: it waits for the
+state to satisfy the condition, with a five-second deadline that is only ever
+reached when the test is genuinely going to fail. A passing run leaves as soon
+as the condition holds, so it is faster than the sleep it replaces as well as
+sound. Control: making `retry()` a no-op fails it in five seconds with *"Timed
+out waiting for the retried query to come back"* rather than hanging.
+
+**Left alone deliberately:** the 500 ms waits in the same file. Those let a
+*scripted* 400 ms request land, so they have a real basis with headroom, and
+they are testing that a stale response is discarded rather than that a current
+one arrived. This is the same distinction Module 12 drew about the confirmation
+snackbar: a fixed wait against a known duration is a wait; a fixed wait against
+"however long this takes" is a coin toss.

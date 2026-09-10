@@ -94,6 +94,52 @@ enum PlacedOrderStatus {
     PlacedOrderStatus.pickedUp => 'Collected',
     PlacedOrderStatus.refunded => 'Refunded',
   };
+
+  /// One sentence for a card body, where a label alone is too terse.
+  ///
+  /// A fallback, like [label]: the tracking screen prefers the server's
+  /// `status_subtitle` and only falls back here. Two places must never write
+  /// their own copy for the same state — that is the bug Module 17 found when
+  /// the status hero and the timeline disagreed with each other.
+  String get explanation => switch (this) {
+    PlacedOrderStatus.awaitingPayment => 'This is not an order yet',
+    PlacedOrderStatus.placed => 'Waiting for the kitchen to accept',
+    PlacedOrderStatus.paymentFailed => 'The payment did not go through',
+    PlacedOrderStatus.cancelled => 'This order was cancelled',
+    PlacedOrderStatus.accepted => 'The kitchen has your order',
+    PlacedOrderStatus.rejected => "The restaurant couldn't take this one",
+    PlacedOrderStatus.cooking => 'Being cooked to reach you on time',
+    PlacedOrderStatus.ready => 'Waiting for you at the counter',
+    PlacedOrderStatus.pickedUp => 'Collected — safe travels',
+    PlacedOrderStatus.refunded => 'This order was refunded',
+  };
+
+  /// The happy path, and the only states with a position on a progress track.
+  ///
+  /// The same five steps the server's `OrderStateMachine::happyPath()` walks.
+  /// Everything else — awaiting payment, a failed payment, a rejection, a
+  /// cancellation, a refund — is not a step on this path but a way of leaving
+  /// it, and [fulfilmentStep] returns -1 for all of them.
+  static const List<PlacedOrderStatus> fulfilmentProgression =
+      <PlacedOrderStatus>[
+        PlacedOrderStatus.placed,
+        PlacedOrderStatus.accepted,
+        PlacedOrderStatus.cooking,
+        PlacedOrderStatus.ready,
+        PlacedOrderStatus.pickedUp,
+      ];
+
+  /// Where this state sits on [fulfilmentProgression], or -1 if it is off it.
+  ///
+  /// A widget asking "should I draw a track" should ask this rather than name
+  /// the states that end one. The old home-screen track named `cancelled` and
+  /// only `cancelled`, which was right for the six states it knew and would
+  /// have drawn a rejected order's remaining steps as "still to come" — the
+  /// exact lie its own docstring warned against.
+  int get fulfilmentStep => fulfilmentProgression.indexOf(this);
+
+  /// Whether this state has a place on the fulfilment track at all.
+  bool get isOnFulfilmentPath => fulfilmentStep >= 0;
 }
 
 /// One extra on an order line, as it was when the order was placed.

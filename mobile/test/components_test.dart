@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foodonthego/core/theme/app_theme.dart';
 import 'package:foodonthego/core/theme/status_palette.dart';
 import 'package:foodonthego/domain/models/active_order_summary.dart';
-import 'package:foodonthego/domain/models/order_status.dart';
+import 'package:foodonthego/domain/models/placed_order.dart';
 import 'package:foodonthego/domain/repositories/home_repository.dart';
 import 'package:foodonthego/features/home/widgets/active_order_card.dart';
 import 'package:foodonthego/features/home/widgets/greeting_header.dart';
@@ -23,7 +23,7 @@ void main() {
     testWidgets('renders every state with a distinct label', (
       WidgetTester tester,
     ) async {
-      for (final OrderStatus status in OrderStatus.values) {
+      for (final PlacedOrderStatus status in PlacedOrderStatus.values) {
         await tester.pumpWidget(wrapWidget(OrderStatusChip(status: status)));
         await tester.pump();
         expect(
@@ -39,7 +39,7 @@ void main() {
     ) async {
       // Roughly one man in twelve cannot reliably separate the amber "cooking"
       // from the green "ready" — and that is the moment that matters most.
-      for (final OrderStatus status in OrderStatus.values) {
+      for (final PlacedOrderStatus status in PlacedOrderStatus.values) {
         await tester.pumpWidget(wrapWidget(OrderStatusChip(status: status)));
         await tester.pump();
         expect(
@@ -54,29 +54,71 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
-        wrapWidget(const OrderStatusChip(status: OrderStatus.cooking)),
+        wrapWidget(const OrderStatusChip(status: PlacedOrderStatus.cooking)),
       );
       await tester.pump();
-      expect(find.bySemanticsLabel('Order status: Cooking'), findsOneWidget);
+      // "Being prepared", not "Cooking". The label comes from
+      // PlacedOrderStatus now, and Module 17 settled this wording — the
+      // tracking timeline says "Your food is being prepared" and two parts of
+      // one app must not describe the same state differently.
+      expect(
+        find.bySemanticsLabel('Order status: Being prepared'),
+        findsOneWidget,
+      );
     });
 
-    test('gives every status a visually distinct pairing', () {
-      final Set<int> foregrounds = OrderStatus.values
+    test('the five states on the fulfilment path never look alike', () {
+      // The states a customer reads while their food is being made. These are
+      // the ones where a glance has to be enough, so each gets its own icon and
+      // its own colour.
+      //
+      // This used to demand a unique pairing for every value of the enum, which
+      // was satisfiable while the enum had six. PlacedOrderStatus has ten, and
+      // three of them mean "this is not coming" — cancelled, rejected, payment
+      // failed. Giving those three different colours would be inventing a
+      // distinction the customer does not need to see at a glance; what
+      // separates them is the sentence beside the chip, and
+      // domain_models_test.dart asserts those are all distinct.
+      final List<PlacedOrderStatus> onPath =
+          PlacedOrderStatus.fulfilmentProgression;
+
+      final Set<IconData> icons = onPath
           .map(
-            (OrderStatus s) =>
-                OrderStatusStyle.of(s, Brightness.light).foreground.toARGB32(),
+            (PlacedOrderStatus s) =>
+                OrderStatusStyle.of(s, Brightness.light).icon,
           )
           .toSet();
-      final Set<IconData> icons = OrderStatus.values
-          .map((OrderStatus s) => OrderStatusStyle.of(s, Brightness.light).icon)
+      final Set<int> foregrounds = onPath
+          .map(
+            (PlacedOrderStatus s) =>
+                OrderStatusStyle.of(s, Brightness.light).foreground.toARGB32(),
+          )
           .toSet();
 
       expect(
         icons.length,
-        OrderStatus.values.length,
-        reason: 'two states share an icon',
+        onPath.length,
+        reason: 'two live states share an icon',
       );
-      expect(foregrounds.length, greaterThanOrEqualTo(5));
+      expect(
+        foregrounds.length,
+        onPath.length,
+        reason: 'two live states share a colour',
+      );
+    });
+
+    test('every state has a style, including the ones added since Module 02', () {
+      // The switch in OrderStatusStyle.of is exhaustive, so a new enum value
+      // fails to compile rather than falling through — but only while it stays
+      // a switch. This is the assertion that survives somebody adding a
+      // default case.
+      for (final PlacedOrderStatus status in PlacedOrderStatus.values) {
+        expect(
+          () => OrderStatusStyle.of(status, Brightness.dark),
+          returnsNormally,
+          reason: '${status.name} has no style',
+        );
+      }
     });
   });
 
@@ -87,7 +129,7 @@ void main() {
       // Drawing the remaining steps as "still to come" for an order that will
       // never reach them would be a lie.
       await tester.pumpWidget(
-        wrapWidget(const OrderStatusTrack(status: OrderStatus.cancelled)),
+        wrapWidget(const OrderStatusTrack(status: PlacedOrderStatus.cancelled)),
       );
       await tester.pump();
       expect(find.byType(SizedBox), findsWidgets);
@@ -98,7 +140,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
-        wrapWidget(const OrderStatusTrack(status: OrderStatus.cooking)),
+        wrapWidget(const OrderStatusTrack(status: PlacedOrderStatus.cooking)),
       );
       await tester.pumpAndSettle();
       expect(find.bySemanticsLabel(RegExp('step 3 of 5')), findsOneWidget);
@@ -108,14 +150,16 @@ void main() {
   group('ActiveOrderCard', () {
     final DateTime now = DateTime(2026, 3, 14, 19, 0);
 
-    ActiveOrderSummary order({required OrderStatus status, DateTime? pickup}) =>
-        ActiveOrderSummary(
-          reference: 'FOTG-1024',
-          restaurantName: 'Highway Spice Kitchen',
-          status: status,
-          itemCount: 3,
-          estimatedPickup: pickup,
-        );
+    ActiveOrderSummary order({
+      required PlacedOrderStatus status,
+      DateTime? pickup,
+    }) => ActiveOrderSummary(
+      reference: 'FOTG-1024',
+      restaurantName: 'Highway Spice Kitchen',
+      status: status,
+      itemCount: 3,
+      estimatedPickup: pickup,
+    );
 
     test('never counts down past zero', () {
       // An estimate the clock has overtaken must read "ready now", not "-3 min".
@@ -138,7 +182,7 @@ void main() {
         wrapWidget(
           ActiveOrderCard(
             order: order(
-              status: OrderStatus.cooking,
+              status: PlacedOrderStatus.cooking,
               pickup: now.add(const Duration(minutes: 35)),
             ),
             now: now,
@@ -158,7 +202,7 @@ void main() {
         wrapWidget(
           ActiveOrderCard(
             order: order(
-              status: OrderStatus.ready,
+              status: PlacedOrderStatus.ready,
               pickup: now.subtract(const Duration(minutes: 2)),
             ),
             now: now,
@@ -184,7 +228,7 @@ void main() {
               reference: 'FOTG-100482',
               restaurantName:
                   'Shree Rajasthan Highway Family Restaurant & Food Court',
-              status: OrderStatus.ready,
+              status: PlacedOrderStatus.ready,
               itemCount: 12,
             ),
           ),
@@ -399,7 +443,7 @@ void main() {
               order: ActiveOrderSummary(
                 reference: 'FOTG-1024',
                 restaurantName: 'Highway Spice Kitchen',
-                status: OrderStatus.cooking,
+                status: PlacedOrderStatus.cooking,
                 itemCount: 3,
               ),
             ),

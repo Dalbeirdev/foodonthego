@@ -2,7 +2,7 @@ import '../../core/config/app_environment.dart';
 import '../../domain/models/active_order_summary.dart';
 import '../../domain/models/customer_summary.dart';
 import '../../domain/models/home_dashboard.dart';
-import '../../domain/models/order_status.dart';
+import '../../domain/models/placed_order.dart';
 
 /// The three development personas the module specification calls for.
 ///
@@ -59,7 +59,7 @@ class DevelopmentFixtures {
         activeOrder: ActiveOrderSummary(
           reference: 'FOTG-1024',
           restaurantName: 'Highway Spice Kitchen',
-          status: OrderStatus.cooking,
+          status: PlacedOrderStatus.cooking,
           itemCount: 3,
           estimatedPickup: reference.add(const Duration(minutes: 35)),
           totalMinorUnits: 74000,
@@ -72,7 +72,7 @@ class DevelopmentFixtures {
           reference: 'FOTG-100482',
           restaurantName:
               'Shree Rajasthan Highway Family Restaurant & Food Court',
-          status: OrderStatus.ready,
+          status: PlacedOrderStatus.ready,
           itemCount: 12,
           estimatedPickup: reference.add(const Duration(minutes: 8)),
           totalMinorUnits: 312500,
