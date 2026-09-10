@@ -2565,14 +2565,18 @@ Backend 78.2s; Flutter 1m43s. No skips.
 
 ### CI, as verified rather than assumed
 
-Commit `8170e28`, read back from the GitHub API rather than inferred from a green
+Commit `1026fe3`, read back from the GitHub API rather than inferred from a green
 badge:
 
 | Run | Event | Result |
 | --- | --- | --- |
-| 34480687056 | `pull_request` | **success — 7/7** |
-| 34480680997 | `push` | success |
-| 34480680959 | `push` (deploy) | success |
+| 34486169856 | `pull_request` | **success — 7/7** |
+| 34486164760 | `push` | success |
+| 34486164771 | `push` (deploy) | success |
+
+This run is the one that carries the eight-process parallel race (KI-029). It passing
+on a shared CI runner, not just on a quiet development machine, is the evidence that
+the harness is not too timing-sensitive to keep.
 
 **The `pull_request` run is the one that counts.** Device jobs run only on
 `pull_request` and `main`, so a green push run says nothing about the handsets — its

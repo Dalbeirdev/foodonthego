@@ -13,13 +13,16 @@ stands; no Module 18 specification has been supplied.
 
 ### CI — last verified state
 
-Commit `8170e28`, verified 2026-09-10 against the GitHub API (not inferred):
+Commit `1026fe3`, verified 2026-09-10 against the GitHub API (not inferred):
 
 | Run | Event | Result |
 | --- | --- | --- |
-| 34480687056 | `pull_request` | **success — 7/7** |
-| 34480680997 | `push` | success |
-| 34480680959 | `push` (deploy) | success |
+| 34486169856 | `pull_request` | **success — 7/7** |
+| 34486164760 | `push` | success |
+| 34486164771 | `push` (deploy) | success |
+
+An earlier commit's PR run shows `cancelled`. That is the documented behaviour —
+**each push cancels the in-flight PR run** — not a failure.
 
 The `pull_request` run is the authoritative one: **device jobs only run on
 `pull_request` and `main`**, and each push cancels the in-flight PR run. All seven
@@ -37,6 +40,10 @@ Backend job step order, all green:
 | Flutter (widget + unit) | 986 passed |
 | On-device (integration_test) | 29 per platform, both platforms green |
 | Static analysis | PHPStan level 3, **0 errors** |
+
+The suite includes an eight-process parallel race against one order (KI-029), and it
+passes on GitHub's runners as well as locally — worth knowing before anyone assumes a
+timing-sensitive test is too fragile for CI.
 
 ## Commands
 
