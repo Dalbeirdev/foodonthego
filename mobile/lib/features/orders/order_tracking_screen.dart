@@ -63,6 +63,7 @@ class OrderTrackingScreen extends ConsumerWidget {
           ),
           _ => _Tracking(
             state: state,
+            now: ref.read(trackingClockProvider)(),
             onRefresh: () =>
                 ref.read(orderTrackingProvider(orderId).notifier).refresh(),
           ),
@@ -97,9 +98,17 @@ class _Skeleton extends StatelessWidget {
 }
 
 class _Tracking extends StatelessWidget {
-  const _Tracking({required this.state, required this.onRefresh});
+  const _Tracking({
+    required this.state,
+    required this.now,
+    required this.onRefresh,
+  });
 
   final OrderTrackingState state;
+
+  /// The device clock, read once per build, for "how long ago" only.
+  final DateTime now;
+
   final Future<void> Function() onRefresh;
 
   @override
@@ -107,6 +116,9 @@ class _Tracking extends StatelessWidget {
     final AppStrings strings = AppStrings.of(context);
     final TrackedOrder tracked = state.tracked!;
     final PlacedOrder order = tracked.order;
+
+    final Duration? age = state.ageAt(now);
+    final bool vouched = state.vouchesForStatusAt(now);
 
     return RefreshIndicator(
       onRefresh: onRefresh,
@@ -120,29 +132,96 @@ class _Tracking extends StatelessWidget {
               child: CartNotice(
                 key: const ValueKey<String>('tracking-offline'),
                 title: strings.orderTrackingOfflineTitle,
-                body: strings.orderTrackingOfflineBody,
+                /*
+                 * The age, not just the warning.
+                 *
+                 * KI-031: "it may have changed since" reads the same whether
+                 * the read is four minutes or four days old, and those are not
+                 * the same situation for somebody deciding whether to pull in.
+                 */
+                body: age == null
+                    ? strings.orderTrackingOfflineBody
+                    : '${strings.orderTrackingOfflineBody} '
+                          '${strings.orderTrackingUpdatedAgo(age)}.',
                 tone: CartNoticeTone.advisory,
               ),
             ),
 
-          _Hero(tracked: tracked),
-          const SizedBox(height: FotgSpacing.x4),
-
-          FotgCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  strings.orderTrackingProgress,
-                  style: Theme.of(context).textTheme.labelMedium,
-                ),
-                const SizedBox(height: FotgSpacing.x3),
-                OrderTimelineView(steps: tracked.timeline),
-              ],
+          /*
+           * KI-031. Past TrackingConfig.vouchedFor the status and the timeline
+           * come off the screen and this takes their place. Everything below —
+           * the pickup window, the restaurant, the items, the amount paid, the
+           * order number — stays, because none of it goes stale while nobody is
+           * looking. Only the claim about where the order is right now expires.
+           */
+          if (!vouched) ...<Widget>[
+            FotgCard(
+              key: const ValueKey<String>('tracking-status-unknown'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    strings.orderTrackingStatusUnknownTitle,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: FotgSpacing.x2),
+                  Text(
+                    strings.orderTrackingStatusUnknownBody,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  if (age != null) ...<Widget>[
+                    const SizedBox(height: FotgSpacing.x2),
+                    Text(
+                      strings.orderTrackingUpdatedAgo(age),
+                      key: const ValueKey<String>('tracking-freshness'),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (order.orderNumber case final String number) ...<Widget>[
+                    const SizedBox(height: FotgSpacing.x3),
+                    Text(
+                      'Order #$number',
+                      key: const ValueKey<String>('tracking-order-number'),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: FotgSpacing.x3),
+          ],
 
-          const SizedBox(height: FotgSpacing.x3),
+          if (vouched) ...<Widget>[
+            _Hero(tracked: tracked),
+
+            if (age != null) ...<Widget>[
+              const SizedBox(height: FotgSpacing.x2),
+              Text(
+                strings.orderTrackingUpdatedAgo(age),
+                key: const ValueKey<String>('tracking-freshness'),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+
+            const SizedBox(height: FotgSpacing.x4),
+
+            FotgCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    strings.orderTrackingProgress,
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                  const SizedBox(height: FotgSpacing.x3),
+                  OrderTimelineView(steps: tracked.timeline),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: FotgSpacing.x3),
+          ],
+
           _PickupCard(tracked: tracked),
 
           if (order.restaurantName case final String name) ...<Widget>[

@@ -75,6 +75,33 @@ class OrderTrackingState {
 
   bool get hasOrder => tracked != null;
 
+  /// How long ago [tracked] was read, by the device's clock.
+  ///
+  /// Null when nothing has been read yet. Never negative: a device clock that
+  /// jumps backwards — a manual change, a timezone move, an NTP correction —
+  /// must not turn a fresh read into an ancient one and blank the screen. A
+  /// backwards jump reads as "just now", which is the safe direction for a
+  /// clock error to fall.
+  Duration? ageAt(DateTime now) {
+    if (fetchedAt case final DateTime at) {
+      final Duration age = now.difference(at);
+      return age.isNegative ? Duration.zero : age;
+    }
+    return null;
+  }
+
+  /// Whether the app is willing to present [tracked] as the current status.
+  ///
+  /// KI-031. False once the read is older than [TrackingConfig.vouchedFor], at
+  /// which point the screen stops showing a status and a timeline and says
+  /// plainly that it does not know. True when nothing has been read yet,
+  /// because there is then no stale claim to make — the loading and error
+  /// phases own that case.
+  bool vouchesForStatusAt(DateTime now) {
+    final Duration? age = ageAt(now);
+    return age == null || age <= TrackingConfig.vouchedFor;
+  }
+
   OrderTrackingState copyWith({
     OrderTrackingPhase? phase,
     TrackedOrder? tracked,
@@ -324,3 +351,18 @@ final orderTrackingProvider = NotifierProvider.autoDispose
     .family<OrderTrackingController, OrderTrackingState, String>(
       OrderTrackingController.new,
     );
+
+/// The device clock, behind a seam.
+///
+/// The tracking screen has to ask "how long ago was this read?", and a screen
+/// that reads `DateTime.now()` inline cannot be shown an hour-old cache without
+/// waiting an hour. This exists so KI-031's boundary can be tested at the
+/// second rather than asserted in a comment.
+///
+/// It is the *device* clock, and it is used only for "how long ago". Nothing
+/// decided by this app is timed by it: every instant a customer is shown comes
+/// from the server, on the restaurant's clock, which is Module 13's rule and
+/// still holds.
+final trackingClockProvider = Provider<DateTime Function()>(
+  (Ref ref) => DateTime.now,
+);

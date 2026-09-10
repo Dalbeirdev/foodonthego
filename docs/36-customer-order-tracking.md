@@ -282,3 +282,34 @@ produces the status story; nothing in it computes a time.
 rest of the outbox relies on. A realtime layer consumes those rather than
 polling, and the client's `order_version` handling already tolerates updates
 arriving out of order.
+
+## How stale is too stale (KI-031, added after the module closed)
+
+The screen used to show a cached order behind an "it may have changed" banner
+with no upper bound. Half an hour old and two days old rendered identically, and
+`orderTrackingUpdatedJustNow` / `orderTrackingUpdatedMinutesAgo` had been
+written into `AppStrings` and wired to nothing.
+
+Three rules now:
+
+1. **The age is always said.** `OrderTrackingState.ageAt(now)` measures it and
+   `AppStrings.orderTrackingUpdatedAgo(Duration)` says it, in one phrase used by
+   both the hero and the offline banner so they cannot disagree. Coarse on
+   purpose: just now → minutes → hours → more than a day.
+2. **Past `TrackingConfig.vouchedFor` the status is withheld.** The hero and the
+   timeline come off the screen; an explicit "we can't tell you where this order
+   is right now" replaces them, carrying the age and the order number. The
+   pickup window, restaurant, items and amount paid stay, because they do not
+   change while nobody is looking.
+3. **The bound is `pollingBudget`, not a new number.** Thirty minutes is how
+   long this app is willing to keep a status fresh; past that it has already
+   stopped checking, and vouching for a status it decided not to check is the
+   contradiction. A test asserts the constants are equal.
+
+`trackingClockProvider` exists so this is testable at the second rather than
+described in a comment. It is the *device* clock and it is used only for "how
+long ago" — every instant a customer is shown still comes from the server on the
+restaurant's clock, which is Module 13's rule and unchanged.
+
+A device clock that jumps backwards reads as "just now" rather than as a
+negative age, so a timezone change cannot blank a fresh screen.

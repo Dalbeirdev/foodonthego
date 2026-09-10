@@ -1382,7 +1382,11 @@ customer app got a screen that reads it without ever deciding it.
 - KI-029 — concurrency is tested sequentially with stale models, not under true
   parallelism.
 - KI-030 — no cancellation policy, so no cancel button.
-- KI-031 — a stale tracking screen does not say how stale.
+- KI-031 — **now fixed**, after the module closed: the screen says how old the
+  read is, and past the polling budget it stops showing a status at all rather
+  than presenting a day-old "Your food is being prepared" as the answer. What
+  does not go stale — the pickup window, the restaurant, the items, the amount
+  paid — stays on screen.
 - KI-032 — recorded as FIXED, because the diagnosis is worth more than the
   one-line change: the failure looked platform-specific and looked like a flake,
   and was neither.

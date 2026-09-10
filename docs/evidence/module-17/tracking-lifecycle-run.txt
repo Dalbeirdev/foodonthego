@@ -11,8 +11,8 @@ TWO LIMITATIONS, ON THE FACE OF THE FILE:
 
 Customer:   Rahul Sharma
 Restaurant: Highway Spice Kitchen
-Order:      FOTG-260907-HH7WPTRZ07
-Order uuid: 7feef2e2-38ba-4938-a9a2-27b6474a36d3
+Order:      FOTG-260907-ZVQ0P111F7
+Order uuid: 79239c61-84e4-4a44-b70f-9cecaf6a23f6
 
 --- after placement ---
   status:      PLACED  ("Order placed")
@@ -71,11 +71,11 @@ Duplicate rows:     0 (unique index on order_id, to_status)
 Final order_version: 5
 
 --- domain events queued on the Module 16 outbox ---
-  OrderPlaced            dedupe=7feef2e2-38ba-4938-a9a2-27b6474a36d3
-  OrderAccepted          dedupe=7feef2e2-38ba-4938-a9a2-27b6474a36d3:ACCEPTED
-  OrderCookingStarted    dedupe=7feef2e2-38ba-4938-a9a2-27b6474a36d3:COOKING
-  OrderReady             dedupe=7feef2e2-38ba-4938-a9a2-27b6474a36d3:READY
-  OrderPickedUp          dedupe=7feef2e2-38ba-4938-a9a2-27b6474a36d3:PICKED_UP
+  OrderPlaced            dedupe=79239c61-84e4-4a44-b70f-9cecaf6a23f6
+  OrderAccepted          dedupe=79239c61-84e4-4a44-b70f-9cecaf6a23f6:ACCEPTED
+  OrderCookingStarted    dedupe=79239c61-84e4-4a44-b70f-9cecaf6a23f6:COOKING
+  OrderReady             dedupe=79239c61-84e4-4a44-b70f-9cecaf6a23f6:READY
+  OrderPickedUp          dedupe=79239c61-84e4-4a44-b70f-9cecaf6a23f6:PICKED_UP
 
 --- illegal transitions, asked for and refused ---
   PICKED_UP -> READY  refused

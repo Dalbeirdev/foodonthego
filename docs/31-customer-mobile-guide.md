@@ -328,8 +328,25 @@ implying it is watching continuously.
 ### If you lose signal
 
 You keep the last status the app managed to load, with a note saying you are
-offline and that it may have changed. Nothing is hidden from you, and nothing
-stale is presented as current.
+offline, that it may have changed, and **when it was last checked** — "Updated
+4 minutes ago" reads very differently from "Updated more than a day ago", and
+you should not have to work out which one you are looking at.
+
+### If it has been too long
+
+Past about half an hour without a successful check, the app stops showing you a
+status at all. You get a plain statement that it cannot tell you where the order
+is right now, and how long ago it last knew.
+
+That is deliberate, and it is the more useful answer. A screen still saying
+"Your food is being prepared" a day later is answering your question
+confidently and wrongly; one that says it does not know is answering it
+correctly, and you can pull down to check.
+
+**What stays on screen either way:** your order number, the restaurant, what you
+ordered, what you paid, and the pickup time you asked for. None of those change
+while nobody is looking, so none of them are taken away. Only the claim about
+where your order is right now expires.
 
 ### Your pickup code
 

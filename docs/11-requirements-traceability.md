@@ -2236,3 +2236,13 @@ Inserted between Modules 14 and 15 at the client's direction. Design:
   `test_a_restaurant_open_around_the_clock_is_open_through_midnight`, which
   asserts every second from 23:59:57 to 00:00:01. Control: restoring
   `23:59:59` fails it. KI-033.
+- **M17-087 A screen must not present a status it has stopped checking.** The
+  tracking screen showed a cached order behind an "it may have changed" banner
+  with no upper bound, so half an hour old and two days old read the same — and
+  the two strings for saying the age were already in `AppStrings`, used nowhere.
+  The age is now shown, and past `TrackingConfig.vouchedFor` (the polling
+  budget) the status and the timeline are withheld while the facts that do not
+  change stay. Covered by `mobile/test/order_tracking_freshness_test.dart` (13)
+  and four cases in `order_tracking_test.dart`. Controls: always vouching fails
+  two; removing the backwards-clock guard fails one; reporting hours as minutes
+  fails one. KI-031.

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foodonthego/core/config/tracking_config.dart';
 import 'package:foodonthego/core/network/api_error_code.dart';
 import 'package:foodonthego/core/network/api_exception.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
@@ -71,6 +72,7 @@ void main() {
     required FakeOrderRepository orders,
     double textScale = 1.0,
     Size size = const Size(390, 844),
+    DateTime Function()? clock,
   }) async {
     usePhoneSurface(tester, size: size);
 
@@ -84,6 +86,7 @@ void main() {
             ),
           ),
           orders: orders,
+          trackingClock: clock,
           initialLocation: '/orders/order-1/track',
         ),
       ),
@@ -382,6 +385,126 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byKey(const ValueKey<String>('tracking-timeline')), findsOne);
+  });
+
+  // ------------------------------------------- KI-031: how stale is too stale
+
+  FakeOrderRepository cookingOrder() =>
+      FakeOrderRepository()
+        ..trackedOrder = tracked(
+          status: PlacedOrderStatus.cooking,
+          version: 3,
+          timeline: <OrderTimelineStep>[
+            step(
+              PlacedOrderStatus.placed,
+              OrderTimelineStepState.completed,
+              at: DateTime(2026, 9, 18, 16, 1),
+            ),
+            step(
+              PlacedOrderStatus.accepted,
+              OrderTimelineStepState.completed,
+              at: DateTime(2026, 9, 18, 16, 3),
+            ),
+            step(
+              PlacedOrderStatus.cooking,
+              OrderTimelineStepState.current,
+              at: DateTime(2026, 9, 18, 16, 6),
+            ),
+            step(PlacedOrderStatus.ready, OrderTimelineStepState.upcoming),
+            step(PlacedOrderStatus.pickedUp, OrderTimelineStepState.upcoming),
+          ],
+        );
+
+  testWidgets('a fresh read says how fresh it is', (WidgetTester tester) async {
+    await open(tester, orders: cookingOrder());
+
+    expect(find.byKey(const ValueKey<String>('tracking-freshness')), findsOne);
+    expect(find.text('Updated just now'), findsOne);
+  });
+
+  testWidgets('a status too old to rely on is not shown as the status', (
+    WidgetTester tester,
+  ) async {
+    // The read happens at the real now; the screen is asked to render it a day
+    // later. This is the case the old screen got wrong: it would have shown
+    // "Your food is being prepared" in a headline, and a customer reading four
+    // words does not read the banner underneath them first.
+    await open(
+      tester,
+      orders: cookingOrder(),
+      clock: () => DateTime.now().add(const Duration(days: 1)),
+    );
+
+    expect(
+      find.byKey(const ValueKey<String>('tracking-status-unknown')),
+      findsOne,
+    );
+    expect(
+      find.text("We can't tell you where this order is right now"),
+      findsOne,
+    );
+    expect(find.text('Updated more than a day ago'), findsOne);
+
+    // The claim about now is gone. Both of it.
+    expect(find.byKey(const ValueKey<String>('tracking-hero')), findsNothing);
+    expect(
+      find.byKey(const ValueKey<String>('tracking-timeline')),
+      findsNothing,
+    );
+    expect(find.text('Your food is being prepared'), findsNothing);
+  });
+
+  testWidgets('what does not go stale stays on the screen', (
+    WidgetTester tester,
+  ) async {
+    // Refusing to guess the status is not a reason to hide the order. The
+    // number, the restaurant, the items and the amount paid are the same facts
+    // they were a day ago, and a customer standing at a counter needs them.
+    await open(
+      tester,
+      orders: cookingOrder(),
+      clock: () => DateTime.now().add(const Duration(days: 1)),
+    );
+
+    expect(
+      find.byKey(const ValueKey<String>('tracking-order-number')),
+      findsOne,
+    );
+    expect(find.byKey(const ValueKey<String>('tracking-restaurant')), findsOne);
+
+    // Scrolled to rather than asserted in place: a ListView does not build a
+    // child that is nowhere near the viewport, so findsOne on the payment card
+    // would be a claim about layout rather than about the card existing.
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey<String>('tracking-payment')),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.byKey(const ValueKey<String>('tracking-payment')), findsOne);
+    expect(find.byKey(const ValueKey<String>('tracking-total')), findsOne);
+  });
+
+  testWidgets('a read just inside the bound is still shown as the status', (
+    WidgetTester tester,
+  ) async {
+    // The other side of the boundary, so the test above is proved to be about
+    // age rather than about the clock override doing something odd.
+    await open(
+      tester,
+      orders: cookingOrder(),
+      clock: () => DateTime.now().add(
+        TrackingConfig.vouchedFor - const Duration(minutes: 1),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey<String>('tracking-hero')), findsOne);
+    expect(find.byKey(const ValueKey<String>('tracking-timeline')), findsOne);
+    expect(
+      find.byKey(const ValueKey<String>('tracking-status-unknown')),
+      findsNothing,
+    );
+    expect(find.text('Updated 29 minutes ago'), findsOne);
   });
 
   testWidgets('the screen fits at every width we support', (

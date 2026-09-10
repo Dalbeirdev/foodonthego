@@ -147,10 +147,45 @@ class AppStrings {
   String orderTrackingUpdatedMinutesAgo(int minutes) =>
       'Updated $minutes ${minutes == 1 ? 'minute' : 'minutes'} ago';
 
+  String orderTrackingUpdatedHoursAgo(int hours) =>
+      'Updated $hours ${hours == 1 ? 'hour' : 'hours'} ago';
+
+  String get orderTrackingUpdatedOverADayAgo => 'Updated more than a day ago';
+
+  /// One phrase for the age of a read, so the banner and the hero can never
+  /// disagree about how old the same number is.
+  ///
+  /// Coarse on purpose. "Updated 3 hours ago" is what a person wants; "Updated
+  /// 187 minutes ago" is arithmetic they now have to do themselves. Under a
+  /// minute is "just now" rather than a count of seconds, because a second-by-
+  /// second figure on a twenty-second poll is precision the number does not
+  /// have.
+  String orderTrackingUpdatedAgo(Duration age) {
+    if (age.inMinutes < 1) return orderTrackingUpdatedJustNow;
+    if (age.inHours < 1) return orderTrackingUpdatedMinutesAgo(age.inMinutes);
+    if (age.inDays < 1) return orderTrackingUpdatedHoursAgo(age.inHours);
+    return orderTrackingUpdatedOverADayAgo;
+  }
+
   String get orderTrackingOfflineTitle => "You're offline";
 
   String get orderTrackingOfflineBody =>
       'This is the last status we were able to load. It may have changed since.';
+
+  // --- KI-031: a status the app will not vouch for -------------------------
+
+  /// Shown instead of the status and the timeline once the cached read is
+  /// older than TrackingConfig.vouchedFor.
+  ///
+  /// It says what the app does not know rather than what it hopes. Showing a
+  /// day-old "Your food is being prepared" answers the customer's question
+  /// confidently and wrongly, which is worse than not answering it.
+  String get orderTrackingStatusUnknownTitle =>
+      "We can't tell you where this order is right now";
+
+  String get orderTrackingStatusUnknownBody =>
+      'The last status we have is too old to rely on, so we are not showing '
+      'it. Pull down to try again.';
 
   String get orderTrackingRefresh => 'Refresh';
 

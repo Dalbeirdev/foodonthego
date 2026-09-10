@@ -2557,7 +2557,7 @@ None of these were found by a test failing. All of them were found by a test
 | Suite | Tests | New in this module |
 | --- | --- | --- |
 | Backend (PHPUnit/Pest, real MySQL) | **1,294 passed**, 5,725 assertions | 42 |
-| Flutter (widget + unit) | **966 passed** | 15 |
+| Flutter (widget + unit) | **984 passed** | 32 |
 | Device (integration_test) | 29 per platform | 1 |
 
 Backend 72.6s; Flutter 1m43s. No skips.
@@ -2734,7 +2734,7 @@ is the new test.
 
 ## Tracking screenshots
 
-Seven, in `evidence/module-17/screenshots/`, with a README naming what each one
+Eight, in `evidence/module-17/screenshots/`, with a README naming what each one
 evidences. Captured by `mobile/tool/capture_tracking_screenshots.dart` — the
 real widget tree with Roboto and MaterialIcons loaded out of the Flutter SDK, so
 unlike the Module 01 and 14 images there is no stand-in font here.

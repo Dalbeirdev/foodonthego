@@ -138,6 +138,7 @@ void main() {
     TrackedOrder order, {
     Size size = const Size(390, 844),
     double textScale = 1.0,
+    DateTime Function()? clock,
   }) async {
     usePhoneSurface(tester, size: size);
 
@@ -151,6 +152,7 @@ void main() {
             ),
           ),
           orders: FakeOrderRepository()..trackedOrder = order,
+          trackingClock: clock,
           initialLocation: '/orders/order-1/track',
         ),
       ),
@@ -339,6 +341,44 @@ void main() {
           ),
         ],
       ),
+    );
+  });
+
+  testWidgets('too old to vouch for', (WidgetTester tester) async {
+    if (!haveFonts) {
+      markTestSkipped('no SDK fonts; nothing captured');
+      return;
+    }
+    // KI-031. The same cooking order, rendered a day after it was read. The
+    // status and the timeline are gone; the order number, the restaurant, the
+    // items and the amount paid are not, because none of those go stale.
+    await capture(
+      tester,
+      'status-unknown',
+      tracked(
+        status: PlacedOrderStatus.cooking,
+        version: 3,
+        timeline: <OrderTimelineStep>[
+          step(
+            PlacedOrderStatus.placed,
+            OrderTimelineStepState.completed,
+            at: placedAt,
+          ),
+          step(
+            PlacedOrderStatus.accepted,
+            OrderTimelineStepState.completed,
+            at: acceptedAt,
+          ),
+          step(
+            PlacedOrderStatus.cooking,
+            OrderTimelineStepState.current,
+            at: cookingAt,
+          ),
+          step(PlacedOrderStatus.ready, OrderTimelineStepState.upcoming),
+          step(PlacedOrderStatus.pickedUp, OrderTimelineStepState.upcoming),
+        ],
+      ),
+      clock: () => DateTime.now().add(const Duration(days: 1)),
     );
   });
 

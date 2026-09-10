@@ -799,6 +799,10 @@ move it — with the restaurant's own screens still several modules away.
   third.
 - **Polling is called polling.** No `LIVE` badge, no ETA, and tests asserting
   both absences.
+- **A status the app has stopped checking is not shown as the status.** Past the
+  polling budget the hero and the timeline are withheld and the screen says it
+  does not know, while the facts that do not change stay. KI-031, closed after
+  the module.
 
 ### Still handed forward
 

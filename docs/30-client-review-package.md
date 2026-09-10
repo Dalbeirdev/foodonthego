@@ -346,12 +346,19 @@ path, with only the restaurant's commercial configuration changed between them.
 
 ### Order tracking (Flutter, Module 17)
 
-Seven more, in [evidence/module-17/screenshots/](evidence/module-17/screenshots/),
+Eight more, in [evidence/module-17/screenshots/](evidence/module-17/screenshots/),
 with a README beside them saying what each one evidences: `tracking-placed`,
 `tracking-cooking`, `tracking-ready`, `tracking-picked-up`, `tracking-rejected`,
-plus the same order at 320 dp and at 2× text scale.
+`tracking-status-unknown`, plus the same order at 320 dp and at 2× text scale.
 
-The one worth opening first is `tracking-rejected.png`. A refused order shows
+Two are worth opening first. `tracking-status-unknown.png` is a cached order
+rendered a day after it was read: the status and the timeline are **gone**,
+replaced by a plain statement that the app cannot tell you where the order is,
+while the order number, restaurant, items, amount paid and requested pickup all
+stay. A screen still saying "Your food is being prepared" a day later answers
+the customer's question confidently and wrongly.
+
+And `tracking-rejected.png`. A refused order shows
 the path **truncated** — Cooking and Ready are not left on screen pretending
 still to be coming — with the restaurant's customer-safe reason above it and no
 pickup credential. That is the behaviour that is easiest to get wrong and
@@ -504,7 +511,7 @@ configured" and "configured as zero" is enforced in code and in tests.
 | | |
 | --- | --- |
 | Backend | **1,294 tests**, Pint clean |
-| Flutter | **966 tests**, `analyze --fatal-infos` clean, `format` clean |
+| Flutter | **984 tests**, `analyze --fatal-infos` clean, `format` clean |
 | Web | typecheck, tests and both builds clean |
 | Android device run | **29 integration tests on an emulator** |
 | iOS device run | the same suite on a simulator |

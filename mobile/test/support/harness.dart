@@ -50,6 +50,7 @@ import 'package:foodonthego/domain/repositories/discovery_repository.dart';
 import 'package:foodonthego/domain/repositories/restaurant_repository.dart';
 import 'package:foodonthego/domain/repositories/route_repository.dart';
 import 'package:foodonthego/domain/repositories/trip_repository.dart';
+import 'package:foodonthego/shared/state/order_tracking_controller.dart';
 import 'package:foodonthego/shared/state/connectivity.dart';
 import 'package:foodonthego/shared/state/providers.dart';
 
@@ -1519,6 +1520,12 @@ Widget wrapApp({
   FakeOrderRepository? orders,
   PaymentHandoff? handoff,
   bool signedIn = true,
+
+  /// The device clock the tracking screen reads for "how long ago".
+  ///
+  /// Overridable so KI-031's staleness boundary can be exercised without a
+  /// test that waits half an hour.
+  DateTime Function()? trackingClock,
 }) {
   final FakeAuthRepository authRepository = auth ?? FakeAuthRepository();
   final FakeCustomerRepository customerRepository =
@@ -1570,6 +1577,8 @@ Widget wrapApp({
         location ?? FakeLocationService(),
       ),
       sessionStoreProvider.overrideWithValue(store),
+      if (trackingClock != null)
+        trackingClockProvider.overrideWithValue(trackingClock),
       if (connectivity != null)
         connectivityServiceProvider.overrideWithValue(connectivity),
       routerProvider.overrideWith((Ref ref) {

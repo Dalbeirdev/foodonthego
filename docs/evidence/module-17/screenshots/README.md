@@ -1,6 +1,6 @@
 # Module 17 — order tracking screenshots
 
-Seven images of the tracking screen, produced by
+Eight images of the tracking screen, produced by
 `mobile/tool/capture_tracking_screenshots.dart`:
 
 ```bash
@@ -15,6 +15,7 @@ flutter test tool/capture_tracking_screenshots.dart --update-goldens
 | `tracking-ready.png` | ready — four reached, pickup still ahead |
 | `tracking-picked-up.png` | terminal — every step reached, and the pickup credential gone |
 | `tracking-rejected.png` | refused — the happy path **truncated**, with the customer-safe reason and no Cooking or Ready pretending to still be coming |
+| `tracking-status-unknown.png` | the same order rendered a day after it was read — the status and timeline withheld, the facts that do not change kept (KI-031) |
 | `tracking-cooking-320.png` | the same order at 320 dp, the narrowest width this app supports |
 | `tracking-cooking-large-text.png` | the same order at 2× text scale |
 

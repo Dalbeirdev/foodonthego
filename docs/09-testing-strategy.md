@@ -864,3 +864,30 @@ doing.** A silent negative control, a reverted mutation that never applied, a
 one-request-at-a-time server, and a fixture whose comment promised "a test never
 fails on the clock" while it did — all four looked like results and none of them
 were.
+
+### Testing a rule about time without waiting for time to pass
+
+KI-031's bound — how old a cached status may be before the screen stops
+presenting it — is the kind of rule that usually ends up asserted in a comment,
+because testing it appears to need half an hour. `trackingClockProvider` is the
+seam that makes it ordinary: the screen reads the device clock through a
+provider, and a test overrides it.
+
+Two things follow from that, and both are worth copying:
+
+**The rule lives on the state, not the widget.** `ageAt` and
+`vouchesForStatusAt` are pure functions of a state and an instant, so the
+boundary is asserted at the second — at it, one second past it, and a day past
+it — in `order_tracking_freshness_test.dart`. The widget tests then only have to
+check that the screen renders each side of a decision made elsewhere.
+
+**Both sides of the boundary get a test.** "A day-old read is not shown as the
+status" would pass against a screen that never shows a status at all. Its
+sibling, "a read just inside the bound is still shown", is what makes the pair
+say something.
+
+The clock override also earns its keep as a screenshot: `tracking-status-unknown.png`
+is the real screen a day after the read, and looking at it is what caught the
+copy saying "the status **below**" when there was nothing below it. That
+sentence passed every test — the tests asserted the key and the title, not the
+body — and no reviewer would have queried it in a diff.

@@ -1526,17 +1526,54 @@ adding a button because other food apps have one would be inventing them.
 decision somebody makes rather than a line somebody adds while fixing something
 else.
 
-### KI-031 — a stale tracking screen has no upper bound on how stale — **Low, design** — OPEN
+### KI-031 — a stale tracking screen had no upper bound on how stale — **Low, design** — FIXED after Module 17
 
-The tracking screen shows a cached order behind an advisory banner when it
-cannot reach the server. The banner says the status may have changed; it does
-not say how long ago the order was read, and there is no point at which the
-screen refuses to show a cached order at all.
+The tracking screen showed a cached order behind an advisory banner when it
+could not reach the server. The banner said the status may have changed; it did
+not say how long ago the order was read, and there was no point at which the
+screen refused to show a cached order at all. Half an hour old and two days old
+looked exactly the same.
 
-Half an hour old and two days old currently look the same. `server_time` and
-`fetchedAt` are both already carried, so the fix is presentational rather than
-structural — but it is a real way for a customer to be misled by something that
-was true once.
+Two things made this worse than it first sounds. The customer reads the
+headline, not the banner underneath it — "Your food is being prepared" answers
+their question confidently, and a day later it answers it wrongly. And
+`orderTrackingUpdatedJustNow` and `orderTrackingUpdatedMinutesAgo` were already
+in `AppStrings`, **used nowhere**: the vocabulary for saying how old a read was
+had been written and never wired up.
+
+**Fixed** in three parts.
+
+*The age is now said out loud.* `OrderTrackingState.ageAt(now)` gives the age of
+the read, and `AppStrings.orderTrackingUpdatedAgo(Duration)` turns it into one
+phrase — "just now" under a minute, minutes, then hours, then "more than a day
+ago". Coarse deliberately: "Updated 187 minutes ago" is arithmetic the reader
+has to finish themselves. The offline banner carries the same phrase, so the
+banner and the hero can never disagree about the age of the same number.
+
+*There is now a point at which the app stops claiming.* Past
+`TrackingConfig.vouchedFor` the status hero and the timeline come off the screen
+and an explicit "we can't tell you where this order is right now" takes their
+place, with the age and the order number. **What does not go stale stays**: the
+requested pickup window, the restaurant, the items, the amount paid. None of
+those change while nobody is looking; only the claim about where the order is
+right now expires.
+
+*The bound is the polling budget, not a new number.* Thirty minutes is already
+how long this app is willing to keep a status fresh; past it the app has
+stopped maintaining the read. Vouching for a status after deciding not to check
+it would be the contradiction. A test asserts the two constants are equal, so
+separating them has to be a decision somebody makes rather than a constant
+somebody edits.
+
+**Also fixed here, and it is the sort of thing that only shows up on a
+screenshot:** a device clock that jumps backwards — a timezone change, a manual
+edit, an NTP correction — would have produced a negative age, sailed past every
+threshold and blanked a perfectly fresh screen. A backwards jump now reads as
+"just now", which is the safe direction for a clock error to fall.
+
+Seventeen tests, and three controls that fire: making the screen always vouch
+fails two; removing the backwards-clock guard fails one; reporting hours as raw
+minutes fails one. Screenshot: `evidence/module-17/screenshots/tracking-status-unknown.png`.
 
 ### KI-032 — the device jobs ran the API on a one-request-at-a-time server — **Medium, tooling** — FIXED at Module 17
 

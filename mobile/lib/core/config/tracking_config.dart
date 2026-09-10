@@ -36,4 +36,24 @@ class TrackingConfig {
   /// night talking to the server. After this it stops and offers a manual
   /// refresh; nothing is lost, because the next foreground brings a fresh read.
   static const Duration pollingBudget = Duration(minutes: 30);
+
+  /// How old a cached status may be and still be shown *as the status*.
+  ///
+  /// KI-031: the screen used to show a cached order behind a banner saying it
+  /// "may have changed", and half an hour old looked exactly like two days old.
+  /// A customer glancing at "Your food is being prepared" does not read the
+  /// banner first; they read the four words that answer their question, and
+  /// those four words can be a day out of date.
+  ///
+  /// The bound is [pollingBudget] rather than a new number, and deliberately
+  /// so: that is how long this app is willing to keep a status fresh. Past it
+  /// the app has already stopped maintaining the read, so a status older than
+  /// that is one the app has given up on. Vouching for it afterwards would be
+  /// claiming something it decided not to check.
+  ///
+  /// Past this the screen says it cannot tell you where the order is, and says
+  /// when it last knew. What does *not* expire stays on screen — the order
+  /// number, the restaurant, the items, the amount paid, the pickup window the
+  /// customer asked for. None of those change while nobody is looking.
+  static const Duration vouchedFor = pollingBudget;
 }
