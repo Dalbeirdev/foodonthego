@@ -2556,7 +2556,7 @@ None of these were found by a test failing. All of them were found by a test
 
 | Suite | Tests | New in this module |
 | --- | --- | --- |
-| Backend (PHPUnit/Pest, real MySQL) | **1,303 passed**, 5,758 assertions | 45 |
+| Backend (PHPUnit/Pest, real MySQL) | **1,305 passed**, 5,826 assertions | 45 |
 | Static analysis (PHPStan 2.2.13 + Larastan 3.12.0) | **level 3, 0 errors** | new (KI-003) |
 | Flutter (widget + unit) | **986 passed** | 34 |
 | Device (integration_test) | 29 per platform | 1 |

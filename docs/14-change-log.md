@@ -1469,3 +1469,26 @@ customer app got a screen that reads it without ever deciding it.
   The adoption also repeated this project's most-learned lesson in a new
   costume: the first config change moved the error count from 434 to exactly
   434. The schema was only half of what the analyser was missing.
+- KI-029 — **now fixed**, and it closed the way the entry asked: "a test harness
+  that can run parallel PHP processes against one database". Eight separate PHP
+  processes, one order, one start instant, each spinning until that instant so
+  what races is the transition rather than PHP's startup.
+
+  The control is the point and it is asserted rather than assumed: every race
+  also runs through a deliberately naive read-decide-write, which **must**
+  corrupt the order — because processes that fail to overlap pass every
+  assertion in the safe run. It corrupts it thoroughly. All eight read PLACED
+  before any wrote, so all eight updated the row and `order_version` reached 8
+  instead of 2; seven were stopped only by the unique index on
+  `(order_id, to_status)`.
+
+  **That is the finding: the unique index protects the history, and nothing but
+  the row lock protects the order.** A design leaning on the index alone would
+  have produced an order written eight times, under a timeline that looked
+  perfectly coherent.
+
+  The cost was instructive too. This test must commit, so it cannot use the
+  transaction every other test rolls back — and `DatabaseTruncation` only cleans
+  up *before* each test that uses it. The first full run produced 132 failures
+  from a committed fixture that outlived its test. The test worked and broke the
+  suite around it; it now empties the tables on the way out.

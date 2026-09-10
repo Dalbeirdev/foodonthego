@@ -1731,20 +1731,58 @@ This is not a defect in Module 17 — the restaurant surface is explicitly a lat
 module — but it is the gap that makes the platform unusable end to end, and it
 is recorded here rather than left implicit in a module boundary.
 
-### KI-029 — status transitions are tested for concurrency, not under it — **Medium, test coverage** — OPEN
+### KI-029 — status transitions were tested for concurrency, not under it — **FIXED after Module 17**
 
-`OrderTransitionConcurrencyTest` drives collisions sequentially through the real
-service using stale model instances, which is what a losing worker actually
-holds. The row lock and the status re-read are genuinely exercised.
+The entry named its own remedy: "closing this properly needs a test harness that can
+run parallel PHP processes against one database". That harness now exists.
 
-What is not exercised is two processes running at literally the same instant.
-The unique index on `(order_id, to_status)` is what would hold in that case, and
-it is tested directly by inserting a duplicate row — but the interleaving itself
-is not reproduced.
+**`OrderTransitionParallelRaceTest` spawns eight separate PHP processes**, hands each
+the same start instant, and has every one of them spin — not sleep — until that
+instant before touching the database. Each worker boots Laravel, warms its container
+and opens its connection *before* reaching the barrier, so what races is the
+transition rather than PHP's startup.
 
-Closing this properly needs a test harness that can run parallel PHP processes
-against one database. Recorded rather than papered over, because "we tested
-concurrency" is exactly the kind of claim that gets believed.
+**The control is the whole point, and it is asserted, not assumed.** A parallel test
+that passes proves nothing on its own: processes that fail to overlap satisfy every
+assertion. So each race runs twice — once through the real service, and once through a
+deliberately naive read-decide-write in the worker — and **the naive run must corrupt
+the order**. If it ever comes out clean, the harness is not producing collisions and
+the safe run is meaningless.
+
+**What the naive run actually does** (`docs/evidence/module-17/ki-029-parallel-race.txt`,
+one observed run):
+
+```
+processes that believed they applied it : 1
+processes that threw                    : 7
+ACCEPTED rows in the audit trail        : 1
+order_version after the race            : 8   (should be 2)
+```
+
+All eight read `PLACED` before any of them wrote, so all eight updated the `orders`
+row — the version was incremented once per process. The audit trail survived *only*
+because the unique index on `(order_id, to_status)` refused the duplicates, and the
+seven it refused are the seven that threw.
+
+**That distinction is the finding worth keeping: the unique index protects the
+HISTORY, and nothing but the row lock protects the ORDER.** A design that leaned on
+the index alone would still have produced an order written eight times by eight actors
+each believing it was the only one — with a coherent-looking timeline on top.
+
+Through the real service, same harness, same instant: one process applies, one
+`ACCEPTED` row, one `OrderAccepted` outbox event, `order_version` = 2.
+
+**A note on what it cost the suite.** This test must COMMIT — eight other processes
+have to see the row — so it cannot use the transaction every other test rolls back.
+`DatabaseTruncation` cleans up *before* each test that uses it, and this is the only
+one that does, so nothing ever ran afterwards: the first full run with it in place
+produced **132 failures**, every later test that built the same customer fixture
+hitting the unique index on `users.email`. The test worked perfectly and broke the
+suite around it. It now empties the tables on the way out.
+
+**Verified:** 5/5 repeated runs of the race, full suite green twice at 1,305 tests.
+
+---
 
 ### KI-030 — no cancellation policy, so no cancellation — **Medium, undecided commercial rule** — OPEN
 

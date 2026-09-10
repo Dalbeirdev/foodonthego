@@ -1,0 +1,37 @@
+KI-029 — the transition race, run for real
+==========================================
+
+8 separate PHP processes, one order, one start instant.
+Written by OrderTransitionParallelRaceTest. One observed run;
+interleavings vary between runs.
+
+--- THE CONTROL: the naive read-decide-write path ---
+
+  processes that believed they applied it : 1
+  processes that threw                    : 7
+  ACCEPTED rows in the audit trail        : 1
+  order_version after the race            : 9  (should be 2)
+  outcomes: {"threw":7,"applied":1}
+
+WHAT THAT SHOWS. Every process read PLACED before any of them wrote,
+so every one of them decided the transition was legal and updated the
+orders row — which is why the version was incremented once per
+process instead of once. The audit trail survived only because the
+unique index on (order_id, to_status) refused the duplicates, and
+the processes it refused are the ones that threw.
+
+That is the distinction worth keeping: the unique index protects the
+HISTORY, and nothing but the row lock protects the ORDER. A design
+that relied on the index alone would still have produced the version
+above, and an order written eight times by eight actors who each
+believed they were the only one.
+
+--- THE REAL PATH, same harness, same instant ---
+
+  exactly one process applies the transition
+  exactly one ACCEPTED row
+  exactly one OrderAccepted outbox event
+  order_version = 2
+
+Both are asserted. The second is worth nothing without the first:
+processes that fail to overlap pass every assertion in the safe run.
