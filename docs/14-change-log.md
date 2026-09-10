@@ -1392,3 +1392,9 @@ customer app got a screen that reads it without ever deciding it.
   and was neither.
 - KI-033 — likewise, and it is the second time the same fixture has failed on
   the clock for the same reason. `23:59:59` was standing in for midnight.
+- KI-025 — **now fixed**, on its own rather than under cover of another
+  module's work: `payments:reconcile` is scheduled every fifteen minutes, the
+  interval derived from the grace period the command already insists on. The
+  schedule now has a test, because it had none — a deleted `Schedule::command`
+  line was invisible to the whole suite, which is why this one went unnoticed
+  through two modules.

@@ -10,9 +10,11 @@ use Illuminate\Console\Command;
 /**
  * Settle orders the provider says were paid but this server never heard about.
  *
- * Intended to run on a schedule. It is deliberately not scheduled here: what
- * cadence it needs depends on how a deployment is operated, and a project with
- * no deployment yet inventing one would be inventing a fact.
+ * Scheduled every fifteen minutes in `routes/console.php` — see the block there
+ * for why that number and not another. It was left unscheduled through Modules
+ * 15 and 16 because a cadence looked like a deployment decision; it turned out
+ * to be derivable from this command's own fifteen-minute grace period, which is
+ * the interval below. KI-025.
  */
 final class ReconcilePaymentsCommand extends Command
 {

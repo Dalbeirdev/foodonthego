@@ -1440,22 +1440,62 @@ customer needs a staff-mediated path.
 rather than the code, so the code is the path a human types, not the path the
 scanner uses.
 
-### KI-025 — `payments:reconcile` is not scheduled — **Medium, operational** — OPEN
+### KI-025 — `payments:reconcile` was not scheduled — **Medium, operational** — FIXED after Module 17
 
-`ReconcilePaymentsCommand` exists, is tested, and is the third path to a
+`ReconcilePaymentsCommand` existed, was tested, and is the third path to a
 confirmed payment — the one that runs when both the client callback and the
-webhook were lost. It is not registered in `routes/console.php`, so in a real
-deployment it would never run.
+webhook were lost. It was not registered in `routes/console.php`, so in a real
+deployment it would never have run.
 
-Module 16 registered its own three commands (`orders:recover-captured`,
-`orders:check-integrity`, `outbox:publish`) and noticed this one's absence while
-doing so. It was deliberately **not** fixed here: it is Module 15's operational
-behaviour, and quietly changing another module's scheduling under cover of this
-one's work is how a schedule ends up with something nobody decided to run.
+Module 16 registered its own three commands and noticed this one's absence while
+doing so. It deliberately did **not** fix it there: it is Module 15's
+operational behaviour, and quietly changing another module's scheduling under
+cover of this one's work is how a schedule ends up with something nobody decided
+to run. This is that decision taken on its own, which is how it was meant to
+happen.
 
-**Consequence if it ships unscheduled:** a payment whose callback and webhook
-were both lost stays unconfirmed until `orders:check-integrity` reports it — so
-it is *visible*, but nothing resolves it automatically.
+**Scheduled every fifteen minutes**, and the number is derived rather than
+picked. The command's own `--minutes` default is a fifteen-minute grace period,
+so an order is not examined until both other paths have had their chance;
+sweeping more often just re-asks about the same orders, and sweeping less often
+lengthens the window in which somebody has paid and has no order. It is also the
+only scheduled sweep that talks to the payment provider — Module 16's three are
+database-only — so the interval is a cost as well as a latency.
+
+Module 15's reason for leaving it unscheduled was that a cadence looked like a
+deployment decision. It turned out to be derivable from the command's own grace
+period, which is a better answer than either scheduling it arbitrarily or
+leaving it out.
+
+**Safe with no gateway configured.** `UnconfiguredPaymentGateway` throws
+`PaymentGatewayException`, `ReconciliationService` counts that as `unreachable`
+and logs a warning, and the command still exits SUCCESS. A missing integration
+stays loud in the log without turning the scheduler into a failing job every
+quarter hour.
+
+### And the reason it was invisible: the schedule had no test
+
+KI-025 was found by a person reading `routes/console.php`. That is not a
+control. Nothing failed when the line was missing, and nothing would have failed
+if Module 16's three had been dropped as well.
+
+Scheduling is the one part of this backend with **no caller**. No route reaches
+it, no service depends on it, and every test that exercises these commands
+invokes them directly — so a `Schedule::command` line deleted by accident is
+invisible to the entire suite, and its consequence is silent: a sweep that
+stands between a charge and a missing order simply stops happening.
+
+`tests/Feature/Console/ScheduledCommandsTest.php` closes that. It asserts the
+four money sweeps are scheduled, **at their cadences** — "it is scheduled" is
+satisfied by `->yearly()`, and a yearly sweep over somebody's money is the same
+defect wearing a different hat — and that every one of them carries
+`withoutOverlapping()`, which is easy to leave off a line copied from one that
+had it.
+
+Three controls, one per way the schedule can rot: dropping
+`payments:reconcile` again fails two tests; demoting `orders:recover-captured`
+to daily fails the cadence assertion; removing `withoutOverlapping()` from
+`outbox:publish` fails the stacking test.
 
 ### KI-026 — the captured-payment path has never run against live Razorpay — **Medium, environment** — OPEN
 

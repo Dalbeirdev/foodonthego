@@ -2246,3 +2246,13 @@ Inserted between Modules 14 and 15 at the client's direction. Design:
   and four cases in `order_tracking_test.dart`. Controls: always vouching fails
   two; removing the backwards-clock guard fails one; reporting hours as minutes
   fails one. KI-031.
+- **M17-088 A scheduled sweep with no caller needs a test, or it can be deleted
+  silently.** `payments:reconcile` — the third path to a confirmed payment, for
+  when both the callback and the webhook were lost — was never registered in
+  `routes/console.php` and would never have run. It is now scheduled every
+  fifteen minutes, matching the grace period the command itself insists on.
+  More importantly the schedule now has a guard:
+  `tests/Feature/Console/ScheduledCommandsTest.php` asserts all four money
+  sweeps, their cadences and their `withoutOverlapping()`. Controls: dropping
+  the reconciler fails two; demoting the capture sweep to daily fails one;
+  removing an overlap guard fails one. KI-025.

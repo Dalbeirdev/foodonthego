@@ -19,6 +19,16 @@
 - `php artisan config:cache route:cache view:cache` on deploy
 - A queue worker (`php artisan queue:work`) as its own process
 - A scheduler entry (`php artisan schedule:run` every minute)
+
+  **This one is not optional and its absence is silent.** Five sweeps hang off
+  it, four of which stand between a charge and a missing order:
+  `orders:recover-captured` (5 min), `payments:reconcile` (15 min),
+  `outbox:publish` (1 min), `orders:check-integrity` (hourly), `otp:prune`
+  (daily). Without the cron entry the application serves traffic perfectly and
+  none of them ever run — a customer who has paid and has no order stays that
+  way. `php artisan schedule:list` on the deployed host is the check, and
+  `tests/Feature/Console/ScheduledCommandsTest.php` is what stops a command
+  quietly leaving the list.
 - MySQL 8 and Redis 7 reachable
 
 ## Release checklist

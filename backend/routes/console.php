@@ -61,3 +61,39 @@ Schedule::command('orders:check-integrity')->hourly()->withoutOverlapping();
  | orders that were collected weeks ago.
  */
 Schedule::command('outbox:publish')->everyMinute()->withoutOverlapping();
+
+/*
+|--------------------------------------------------------------------------
+| Module 15 — the third path to a confirmed payment (KI-025)
+|--------------------------------------------------------------------------
+|
+| `payments:reconcile` asks the provider about orders this server still thinks
+| are unpaid, and settles the ones that were in fact paid. It is the path that
+| runs when BOTH the client callback and the webhook were lost.
+|
+| Module 15 left it unscheduled on the grounds that a cadence depends on how a
+| deployment is operated, and a project with no deployment inventing one would
+| be inventing a fact. Module 16 noticed the gap and deliberately did not fix it
+| under cover of its own work. This is that decision taken on its own, which is
+| how it was always meant to happen.
+|
+| FIFTEEN MINUTES, and the number is derived rather than picked. The command's
+| own --minutes default is a fifteen-minute grace period, so an order is not
+| examined until both other paths have had their chance; sweeping more often
+| than the grace window just re-asks about the same orders, and sweeping less
+| often lengthens the window in which somebody has paid and has no order.
+|
+| It is also the only scheduled sweep that talks to the payment provider —
+| Module 16's three are database-only — so the cost of running it is not
+| notional. Fifteen minutes is the longest interval that adds no delay beyond
+| the grace period the command already insists on.
+|
+| Safe in a deployment with no gateway configured: UnconfiguredPaymentGateway
+| throws PaymentGatewayException, ReconciliationService counts that as
+| `unreachable` and logs a warning, and the command still exits SUCCESS. A
+| missing integration stays loud in the log without turning the scheduler into
+| a failing job every quarter hour.
+*/
+Schedule::command('payments:reconcile')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping();
