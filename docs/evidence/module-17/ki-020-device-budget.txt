@@ -110,3 +110,25 @@ Recorded 2026-09-11 on branch claude/foodonthego-s0x2vt
   So Android is recorded as green on the same suite with its count unread,
   which is what every document here has said since Module 02 — now with a
   cause rather than a caveat.
+
+
+5. THE VARIANCE, MEASURED — added after run 34613876526
+---------------------------------------------------------------------------
+
+  The next commit ran the SAME 34 tests, unchanged, and the iOS test step took
+  23m52s. All seven jobs green.
+
+    d22d176   34 tests   29m59s
+    609a809   34 tests   23m52s      <- same suite, six minutes faster
+
+  Android on the same two runs: 22m04s, then 21m34s. Both green.
+
+  So the spread on the iOS runner is about six minutes for identical work.
+  Against the old 30-minute limit that is the difference between finishing with
+  seven minutes to spare and finishing with one second — decided by which
+  runner the job drew, not by the code.
+
+  This is the measurement the raise to 45 is sized by. Before it, the raise was
+  reasoning; now it is evidence. It also means d22d176's one-second pass was
+  luck: on the slower draw that commit would have gone red, and the red would
+  have looked like a defect in a PR that had none.

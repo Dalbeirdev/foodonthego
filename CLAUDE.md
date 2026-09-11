@@ -13,17 +13,18 @@ stands; no Module 18 specification has been supplied.
 
 ### CI — last verified state
 
-Commit `d22d176`, verified 2026-09-11 against the GitHub API (not inferred):
+Commit `609a809`, verified 2026-09-11 against the GitHub API (not inferred):
 
 | Run | Event | Result |
 | --- | --- | --- |
-| 34609493236 | `pull_request` | **success — 7/7** |
-| 34609487474 | `push` | success |
-| 34609487569 | `push` (deploy) | success |
+| 34613876526 | `pull_request` | **success — 7/7** |
+| 34613872058 | `push` | success |
 
-Device jobs on that run: **iOS 29m59s, 34/34** — one second inside what was then
-a 30-minute limit, which is why the limit is now 45 (KI-020). Android 22m04s,
-green, count unread (KI-038).
+Device jobs: **iOS 23m52s, Android 21m34s**, both green. The run before it —
+`d22d176`, the same 34 tests — took **29m59s on iOS**, one second inside what
+was then a 30-minute limit. Six minutes of spread on an identical suite is why
+the limit is now 45 (KI-020). iOS reported `🎉 34 tests passed`; the Android
+count is still unread and KI-038 says why.
 
 An earlier commit's PR run shows `cancelled`. That is the documented behaviour —
 **each push cancels the in-flight PR run** — not a failure.

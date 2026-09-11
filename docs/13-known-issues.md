@@ -1551,6 +1551,7 @@ limit:
 | 146 | 22.6 min | success |
 | 34605298508 | **27.7 min** | failure — with test names and assertions |
 | 34609493236 | **29m59s** | success — 34/34, with ONE SECOND to spare |
+| 34613876526 | **23m52s** | success — the SAME 34 tests, six minutes faster |
 
 Runs cancelled by a subsequent push are excluded; they prove nothing either way.
 
@@ -1589,6 +1590,21 @@ measures" was satisfied: a run measured it. The step limit is now **45 minutes**
 weaken the bound this issue exists for — a stall is told apart by its
 **signature**, silence after `Xcode build done` with no test names, not by how
 long it took — and the report and simulator-log steps still fire either way.
+
+**AND THE NEXT RUN PROVED THE VARIANCE, rather than leaving it asserted.** The
+same 34 tests, unchanged, on the very next commit: **23m52s**. Six minutes
+faster than the run before it.
+
+| Commit | Suite | iOS test step |
+| --- | --- | --- |
+| `d22d176` | 34 tests | 29m59s |
+| `609a809` | 34 tests | **23m52s** |
+
+That spread is the whole argument, now measured instead of reasoned. Against a
+30-minute limit the fast draw finishes with seven minutes to spare and the slow
+draw with one second — so whether this PR went green or red depended on which
+runner it drew, not on the code. The raise to 45 is sized by that measurement
+rather than padded by guesswork.
 
 What has not changed: the per-file Xcode build is the cost, it grows with every
 module that adds a device test, and a split or a shared build is the real fix
