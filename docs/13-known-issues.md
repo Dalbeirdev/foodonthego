@@ -1553,6 +1553,7 @@ limit:
 | 34609493236 | **29m59s** | success — 34/34, with ONE SECOND to spare |
 | 34613876526 | **23m52s** | success — the SAME 34 tests, six minutes faster |
 | 34617947498 | **28m46s** | success — the same 34 again, 1m14s under the old limit |
+| 34621828618 | **27m59s** | success — 2m01s under it. Measurement closed here. |
 
 Runs cancelled by a subsequent push are excluded; they prove nothing either way.
 
@@ -1596,23 +1597,31 @@ long it took — and the report and simulator-log steps still fire either way.
 same 34 tests, unchanged, on the very next commit: **23m52s**. Six minutes
 faster than the run before it.
 
-**A third run gave the distribution a shape**, which two could not:
+**Four runs gave the distribution a shape**, which one or two could not:
 
 | Commit | Suite | iOS test step | Margin under the old 30m limit |
 | --- | --- | --- | --- |
 | `d22d176` | 34 tests | 29m59s | **1 second** |
 | `609a809` | 34 tests | 23m52s | 6m08s |
 | `09b66fc` | 34 tests | 28m46s | **1m14s** |
+| `d054f26` | 34 tests | 27m59s | **2m01s** |
 
-Identical tests, three consecutive commits. **Two of the three landed within 75
-seconds of the old ceiling.**
+Identical tests, four consecutive commits. **Three of the four landed within
+about two minutes of the old ceiling**, and the spread runs from 23m52s to
+29m59s — six minutes, for work that did not change.
 
 That spread is the whole argument, now measured instead of reasoned. With two
-points it could have been a single slow runner; with three it is clear the old
-limit was being cleared by luck about two runs in three, and whether a commit
-went green depended on which machine it drew rather than on its code. The raise
-to 45 is sized by that measurement rather than padded by guesswork — and it was
+points it could have been a single slow runner; with four it is clear the old
+limit was being cleared by luck most of the time, and whether a commit went
+green depended on which machine it drew rather than on its code. The raise to 45
+is sized by that measurement rather than padded by guesswork — and it was
 overdue, not precautionary.
+
+**THE MEASUREMENT IS CLOSED AT FOUR POINTS, deliberately.** Every commit that
+records a run produces another run, so recording each one is a loop with no
+natural end — the documentation would become its own subject. Four establishes
+the distribution. Reopen this only if something *changes*: a device-test file
+is added or removed, the runner image moves, or a step exceeds 45 minutes.
 
 What has not changed: the per-file Xcode build is the cost, it grows with every
 module that adds a device test, and a split or a shared build is the real fix

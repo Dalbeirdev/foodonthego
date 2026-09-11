@@ -155,3 +155,27 @@ Recorded 2026-09-11 on branch claude/foodonthego-s0x2vt
   The raise to 45 was overdue rather than precautionary, and it is sized by
   these measurements rather than by guesswork. Android is comfortable at ~21-22
   min and is not the constraint.
+
+
+7. FOUR POINTS, AND THE MEASUREMENT CLOSES HERE
+---------------------------------------------------------------------------
+
+  The same 34 tests, four consecutive commits, iOS test step:
+
+    d22d176   29m59s     1 second   under the old 30m limit
+    609a809   23m52s     6m08s      under
+    09b66fc   28m46s     1m14s      under
+    d054f26   27m59s     2m01s      under
+
+  Android on the same four: 22m04s, 21m34s, 21m42s, 21m05s. All green.
+
+  THREE OF FOUR RUNS FINISHED WITHIN ABOUT TWO MINUTES OF THE OLD CEILING.
+  Spread: 23m52s to 29m59s — six minutes, for work that did not change.
+
+  CLOSED AT FOUR POINTS, DELIBERATELY. Every commit that records a run produces
+  another run to record; continuing would be a loop whose subject is its own
+  documentation. Four is enough to establish the distribution and to justify the
+  45-minute limit.
+
+  Reopen only on a CHANGE: a device-test file added or removed, a runner image
+  update, or a step exceeding 45 minutes.

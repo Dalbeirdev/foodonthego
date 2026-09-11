@@ -13,18 +13,22 @@ stands; no Module 18 specification has been supplied.
 
 ### CI — last verified state
 
-Commit `09b66fc`, verified 2026-09-11 against the GitHub API (not inferred):
+Commit `d054f26`, verified 2026-09-11 against the GitHub API (not inferred):
 
 | Run | Event | Result |
 | --- | --- | --- |
-| 34617947498 | `pull_request` | **success — 7/7** |
-| 34617942823 | `push` | success |
+| 34621828618 | `pull_request` | **success — 7/7** |
+| 34621823454 | `push` | success |
 
-**The iOS device step is the number to watch.** Three consecutive commits, the
-same 34 tests: **29m59s, 23m52s, 28m46s**. Two of the three came within 75
-seconds of what was then a 30-minute limit, which is why it is now 45 (KI-020).
-iOS reported `🎉 34 tests passed`; the Android count is still unread and KI-038
-says why. Android on those runs: 22m04s, 21m34s, 21m42s.
+**The iOS device step is the number to watch.** Four consecutive commits, the
+same 34 tests: **29m59s, 23m52s, 28m46s, 27m59s**. Three of the four came within
+about two minutes of what was then a 30-minute limit, which is why it is now 45
+(KI-020). iOS reported `🎉 34 tests passed`; the Android count is still unread
+and KI-038 says why. Android on those runs: 22m04s, 21m34s, 21m42s, 21m05s.
+
+That measurement is **closed at four points** — recording every run would mean
+each doc commit spawning the next run to record. Reopen it only if a device-test
+file is added or removed, the runner image changes, or a step passes 45 minutes.
 
 An earlier commit's PR run shows `cancelled`. That is the documented behaviour —
 **each push cancels the in-flight PR run** — not a failure.
