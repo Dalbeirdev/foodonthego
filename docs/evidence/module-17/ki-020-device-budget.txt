@@ -132,3 +132,26 @@ Recorded 2026-09-11 on branch claude/foodonthego-s0x2vt
   reasoning; now it is evidence. It also means d22d176's one-second pass was
   luck: on the slower draw that commit would have gone red, and the red would
   have looked like a defect in a PR that had none.
+
+
+6. THREE POINTS — added after run 34617947498
+---------------------------------------------------------------------------
+
+  The same 34 tests, three consecutive commits, iOS test step:
+
+    d22d176   29m59s     1 second   under the old 30m limit
+    609a809   23m52s     6m08s      under
+    09b66fc   28m46s     1m14s      under
+
+  Android on the same three: 22m04s, 21m34s, 21m42s. All green.
+
+  TWO OF THREE RUNS LANDED WITHIN 75 SECONDS OF THE OLD CEILING.
+
+  With two points the spread could have been one unlucky machine. With three it
+  is clear the 30-minute limit was being cleared by luck roughly two runs in
+  three, on a suite that had not changed at all between them. Whether a commit
+  went green depended on which runner it drew.
+
+  The raise to 45 was overdue rather than precautionary, and it is sized by
+  these measurements rather than by guesswork. Android is comfortable at ~21-22
+  min and is not the constraint.
