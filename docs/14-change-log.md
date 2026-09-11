@@ -1734,3 +1734,31 @@ customer app got a screen that reads it without ever deciding it.
   case is the KI-020 signature, the run that died before Flutter printed
   anything. The most serious outcome would have been the only one leaving no
   trace, and an absent annotation is indistinguishable from nobody having looked.
+
+- **Module 05 is verified on a device, and the way it got there is the lesson.**
+  The trip planner had been *exercised* by every later device test and *driven*
+  by none — cart, pickup and checkout each build a journey over HTTP in a
+  `prepare()` helper, and module_13's header says outright that it "does not
+  re-prove ... journey planning (Module 05)". So the planner, the place picker
+  and the search field had never been touched by a finger on hardware while
+  appearing well covered. Three tests now drive them, including the KI-036 link
+  on real hardware, with every expected string read from the API first rather
+  than hardcoded.
+
+  **Then it passed and broke two other tests.** The journey it created was left
+  behind, `module_11`'s `prepare()` picked a different journey than the one
+  owning the cart, and the app correctly raised its cross-journey conflict. The
+  commit had argued the leftover was safe, in prose, from true premises — and
+  never read the two lines of `prepare()` that made it unsafe. Recorded as
+  KI-039, with the rule it should have followed: anything a device test creates,
+  it removes.
+
+  Verified on `f11ffeb`: 7/7 green, **37 tests on each platform**.
+
+  Two smaller things fell out. The KI-038 annotation paid for itself on its
+  first failing run — the count came back from the API in one call, on the
+  Android job whose log tail has never shown it. And the iOS device step came in
+  at **16m26s**, the fastest of six measurements, *with* a seventh test file
+  added: the spread is wider than the first four runs suggested, and the
+  30-minute limit those runs nearly breached was never a limit so much as a coin
+  toss.

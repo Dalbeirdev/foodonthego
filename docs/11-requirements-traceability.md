@@ -58,10 +58,19 @@ Legend: ✅ done · ➖ not applicable to this requirement · ⛔ blocked by env
 > **What is still genuinely unverified on a device is narrower again.**
 > The on-device suite covers **Modules 11–14** (add to cart, cart management, pickup
 > timing, checkout), the Module 16 confirmation and Module 17 tracking screens, the
-> Module 02 shell and now **Module 04** (profile and addresses). It does **not**
-> exercise **Modules 03, 05 and 06** — OTP sign-in, the trip planner, or routing and
-> the map layer. Those rows are correct that they are unverified on a handset; they
-> are **wrong about why**.
+> Module 02 shell, **Module 04** (profile and addresses) and now **Module 05** (the
+> trip planner). It does **not** exercise **Modules 03 and 06** — OTP sign-in, or
+> routing and the map layer. Those rows are correct that they are unverified on a
+> handset; they are **wrong about why**.
+>
+> **Module 05 was the interesting one.** It had been *exercised* by every later
+> device test and *driven* by none: cart, pickup and checkout each build a journey
+> over HTTP in a `prepare()` helper, and module_13's header says outright that it
+> "does not re-prove ... journey planning (Module 05)". So the planner screen, the
+> place picker and the search field had never been touched by a finger on hardware,
+> while appearing well covered. `integration_test/module_05_trip_planner_test.dart`
+> now drives them: two places chosen through the real software keyboard, asserted
+> against the journey the **server** stores.
 >
 > The blocker changed from *"there is no environment"* to *"no device test has been
 > written for this module"*, and that changes what someone would do about it: write the

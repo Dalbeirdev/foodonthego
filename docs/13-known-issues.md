@@ -2466,3 +2466,53 @@ both platforms now report a number somebody read.
 **Where to find it next time:** `/repos/<owner>/<repo>/check-runs/<job id>/annotations`,
 title *"iOS device tests"* or *"Android device tests"*. Position-independent, so
 it survives whatever prints afterwards — which was the entire problem.
+
+### KI-039 — a device test passed and broke two others — **Medium, shared fixture state** — FIXED on the run after it appeared
+
+`integration_test/module_05_trip_planner_test.dart` creates a journey, because
+creating one through the UI is the thing it exists to verify. Its first version
+left that journey behind. All three of its own tests passed. Two tests in
+`module_11_add_to_cart_test.dart` failed, and the screen dump named the cause
+exactly:
+
+```
+Your cart belongs to a different journey. Starting a new one here will empty
+that cart. | Keep my cart | Start a new cart
+```
+
+**The app was right.** `module_11`'s `prepare()` takes `open.first` from the
+account's open journeys. A *second* open journey can change which one that is,
+while the customer's cart still belongs to the first — and the cross-journey
+cart conflict is exactly what should happen then.
+
+**The reasoning that shipped it is the part worth keeping.** The commit argued
+the leftover journey was safe because later device tests "reuse an open
+discardable journey when they find one, so this gives the suite the fixture it
+would otherwise build for itself". Every clause of that is true. The conclusion
+is still wrong, and checking it was a two-line read of `prepare()` that was
+never done. **A claim about shared state asserted in prose is not a claim that
+has been checked.**
+
+`module_04`'s header had already written the rule down: it types the customer's
+own values back so the database ends exactly where it started. The device suite
+shares one persona against a live backend and its files run in any order, so
+anything a test creates it has to remove.
+
+**Fixed** with a `tearDown` that discards the journey, and two details that are
+the whole point of the fix:
+
+- the id is recorded **before** the assertions, not after. A cleanup that only
+  runs when the test passes is not cleanup — the failing case is precisely when
+  the leftover does the damage.
+- a failed discard **warns and does not fail the run**. Losing the real failure
+  behind a cleanup error is the worse trade, and a silent failure here is what
+  made the original leak expensive to find.
+
+Verified on `f11ffeb`: seven jobs green, **37 tests passed on each platform**,
+`module_11` back to green.
+
+**A note on how this was diagnosed,** because it is the first dividend from
+KI-038. The failing count came back from `/check-runs/<id>/annotations` in one
+call — *"35 tests passed, 2 failed"* — on the **Android** job, whose log tail
+has never been able to show it. Before that annotation existed this would have
+meant a blind large-window log fetch or a twenty-minute wait for iOS.

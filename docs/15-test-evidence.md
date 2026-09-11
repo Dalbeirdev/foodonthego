@@ -2559,7 +2559,7 @@ None of these were found by a test failing. All of them were found by a test
 | Backend (PHPUnit/Pest, real MySQL) | **1,305 passed**, 5,826 assertions | 45 |
 | Static analysis (PHPStan 2.2.13 + Larastan 3.12.0) | **level 3, 0 errors** | new (KI-003) |
 | Flutter (widget + unit) | **1,016 passed** | 34 at Module 17, then 30 more after it (KI-036) |
-| Device (integration_test) | **34 on each platform**, both read from the run's annotations on `5042d98` — the first Android count ever read (KI-038) | 3 |
+| Device (integration_test) | **37 on each platform**, read from the run's annotations on `f11ffeb` | 3 at Module 17, then 3 more for Module 05 |
 
 Backend 78.2s; Flutter 1m43s. No skips.
 

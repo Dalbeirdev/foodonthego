@@ -13,17 +13,19 @@ stands; no Module 18 specification has been supplied.
 
 ### CI — last verified state
 
-Commit `d054f26`, verified 2026-09-11 against the GitHub API (not inferred):
+Commit `f11ffeb`, verified 2026-09-11 against the GitHub API (not inferred):
 
 | Run | Event | Result |
 | --- | --- | --- |
-| 34621828618 | `pull_request` | **success — 7/7** |
-| 34621823454 | `push` | success |
+| 34644794651 | `pull_request` | **success — 7/7** |
+| 34644787065 | `push` | success |
 
-**The iOS device step is the number to watch.** Four consecutive commits, the
-same 34 tests: **29m59s, 23m52s, 28m46s, 27m59s**. Three of the four came within
-about two minutes of what was then a 30-minute limit, which is why it is now 45
-(KI-020). Both platforms report **34 tests passed**, read from the check-run
+**The iOS device step is the number to watch.** Six measurements now, and the
+spread is wider than the first four suggested: **29m59s, 23m52s, 28m46s,
+27m59s** on 34 tests, then **16m26s** on 37 — the fastest yet, *with* a seventh
+test file added. Three of the first four came within about two minutes of what
+was then a 30-minute limit, which is why it is now 45 (KI-020). A limit the work
+clears by luck two runs in three is not a limit. Both platforms report **34 tests passed**, read from the check-run
 annotations rather than the log tail — `/check-runs/<job id>/annotations`, titled
 "iOS device tests" and "Android device tests" (KI-038). Android step times on
 those runs: 22m04s, 21m34s, 21m42s, 21m05s.
@@ -49,7 +51,7 @@ Backend job step order, all green:
 | --- | --- |
 | Backend (PHPUnit, real MySQL) | **1,305 passed**, 5,826 assertions |
 | Flutter (widget + unit) | 1,016 passed |
-| On-device (integration_test) | **34 on each platform**, both read from the run's check-run annotations (KI-038) |
+| On-device (integration_test) | **37 on each platform**, read from the run's check-run annotations (KI-038) |
 | Static analysis | PHPStan level 3, **0 errors** |
 
 The suite includes an eight-process parallel race against one order (KI-029), and it
