@@ -1698,3 +1698,39 @@ customer app got a screen that reads it without ever deciding it.
   wants, rather than guessed at here — the script's own header says later steps
   were tried once and were unreadable, so this deserves its own attempt with its
   own verification.
+
+- **Android's device test count, read for the first time: 34.** The caveat every
+  document carried since Module 02 — *green on the same suite, count not read* —
+  is retired, and it took correcting my own diagnosis twice to get there.
+
+  The recorded cause was the emulator action's teardown. The real one is bigger:
+  an entire **second** `android-emulator-runner` step sits between the report and
+  the end of the log, booting another emulator to install the review APK. iOS has
+  no equivalent, which is the actual asymmetry — and it rules out reordering,
+  because that step runs after the tests deliberately, on a keystore conflict.
+
+  The second correction mattered more. **The count was already readable on
+  failing runs**, as a check-run annotation, because Flutter's reporter emits
+  `::error::` on failure and the API serves annotations regardless of log
+  position. The Android one proved workflow commands from inside the emulator
+  action reach GitHub at all. What Flutter does not annotate is *success* —
+  `🎉 N tests passed.` is plain text — so failing counts were always retrievable
+  and passing counts never were. Exactly backwards.
+
+  So the fix was three lines, not a workflow restructure: one `::notice::` per
+  run, pass or fail, under a stable per-platform title. Verified by reading it
+  back from `/check-runs/<id>/annotations` on `5042d98`, seven jobs green:
+
+  ```
+  [notice] 'iOS device tests'     :: 34 tests passed (flutter test exited 0)
+  [notice] 'Android device tests' :: 34 tests passed (flutter test exited 0)
+  ```
+
+  34 on each, matching exactly — which was always the reasonable assumption and
+  was never allowed to be stated, for sixteen modules, because nobody had checked.
+
+  **A control found the hole worth recording.** The script returns early when the
+  log is missing, so the first version annotated nothing in that case — and that
+  case is the KI-020 signature, the run that died before Flutter printed
+  anything. The most serious outcome would have been the only one leaving no
+  trace, and an absent annotation is indistinguishable from nobody having looked.

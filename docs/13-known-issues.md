@@ -2354,7 +2354,7 @@ before asking what the code was doing.* Six instances now, all harness. This one
 came with a tell that should be read as diagnostic: the failure message printed
 the screen the app is *supposed* to be on after a successful save.
 
-### KI-038 — the Android device test's result summary is unreadable, and that is why its count has never been read — **Low, CI observability** — FIX APPLIED, AWAITING ITS FIRST RUN
+### KI-038 — the Android device test's result summary is unreadable, and that is why its count has never been read — **Low, CI observability** — FIXED and VERIFIED after Module 17
 
 Every document in this repository that states a device-test count says the same
 thing about Android: *green on the same suite, count not read*. That caveat has
@@ -2446,9 +2446,23 @@ produced anything. The most serious outcome would have been the only one leaving
 no trace, and an absent annotation is indistinguishable from nobody having
 looked. That branch now annotates too.
 
-**Not yet verified on a real run.** The fixtures prove the extraction and the
-formatting; they cannot prove GitHub renders the notice into the annotations
-list from inside the Android emulator action. Flutter's failure annotation is
-strong evidence it will, but it is evidence about `::error::`, not `::notice::`.
-This entry stays open until an annotation with the title *"Android device
-tests"* has actually been read back from the API.
+**VERIFIED ON A REAL RUN, which is the only thing that could close this.** The
+fixtures proved extraction and formatting; they could not prove GitHub renders a
+`::notice::` into the annotations list from inside the Android emulator action.
+Commit `5042d98`, run 34632957506, all seven jobs green — read back from
+`/check-runs/<id>/annotations`:
+
+```
+[notice] 'iOS device tests'     :: 34 tests passed (flutter test exited 0)
+[notice] 'Android device tests' :: 34 tests passed (flutter test exited 0)
+```
+
+**So the Android device count is 34, and that is the first time it has been read
+in this project.** It matches iOS exactly — which was always the reasonable
+assumption and was never allowed to be stated, across sixteen modules, because
+nobody had checked. The caveat in `11`, `13`, `15` and `CLAUDE.md` is retired:
+both platforms now report a number somebody read.
+
+**Where to find it next time:** `/repos/<owner>/<repo>/check-runs/<job id>/annotations`,
+title *"iOS device tests"* or *"Android device tests"*. Position-independent, so
+it survives whatever prints afterwards — which was the entire problem.

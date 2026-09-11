@@ -23,8 +23,10 @@ Commit `d054f26`, verified 2026-09-11 against the GitHub API (not inferred):
 **The iOS device step is the number to watch.** Four consecutive commits, the
 same 34 tests: **29m59s, 23m52s, 28m46s, 27m59s**. Three of the four came within
 about two minutes of what was then a 30-minute limit, which is why it is now 45
-(KI-020). iOS reported `🎉 34 tests passed`; the Android count is still unread
-and KI-038 says why. Android on those runs: 22m04s, 21m34s, 21m42s, 21m05s.
+(KI-020). Both platforms report **34 tests passed**, read from the check-run
+annotations rather than the log tail — `/check-runs/<job id>/annotations`, titled
+"iOS device tests" and "Android device tests" (KI-038). Android step times on
+those runs: 22m04s, 21m34s, 21m42s, 21m05s.
 
 That measurement is **closed at four points** — recording every run would mean
 each doc commit spawning the next run to record. Reopen it only if a device-test
@@ -47,7 +49,7 @@ Backend job step order, all green:
 | --- | --- |
 | Backend (PHPUnit, real MySQL) | **1,305 passed**, 5,826 assertions |
 | Flutter (widget + unit) | 1,016 passed |
-| On-device (integration_test) | **34 on iOS** (read from the log), Android green on the same suite — count not read, and KI-038 now says why |
+| On-device (integration_test) | **34 on each platform**, both read from the run's check-run annotations (KI-038) |
 | Static analysis | PHPStan level 3, **0 errors** |
 
 The suite includes an eight-process parallel race against one order (KI-029), and it

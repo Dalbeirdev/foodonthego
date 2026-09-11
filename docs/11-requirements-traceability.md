@@ -41,10 +41,19 @@ Legend: ✅ done · ➖ not applicable to this requirement · ⛔ blocked by env
 > a device test is **Modules 03, 05 and 06** — OTP sign-in, the trip planner, and
 > routing and the map layer.
 >
-> Android is still recorded as green without a number, and **KI-038 now says why**:
-> the bounded report `ci-device-report.sh` prints is pushed out of the readable log
-> tail by the emulator action's teardown. That is a gap in the tooling, not an
-> assumption being avoided — but the effect is the same, so the caveat stands.
+> **And Android now reports a number too: 34, the same as iOS.** That is the first
+> time it has been read in this project. The count had never been *unavailable* —
+> it was unreadable, pushed out of the log tail by a second emulator boot and the
+> job's cleanup. `ci-device-report.sh` now emits it as a check-run annotation,
+> which the API serves regardless of what printed afterwards (KI-038):
+>
+> ```
+> [notice] 'iOS device tests'     :: 34 tests passed (flutter test exited 0)
+> [notice] 'Android device tests' :: 34 tests passed (flutter test exited 0)
+> ```
+>
+> So the caveat carried on every Android row since Module 02 is **retired**. Both
+> platforms run the same 34 tests and both counts have been read.
 >
 > **What is still genuinely unverified on a device is narrower again.**
 > The on-device suite covers **Modules 11–14** (add to cart, cart management, pickup
