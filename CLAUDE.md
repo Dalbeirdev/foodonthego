@@ -13,13 +13,17 @@ stands; no Module 18 specification has been supplied.
 
 ### CI — last verified state
 
-Commit `1026fe3`, verified 2026-09-10 against the GitHub API (not inferred):
+Commit `d22d176`, verified 2026-09-11 against the GitHub API (not inferred):
 
 | Run | Event | Result |
 | --- | --- | --- |
-| 34486169856 | `pull_request` | **success — 7/7** |
-| 34486164760 | `push` | success |
-| 34486164771 | `push` (deploy) | success |
+| 34609493236 | `pull_request` | **success — 7/7** |
+| 34609487474 | `push` | success |
+| 34609487569 | `push` (deploy) | success |
+
+Device jobs on that run: **iOS 29m59s, 34/34** — one second inside what was then
+a 30-minute limit, which is why the limit is now 45 (KI-020). Android 22m04s,
+green, count unread (KI-038).
 
 An earlier commit's PR run shows `cancelled`. That is the documented behaviour —
 **each push cancels the in-flight PR run** — not a failure.
@@ -38,7 +42,7 @@ Backend job step order, all green:
 | --- | --- |
 | Backend (PHPUnit, real MySQL) | **1,305 passed**, 5,826 assertions |
 | Flutter (widget + unit) | 1,016 passed |
-| On-device (integration_test) | **31 on iOS** (read from the log), Android green on the same suite — count not read |
+| On-device (integration_test) | **34 on iOS** (read from the log), Android green on the same suite — count not read, and KI-038 now says why |
 | Static analysis | PHPStan level 3, **0 errors** |
 
 The suite includes an eight-process parallel race against one order (KI-029), and it

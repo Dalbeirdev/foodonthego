@@ -1664,3 +1664,37 @@ customer app got a screen that reads it without ever deciding it.
   exceed the limit, and will do it wearing KI-020's exact costume: a step killed
   at 30:00. The number is recorded under KI-020 rather than acted on, because
   the right limit is one a run measures.
+
+- **Green on both platforms — and one second from red.** `d22d176` took all
+  seven CI jobs green. The iOS simulator reported **🎉 34 tests passed**, read
+  from the log, confirming both device fixes on real hardware: the navigation
+  fix and the snackbar fix.
+
+  Its test step took **29m59s against a 30-minute limit**. An hour earlier the
+  same measurement had been recorded at 27.7 min with the prediction that
+  removing the wasted minute would bring it to ~26.5 and that the *seventh*
+  device-test file would breach the budget. **That was wrong in the direction
+  that matters.** It went up, not down: run-to-run variance on these macOS
+  runners is larger than the minute saved, so the budget was already exhausted
+  at six files. A pass by one second is not evidence a limit is adequate.
+
+  The limit is now 45 minutes inside a 60-minute job — acted on rather than
+  recorded, because the standard set an hour earlier ("the right number is one a
+  run measures") had been met: a run measured it. KI-020's bound is untouched,
+  because it tells a stall apart by its signature — silence after `Xcode build
+  done` — not by duration.
+
+- **Why Android's count has never been read, after modules of saying so.** Every
+  document here carries *green on the same suite, count not read* for Android,
+  refusing to assume symmetry with iOS. The cause turned up while trying to read
+  it: `ci-device-report.sh` prints its report as the last thing the test step
+  does, so it lands in the log tail — which works on iOS, and does not on
+  Android, where the emulator-runner action prints its own teardown afterwards
+  and the job then adds a hundred lines of service-container cleanup. The report
+  is pushed out of reach.
+
+  Backwards, too: on a *failing* Android run the summary lands close enough to
+  read, and on a passing one it does not. Recorded as KI-038 with the fix it
+  wants, rather than guessed at here — the script's own header says later steps
+  were tried once and were unreadable, so this deserves its own attempt with its
+  own verification.

@@ -728,8 +728,25 @@ jobs:
       # -e propagates it — which is what made it look like it was working. On
       # every failing run since this was written, the captured output was
       # written to disk and then never printed.
+      # RAISED FROM 30 AFTER A RUN FINISHED IN 29m59s.
+      #
+      # Not padding. `flutter test integration_test/` builds once PER FILE, and
+      # one run's log shows three consecutive `Xcode build done` lines at 69.8s,
+      # 75.8s and 97.2s. Six device-test files therefore spend roughly eight
+      # minutes on Xcode before an assertion runs, and the suite grows a file
+      # per module that adds a device test.
+      #
+      # Run 34609493236 passed all 34 tests with ONE SECOND to spare. A green
+      # that close is not evidence the budget is adequate; it is evidence it is
+      # exhausted, and the next red would have been variance rather than a
+      # defect — while looking exactly like KI-020's stall.
+      #
+      # The job's own timeout is 60 minutes, so 45 leaves headroom for setup
+      # either side. KI-020's bound is not weakened by this: it distinguishes a
+      # stall by SIGNATURE — silence after `Xcode build done`, no test names —
+      # not by duration, and the report and simulator-log steps still fire.
       - name: Run the on-device tests
-        timeout-minutes: 30
+        timeout-minutes: 45
         working-directory: mobile
         run: |
           set +e

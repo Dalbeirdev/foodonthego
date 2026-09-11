@@ -21,8 +21,11 @@ looking like one was itself the problem — see the note at the end.
 | `Mobile — Android review build` | builds the review APK and AAB, uploads them as an artefact |
 | `Mobile — Android emulator` | **downloads that artefact**, installs it on an emulator — `api-level: 34`, `target: google_apis`, `arch: x86_64`, `profile: pixel_6` — launches it and runs `flutter test integration_test/` against a real Laravel server and a real MySQL |
 
-**29 integration tests pass on the emulator**, against the app a client would be handed rather
-than a rebuild that happens to share its source. Alongside them: 1,016 Flutter widget tests, not
+**The device suite passes on the emulator**, against the app a client would be handed rather
+than a rebuild that happens to share its source. It was 29 tests when this was written; it is
+**34 today on iOS** (`d22d176`, read from the log). The emulator runs the same suite and is
+green, but its count has never been read from a passing run — KI-038 explains why, and why
+that is a tooling gap rather than a caution. Alongside them: 1,016 Flutter widget tests, not
 the 19 this entry still cited.
 
 **What is genuinely still true, and it is about the development container, not the product:**
@@ -41,7 +44,8 @@ a different claim entirely from "the Android build is unvalidated".
 **Since corrected:** the Module 02 shell now has a device test of its own
 (`integration_test/module_02_shell_test.dart`), which is what M02-017 and M02-018 actually
 asked for. Its first run took the iOS simulator from 29 tests to **31**, which is how the
-file is known to have executed rather than been skipped.
+file is known to have executed rather than been skipped. Module 04 followed and took it to
+**34** — and found two real defects doing it (KI-036, KI-037), one of them customer-facing.
 
 **Still genuinely unverified:** a **physical Android handset**. Everything above is an emulator.
 Emulators do not catch vendor skins, real GPS drift, battery-saver throttling of background
@@ -1546,6 +1550,7 @@ limit:
 | 158 | 23.8 min | **failure — with test names and assertions** |
 | 146 | 22.6 min | success |
 | 34605298508 | **27.7 min** | failure — with test names and assertions |
+| 34609493236 | **29m59s** | success — 34/34, with ONE SECOND to spare |
 
 Runs cancelled by a subsequent push are excluded; they prove nothing either way.
 
@@ -1566,13 +1571,28 @@ Xcode build done.   97.2s
 There are six device-test files today, so roughly eight minutes of the budget is
 Xcode, before a single assertion runs. Module 04's file added one.
 
-**So the seventh file is likely to exceed the limit**, and the failure it
-produces — a step killed at exactly 30:00 — is *visually identical to this
-issue* while wanting the opposite fix: a larger budget or a per-file split,
-not a diagnosis. Told apart by the same signature as always: whether tests were
-still printing when it died. Recorded here rather than pre-emptively raising the
-limit, because the right number is the one a run measures, not one guessed in
-advance.
+**THE NEXT RUN CORRECTED THIS, AND THE CORRECTION IS THE POINT.** The paragraph
+that stood here predicted the *seventh* file would breach the limit, and
+reasoned that removing the wasted minute would bring the step back to ~26.5.
+It went **up**, to 29m59s — and passed by one second.
+
+So the estimate was wrong in the direction that matters. Run-to-run variance on
+these macOS runners is larger than the minute that was saved, which means the
+budget was already exhausted at **six** files, not seven. A green that close is
+not evidence the limit is adequate; it is evidence it is spent. The next red
+would have been variance rather than a defect, wearing this issue's exact
+costume.
+
+**Acted on rather than recorded**, because "the right number is one a run
+measures" was satisfied: a run measured it. The step limit is now **45 minutes**
+(`ci.yml`, iOS `Run the on-device tests`), inside a 60-minute job. This does not
+weaken the bound this issue exists for — a stall is told apart by its
+**signature**, silence after `Xcode build done` with no test names, not by how
+long it took — and the report and simulator-log steps still fire either way.
+
+What has not changed: the per-file Xcode build is the cost, it grows with every
+module that adds a device test, and a split or a shared build is the real fix
+whenever that becomes worth doing.
 
 **The stall has not recurred in six completed runs.** Every one of them printed
 its tests, including the failure: run 158's two failures were a real defect and
@@ -2300,3 +2320,50 @@ with the least headroom. See KI-020 for the budget measurement this produced.
 before asking what the code was doing.* Six instances now, all harness. This one
 came with a tell that should be read as diagnostic: the failure message printed
 the screen the app is *supposed* to be on after a successful save.
+
+### KI-038 — the Android device test's result summary is unreadable, and that is why its count has never been read — **Low, CI observability** — OPEN
+
+Every document in this repository that states a device-test count says the same
+thing about Android: *green on the same suite, count not read*. That caveat has
+been carried since the Module 02 shell test, deliberately, because assuming
+symmetry with iOS would have been a number nobody checked. It now has a cause.
+
+`scripts/ci-device-report.sh` exists precisely to solve this. Its own header
+says so:
+
+> *a job log comes back to me as its tail, and anything a later step prints has
+> landed outside it [...] So the report is printed by the step that runs the
+> tests, as the last thing it does, and it is bounded.*
+
+That works on iOS, where the step ends with the report. It **does not work on
+Android**, because the tests there run inside
+`reactivecircus/android-emulator-runner`, which prints its own teardown after
+the script it was given:
+
+```
+ERROR        | stop: Not implemented
+WARNING      | Emulator client has not yet been configured.. Call configure me first!
+INFO         | removeAll
+WARNING      | Netsim Wifi dns:///localhost:39433 is gone due to Stream removed (CANCELLED)
+```
+
+Then the job's own cleanup adds a hundred more lines — MySQL and Redis service
+container logs, orphan-process termination, git config teardown. The report is
+pushed out of every tail window that can practically be fetched. On a **failing**
+run the `##[error]NN tests passed, M failed.` line lands close enough to be
+read; on a **passing** run the `🎉 NN tests passed.` line does not. Which is
+exactly backwards: the passing count is the one worth recording.
+
+**What is genuinely known about Android**, stated at the strength the evidence
+supports: the job is green, it installs the downloaded review APK and runs the
+same `flutter test integration_test/` invocation as iOS, and on the two most
+recent *failing* runs its counts were read and matched iOS (34 ran, 33 passed).
+The passing count on `d22d176` was not read. iOS's was: **🎉 34 tests passed.**
+
+**To clear:** give the Android job a way to surface the report that survives the
+action's teardown — echoing it to `$GITHUB_STEP_SUMMARY`, or re-printing the
+bounded report from a `if: always()` step placed after the emulator action
+rather than inside it. Not done here: the script's header records that later
+steps were tried once and were unreadable from where these logs get read, so
+this wants a deliberate attempt with its own verification, not a guess appended
+to a PR about something else.

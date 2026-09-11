@@ -33,12 +33,26 @@ Legend: ✅ done · ➖ not applicable to this requirement · ⛔ blocked by env
 > integration_test/` invocation; its count was not read from the log, so it is recorded
 > here as green rather than as a number.
 >
+> **Module 04 followed, and the count is now 34 on iOS** (`d22d176`, read from the
+> log: `🎉 34 tests passed.`). `integration_test/module_04_profile_test.dart` opens
+> the profile editor the way a customer does, types the customer's own values back
+> through a real software keyboard, saves to the live API, and opens the saved
+> addresses screen. **So M04 is off the unverified list**, and what remains without
+> a device test is **Modules 03, 05 and 06** — OTP sign-in, the trip planner, and
+> routing and the map layer.
+>
+> Android is still recorded as green without a number, and **KI-038 now says why**:
+> the bounded report `ci-device-report.sh` prints is pushed out of the readable log
+> tail by the emulator action's teardown. That is a gap in the tooling, not an
+> assumption being avoided — but the effect is the same, so the caveat stands.
+>
 > **What is still genuinely unverified on a device is narrower again.**
 > The on-device suite covers **Modules 11–14** (add to cart, cart management, pickup
-> timing, checkout), the Module 16 confirmation and Module 17 tracking screens, and now
-> the Module 02 shell. It does **not** exercise **Modules 03–06** — OTP sign-in, profile
-> and addresses, the trip planner, or routing and the map layer. Those rows are correct
-> that they are unverified on a handset; they are **wrong about why**.
+> timing, checkout), the Module 16 confirmation and Module 17 tracking screens, the
+> Module 02 shell and now **Module 04** (profile and addresses). It does **not**
+> exercise **Modules 03, 05 and 06** — OTP sign-in, the trip planner, or routing and
+> the map layer. Those rows are correct that they are unverified on a handset; they
+> are **wrong about why**.
 >
 > The blocker changed from *"there is no environment"* to *"no device test has been
 > written for this module"*, and that changes what someone would do about it: write the

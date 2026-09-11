@@ -1,0 +1,112 @@
+KI-020 / KI-037 / KI-038 — the iOS device budget, measured
+Recorded 2026-09-11 on branch claude/foodonthego-s0x2vt
+
+
+1. THE RUN THAT SETTLED IT
+---------------------------------------------------------------------------
+
+  Commit d22d176, run 34609493236 (pull_request), read from the GitHub API.
+
+  All seven jobs green:
+
+    Backend — Laravel 12            success
+    Web — React + TypeScript        success
+    Mobile — Flutter                success
+    Mobile — iOS build              success
+    Mobile — Android review build   success
+    Mobile — iOS simulator          success
+    Mobile — Android emulator       success
+
+  Device test steps:
+
+    iOS      14:25:44Z -> 14:55:43Z   = 29m59s   success
+    Android  14:35:25Z -> 14:57:29Z   = 22m04s   success
+
+  iOS test count, read from the log rather than inferred:
+
+    🎉 34 tests passed.
+
+  Android test count: NOT READ. See section 4.
+
+
+2. ONE SECOND
+---------------------------------------------------------------------------
+
+  The step limit at the time was 30 minutes. The step took 29m59s and passed.
+
+  An hour earlier, the previous run had been measured at 27.7 min and the
+  prediction recorded was: removing the ~66s of wasted wait (KI-037) should
+  bring it to ~26.5 min, and the SEVENTH device-test file would be the one to
+  breach the budget.
+
+  THAT PREDICTION WAS WRONG, and wrong in the direction that matters. The step
+  went UP, not down. Run-to-run variance on these macOS runners is larger than
+  the minute that was saved, so the budget was already exhausted at six files.
+
+  A green that passes by one second is not evidence a limit is adequate. It is
+  evidence the limit is spent, and that the next red would have been variance
+  rather than a defect.
+
+
+3. WHY THE BUDGET IS SPENT — the per-file Xcode build
+---------------------------------------------------------------------------
+
+  `flutter test integration_test/` builds ONCE PER FILE. From one run's log:
+
+    Xcode build done.   69.8s
+    Xcode build done.   75.8s
+    Xcode build done.   97.2s
+
+  Six device-test files today:
+
+    module_02_shell_test.dart
+    module_04_profile_test.dart
+    module_11_add_to_cart_test.dart
+    module_12_cart_test.dart
+    module_13_pickup_test.dart
+    module_14_checkout_test.dart
+
+  So roughly eight minutes of the budget is Xcode before a single assertion
+  runs, and it grows by one build per module that adds a device test.
+
+  ACTION TAKEN: the iOS step limit is raised 30 -> 45 minutes, inside a job
+  timeout of 60. The standard set when this was first recorded — "the right
+  number is one a run measures, not one guessed in advance" — has been met by
+  a run measuring it.
+
+  KI-020's bound is NOT weakened. It tells a stall apart by its SIGNATURE —
+  silence after `Xcode build done`, no test names printed — not by duration,
+  and the report and simulator-log steps still fire.
+
+  The real fix, whenever it becomes worth doing, is a shared build or a split
+  across jobs. Not attempted here.
+
+
+4. WHY ANDROID'S COUNT IS STILL UNREAD (KI-038)
+---------------------------------------------------------------------------
+
+  ci-device-report.sh prints its report as the last thing the test step does,
+  so it lands in the log tail. Its own header explains why: later steps were
+  tried once and were unreadable from where these logs get read.
+
+  That works on iOS. On Android the tests run inside
+  reactivecircus/android-emulator-runner, which prints its teardown AFTER the
+  script it was given:
+
+    ERROR        | stop: Not implemented
+    WARNING      | Emulator client has not yet been configured..
+    INFO         | removeAll
+    WARNING      | Netsim Wifi dns:///localhost:39433 is gone ...
+
+  and the job then adds ~100 more lines of MySQL and Redis service-container
+  logs plus orphan-process termination. The report is pushed out of every tail
+  window that can practically be fetched.
+
+  Backwards, too: on a FAILING run the `##[error]NN tests passed, M failed.`
+  line lands close enough to read — it was read on 3260819 and on 865a1de, both
+  reporting 34 ran — but on a PASSING run the `🎉 NN tests passed.` line does
+  not. The count worth recording is the one out of reach.
+
+  So Android is recorded as green on the same suite with its count unread,
+  which is what every document here has said since Module 02 — now with a
+  cause rather than a caveat.
