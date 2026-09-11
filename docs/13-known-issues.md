@@ -22,7 +22,7 @@ looking like one was itself the problem — see the note at the end.
 | `Mobile — Android emulator` | **downloads that artefact**, installs it on an emulator — `api-level: 34`, `target: google_apis`, `arch: x86_64`, `profile: pixel_6` — launches it and runs `flutter test integration_test/` against a real Laravel server and a real MySQL |
 
 **29 integration tests pass on the emulator**, against the app a client would be handed rather
-than a rebuild that happens to share its source. Alongside them: 986 Flutter widget tests, not
+than a rebuild that happens to share its source. Alongside them: 1,016 Flutter widget tests, not
 the 19 this entry still cited.
 
 **What is genuinely still true, and it is about the development container, not the product:**
@@ -2131,3 +2131,99 @@ problem; a home screen that quietly invents a policy would be the larger one.**
 the two repositories. Until then, the comment in
 `unconfigured_home_repository.dart` should be read as "waiting for a decision",
 not "waiting for an API".
+
+### KI-036 — "Manage saved addresses" navigated the customer to Page Not Found — **Medium, shipped navigation defect** — FIXED after Module 17
+
+The trip planner's location picker offers a link, *"Manage saved addresses"*,
+under the list of saved places. Tapping it captured the router, closed the
+sheet, and called:
+
+```dart
+router.push(Routes.savedAddressesPath);   // '/profile/addresses'
+```
+
+GoRouter does not know that path. `lib/core/routing/app_router.dart` registers
+`/profile` with **no child routes**: the profile editor and the saved-addresses
+list are pushed over the Profile branch with a plain `Navigator` push, so the
+bottom bar stays put and Android back returns to the list the customer came
+from. The tap therefore dropped the customer on the router's **Page Not Found**
+screen, with the journey they were part-way through planning behind it.
+
+**How it was found, which matters more than the fix.** It was not found by
+reading the code. The Module 04 device test — written the day before, to put a
+real keyboard in front of the profile form — failed in CI:
+
+```
+Timed out waiting for Found 0 widgets with type "TextFormField": []
+On screen instead: Page Not Found | GoException: no routes for location: /profile/edit
+```
+
+The harness was wrong: it deep-linked to a path that does not exist. But the
+question *"why did I believe it did?"* led to the answer that the same wrong
+belief was already shipped, one tap from the trip planner. **A failing test in
+the harness pointed at a defect in production.**
+
+**Nothing caught it.** No test touched that link. So the reproduction was
+written first, in `test/trip_planner_test.dart`, and watched fail for the right
+reason — `Found 1 widget with text "Page Not Found"` — before anything was
+changed. Its first draft failed for the *wrong* reason (it looked for a slot
+labelled "Starting point"; the label is "Setting off from"), which is the whole
+argument for watching a reproduction fail rather than trusting that it did.
+
+**Fixed** by pushing `SavedAddressesScreen` on the navigator that hosted the
+sheet, captured before the pop — the pattern `ProfileScreen` already uses. The
+test also asserts that **back returns to the planner**, and that is not a bonus
+assertion: `SavedAddressesScreen`'s back button asks GoRouter whether anything
+can be popped and falls back to `go('/profile')` when the answer is no. Pushing
+onto the wrong navigator would have silently moved the customer to the profile
+tab instead of the journey they were planning. The assertion passes, so the
+navigator choice is known rather than assumed.
+
+**The cause, and what was removed.** `Routes` declared six constants for this
+area — `profileEdit`, `savedAddresses`, `addressForm` and the three absolute
+paths built from them — under a doc comment correctly explaining that these
+screens are *pushed*, not routed. None was ever registered. They read exactly
+like routes that exist, and twice they were used as if they did: once in
+shipped code, once in a device test written sixteen modules later by someone
+reading the same file. All six are deleted; a comment in their place says why
+there are none and that the router entry and the constant must be added
+together if these screens ever need real routes.
+
+**Also found in the same pass.** The device test's saved-addresses sibling was
+**passing for no reason**. It asserted `find.text('Saved addresses')` after
+tapping the profile row — and the profile row behind the pushed route carries
+those exact words, so it would have passed whether or not anything opened. It
+now asserts the screen by widget type. A green test that cannot fail is a
+negative control that was never run.
+
+**A guard, so this class of defect cannot recur silently.**
+`mobile/test/routes_are_registered_test.dart` (29 tests) asks the router
+whether it knows a path *before* anything navigates to it — which nothing in
+the suite had ever done. It tests matching, not screens: no widget is built and
+no repository is called, so a path stays covered whether or not its screen can
+be pumped in a harness. That is the difference between a guard that is
+maintained and one that is deleted the first time it is inconvenient.
+
+It runs two checks, because one of them rots. A **named list** of every path
+`Routes` can build, readable and saying which member produced which path — and
+a **scan of `routes.dart` itself**, because the list only covers what somebody
+remembered to add. Dart has no run-time reflection over static members, so
+reading the source is the only way a constant added next year is checked
+without anyone choosing to check it.
+
+Controls, because the guard is worthless unless it has been seen to fail:
+`/profile/addresses`, `/profile/edit` and `/nothing/here` are each reported
+unknown; `/trips/plan/extra` is reported unknown; the three deleted
+declarations, fed to the scanner verbatim, are found and none matches. And the
+one that actually settles it — a bogus constant was added to the real
+`routes.dart` and the suite re-run:
+
+```
+00:00 +25 -1: every absolute path literal in routes.dart is registered [E]
+  Expected: empty
+    Actual: ['/profile/addresses']
+```
+
+then reverted. The in-test fixture alone would have proved the regex worked;
+only this proves the scan reads the file it claims to read. Full evidence:
+[evidence/module-17/ki-036-unregistered-route-guard.txt](evidence/module-17/ki-036-unregistered-route-guard.txt).

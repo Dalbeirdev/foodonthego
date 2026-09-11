@@ -1598,3 +1598,51 @@ customer app got a screen that reads it without ever deciding it.
   the test summary and the count was never actually read. It is recorded as green
   on the same suite rather than as "31 per platform". Assuming symmetry would have
   been reasonable and would still have been a number nobody checked.
+- **A customer-reachable navigation defect, found because a device test failed.**
+  The Module 04 device test deep-linked to `/profile/edit` and timed out on a form
+  that never appeared; the screen underneath said `GoException: no routes for
+  location: /profile/edit`. The harness was wrong — the profile sub-screens are
+  pushed over the Profile branch with a plain `Navigator` push and have no
+  registered paths — but the same wrong assumption was **shipped in production
+  code**: the trip planner's location picker offers a *"Manage saved addresses"*
+  link that pushed `/profile/addresses` and landed the customer on **Page Not
+  Found**, with the journey they were part-way through planning behind it.
+
+  Nothing caught it. No test touched that link, so the reproduction was written
+  first and watched fail for the right reason — `Found 1 widget with text "Page
+  Not Found"` — before anything was changed. It also asserts that **back returns
+  to the planner**: `SavedAddressesScreen`'s back button asks GoRouter whether
+  anything can be popped and falls back to `go('/profile')` when the answer is no,
+  so pushing onto the wrong navigator would have silently moved the customer to
+  the profile tab. That assertion passes, which is how the navigator choice is
+  known to be right rather than assumed.
+
+  `Routes.profileEditPath`, `savedAddressesPath` and `addressFormPath` are deleted
+  along with the three relative names beside them. All six were unused once the
+  link was fixed, and **none was ever registered with the router**. They read
+  exactly like routes that exist, and twice they were used as if they did — once
+  in shipped code, once in a test written sixteen modules later by someone reading
+  the same file. A constant naming a path nobody registered is not documentation;
+  it is a trap with a doc comment on it.
+
+  The device test now opens the editor the way a customer does, by tapping
+  *"Personal information"*. Its saved-addresses sibling was re-examined in the same
+  pass and turned out to be **passing for no reason**: it asserted `find.text('Saved
+  addresses')`, and the profile row behind the pushed route carries those exact
+  words, so it would have passed whether or not anything opened. It now asserts the
+  screen by widget type.
+
+  **A guard came out of it**, because the interesting question was not "what
+  broke" but "why could nothing have caught it". Nothing in the suite had ever
+  asked the router whether it knew a path before something navigated to one.
+  `mobile/test/routes_are_registered_test.dart` now does, in two checks: a named
+  list of every path `Routes` can build, and a scan of `routes.dart` itself so a
+  constant added next year is checked without anyone choosing to check it. It
+  tests matching, not screens — no widget is built, no repository is called — so
+  a path stays covered whether or not its screen can be pumped in a harness.
+
+  Its controls include the one that actually settles the question: a bogus
+  constant was added to the real `routes.dart`, the suite re-run, and the scan
+  named it — `Actual: ['/profile/addresses']` — before the constant was
+  reverted. An in-test fixture would have proved the regex worked; only this
+  proves the scan reads the file it claims to read. Flutter: **1,016 passing**.

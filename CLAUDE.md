@@ -37,7 +37,7 @@ Backend job step order, all green:
 | Suite | Count |
 | --- | --- |
 | Backend (PHPUnit, real MySQL) | **1,305 passed**, 5,826 assertions |
-| Flutter (widget + unit) | 986 passed |
+| Flutter (widget + unit) | 1,016 passed |
 | On-device (integration_test) | **31 on iOS** (read from the log), Android green on the same suite — count not read |
 | Static analysis | PHPStan level 3, **0 errors** |
 
