@@ -23,13 +23,32 @@
 // the provider happened to be returning that week, and would be asserting the
 // fixture rather than the app.
 //
-// WHAT IT LEAVES BEHIND, DELIBERATELY
+// IT LEAVES THE ACCOUNT AS IT FOUND IT, AND THE FIRST VERSION DID NOT.
 //
-// One journey, created the way a customer creates one. That is not litter: the
-// later device tests reuse an open discardable journey when they find one and
-// only create their own when they do not, so this run gives the suite the
-// fixture it would otherwise build for itself. No route is calculated here —
-// that is Module 06, and a route is a billed provider call.
+// The journey this test creates is discarded again in a tearDown. That is not
+// tidiness; it is a defect this file already caused once.
+//
+// The first version left the journey behind on the reasoning that later device
+// tests "reuse an open discardable journey when they find one, so this gives
+// the suite the fixture it would otherwise build for itself". Every clause of
+// that was true and the conclusion was still wrong. module_11's `prepare()`
+// takes `open.first`, and a SECOND open journey can change which one that is —
+// while the customer's cart still belongs to the first. The app then did
+// exactly what it should: it raised the cross-journey cart conflict.
+//
+//     Your cart belongs to a different journey. Starting a new one here will
+//     empty that cart. | Keep my cart | Start a new cart
+//
+// Two module_11 tests failed on that dialog. All three tests in THIS file
+// passed. A test that passes and breaks two others is not a passing test.
+//
+// module_04's header states the principle this should have followed from the
+// start: it types the customer's own values back so the database ends exactly
+// where it started. The device suite shares one persona against a live backend
+// and its files run in any order, so anything a test creates it has to remove.
+//
+// No route is calculated here either — that is Module 06, and a route is a
+// billed provider call.
 //
 // Run:
 //   flutter test integration_test/module_05_trip_planner_test.dart \
@@ -71,6 +90,31 @@ void main() {
     customer = await whoAmI(api);
     places = ApiPlaceRepository(api);
     trips = ApiTripRepository(api);
+  });
+
+  /// The journey created by the test below, so tearDown can remove it whether
+  /// the test passed, failed or died part-way.
+  String? createdTripId;
+
+  tearDown(() async {
+    final String? id = createdTripId;
+    createdTripId = null;
+
+    if (id == null) return;
+
+    // Best effort, and deliberately not allowed to fail the run: a discard that
+    // cannot happen is worth knowing about, but reporting it AS the failure
+    // would hide whatever the test itself found.
+    try {
+      await trips.discardTrip(id);
+    } on Object catch (error) {
+      // debugPrint, not print: the analyzer forbids print in this project and
+      // CI runs `analyze --fatal-infos`. This reaches the device log either way,
+      // which is where a leaked journey would otherwise go unnoticed.
+      debugPrint(
+        'WARNING: could not discard the journey $id this test created: $error',
+      );
+    }
   });
 
   tearDownAll(() => api.close());
@@ -245,6 +289,10 @@ void main() {
     );
 
     final Trip journey = created.first;
+    // Recorded before the assertions, so tearDown still removes it if one of
+    // them fails. A cleanup that only runs on success is not cleanup.
+    createdTripId = journey.id;
+
     expect(journey.origin.displayName, origin.displayName);
     expect(journey.destination.displayName, destination.displayName);
 
