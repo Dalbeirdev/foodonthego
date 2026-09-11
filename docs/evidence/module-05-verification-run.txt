@@ -1,0 +1,216 @@
+FoodOnTheGo — Module 05 verification run (reworked)
+Date: 2026-09-04
+Environment: PHP 8.4.19 / Laravel 12.69.1 / MySQL 8.0.46 / Redis 7.0.15 / Flutter 3.47.2 / Ubuntu 24.04
+
+=== BACKEND: php artisan test ===
+
+  Tests:    408 passed (1489 assertions)
+  Duration: 7.41s
+
+
+=== BACKEND: pint --test ===
+{"tool":"pint","result":"passed"}
+=== FLUTTER: flutter analyze ===
+Analyzing mobile...                                             
+No issues found! (ran in 3.4s)
+
+=== FLUTTER: flutter test ===
+00:40 +310: /home/user/foodonthego/mobile/test/trips_screen_test.dart: navigation the detail screen shows both ends and no route
+00:41 +311: /home/user/foodonthego/mobile/test/trips_screen_test.dart: navigation a journey that is not on the account reads as gone
+00:41 +312: All tests passed!
+
+=== WEB: npm test ===
+      Tests  4 passed (4)
+   Start at  17:06:14
+   Duration  804ms (transform 47ms, setup 43ms, collect 227ms, tests 5ms, environment 266ms, prepare 64ms)
+
+
+=== INTEGRATION: dart run tool/trip_planner_smoke.dart (no mocks) ===
+Backend: http://127.0.0.1:8000
+
+  PASS  a new customer has no trips
+  PASS  search returns real suggestions
+  PASS  a suggestion carries no coordinates
+  PASS  one letter is refused before the provider is called
+  PASS  details resolve a suggestion to a real position
+  PASS  reverse geocoding keeps the caller's own coordinates
+  PASS  an impossible coordinate is refused
+  PASS  place lookup needs a session
+  PASS  a trip is created from a saved address and a searched place
+  PASS  no route is calculated, and none is claimed
+  PASS  both ends carry usable coordinates
+  PASS  the saved address is snapshotted, not referenced
+  PASS  a deleted saved address does not take the trip with it
+  PASS  the API sends no distance, duration, polyline or ETA
+  PASS  the same place at both ends is refused
+  PASS  a latitude outside the possible range is refused
+  PASS  the (0, 0) sentinel is refused rather than routed to
+  PASS  a missing origin is refused
+  PASS  unauthorised fields in the payload have no effect
+  PASS  Rahul cannot read Ananya's trip
+  PASS  Rahul cannot discard Ananya's trip
+  PASS  Rahul cannot delete Ananya's trip
+  PASS  Rahul cannot create a trip from Ananya's saved address
+  PASS  no refusal leaks a word about Ananya's data
+  PASS  a missing trip and a forbidden one are indistinguishable
+  PASS  Ananya's list is hers alone
+  PASS  the list filter the client sends is one the server reads
+  PASS  a trip can be discarded, and stays in history
+  PASS  a discarded trip cannot be discarded again
+  PASS  an unauthenticated call reaches no trips
+  PASS  a revoked session stops reaching trips
+
+31 passed, 0 failed
+
+=== DATABASE: direct queries ===
+-- SHOW COLUMNS FROM trips (no distance/duration/polyline/eta) --
+Field	Type
+id	bigint
+uuid	char(36)
+customer_id	bigint
+status	enum('ROUTE_PENDING','CANCELLED')
+route_status	enum('NOT_CALCULATED','CALCULATING','READY','FAILED')
+origin_source_type	enum('CURRENT_LOCATION','SAVED_ADDRESS','PLACE_SEARCH')
+origin_saved_address_id	bigint
+origin_place_id	varchar(255)
+origin_name	varchar(180)
+origin_formatted_address	varchar(400)
+origin_latitude	decimal(10,7)
+origin_longitude	decimal(10,7)
+origin_city	varchar(120)
+origin_region	varchar(120)
+origin_country_code	char(2)
+origin_postal_code	varchar(16)
+destination_source_type	enum('CURRENT_LOCATION','SAVED_ADDRESS','PLACE_SEARCH')
+destination_saved_address_id	bigint
+destination_place_id	varchar(255)
+destination_name	varchar(180)
+destination_formatted_address	varchar(400)
+destination_latitude	decimal(10,7)
+destination_longitude	decimal(10,7)
+destination_city	varchar(120)
+destination_region	varchar(120)
+destination_country_code	char(2)
+destination_postal_code	varchar(16)
+cancelled_at	datetime
+created_at	timestamp
+updated_at	timestamp
+
+-- trips as written by the live app and the integration run --
+status	route_status	origin_source_type	origin_name	origin_latitude	origin_longitude	origin_saved_address_id	destination_name	destination_place_id	destination_latitude
+CANCELLED	NOT_CALCULATED	SAVED_ADDRESS	Home	28.5590000	77.2070000	NULL	Jaipur International Airport	dev:jaipur-airport	26.8242000
+CANCELLED	NOT_CALCULATED	CURRENT_LOCATION	Green Park	28.5590000	77.2070000	NULL	Hawa Mahal	NULL	26.9239000
+CANCELLED	NOT_CALCULATED	SAVED_ADDRESS	Office	28.4949000	77.0886000	NULL	Sector 17 Plaza	dev:chandigarh-sector-17	30.7412000
+ROUTE_PENDING	NOT_CALCULATED	CURRENT_LOCATION	Use my current location	28.5590000	77.2070000	NULL	Jaipur International Airport	dev:jaipur-airport	26.8242000
+CANCELLED	NOT_CALCULATED	CURRENT_LOCATION	Use my current location	28.5590000	77.2070000	NULL	Jaipur International Airport	dev:jaipur-airport	26.8242000
+CANCELLED	NOT_CALCULATED	CURRENT_LOCATION	Use my current location	28.5590000	77.2070000	NULL	Jaipur International Airport	dev:jaipur-airport	26.8242000
+CANCELLED	NOT_CALCULATED	CURRENT_LOCATION	New Delhi	28.5590000	77.2070000	NULL	Jaipur International Airport	dev:jaipur-airport	26.8242000
+CANCELLED	NOT_CALCULATED	SAVED_ADDRESS	Home	28.5590000	77.2070000	NULL	Jaipur International Airport	dev:jaipur-airport	26.8242000
+CANCELLED	NOT_CALCULATED	CURRENT_LOCATION	Green Park	28.5590000	77.2070000	NULL	Hawa Mahal	NULL	26.9239000
+ROUTE_PENDING	NOT_CALCULATED	SAVED_ADDRESS	Office	28.4949000	77.0886000	4	Sector 17 Plaza	dev:chandigarh-sector-17	30.7412000
+
+-- a route column? --
+route_columns
+0
+
+=== LOGS: what was written, and what was not ===
+-- events present --
+   4461 "message":"api.request"
+   2010 "message":"api.request.rejected"
+   1508 "message":"address.created"
+   1291 "message":"auth.otp.requested"
+    614 "message":"trip.created"
+    442 "message":"profile.updated"
+    398 "message":"auth.login.succeeded"
+    364 "message":"auth.otp.verified"
+    247 "message":"address.default_changed"
+    229 "message":"address.access_denied"
+    165 "message":"trip.access_denied"
+    146 "message":"auth.otp.verify_failed"
+
+-- PII sweep: 11 needles --
+Jaipur           0 hits
+Green Park       0 hits
+Hawa Mahal       0 hits
+Sector 17        0 hits
+Gurugram         0 hits
+Cyber City       0 hits
+28.5590          0 hits
+77.2070          0 hits
+26.8242          0 hits
+AIza             0 hits
+9999900301       0 hits
+
+NOTE ON THE ROWS ABOVE: the trips table is a chronological record of every
+verification run against this database, including the ones that found the
+defects. Rows reading "Use my current location" as an origin name are from
+runs before M05-B11 was fixed; the row reading "New Delhi" is the run after.
+The table was not cleaned between them, deliberately — the before and after are
+the evidence.
+
+=== LIVE VIEW: production Flutter web build against the running API ===
+Driving the live app at http://localhost:5173/ as +919999900801
+  ok    home: "Rahul"
+  ok    home: "Plan a journey"
+  captured state-01-home
+  ok    planner: "Choose your starting point"
+  ok    planner: "Choose your destination"
+  ok    planner: no "km"
+  captured state-02-planner-empty
+  ok    picker: "Use my current location"
+  ok    picker: "Saved addresses"
+  captured state-03-picker-origin
+  ok    planner-origin: no "Choose your starting point"
+  captured state-04-origin-current-location
+  ok    search: "Jaipur International Airport"
+  captured state-05-search-results
+  ok    search-empty: "No places matched that"
+  captured state-06-search-no-results
+  ok    planner-both: "Jaipur International Airport"
+  captured state-07-both-ends-chosen
+  captured state-08-swapped
+  ok    trip-detail: "Route not calculated yet"
+  ok    trip-detail: no "km"
+  ok    trip-detail: no "ETA"
+  captured state-09-journey-created
+  ok    trips: "Route not calculated yet"
+  ok    trips: "Planned"
+  ok    trips: no "Past"
+  captured state-10-trips-list
+  ok    same-place: "Choose a destination different from your starting point"
+  captured state-11-same-place-refused
+  ok    cleared: "Choose your starting point"
+  captured state-12-cleared-origin
+  ok    validation: "Choose where you are setting off from"
+  captured state-13-origin-required
+  captured state-14-row-menu
+  ok    discard-dialog: "Discard this journey?"
+  captured state-15-discard-dialog
+  ok    after-discard: "No journeys yet"
+  captured state-16-after-discard
+  ok    discarded-scope: "DISCARDED"
+  captured state-17-discarded-scope
+  ok    address-form: "Not located yet"
+  captured state-18-address-not-located
+  ok    address-locator: "Find this address"
+  ok    address-locator: no "Use my current location"
+  captured state-19-address-locator
+  ok    address-located: "Change"
+  captured state-20-address-located
+  captured state-21a-locating
+  ok    denied: "We could not find you"
+  ok    denied: "Search instead"
+  captured state-21b-location-timed-out
+  ok    search-failure: "We couldn't search for places just now"
+  ok    search-failure: "Try again"
+  captured state-22-search-failure
+  captured state-23-offline-search
+  ok    planner-320: "Choose your starting point"
+  captured state-24-320-planner
+  ok    planner-360: "Choose your starting point"
+  captured state-25-360-planner
+  ok    planner-430: "Choose your starting point"
+  captured state-26-430-planner
+  captured state-27-dark-picker
+
+No problems found.

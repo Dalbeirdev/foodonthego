@@ -1,0 +1,194 @@
+==========================================================
+ FoodOnTheGo — Module 03 verification run
+ 2026-09-03 23:07:40 UTC
+ Customer Authentication, Registration, OTP, Session & Security
+==========================================================
+
+--- TOOLCHAIN ---
+PHP 8.4.19 (cli) (built: Mar 30 2026 19:28:35) (NTS)
+/usr/sbin/mysqld  Ver 8.0.46-0ubuntu0.24.04.4 for Linux on x86_64 ((Ubuntu))
+Redis server v=7.0.15 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=b30e82fcf6da7c56
+v22.22.2
+Flutter 3.47.2 • channel stable • https://github.com/flutter/flutter.git
+
+--- BACKEND: php artisan test ---
+  Tests:    197 passed (675 assertions)
+  Duration: 3.94s
+
+
+--- BACKEND: vendor/bin/pint --test ---
+{"tool":"pint","result":"passed"}
+--- BACKEND: composer audit ---
+Do not run Composer as root/super user! See https://getcomposer.org/root for details
+No security vulnerability advisories found.
+
+--- BACKEND: registered auth routes ---
+  POST       api/v1/auth/customer/otp/request api.v1.auth.customer.otp.reques…
+  POST       api/v1/auth/customer/otp/verify api.v1.auth.customer.otp.verify …
+  POST       api/v1/auth/customer/register api.v1.auth.customer.register › Ap…
+  POST       api/v1/auth/logout api.v1.auth.logout › Api\V1\Auth\SessionContr…
+  GET|HEAD       api/v1/customer/me api.v1.customer.me › Api\V1\Auth\SessionC…
+
+--- MOBILE: flutter analyze --fatal-infos ---
+No issues found! (ran in 5.0s)
+
+--- MOBILE: dart format --set-exit-if-changed ---
+Formatted 77 files (0 changed) in 0.38 seconds.
+
+--- MOBILE: flutter test ---
+00:19 +154: All tests passed!
+
+--- WEB: unchanged by this module, regression only ---
+TypeScript errors: 0 (tsc --noEmit across ui, restaurant, admin)
+ Test Files  2 passed (2)   packages/ui        Tests 18 passed (18)
+ Test Files  1 passed (1)   apps/restaurant    Tests  7 passed (7)
+ Test Files  1 passed (1)   apps/admin         Tests  4 passed (4)
+Web total: 29 passed
+
+--- INTEGRATION: Flutter network layer -> Laravel -> MySQL (no mocks) ---
+$ cd mobile && dart run --define=FOTG_API_BASE_URL=http://127.0.0.1:8000 \
+      tool/integration_smoke.dart
+
+FoodOnTheGo — Module 03 integration run
+Backend: http://127.0.0.1:8000
+
+  PASS  the API masks the number in its response
+  PASS  the response never carries the code
+  PASS  a code was generated and delivered to the development channel
+  PASS  a wrong code is rejected by the real server
+  PASS  a new number is asked to register rather than signed in
+  PASS  the registration token does not contain the phone number
+  PASS  registration returns a session for the verified number
+  PASS  the access token is a real Sanctum token
+  PASS  the token authenticates /customer/me against the real API
+  PASS  the profile exposes a uuid, not a database key
+  PASS  an unauthenticated call to /customer/me is 401
+  PASS  the used code cannot be replayed
+  PASS  logout revokes the token immediately
+  PASS  an invalid number is refused with its own code
+  PASS  the server enforces the resend cooldown
+
+15 passed, 0 failed
+
+(A second run against the same number takes the returning-customer branch
+instead of the registration branch — 13 passed, 0 failed.)
+
+--- DATABASE VERIFICATION: real MySQL, after a real sign-up ---
+$ SHOW COLUMNS FROM users WHERE Field='status';
+status  enum('active','suspended','disabled','deleted')  NO  MUL  active
+
+$ DESCRIBE otp_challenges;
+id                  bigint unsigned  NO   PRI  auto_increment
+uuid                char(36)         NO   UNI
+phone_e164          varchar(20)      NO   MUL
+otp_hash            varchar(255)     NO
+expires_at          timestamp        NO   MUL
+attempts            tinyint unsigned NO        0
+max_attempts        tinyint unsigned NO
+consumed_at         timestamp        YES
+invalidated_at      timestamp        YES
+invalidated_reason  varchar(40)      YES
+resend_count        tinyint unsigned NO        0
+last_sent_at        timestamp        YES
+request_ip          varchar(45)      YES
+created_at          timestamp        YES
+updated_at          timestamp        YES
+
+  No column holds a plaintext code. Indexes:
+    otp_challenges_uuid_unique (uuid)
+    otp_challenges_phone_e164_consumed_at_invalidated_at_index
+    otp_challenges_expires_at_index
+
+$ SELECT COUNT(*) AS challenges,
+         SUM(otp_hash REGEXP '^[0-9a-f]{64}$')  AS all_hashed,
+         SUM(otp_hash REGEXP '^[0-9]{6}$')      AS looks_like_a_plain_code
+  FROM otp_challenges;
+challenges  all_hashed  looks_like_a_plain_code
+1           1           0
+
+$ SELECT ... FROM personal_access_tokens;   (after a real sign-in)
+                       id: 2
+                     name: customer-mobile
+                abilities: ["customer"]
+                token_len: 64
+            is_sha256_hex: 1
+matches_hash_of_plaintext: 1
+      stored_in_plaintext: 0
+               has_expiry: 1
+
+$ SELECT ... FROM users;   (the account the integration run created)
+            uuid: 9d609101-bd3b-4edb-8f6f-6246628af090
+      first_name: Integration
+      phone_e164: +919999900001
+            role: customer
+          status: active
+password_is_null: 1
+  phone_verified: 1
+email_unverified: 1
+
+--- LOG REVIEW: storage/logs/foodonthego-2026-09-03.log (2589 lines) ---
+Occurrences of a full test phone number (9999900001/2/3):   0
+Occurrences of any OTP written to the development channel:  0
+
+Sample lines (verbatim):
+  "message":"auth.otp.requested"  ... "phone":"+91 ••••••0002","provider":"log"
+  "message":"auth.otp.verified"   ... "phone":"+91 ••••••0002"
+  "message":"auth.registration.completed" ... "phone":"+91 ••••••0003"
+  "message":"auth.login.succeeded" ... "token_id":"[REDACTED]"
+
+--- LIVE-VIEW: real browser, real API, real database ---
+Flutter web release build (FOTG_ENV=production, so no fixtures and no
+development harness), served at http://localhost:5173, talking to the Laravel
+server at http://localhost:8000 against MySQL. Driven with Playwright through
+Flutter's DOM semantics tree.
+
+20 screenshots in docs/evidence/module-03/. Final run:
+  "No console errors, no page errors, all expected content present."
+
+Note on the screenshots: CanvasKit's fallback font is fetched from a CDN this
+environment blocks, so a font (LiberationSans) was bundled temporarily to make
+text render, then removed — the committed pubspec.yaml bundles no font and
+FotgTypography.fontFamily is null, as Module 01 requires. LiberationSans has no
+regional-indicator glyphs, so the country flag emoji appears as two empty boxes
+in the screenshots. On iOS and Android the platform emoji font renders it; the
+dial code beside it is the functional part and renders everywhere.
+
+--- PERFORMANCE: real API latency, measured from the structured log ---
+Every auth request logs its own duration. Figures below are from the whole
+Module 03 development and verification period (local MySQL 8 + Redis 7).
+
+route                                       n   min      median   max
+api/v1/auth/customer/otp/request          273   1.4 ms    4.8 ms  69.3 ms
+api/v1/auth/customer/otp/verify           194   0.6 ms    4.9 ms  29.1 ms
+api/v1/auth/customer/register              94   1.0 ms    5.3 ms  27.9 ms
+api/v1/auth/logout                         29   0.4 ms    3.6 ms  11.2 ms
+api/v1/customer/me                        145   0.2 ms    1.6 ms  15.5 ms
+
+The maxima are cold-start requests after a migrate:fresh. Nothing here is close
+to a budget; the dominant cost in production will be the SMS provider, which is
+outside the request (the challenge is committed first, then handed to the
+provider) and is why OTP_SEND_FAILED exists as its own 503 code.
+
+Client side: the OTP hash is a single HMAC, not bcrypt, precisely so this stays
+in single-digit milliseconds on a path every sign-in takes. No work in the
+Flutter auth screens happens on the UI thread beyond widget building; every
+network call is awaited off it.
+
+--- FAILURE PATHS, DRIVEN LIVE ---
+Provider outage: OTP_SIMULATE_PROVIDER_FAILURE=true against the running backend.
+
+$ curl -s -X POST .../auth/customer/otp/request -d '{"phone":"9999912001"}'
+{"error":{"code":"OTP_SEND_FAILED",
+          "message":"We couldn't send your verification code. Please try again.",
+          "request_id":"e0a6070a-fe20-44ea-9b09-68f942d298dc"}}
+
+  → state-16-provider-outage.png (the app's rendering of the same failure)
+
+Offline: every /api/v1/** request aborted at the network layer with
+`internetdisconnected` — the request never reaches the server at all.
+
+  → state-17-offline.png  ("No connection. Check your signal and try again.")
+
+Both runs: no page errors, both failure states rendered as designed.
+The simulated-failure switch was set back to false afterwards, and the
+production config guard refuses to boot while it is true.

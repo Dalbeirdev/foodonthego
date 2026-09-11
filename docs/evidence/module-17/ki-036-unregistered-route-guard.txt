@@ -1,0 +1,87 @@
+KI-036 — "Manage saved addresses" navigated to Page Not Found
+Evidence: the reproduction, the fix, and the guard's negative controls
+Recorded 2026-09-11 on branch claude/foodonthego-s0x2vt
+
+
+1. THE REPRODUCTION, WATCHED FAIL BEFORE ANYTHING WAS CHANGED
+---------------------------------------------------------------------------
+
+  mobile/test/trip_planner_test.dart
+  "managing saved addresses from the sheet /
+   the link opens saved addresses rather than Page Not Found"
+
+  Expected: no matching candidates
+    Actual: Found 1 widget with text "Page Not Found"
+    Which: the link navigated to the router error screen
+
+  Its FIRST draft failed for the wrong reason — it looked for a slot labelled
+  "Starting point"; the label is "Setting off from" — and was corrected before
+  the fix was written. A control that fails for the wrong reason proves nothing.
+
+
+2. AFTER THE FIX
+---------------------------------------------------------------------------
+
+  $ flutter test test/trip_planner_test.dart
+  00:09 +21: All tests passed!
+
+  The same test now also asserts that back returns to the planner.
+  SavedAddressesScreen's back button asks GoRouter whether anything can be
+  popped and falls back to go('/profile') when the answer is no, so pushing
+  onto the wrong navigator would have moved the customer to the profile tab.
+  That assertion passes, so the navigator choice is checked, not assumed.
+
+
+3. THE GUARD, AND THE CONTROLS THAT SHOW IT WORKS
+---------------------------------------------------------------------------
+
+  mobile/test/routes_are_registered_test.dart — 29 tests.
+
+  Two checks. A named list of every path Routes can build, and a scan of
+  routes.dart itself so a constant added next year is checked without anyone
+  choosing to check it.
+
+  Controls, all passing:
+
+    the check itself / an unregistered path is reported as unknown
+      /profile/addresses     -> not matched
+      /profile/edit          -> not matched
+      /nothing/here          -> not matched
+
+    the check itself / a path one segment too deep is reported as unknown
+      /trips/plan/extra      -> not matched
+
+    the check itself / the source scan would have caught the deleted constants
+      The three deleted declarations, fed to the scanner verbatim:
+        static const String profileEditPath = '/profile/edit';
+        static const String savedAddressesPath = '/profile/addresses';
+        static const String addressFormPath = '/profile/addresses/form';
+      Found: 3. Matched by the router: 0.
+
+  LIVE CONTROL AGAINST THE REAL FILE. A bogus constant was added to
+  lib/core/routing/routes.dart and the suite re-run:
+
+    static const String bogusControl = '/profile/addresses';
+
+    00:00 +25 -1: every absolute path literal in routes.dart is registered [E]
+      Expected: empty
+        Actual: ['/profile/addresses']
+      routes.dart declares these paths and the router matches none of them.
+      Either register them or delete them; a constant naming a path nobody
+      registered is what put a customer on Page Not Found.
+
+  The constant was then reverted. This is the control that matters: the scan
+  reads the real file, and it fails on the real file when the real file is
+  wrong. The in-test fixture control alone would not have proved that.
+
+
+4. SUITE TOTALS AFTER THE CHANGE
+---------------------------------------------------------------------------
+
+  $ flutter analyze
+  No issues found! (ran in 6.1s)
+
+  $ flutter test
+  02:10 +1016: All tests passed!
+
+  987 before this guard was added; 1,016 with it.

@@ -1,0 +1,198 @@
+FoodOnTheGo — Module 11 verification run
+Menu item details, variants, addons, customization and Add to Cart
+
+PHP 8.4.19 / Laravel 12.69.1 / MySQL 8.0.46 / Redis 7.0.15 / Flutter 3.47.2 / Dart 3.13.2
+ROUTE_PROVIDER=development  PLACES_PROVIDER=development  OTP_PROVIDER=log
+
+================================================================
+BACKEND — PHPUnit
+================================================================
+  Tests:    957 passed (3982 assertions)
+  Duration: 39.73s
+
+  New in Module 11, 93 test methods:
+    Feature/CustomizationPricingTest.php                    30
+    Feature/Api/Customer/ItemCustomizationApiTest.php       15
+    Feature/Api/Customer/AddToCartApiTest.php               39
+    Feature/CartPerformanceTest.php                          9
+
+================================================================
+BACKEND — Laravel Pint
+================================================================
+{"tool":"pint","result":"passed"}
+
+================================================================
+MOBILE — flutter analyze --fatal-infos
+================================================================
+Analyzing mobile...
+No issues found! (ran in 5.8s)
+
+================================================================
+MOBILE — dart format --set-exit-if-changed .
+================================================================
+Formatted 191 files (0 changed) in 1.24 seconds.
+
+  21 files were reformatted first. They were formatter-clean under the SDK
+  they were written with and are not under Dart 3.13.2; the change is
+  whitespace only, and the check is clean on a second pass.
+
+================================================================
+MOBILE — flutter test
+================================================================
+772 tests, All tests passed!
+
+  New in Module 11, 86 test cases:
+    test/item_customization_models_test.dart                15
+    test/item_customization_controller_test.dart            34
+    test/item_detail_screen_test.dart                       37
+
+================================================================
+INTEGRATION — tool/cart_smoke.dart
+================================================================
+  dart run --define=FOTG_API_BASE_URL=http://127.0.0.1:8000 tool/cart_smoke.dart
+  48 passed, 0 failed
+
+  Drives the app's own ApiClient against the running Laravel backend and a
+  real MySQL database: the item detail payload, every validation refusal,
+  the price-tampering attempt, the duplicate tap, the lost response, both
+  cart conflicts, and the row that ends up in `cart_items`.
+
+================================================================
+LIVE VIEW — 34 states, 36 screenshots
+================================================================
+  node m11-run.mjs 9999926101
+  Chromium 393x852 @2x unless a state says otherwise, release web build,
+  driven through the accessibility tree.
+
+  ok    item: "Paneer Tikka"
+  ok    item: "Cottage cheese marinated"
+  captured state-01-item-detail
+  ok    variants: "Choose a size"
+  ok    variants: "Regular. 249 rupees. Selected"
+  ok    variants: "Large. 329 rupees. Not selected"
+  captured state-02-variants
+  ok    sold-out-variant: "Family (serves 4)"
+  ok    sold-out-variant: "Unavailable"
+  captured state-03-unavailable-variant
+  ok    required-group: "Spice level"
+  ok    required-group: "Required"
+  ok    required-group: "Choose 1"
+  captured state-04-required-group
+  ok    optional-group: "Add extras"
+  ok    optional-group: "Optional"
+  ok    optional-group: "Choose up to 2"
+  captured state-05-optional-group
+  ok    options: "Extra Cheese. Adds 40 rupees. Not selected"
+  captured state-06-paid-option
+  ok    no-dark-pattern: no "Extra Cheese. Adds 40 rupees. Selected"
+  captured state-07-no-preselected-paid
+  ok    default-option: "Mild. No extra charge. Selected"
+  ok    cta-priced: "Add to cart · ₹249"
+  captured state-08-default-selected
+  ok    single-select: "Hot. No extra charge. Selected"
+  ok    single-select: "Mild. No extra charge. Not selected"
+  captured state-09-single-select
+  ok    modifier-price: "Add to cart · ₹289"
+  captured state-10-paid-modifier
+  ok    multi-select: "Add to cart · ₹309"
+  ok    max-reached: "You can choose up to 2."
+  captured state-11-max-reached
+  ok    unavailable-option: "Extra Cashew"
+  captured state-12-unavailable-option
+  ok    variant-price: "Add to cart · ₹389"
+  captured state-13-variant-changes-price
+  ok    sold-out-variant-inert: "Add to cart · ₹389"
+  captured state-14-sold-out-variant-inert
+  ok    quantity: "Quantity, 1"
+  captured state-15-quantity-one
+  ok    quantity: "Quantity, 2"
+  ok    quantity-price: "Add to cart · ₹778"
+  captured state-16-quantity-two
+  ok    note: "Special instructions"
+  ok    note: "will do what they can"
+  ok    note: no "guarantee"
+  ok    note: no "will definitely"
+  captured state-17-note-empty
+  captured state-18-note-filled
+  ok    added: "Added to cart"
+  captured state-19-added
+  cart rows: 1
+  unit price: 38900
+  ok    cta-incomplete: "Choose required options"
+  captured state-20-cta-incomplete
+  ok    validation: "Choose a size"
+  captured state-21-validation
+  ok    cta-priced: "Add to cart · ₹69"
+  captured state-22-size-chosen
+  ok    plain-item: "Papad"
+  ok    plain-item: no "Choose a size"
+  ok    plain-item: "Add to cart · ₹49"
+  captured state-23-no-customization
+  ok    sold-out-item: "Just sold out"
+  ok    sold-out-item: no "Add to cart ·"
+  captured state-24-sold-out-item
+  ok    paused: "Not taking orders"
+  captured state-25-not-accepting
+  ok    race: "Just sold out"
+  captured state-26-sold-out-race
+  ok    conflict: "Your cart has other items"
+  captured state-27-cart-conflict
+  ok    price: "The price changed"
+  captured state-28-price-changed
+  ok    offline: "You're offline"
+  ok    offline: "Your choices are kept"
+  ok    offline: "Try again"
+  ok    offline-kept: "Mild. No extra charge. Selected"
+  captured state-29-offline
+  captured state-30-loading-skeleton
+  ok    item-320: "Add to cart · ₹249"
+  captured state-31-320-lower
+  captured state-31-320-item
+  ok    item-430: "Add to cart · ₹249"
+  captured state-32-430-lower
+  captured state-32-430-item
+  ok    dark: "Choose a size"
+  captured state-33-dark
+  ok    large-text: "Choose a size"
+  captured state-34-large-text
+
+No problems found.
+
+  61 assertions, 0 failures.
+
+  The two lines under state 19 are the point of the module. The phone had
+  been showing "Add to cart · ₹778" and never sent a price; the row the
+  server wrote carries unit_price_minor = 38900 — ₹329 for the Large size,
+  plus ₹40 for Extra Cheese, plus ₹20 for Jalapeños — and a line total of
+  twice that. The number came from the menu, not from the client.
+
+================================================================
+REGRESSION — Modules 01-10, and Module 11 again after them
+================================================================
+integration_smoke            13 passed, 0 failed
+profile_addresses_smoke      24 passed, 0 failed
+trip_planner_smoke           31 passed, 0 failed
+route_smoke                  21 passed, 0 failed
+discovery_smoke              22 passed, 0 failed
+discovery_filters_smoke      28 passed, 0 failed
+restaurant_detail_smoke      25 passed, 0 failed
+menu_smoke                   32 passed, 0 failed
+cart_smoke                   48 passed, 0 failed
+
+  244 integration checks across ten modules, none failing.
+
+  Run in three batches with `redis-cli FLUSHALL` between them: each driver
+  signs a persona in, and a full pass exhausts the OTP per-IP budget. That
+  is this environment's limit, not a product behaviour — a 429 from it is
+  the rate limiter working.
+
+  Module 11's own run is last on purpose. `restaurant_detail_smoke`
+  re-seeds the discovery fixtures, and menu, variant, modifier and cart
+  rows all cascade-delete with their restaurant.
+
+================================================================
+RUNTIME COVERAGE
+================================================================
+Web (Chromium, release build)  PASS — 34 states
+Android                        PENDING — environment unavailable (KI-001)
+iOS                            PENDING — environment unavailable (KI-002)

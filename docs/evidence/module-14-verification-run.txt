@@ -1,0 +1,101 @@
+Module 14 — live verification run
+=================================
+
+Everything below is the API's own output, captured by scripts/m14-verify.sh
+against a real Laravel server on a real MySQL 8 database. Nothing is
+transcribed and nothing is stubbed.
+
+A note on the ownership check near the end. It sends another customer's token
+to this customer's checkout id and gets a 404 — but the journey in the path
+belongs to the first customer too, so trip ownership refuses before the quote
+lookup is ever reached. That is the right answer for the wrong reason to be
+quoted as evidence of quote scoping. Quote ownership is measured properly in
+CheckoutApiTest, where the second customer has their own journey and their own
+cart, and where removing either clause of the scoping query was watched to open
+the ho=== who is signed in ===
+{
+    "error": {
+        "code": "UNAUTHENTICATED",
+        "message": "Authentication is required to access this resource.",
+        "request_id": "c5313a5c-5e6a-4d5f-88aa-0199774378fa"
+    }
+}
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<stdin>", line 7, in <module>
+  File "<stdin>", line 3, in loc
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'data'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'data'
+
+=== checkout prepare — no commercial rule configured ===
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+KeyError: 'data'
+
+=== every instant in that body, and its offset ===
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+KeyError: 'data'
+
+=== a body carrying its own amounts changes nothing ===
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+KeyError: 'data'
+
+=== with tax at 5% and a packaging fee of 15 rupees configured ===
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+KeyError: 'data'
+
+=== another customer's checkout id ===
+/tmp/claude-0/-home-user-PioDesk/23ff1c62-ad5c-5754-8c29-bf2eee162ef6/scratchpad/m14-verify.sh: line 107: syntax error near unexpected token `json.load'
+/tmp/claude-0/-home-user-PioDesk/23ff1c62-ad5c-5754-8c29-bf2eee162ef6/scratchpad/m14-verify.sh: line 107: `CID=$(echo "$Q" | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["checkout_id"])')'
+FEE",
+      "amount": {
+        "amount_minor": 1500,
+        "currency": "INR"
+      }
+    }
+  ],
+  "discounts": [],
+  "payable_total": {
+    "amount_minor": 70590,
+    "currency": "INR"
+  },
+  "has_configured_adjustments": true
+}
+
+=== another customer's checkout id ===
+status: 404
+
+=== nothing was bought ===
+orders             0
+order_items        0
+payments           0
+pickup_codes       0
+checkout_quotes    1
+(1 = the table exists, 0 = it does not)
+ACTIVE	3
+EXPIRED	9

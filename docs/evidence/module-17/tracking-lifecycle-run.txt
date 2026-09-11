@@ -1,0 +1,93 @@
+FoodOnTheGo — Module 17 evidence: one order, the whole lifecycle
+Produced by ModuleSeventeenEvidenceTest. Every value was read back from
+the tracking API or the database after the step it describes.
+
+TWO LIMITATIONS, ON THE FACE OF THE FILE:
+  1. The capture is from the deterministic fake gateway. No Razorpay
+     credentials exist for this project.
+  2. The transitions are driven by the TEST_HARNESS actor, because no
+     restaurant UI exists yet. The service, the locking, the tenant
+     check and the audit trail are the real ones.
+
+Customer:   Rahul Sharma
+Restaurant: Highway Spice Kitchen
+Order:      FOTG-260907-QJFGEHHX55
+Order uuid: 0f28ba90-d7e9-4489-8733-4b5cf1c5ddf6
+
+--- after placement ---
+  status:      PLACED  ("Order placed")
+  version:     1
+  is_active:   yes
+  updated_at:  2026-09-07T12:00:00+05:30
+  timeline:    PLACED=CURRENT  ACCEPTED=UPCOMING  COOKING=UPCOMING  READY=UPCOMING  PICKED_UP=UPCOMING
+  credential:  available
+  payment:     CAPTURED
+
+--- after ACCEPTED ---
+  status:      ACCEPTED  ("Restaurant accepted your order")
+  version:     2
+  is_active:   yes
+  updated_at:  2026-09-07T12:02:00+05:30
+  timeline:    PLACED=COMPLETED  ACCEPTED=CURRENT  COOKING=UPCOMING  READY=UPCOMING  PICKED_UP=UPCOMING
+  credential:  available
+  payment:     CAPTURED
+
+--- after COOKING ---
+  status:      COOKING  ("Your food is being prepared")
+  version:     3
+  is_active:   yes
+  updated_at:  2026-09-07T12:04:00+05:30
+  timeline:    PLACED=COMPLETED  ACCEPTED=COMPLETED  COOKING=CURRENT  READY=UPCOMING  PICKED_UP=UPCOMING
+  credential:  available
+  payment:     CAPTURED
+
+--- after READY ---
+  status:      READY  ("Ready for pickup")
+  version:     4
+  is_active:   yes
+  updated_at:  2026-09-07T12:06:00+05:30
+  timeline:    PLACED=COMPLETED  ACCEPTED=COMPLETED  COOKING=COMPLETED  READY=CURRENT  PICKED_UP=UPCOMING
+  credential:  available
+  payment:     CAPTURED
+
+--- after PICKED_UP ---
+  status:      PICKED_UP  ("Picked up")
+  version:     5
+  is_active:   no
+  updated_at:  2026-09-07T12:08:00+05:30
+  timeline:    PLACED=COMPLETED  ACCEPTED=COMPLETED  COOKING=COMPLETED  READY=COMPLETED  PICKED_UP=CURRENT
+  credential:  not available
+  payment:     CAPTURED
+
+--- the history, as stored ---
+  (none)       -> PLACED        2026-09-07T06:30:00+00:00  source=SYSTEM
+  PLACED       -> ACCEPTED      2026-09-07T06:32:00+00:00  source=TEST_HARNESS
+  ACCEPTED     -> COOKING       2026-09-07T06:34:00+00:00  source=TEST_HARNESS
+  COOKING      -> READY         2026-09-07T06:36:00+00:00  source=TEST_HARNESS
+  READY        -> PICKED_UP     2026-09-07T06:38:00+00:00  source=TEST_HARNESS
+
+History rows:       5
+Duplicate rows:     0 (unique index on order_id, to_status)
+Final order_version: 5
+
+--- domain events queued on the Module 16 outbox ---
+  OrderPlaced            dedupe=0f28ba90-d7e9-4489-8733-4b5cf1c5ddf6
+  OrderAccepted          dedupe=0f28ba90-d7e9-4489-8733-4b5cf1c5ddf6:ACCEPTED
+  OrderCookingStarted    dedupe=0f28ba90-d7e9-4489-8733-4b5cf1c5ddf6:COOKING
+  OrderReady             dedupe=0f28ba90-d7e9-4489-8733-4b5cf1c5ddf6:READY
+  OrderPickedUp          dedupe=0f28ba90-d7e9-4489-8733-4b5cf1c5ddf6:PICKED_UP
+
+--- illegal transitions, asked for and refused ---
+  PICKED_UP -> READY  refused
+  PICKED_UP -> COOKING  refused
+  PICKED_UP -> ACCEPTED  refused
+
+History rows after the refusals: 5 (unchanged)
+
+--- security, checked against the running API ---
+  another customer reading this order: HTTP 404
+  order number used as an identifier:  HTTP 404
+  actor_id in the response:            absent
+  reason_code in the response:         absent
+  qr_payload in the response:          absent
+

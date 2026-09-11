@@ -1,0 +1,61 @@
+/* Reset + primitives shared by both shells. Every value here is a token. */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-primary);
+  background: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4 { margin: 0; line-height: var(--line-height-tight); letter-spacing: var(--letter-spacing-tight); }
+h1 { font-size: var(--font-size-h1); font-weight: var(--font-weight-bold); }
+h2 { font-size: var(--font-size-h2); font-weight: var(--font-weight-semibold); }
+h3 { font-size: var(--font-size-h3); font-weight: var(--font-weight-semibold); }
+h4 { font-size: var(--font-size-h4); font-weight: var(--font-weight-semibold); }
+p  { margin: 0; }
+
+/*
+ * A single visible focus style for every interactive element. `:focus-visible`
+ * rather than `:focus` so a mouse click does not leave a ring behind, but keyboard
+ * navigation always shows where it is — removing this is the most common way a
+ * dashboard becomes unusable without a mouse.
+ */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.fotg-visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Keyboard users must be able to jump past the sidebar to the page content. */
+.fotg-skip-link {
+  position: absolute;
+  left: var(--space-4);
+  top: -100px;
+  z-index: var(--z-toast);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-primary-interactive);
+  color: var(--color-text-on-primary);
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  transition: top var(--duration-fast) var(--easing-standard);
+}
+.fotg-skip-link:focus { top: var(--space-4); }

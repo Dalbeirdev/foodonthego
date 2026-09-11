@@ -1,0 +1,261 @@
+FoodOnTheGo — Module 09 verification run
+Restaurant details, facilities, availability and customer preview
+Recorded: 2026-09-05 12:51 UTC
+Host: Linux 6.18.44-fc-v24 · PHP 8.4.19 · MySQL 8.0.46 · Flutter 3.47.2
+Providers: ROUTE_PROVIDER=development · PLACES_PROVIDER=development · OTP_PROVIDER=log
+
+==============================================================================
+1. AUTOMATED TESTS
+==============================================================================
+
+  Tests:    801 passed (3319 assertions)
+  Duration: 27.18s
+
+Laravel Pint: passed
+
+Flutter: 613 tests passed, 0 failed, 0 skipped.
+flutter analyze --fatal-infos: No issues found.
+dart format: clean.
+
+Module 09 test files:
+  backend/tests/Unit/RestaurantHoursTest.php                          19 tests
+  backend/tests/Unit/RestaurantOrderingStateTest.php                   8 tests
+  backend/tests/Feature/Api/Customer/RestaurantDetailApiTest.php      30 tests
+  backend/tests/Feature/RestaurantDetailPerformanceTest.php            3 tests
+  mobile/test/restaurant_detail_models_test.dart                      19 tests
+  mobile/test/restaurant_detail_controller_test.dart                  17 tests
+  mobile/test/restaurant_detail_screen_test.dart                      34 tests
+  (plus 4 added to discovery_screen_test.dart and
+   discovery_filters_screen_test.dart for the card and the round trip)
+
+==============================================================================
+2. INTEGRATION RUN — Flutter network layer against a live Laravel backend
+==============================================================================
+
+   Woah! You appear to be trying to run flutter as root.
+   We strongly recommend running the flutter tool without superuser privileges.
+  /
+📎
+Running build hooks...Running build hooks...FoodOnTheGo — Module 09 integration run
+Backend: http://127.0.0.1:8000
+
+  PASS  Module 07 still finds the fixtures this module needs
+  PASS  the detail is the restaurant that was tapped
+  PASS  the route figures are the ones the card showed
+  PASS  the profile the list did not carry is here
+  PASS  a photograph carries the operator caption where there is one
+  PASS  no rating is invented where there is no reviews module
+  PASS  an open restaurant may be ordered from
+  PASS  a paused kitchen is open and not orderable
+  PASS  a closed restaurant says when it opens again
+  PASS  an overnight kitchen is described as one
+  PASS  a split service is two windows and a shut day
+  PASS  the times are the restaurants own, not the servers
+  PASS  missing metadata is omitted, never invented
+  PASS  a suspended restaurant cannot be opened by its uuid
+  PASS  an unverified restaurant cannot be opened by its uuid
+  PASS  a restaurant outside the corridor says which problem it is
+  PASS  an unknown uuid is not found
+  PASS  a refusal says nothing about the business
+  PASS  the response carries no private restaurant data
+  PASS  a customer has no way to change a restaurant
+  PASS  opening a restaurant reuses the discovery search
+  PASS  a pause after discovery is reflected on the page
+  PASS  a suspension after discovery withdraws the page
+  PASS  Rahul cannot open a restaurant on Ananya's trip
+  PASS  an unauthenticated call reaches no restaurant
+
+  ── the restaurant this run opened ──
+     name          : [TEST] Highway Spice Kitchen
+     cuisines      : North Indian, Vegetarian
+     facilities    : Parking, Restroom, Seating
+     price level   : 2
+     rating        : none
+     photographs   : 3
+     ordering      : OPEN_ACCEPTING
+     timezone      : Asia/Kolkata
+     distance ahead: 66304 m
+     detour        : 1 s
+     off route     : 900 m
+     route cached  : true
+
+  NOTE  Rating = NOT APPLICABLE — no restaurant has one, because there
+        is no reviews module. The field is null and the client shows
+        "New" rather than a score nobody earned.
+  NOTE  Detour magnitude = NOT MEANINGFUL for this run — the configured
+        provider models the road network as a straight line. What this
+        run does establish is that the page shows the same figure the
+        list did, and reached it without calling a provider again.
+
+25 passed, 0 failed
+
+==============================================================================
+3. REGRESSION — Modules 01-08 integration runs
+==============================================================================
+
+  Modules 01-03 (foundation, shell, auth)              13 passed, 0 failed
+  Module 04 (profile, addresses)                       24 passed, 0 failed
+  Module 05 (trip planner, places)                     31 passed, 0 failed
+  Module 06 (routes, maps)                             21 passed, 0 failed
+  Module 07 (route discovery)                          22 passed, 0 failed
+  Module 08 (search, filters, sorting)                 28 passed, 0 failed
+
+Module 08's run expects eight eligible restaurants rather than five: Module
+09 added three fixtures to the same road (an overnight kitchen, a split
+service, and one with no optional metadata). Two assertions were updated to
+match — a price filter that now returns two fixtures, and a facet check that
+named a cuisine only the new fixtures serve. Neither is a behaviour change.
+
+==============================================================================
+4. PERFORMANCE — measured, not estimated
+==============================================================================
+
+route              : bde6ef13-fdc6-46fc-b657-45ac049d2c50
+restaurants        : 11
+
+cold discovery     :   53.86 ms   9 queries  8 eligible
+
+detail [TEST] Highway Spice Kitchen    :   20.59 ms  14 queries
+detail [TEST] Paused Highway Grill     :   15.14 ms  14 queries
+detail [TEST] Night Owl Dhaba          :   19.44 ms  14 queries
+detail [TEST] Midday Break Kitchen     :   19.76 ms  14 queries
+detail [TEST] Rajasthan Highway Bites  :   15.15 ms  14 queries
+detail [TEST] Bare Bones Stop          :   14.82 ms  14 queries
+
+--- does the query count grow with the relations? ---
+  3 photographs, 2 cuisines, 3 facilities : 14 queries   15.97 ms
+  23 photographs, 12 cuisines, 13 facilities: 14 queries   17.49 ms
+  media in the payload                      : 23
+
+  same count either way: YES — no N+1
+
+--- the route half, across ten opens ---
+  route context served from cache: 10 of 10
+
+Read this way:
+
+  * 14 queries per open, and the number does not move. Twenty more
+    photographs, ten more cuisines and ten more facilities produce the same
+    14: the relations are eager-loaded, not looped over. Fifteen more
+    restaurants on the route produce the same 14 as well.
+  * Nine of the fourteen are the discovery half — validating the route and
+    rebuilding the cached selection against live rows. Five are the profile:
+    one restaurant row and four eager loads. All bounded, none per-relation.
+  * The route context came from cache on 10 of 10 opens. Opening a
+    restaurant calls no routing provider, and it cannot: the only thing in
+    the application that can reach one is already cached before the detail
+    service is asked.
+  * The eligibility and availability re-check on every open is deliberate.
+    It is why a restaurant suspended thirty seconds ago cannot ride a warm
+    cache onto a customer's screen.
+
+The 20 extra photographs are inserted by the measurement script and deleted
+before it returns.
+
+==============================================================================
+5. LIVE VIEW — the running app, driven through its own semantics tree
+==============================================================================
+
+Release web build of the Flutter customer app on :5173, against the same
+Laravel backend on :8000, driven with Playwright/Chromium. Every state was
+reached by clicking through the real app as a signed-in customer who planned
+Green Park -> Jaipur airport and calculated a route.
+
+Driving the live app at http://localhost:5173/ as +919999900401
+  ok    detail: "Highway Spice Kitchen"
+  ok    detail: "North Indian"
+  captured state-01-restaurant-detail
+  ok    route-card: "On your route"
+  ok    route-card: "km ahead"
+  ok    route-card: "off your route"
+  captured state-02-route-summary
+  ok    availability: "Open"
+  ok    availability: "Accepting orders"
+  ok    cta: "View menu"
+  captured state-03-open-accepting
+  ok    gallery: "The dining room, looking towards the highway"
+  captured state-04-gallery
+  ok    rating: "New"
+  ok    rating: no "4.5"
+  ok    rating: no "0.0"
+  captured state-05-no-rating
+  ok    sections: "About"
+  ok    sections: "Facilities"
+  ok    sections: "Parking"
+  captured state-06-about-and-facilities
+  ok    hours: "Opening hours"
+  ok    hours: "Today"
+  ok    hours: "View all hours"
+  captured state-07-hours-collapsed
+  ok    hours-expanded: "Wednesday"
+  ok    hours-expanded: "Times shown for Asia/Kolkata"
+  captured state-08-hours-expanded
+  ok    location: "Location"
+  ok    location: "View on your route"
+  captured state-09-location
+  ok    back: "Highway Spice Kitchen"
+  ok    back: "of 8 stops"
+  captured state-10-back-to-discovery-search-kept
+  ok    paused: "Not accepting orders right now"
+  ok    paused: "Not taking orders right now"
+  ok    paused: "Browse the menu"
+  ok    paused: no "View menu"
+  captured state-11-open-paused
+  ok    closed: "Closed"
+  ok    closed: "Opens"
+  captured state-12-closed-with-next-opening
+  ok    overnight: "overnight"
+  captured state-13-overnight-hours
+  ok    split-hours: "Monday"
+  ok    split-hours: "Closed"
+  captured state-14-split-service-and-closed-day
+  ok    bare: "No photographs yet"
+  ok    bare: no "Facilities"
+  ok    bare: no "Inexpensive"
+  captured state-15-nothing-optional
+  captured state-16-nothing-optional-lower
+  ok    withdrawn: "This restaurant is no longer available"
+  captured state-17-withdrawn
+  ok    outside: "Not on this journey"
+  captured state-18-outside-route
+  ok    failed: "We couldn't load this restaurant"
+  captured state-19-load-failed
+  ok    offline-before: "On your route"
+  captured state-20-offline-cached
+  captured state-21-loading-skeleton
+  ok    detail-320: "On your route"
+  captured state-22-320-detail
+file:///tmp/claude-0/-home-user-PioDesk/23ff1c62-ad5c-5754-8c29-bf2eee162ef6/scratchpad/m05-live.mjs:15
+  if (!m.length) throw new Error('no OTP written since offset');
+                       ^
+Node.js v22.22.2
+
+States 23-25 were re-run after the OTP per-IP budget was exhausted mid-run
+(a known limit of this environment, not a product behaviour):
+
+Driving the live app at http://localhost:5173/ as +919999900401
+  ok    detail-23-360: "On your route"
+  captured state-23-360-detail
+  ok    detail-24-430: "On your route"
+  captured state-24-430-detail
+  ok    detail-25-dark: "On your route"
+  captured state-25-dark-detail
+
+No problems found.
+
+Screenshots: docs/evidence/module-09/state-01..25-*.png
+
+==============================================================================
+6. RUNTIME COVERAGE
+==============================================================================
+
+  Web (Chromium, release build)   PASS — 25 states, no console errors
+  Android                          PENDING — no Android SDK in this
+                                   environment (KI-001); dl.google.com is
+                                   blocked by the egress policy.
+  iOS                              PENDING — no macOS host (KI-002).
+  Live Google map render           PENDING — no Maps SDK key (KI-011).
+
+Responsive widths verified live at 320, 360 and 430 dp, and in widget tests
+at 320, 360, 375, 390, 412 and 430 dp with no overflow. Text scaling verified
+at 1.6x, including that the menu button is still reachable.

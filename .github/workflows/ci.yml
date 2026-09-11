@@ -1,0 +1,835 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Every job carries an explicit timeout-minutes.
+  #
+  # Without one a job inherits GitHub's default of 360 minutes. That is not a
+  # safety net: a wedged device job would sit for six hours before anything
+  # noticed, on a macOS runner billed at ten times the Linux rate, and the only
+  # signal would be a check that never goes green.
+  #
+  # The ceilings are roughly double the slowest run actually observed, so a slow
+  # day still passes and a hang dies while somebody is still looking at it.
+  backend:
+    name: Backend — Laravel 12
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: foodonthego_testing
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, redis, mbstring, intl, zip, bcmath
+          coverage: none
+
+      # Before composer, not after. `composer install` runs
+      # `artisan package:discover` in its post-autoload-dump hook, and with no
+      # .env present Laravel reads APP_ENV as "production" — at which point
+      # ProductionConfigGuard correctly refuses to boot an app configured with a
+      # log OTP provider and no APP_KEY. The guard is right; the order was wrong.
+      - name: Write the environment file
+        run: cp .env.example .env
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      # Needs vendor/, so it cannot move up with the file itself.
+      - name: Generate the application key
+        run: php artisan key:generate
+
+      - name: Code style (Pint)
+        run: vendor/bin/pint --test
+
+      # Static analysis (KI-003, closed). Level 3 and clean; the ladder to
+      # level 6 and what stands between is in phpstan.neon and
+      # docs/13-known-issues.md.
+      #
+      # Runs BEFORE migrate, and can: Larastan reads the schema from the
+      # migration files rather than from a database, so this step needs no
+      # MySQL and fails fast when it is going to fail.
+      #
+      # --no-progress because a progress bar in a log file is a log file full
+      # of a progress bar. The result cache is not used here -- a fresh
+      # checkout has none, and a stale one is how a run reports the previous
+      # commit's findings, which cost an hour of confusion during adoption.
+      - name: Static analysis (PHPStan + Larastan)
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=2G
+
+      - name: Migrate
+        run: php artisan migrate --force
+        env:
+          DB_HOST: 127.0.0.1
+          DB_DATABASE: foodonthego_testing
+          DB_USERNAME: root
+          DB_PASSWORD: root
+
+      - name: Test
+        run: php artisan test
+        env:
+          DB_HOST: 127.0.0.1
+          DB_DATABASE: foodonthego_testing
+          DB_USERNAME: root
+          DB_PASSWORD: root
+          REDIS_HOST: 127.0.0.1
+
+      - name: Audit dependencies
+        run: composer audit --abandoned=ignore
+
+  web:
+    name: Web — React + TypeScript
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build restaurant dashboard
+        run: npm run build --workspace @fotg/restaurant
+
+      - name: Build admin panel
+        run: npm run build --workspace @fotg/admin
+
+      # Fails on high or critical only. Moderate advisories are reported, not fatal.
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+  mobile:
+    name: Mobile — Flutter
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos
+
+      - name: Test
+        run: flutter test
+
+      # Requires the Android SDK. Blocked in the Module 01 build environment
+      # (docs/13-known-issues.md KI-001); expected to pass on a standard runner.
+      - name: Build Android (debug)
+        run: flutter build apk --debug
+
+  # ---------------------------------------------------------------------------
+  # The review build (Module 14).
+  #
+  # What a client installs on a handset to look at the work. Built here rather
+  # than on a workstation because nothing about it should depend on one person's
+  # machine: the version, the commit and the toolchain are all recorded in a
+  # manifest that ships beside the binaries.
+  #
+  # SIGNING, PLAINLY. Both artefacts are signed with Android's *debug* key,
+  # because android/app/build.gradle.kts still carries Flutter's placeholder
+  # release config and no upload key exists for this project. That is fine for
+  # sideloading onto a review device and is NOT fine for Google Play: the .aab
+  # here cannot be uploaded to a Play track, and is included so the bundle
+  # target is known to build rather than as something publishable. A real
+  # release needs a keystore held by the client, which is theirs to create and
+  # not ours to invent.
+  #
+  # The APK is built where the app tests already pass, so a green run of this
+  # job is a statement about the same commit the tests ran on.
+  # ---------------------------------------------------------------------------
+
+  review-build:
+    name: Mobile — Android review build
+    timeout-minutes: 40
+    runs-on: ubuntu-latest
+    needs: mobile
+
+    # The same condition as the device jobs, and for a reason that cost a red
+    # build to learn. Without it this job ran on the `push` event AND the
+    # `pull_request` event for the same commit, producing two 82 MB artefacts
+    # with the *same name* finalising at the same moment — which the artifact
+    # service answered with "Failed to FinalizeArtifact: (403) Forbidden". The
+    # binaries had both uploaded fine; it was the collision that failed.
+    #
+    # It is also simply waste: two release builds and two bundles per commit,
+    # for one artefact anybody wants.
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Install app dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      # Where the review build talks to. Set the FOTG_REVIEW_API_BASE_URL
+      # repository variable once a review backend is deployed; until then the
+      # build carries the emulator's alias for a developer's own machine, which
+      # is honest about the fact that there is nowhere else for it to point.
+      # Whichever it used is written into the manifest below rather than left
+      # for somebody to guess from a screenshot.
+      - name: Resolve the review API address
+        id: api
+        run: |
+          url='${{ vars.FOTG_REVIEW_API_BASE_URL }}'
+          if [ -z "$url" ]; then
+            url='http://10.0.2.2:8000'
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deployed=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      # FOTG_ENV=staging, deliberately, and neither of the other two.
+      #
+      # Not production: nothing here is signed with a production key, there are
+      # no production credentials, and calling it production would be the one
+      # claim this build must not make. Not development either — the profile
+      # screen would say so, and the label a reviewer reads should match what
+      # they were handed.
+      #
+      # Staging keeps the "arrives in a later module" notices visible, which is
+      # what a reviewer of a partly built product needs to see rather than a
+      # screen that silently does nothing. It also leaves the demo personas in
+      # the binary; that is a property of a non-production build and is stated
+      # in the manifest rather than left to be discovered.
+      - name: Build the review APK
+        working-directory: mobile
+        run: |
+          flutter build apk --release \
+            --dart-define=FOTG_ENV=staging \
+            --dart-define=FOTG_API_BASE_URL='${{ steps.api.outputs.url }}'
+
+      - name: Build the Android App Bundle
+        working-directory: mobile
+        run: |
+          flutter build appbundle --release \
+            --dart-define=FOTG_ENV=staging \
+            --dart-define=FOTG_API_BASE_URL='${{ steps.api.outputs.url }}'
+
+      - name: Record what was built
+        working-directory: mobile
+        run: |
+          mkdir -p build/review
+          cp build/app/outputs/flutter-apk/app-release.apk build/review/
+          cp build/app/outputs/bundle/release/app-release.aab build/review/
+
+          {
+            echo "FoodOnTheGo — Android review build"
+            echo
+            echo "Version:          $(grep '^version:' pubspec.yaml | cut -d' ' -f2)"
+            echo "Application id:   com.foodonthego.foodonthego"
+            # The branch head, not github.sha. On a pull_request event that is
+            # the ephemeral merge commit and github.ref_name is "1/merge" —
+            # neither of which a reviewer can check out, which is the one thing
+            # a build manifest is for.
+            echo "Commit:           ${{ github.event.pull_request.head.sha || github.sha }}"
+            echo "Branch:           ${{ github.event.pull_request.head.ref || github.ref_name }}"
+            echo "Workflow run:     ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "Built at (UTC):   $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "Flutter:          $(flutter --version | head -n 1)"
+            echo
+            echo "Environment:      staging (FOTG_ENV=staging) — NOT a production build"
+            echo "API base URL:     ${{ steps.api.outputs.url }}"
+            echo "Backend deployed: ${{ steps.api.outputs.deployed }}"
+            echo
+            echo "                  A staging binary contains the demo personas and shows"
+            echo "                  the \"arrives in a later module\" notices. Both are"
+            echo "                  compiled out of a production build."
+            echo
+            echo "Signing:          Android DEBUG key (Flutter placeholder release config)."
+            echo "                  Sideload only. The .aab CANNOT be uploaded to Google Play"
+            echo "                  and the .apk is not a production release. A real release"
+            echo "                  needs an upload keystore held by the client."
+            echo
+            echo "SHA-256:"
+            (cd build/review && sha256sum app-release.apk app-release.aab)
+          } > build/review/BUILD-INFO.txt
+
+          cat build/review/BUILD-INFO.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-review-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: mobile/build/review/
+          # A day on a pull request, where the artefact exists so the emulator
+          # job can install it; a month on main, where it is the thing a client
+          # is handed. Thirty days of every intermediate commit is storage
+          # nobody asked for.
+          retention-days: ${{ github.event_name == 'pull_request' && 1 || 30 }}
+          if-no-files-found: error
+
+  ios:
+    name: Mobile — iOS build
+    timeout-minutes: 30
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # No code signing in CI: this validates that the iOS target compiles.
+      # Simulator UI testing is tracked separately (KI-002).
+      #
+      # RETRIED, AND ONLY BECAUSE OF WHAT SITS INSIDE IT. `flutter build ios`
+      # runs `pod install`, which fetches the CocoaPods spec repo over the
+      # network. On 2026-09-10 that step failed with
+      #
+      #     fatal: unable to access 'https://cdn.cocoapods.org/':
+      #     Could not resolve host: cdn.cocoapods.org
+      #
+      # on a commit that changed two markdown files and nothing else, minutes
+      # after the identical build passed. DNS on the runner, not the app.
+      #
+      # THIS DOES NOT PAPER OVER A BROKEN BUILD. A compile error is
+      # deterministic and fails all three attempts just as it failed one; what
+      # a retry can rescue is a name that did not resolve. The attempts are
+      # bounded and each one announces itself, so a job that needed two tries
+      # says so in its log rather than looking clean.
+      #
+      # If this ever passes only on the third attempt as a matter of routine,
+      # that is a finding about the runner and not a reason to raise the bound.
+      - name: Build iOS (no codesign)
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::flutter build ios — attempt $attempt of 3"
+            if flutter build ios --no-codesign --debug; then
+              echo "::endgroup::"
+              echo "iOS build succeeded on attempt $attempt"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "attempt $attempt failed"
+            if [ "$attempt" -lt 3 ]; then
+              echo "retrying in 15s — see the note in ci.yml for why this is retried"
+              sleep 15
+            fi
+          done
+          echo "iOS build failed three times; this is not a transient name-resolution failure."
+          exit 1
+
+  # ---------------------------------------------------------------------------
+  # The two on-device runs.
+  #
+  # These are what close the Android and iOS runtime rows (docs/13-known-issues.md
+  # KI-001 and KI-002, docs/11-requirements-traceability.md M11-050 and M11-051).
+  # They build the shipping app, install it on an emulator or simulator, tap the
+  # real controls and check the row a real Laravel server wrote to a real MySQL
+  # database. Nothing in them is stubbed.
+  #
+  # They run only on pull requests and on main. A macOS runner is the most
+  # expensive class GitHub bills, an emulator boot is minutes rather than
+  # seconds, and neither is worth spending on every push to a work branch — the
+  # widget tests and the smoke drivers already run there.
+  # ---------------------------------------------------------------------------
+
+  android-device:
+    name: Mobile — Android emulator
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    # So the review artefact exists to install. The point is to smoke-test the
+    # exact file a client is handed, not a rebuild of it that happens to share
+    # a commit.
+    needs: review-build
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: foodonthego_testing
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, redis, mbstring, intl, zip, bcmath
+          coverage: none
+
+      # See the backend job: the .env has to exist before composer runs
+      # package:discover, or the production guard stops the install.
+      - name: Write the environment file
+        run: cp backend/.env.example backend/.env
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Install app dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Start the backend and issue a session
+        id: backend
+        run: echo "token=$(scripts/ci-backend-up.sh 9999900921)" >> "$GITHUB_OUTPUT"
+
+      # KVM is what makes an x86_64 image usable. Without it the emulator either
+      # refuses to start or runs too slowly to drive a run through — which is
+      # exactly why this cannot be done in a container that lacks /dev/kvm.
+      - name: Download the review build
+        uses: actions/download-artifact@v4
+        with:
+          name: android-review-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: review-build
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run the on-device tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          # ONE line, deliberately. This action runs its `script` a line at a
+          # time, each in its own `sh -c`, so a block scalar does not behave
+          # like a shell script: a `cd` on its own line is discarded with the
+          # shell that ran it, and a trailing backslash is not a continuation
+          # but a literal argument. Written as a block, the invocation reached
+          # flutter as two paths — `integration_test/` and `\` — which is a
+          # file inside the integration test directory and a file outside it,
+          # and the tool refused: "Integration tests and unit tests cannot be
+          # run in a single invocation." Reproduced with
+          # `sh -c 'flutter test integration_test/ \'`.
+          #
+          # `>-` folds this into a single line, so `cd` and the flags survive.
+          #
+          # 10.0.2.2 is the emulator's alias for the host running the server,
+          # and emulator-5554 is the device this action always boots — named
+          # explicitly because a runner with the Linux desktop toolchain
+          # present offers more than one target.
+          #
+          # The whole directory, like the iOS job, rather than a list of files
+          # to keep in step: a module that adds a device test and forgets to
+          # add it here would ship unverified, and the failure mode of that is
+          # silence.
+          #
+          # The log path is unquoted on purpose. This action does not hand the
+          # script to a shell as an argv element; it builds the command string
+          # `sh -c \"<script>\"` and lets the exec layer re-parse it, so a bare
+          # double quote inside the script can end the argument early and the
+          # rest arrives as positional parameters. The runner workspace has no
+          # spaces in it, so the quotes bought nothing and risked that.
+          script: >-
+            cd mobile &&
+            flutter test integration_test/
+            -d emulator-5554
+            --dart-define=FOTG_API_BASE_URL=http://10.0.2.2:8000
+            --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}'
+            > $GITHUB_WORKSPACE/device-tests.log 2>&1;
+            code=$?;
+            bash $GITHUB_WORKSPACE/scripts/ci-device-report.sh
+            $GITHUB_WORKSPACE/device-tests.log $code Android;
+            exit $code
+
+      # The review artefact itself, installed and launched.
+      #
+      # "An APK was built" and "an APK a client can install runs" are different
+      # claims, and only the second is worth reporting. This downloads the file
+      # that is handed over, puts it on the emulator, starts it, and checks it
+      # is still alive with nothing of its own in the crash buffer.
+      #
+      # The crash check greps for this package rather than asserting the buffer
+      # is empty: a headless emulator crashes something of Google's often
+      # enough, and a check that fails on that is a check somebody reruns until
+      # it passes.
+      #
+      # The uninstall is not tidiness. The integration tests above installed a
+      # debug build signed with *this* runner's debug keystore; the review APK
+      # was signed with the review-build runner's. Same application id, different
+      # signature, so `install -r` would be refused.
+      #
+      # ONE line, for the reason recorded on the step above: this action runs
+      # `script` a line at a time, each in its own `sh -c`.
+      - name: Install and launch the review APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: >-
+            adb uninstall com.foodonthego.foodonthego || true &&
+            adb install review-build/app-release.apk &&
+            adb logcat -b all -c &&
+            adb shell am start -n com.foodonthego.foodonthego/.MainActivity &&
+            sleep 20 &&
+            adb shell pidof com.foodonthego.foodonthego &&
+            adb shell dumpsys package com.foodonthego.foodonthego | grep -E 'versionName|versionCode' &&
+            adb logcat -d -b crash &&
+            ! adb logcat -d -b crash | grep -q com.foodonthego.foodonthego
+
+      - name: Backend log, if anything failed
+        if: ${{ failure() || cancelled() }}
+        run: tail -n 40 backend/storage/logs/serve.log backend/storage/logs/laravel.log 2>/dev/null || true
+
+      # WHAT ACTUALLY FAILED, and last on purpose.
+      #
+      # The capture is a redirect and an explicit exit code, not `tee` with
+      # `set -o pipefail`. The Android action runs its script through `sh -c`,
+      # which is dash on these runners, and dash has no pipefail — the first
+      # version of this died in 98 seconds with an illegal option before an
+      # emulator had even booted. The comment above that script warns about
+      # this exact class of mistake and I made it anyway.
+      #
+      # Three device runs were spent not knowing. The simulator log and the
+      # server log are both useful and both long, and between them they pushed
+      # the one line that matters — the assertion — past the end of every log
+      # tail available. Diagnostics that bury the failure are worse than none,
+      # because they look like diligence.
+      #
+      # This runs after them, so the failure is the last thing in the log and
+      # the first thing anybody reads.
+      # The first version of this step told me nothing, and worse, it could not
+      # have. `grep ... | tail -n 60 || echo 'no markers'` binds the `||` to the
+      # pipeline, and a pipeline's status is the status of its last command —
+      # `tail`, which always succeeds. So the fallback was unreachable: a log
+      # that did not exist, a log that was empty, and a log whose failure was
+      # not a Dart assertion all printed exactly the same thing, which was
+      # nothing at all. A control that cannot fail is not a control.
+      #
+      # So: the file's existence and size are stated before anything is read
+      # from it, the grep result is captured into a variable so the empty case
+      # is distinguishable from the missing-file case, and the tail of the run
+      # is printed unconditionally — because a failure that is not an assertion
+      # still has a last line, and that line is the one worth having.
+      - name: What actually failed
+        if: ${{ failure() || cancelled() }}
+        run: |
+          log="$GITHUB_WORKSPACE/device-tests.log"
+          if [ ! -f "$log" ]; then
+            echo "NO LOG: $log was never written. The test step died before it ran."
+            ls -la "$GITHUB_WORKSPACE" | head -n 40
+            exit 0
+          fi
+          echo "device-tests.log: $(wc -l < "$log") lines, $(wc -c < "$log") bytes"
+          echo '================ failure markers ================'
+          hits="$(grep -nE '\[E\]|Some tests failed|Expected:|Actual:|Which:|Timed out waiting for|On screen instead:|Test device exited|Lost connection to device|EXCEPTION CAUGHT|Failed to load' "$log" || true)"
+          if [ -n "$hits" ]; then
+            printf '%s\n' "$hits" | tail -n 60
+          else
+            echo '(nothing matched — this failure is not a Dart assertion)'
+          fi
+          echo '================ last 100 lines of the run ================'
+          tail -n 100 "$log"
+
+      # The log itself, kept whatever happened. Reading a job log gives me its
+      # tail and nothing else; an artifact gives me the whole file.
+      - name: Keep the device test log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-tests-log-${{ github.job }}
+          path: device-tests.log
+          if-no-files-found: warn
+          retention-days: 7
+
+
+  ios-device:
+    name: Mobile — iOS simulator
+    timeout-minutes: 60
+    runs-on: macos-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # macOS runners have no MySQL or Redis service containers, so both are
+      # installed rather than declared. Homebrew ships them.
+      - name: Install MySQL and Redis
+        run: |
+          brew install mysql@8.0 redis
+          brew services start mysql@8.0
+          brew services start redis
+          echo "$(brew --prefix mysql@8.0)/bin" >> "$GITHUB_PATH"
+
+      - name: Create the database
+        run: |
+          for _ in $(seq 1 30); do
+            if "$(brew --prefix mysql@8.0)/bin/mysqladmin" ping -h 127.0.0.1 --silent; then break; fi
+            sleep 2
+          done
+          "$(brew --prefix mysql@8.0)/bin/mysql" -h 127.0.0.1 -uroot \
+            -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; CREATE DATABASE foodonthego_testing;"
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, redis, mbstring, intl, zip, bcmath
+          coverage: none
+
+      # See the backend job: the .env has to exist before composer runs
+      # package:discover, or the production guard stops the install.
+      - name: Write the environment file
+        run: cp backend/.env.example backend/.env
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Install app dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Start the backend and issue a session
+        id: backend
+        run: echo "token=$(scripts/ci-backend-up.sh 9999900922)" >> "$GITHUB_OUTPUT"
+
+      # The first available iPhone, by udid. Deliberately not a device name:
+      # which iPhone models exist depends on the runner's Xcode version, and a
+      # hard-coded "iPhone 15" starts failing the month that changes.
+      - name: Boot a simulator
+        run: |
+          DEVICE=$(xcrun simctl list devices available \
+            | grep 'iPhone' | head -1 \
+            | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          test -n "$DEVICE" || { echo 'No iPhone simulator available'; exit 1; }
+          echo "SIMULATOR=$DEVICE" >> "$GITHUB_ENV"
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+
+      # A simulator shares the host's network stack, so the server is simply
+      # on localhost. No signing: this never leaves the runner.
+      # KI-020: twice now this step has printed `Xcode build done`, then nothing
+      # whatsoever until the job's own 60-minute timeout cancelled it — 50 minutes
+      # of silence on 8253730, 53 on fd2e136, with `dartvm` still alive in the
+      # orphan list both times. The app builds and launches; the test harness
+      # never hears from it.
+      #
+      # Two things change here, neither of which is a retry. A step timeout well
+      # under the job's, so the stall is bounded and, being a step failure rather
+      # than a job cancellation, one that lets the diagnostic step below run at
+      # all. And --verbose, because the defining feature of this hang is that it
+      # produces no evidence: the daemon handshake is precisely what is missing
+      # from the log, so the next occurrence should show where it stops.
+      # `set +e` is load-bearing, and its absence is why four device failures in
+      # a row said nothing. GitHub runs a `run:` block as `/bin/bash -e {0}`.
+      # Under `-e`, `flutter test ... > log 2>&1; code=$?` does not reach the
+      # assignment: the shell dies the instant flutter exits non-zero, so
+      # `code=$?`, the `cat` and the `exit` are all dead code on exactly the
+      # path they exist to serve. The step reported the right exit status — set
+      # -e propagates it — which is what made it look like it was working. On
+      # every failing run since this was written, the captured output was
+      # written to disk and then never printed.
+      # RAISED FROM 30 AFTER A RUN FINISHED IN 29m59s.
+      #
+      # Not padding. `flutter test integration_test/` builds once PER FILE, and
+      # one run's log shows three consecutive `Xcode build done` lines at 69.8s,
+      # 75.8s and 97.2s. Six device-test files therefore spend roughly eight
+      # minutes on Xcode before an assertion runs, and the suite grows a file
+      # per module that adds a device test.
+      #
+      # Run 34609493236 passed all 34 tests with ONE SECOND to spare. A green
+      # that close is not evidence the budget is adequate; it is evidence it is
+      # exhausted, and the next red would have been variance rather than a
+      # defect — while looking exactly like KI-020's stall.
+      #
+      # The job's own timeout is 60 minutes, so 45 leaves headroom for setup
+      # either side. KI-020's bound is not weakened by this: it distinguishes a
+      # stall by SIGNATURE — silence after `Xcode build done`, no test names —
+      # not by duration, and the report and simulator-log steps still fire.
+      - name: Run the on-device tests
+        timeout-minutes: 45
+        working-directory: mobile
+        run: |
+          set +e
+          flutter test integration_test/ -d "$SIMULATOR" \
+            --dart-define=FOTG_API_BASE_URL=http://127.0.0.1:8000 \
+            --dart-define=FOTG_TEST_TOKEN='${{ steps.backend.outputs.token }}' \
+            > "$GITHUB_WORKSPACE/device-tests.log" 2>&1
+          code=$?
+          set -e
+          bash "$GITHUB_WORKSPACE/scripts/ci-device-report.sh" \
+            "$GITHUB_WORKSPACE/device-tests.log" "$code" iOS
+          exit $code
+
+      # What the simulator itself thought was happening. Only useful when the
+      # step above did not finish normally, which is why it is guarded.
+      - name: Simulator log, if anything went wrong
+        if: ${{ failure() || cancelled() }}
+        run: |
+          xcrun simctl spawn "$SIMULATOR" log show --last 10m \
+            --predicate 'processImagePath CONTAINS "Runner"' 2>/dev/null | tail -n 60 || true
+
+      - name: Backend log, if anything failed
+        if: ${{ failure() || cancelled() }}
+        run: tail -n 40 backend/storage/logs/serve.log backend/storage/logs/laravel.log 2>/dev/null || true
+
+      # WHAT ACTUALLY FAILED, and last on purpose.
+      #
+      # The capture is a redirect and an explicit exit code, not `tee` with
+      # `set -o pipefail`. The Android action runs its script through `sh -c`,
+      # which is dash on these runners, and dash has no pipefail — the first
+      # version of this died in 98 seconds with an illegal option before an
+      # emulator had even booted. The comment above that script warns about
+      # this exact class of mistake and I made it anyway.
+      #
+      # Three device runs were spent not knowing. The simulator log and the
+      # server log are both useful and both long, and between them they pushed
+      # the one line that matters — the assertion — past the end of every log
+      # tail available. Diagnostics that bury the failure are worse than none,
+      # because they look like diligence.
+      #
+      # This runs after them, so the failure is the last thing in the log and
+      # the first thing anybody reads.
+      # The first version of this step told me nothing, and worse, it could not
+      # have. `grep ... | tail -n 60 || echo 'no markers'` binds the `||` to the
+      # pipeline, and a pipeline's status is the status of its last command —
+      # `tail`, which always succeeds. So the fallback was unreachable: a log
+      # that did not exist, a log that was empty, and a log whose failure was
+      # not a Dart assertion all printed exactly the same thing, which was
+      # nothing at all. A control that cannot fail is not a control.
+      #
+      # So: the file's existence and size are stated before anything is read
+      # from it, the grep result is captured into a variable so the empty case
+      # is distinguishable from the missing-file case, and the tail of the run
+      # is printed unconditionally — because a failure that is not an assertion
+      # still has a last line, and that line is the one worth having.
+      - name: What actually failed
+        if: ${{ failure() || cancelled() }}
+        run: |
+          log="$GITHUB_WORKSPACE/device-tests.log"
+          if [ ! -f "$log" ]; then
+            echo "NO LOG: $log was never written. The test step died before it ran."
+            ls -la "$GITHUB_WORKSPACE" | head -n 40
+            exit 0
+          fi
+          echo "device-tests.log: $(wc -l < "$log") lines, $(wc -c < "$log") bytes"
+          echo '================ failure markers ================'
+          hits="$(grep -nE '\[E\]|Some tests failed|Expected:|Actual:|Which:|Timed out waiting for|On screen instead:|Test device exited|Lost connection to device|EXCEPTION CAUGHT|Failed to load' "$log" || true)"
+          if [ -n "$hits" ]; then
+            printf '%s\n' "$hits" | tail -n 60
+          else
+            echo '(nothing matched — this failure is not a Dart assertion)'
+          fi
+          echo '================ last 100 lines of the run ================'
+          tail -n 100 "$log"
+
+      # The log itself, kept whatever happened. Reading a job log gives me its
+      # tail and nothing else; an artifact gives me the whole file.
+      - name: Keep the device test log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-tests-log-${{ github.job }}
+          path: device-tests.log
+          if-no-files-found: warn
+          retention-days: 7
+
