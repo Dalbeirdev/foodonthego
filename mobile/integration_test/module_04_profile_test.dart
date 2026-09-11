@@ -99,9 +99,24 @@ void main() {
     final Finder save = find.widgetWithText(FilledButton, 'Save changes');
     await scrollTo(tester, save);
     await tapAt(tester, save);
-    await settle(tester);
 
+    // Straight to waitFor, with NO settle in between, and that is the whole
+    // point. `settle` pumps for six REAL seconds; the confirmation is a
+    // SnackBar, which lives for four. Settling first watches it appear and
+    // expire, then waits a further minute for something that has already gone.
+    // waitFor polls every 150ms and returns the moment it matches, so it
+    // catches the snackbar while it is up.
+    //
+    // A widget test cannot find this: pumpAndSettle stops once no frames are
+    // scheduled, and a snackbar's dismissal is a timer that schedules none, so
+    // test/profile_edit_test.dart observes it still on screen. Only real time
+    // kills it, which is what a device runs on.
     await waitFor(tester, find.text('Profile updated'));
+
+    // The form closes itself on success. Asserted, because "the snackbar
+    // appeared" and "the customer is back where they started" are two claims
+    // and only one of them was being made.
+    await waitFor(tester, find.text('Personal information'));
 
     // And the server still says what it said before, which is the assertion
     // that makes "changes nothing" a checked claim rather than an intention.

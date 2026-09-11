@@ -16,6 +16,15 @@
 // in a test harness — which is the difference between a guard that is kept up
 // to date and one that is quietly deleted the first time it is inconvenient.
 //
+// WHAT IT DOES NOT COVER, STATED SO THE TITLE IS NOT READ AS MORE THAN IT IS.
+// One navigation in the app composes its path at run time rather than from a
+// constant: discovery_screen.dart pushes '${state.uri.path}/${restaurant.id}',
+// relative to wherever discovery is mounted. That is deliberate — the detail
+// route is nested under discovery, and building it from the live location is
+// what keeps it nested — but it cannot be checked here, because the path does
+// not exist until a customer is standing on the list. Every path built from
+// `Routes` is covered; that one is not.
+//
 // TWO CHECKS, BECAUSE ONE OF THEM ROTS. The named list below is readable and
 // says which member produced which path, but it only covers what somebody
 // remembered to add. So a second check reads `routes.dart` itself and asserts

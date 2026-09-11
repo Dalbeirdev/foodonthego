@@ -1545,8 +1545,34 @@ limit:
 | 160 | 10.7 min | success (29/29) |
 | 158 | 23.8 min | **failure — with test names and assertions** |
 | 146 | 22.6 min | success |
+| 34605298508 | **27.7 min** | failure — with test names and assertions |
 
 Runs cancelled by a subsequent push are excluded; they prove nothing either way.
+
+**THE BUDGET IS NOW THE THING TO WATCH, NOT THE STALL.** That last row is 92% of
+the 30-minute limit, against 79% for the previous worst. About 66 seconds of it
+was a defect in the test harness (a `waitFor` left polling for a snackbar that
+had already expired — see KI-037), so the honest figure is ~26.5 min, **88%**.
+
+The cost driver is not the tests. `flutter test integration_test/` **builds once
+per file**, and the log says so:
+
+```
+Xcode build done.   69.8s
+Xcode build done.   75.8s
+Xcode build done.   97.2s
+```
+
+There are six device-test files today, so roughly eight minutes of the budget is
+Xcode, before a single assertion runs. Module 04's file added one.
+
+**So the seventh file is likely to exceed the limit**, and the failure it
+produces — a step killed at exactly 30:00 — is *visually identical to this
+issue* while wanting the opposite fix: a larger budget or a per-file split,
+not a diagnosis. Told apart by the same signature as always: whether tests were
+still printing when it died. Recorded here rather than pre-emptively raising the
+limit, because the right number is the one a run measures, not one guessed in
+advance.
 
 **The stall has not recurred in six completed runs.** Every one of them printed
 its tests, including the failure: run 158's two failures were a real defect and
@@ -2227,3 +2253,50 @@ one that actually settles it — a bogus constant was added to the real
 then reverted. The in-test fixture alone would have proved the regex worked;
 only this proves the scan reads the file it claims to read. Full evidence:
 [evidence/module-17/ki-036-unregistered-route-guard.txt](evidence/module-17/ki-036-unregistered-route-guard.txt).
+
+### KI-037 — a device test waited for a confirmation that had already expired — **Low, test reliability** — FIXED after Module 17
+
+The Module 04 device test saves the profile form and then checks for the
+confirmation. It did this:
+
+```dart
+await tapAt(tester, save);
+await settle(tester);                                  // six REAL seconds
+await waitFor(tester, find.text('Profile updated'));   // sixty more
+```
+
+`settle` pumps in real time for six seconds. The confirmation is a `SnackBar`,
+which lives for four. So the sequence watched the snackbar appear and expire,
+then waited a further minute for something that was already gone, and failed
+with the profile screen on display — the screen you *would* be on, because the
+save had worked and the form had closed itself.
+
+```
+Timed out waiting for Found 0 widgets with text "Profile updated": [].
+On screen instead: RS | Rahul Sharma | +91 ••••••0922 | ACCOUNT | Personal
+information | Saved addresses | ...
+```
+
+**A widget test cannot catch this.** `pumpAndSettle` stops once no frame is
+scheduled, and a snackbar's dismissal is a timer that schedules none — so
+`test/profile_edit_test.dart` sees it still on screen and passes. Only real time
+kills it, and only a device runs on real time. The same
+`test/profile_edit_test.dart` assertion has been green since Module 04.
+
+**Fixed** by deleting the `settle`: `waitFor` polls every 150 ms and returns the
+moment it matches, so it catches the snackbar while it is up. That is why
+`waitFor` exists, and the harness's own `waitForGone` doc comment already named
+the confirmation snackbar as the case in point — the helper knew; the call site
+did not. The test now also asserts that the form closed, because "the snackbar
+appeared" and "the customer is back where they started" are two claims and only
+one of them was being made.
+
+**Worth noting where the cost landed.** That dead minute was 60 of the ~66
+wasted seconds in the iOS run that took 92% of its 30-minute budget. A test that
+waits for something impossible does not only fail — it fails slowly, on the job
+with the least headroom. See KI-020 for the budget measurement this produced.
+
+**And the rule held again.** *When a test fails, ask what the harness was doing
+before asking what the code was doing.* Six instances now, all harness. This one
+came with a tell that should be read as diagnostic: the failure message printed
+the screen the app is *supposed* to be on after a successful save.

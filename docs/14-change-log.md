@@ -1646,3 +1646,21 @@ customer app got a screen that reads it without ever deciding it.
   named it — `Actual: ['/profile/addresses']` — before the constant was
   reverted. An in-test fixture would have proved the regex worked; only this
   proves the scan reads the file it claims to read. Flutter: **1,016 passing**.
+
+- **The device test's second failure, which was progress.** With the navigation
+  fixed, the Module 04 test reached the form, typed through a real keyboard,
+  tapped Save — and failed waiting for the confirmation, with the profile screen
+  on display. That screen is where a *successful* save lands, which is the tell:
+  the app was right and the harness was wrong. `settle` pumps six real seconds;
+  a `SnackBar` lives four. KI-037 has the detail. Six harness-first diagnoses now,
+  and no exceptions yet.
+
+  It also cost. Those 60 wasted seconds fell in the iOS device job, the one with
+  the least headroom, taking it to 92% of its 30-minute budget. Measuring that
+  produced something more useful than the fix: `flutter test integration_test/`
+  **builds once per file** — three consecutive `Xcode build done` lines of 69.8s,
+  75.8s and 97.2s in one run — so six device-test files spend roughly eight
+  minutes on Xcode before an assertion runs. The seventh file is likely to
+  exceed the limit, and will do it wearing KI-020's exact costume: a step killed
+  at 30:00. The number is recorded under KI-020 rather than acted on, because
+  the right limit is one a run measures.
