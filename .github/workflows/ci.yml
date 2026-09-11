@@ -529,7 +529,7 @@ jobs:
             > $GITHUB_WORKSPACE/device-tests.log 2>&1;
             code=$?;
             bash $GITHUB_WORKSPACE/scripts/ci-device-report.sh
-            $GITHUB_WORKSPACE/device-tests.log $code;
+            $GITHUB_WORKSPACE/device-tests.log $code Android;
             exit $code
 
       # The review artefact itself, installed and launched.
@@ -757,7 +757,7 @@ jobs:
           code=$?
           set -e
           bash "$GITHUB_WORKSPACE/scripts/ci-device-report.sh" \
-            "$GITHUB_WORKSPACE/device-tests.log" "$code"
+            "$GITHUB_WORKSPACE/device-tests.log" "$code" iOS
           exit $code
 
       # What the simulator itself thought was happening. Only useful when the

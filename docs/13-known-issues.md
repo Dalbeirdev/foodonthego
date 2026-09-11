@@ -2354,7 +2354,7 @@ before asking what the code was doing.* Six instances now, all harness. This one
 came with a tell that should be read as diagnostic: the failure message printed
 the screen the app is *supposed* to be on after a successful save.
 
-### KI-038 — the Android device test's result summary is unreadable, and that is why its count has never been read — **Low, CI observability** — OPEN
+### KI-038 — the Android device test's result summary is unreadable, and that is why its count has never been read — **Low, CI observability** — FIX APPLIED, AWAITING ITS FIRST RUN
 
 Every document in this repository that states a device-test count says the same
 thing about Android: *green on the same suite, count not read*. That caveat has
@@ -2393,10 +2393,62 @@ same `flutter test integration_test/` invocation as iOS, and on the two most
 recent *failing* runs its counts were read and matched iOS (34 ran, 33 passed).
 The passing count on `d22d176` was not read. iOS's was: **🎉 34 tests passed.**
 
-**To clear:** give the Android job a way to surface the report that survives the
-action's teardown — echoing it to `$GITHUB_STEP_SUMMARY`, or re-printing the
-bounded report from a `if: always()` step placed after the emulator action
-rather than inside it. Not done here: the script's header records that later
-steps were tried once and were unreadable from where these logs get read, so
-this wants a deliberate attempt with its own verification, not a guess appended
-to a PR about something else.
+**TWO CORRECTIONS, made while fixing it.** The entry above was written from a
+half-diagnosis, and both halves were wrong in ways that mattered.
+
+**First, the cause is bigger than the teardown.** Between the report and the end
+of the Android log sits an entire *second* `android-emulator-runner` step —
+"Install and launch the review APK" — which boots another emulator from scratch.
+The service-container cleanup is on top of that. iOS has no equivalent step,
+which is the real asymmetry. This also rules out the tempting fix of reordering:
+that second step deliberately runs *after* the tests, because they install a
+debug build signed with this runner's keystore and the review APK carries
+another's.
+
+**Second, the count was already readable on failing runs — as an annotation.**
+Flutter's test output uses GitHub workflow commands, and on failure its reporter
+emits `::error::`. That becomes a check-run annotation, which the API serves
+from `/check-runs/<id>/annotations` regardless of what printed afterwards. Both
+failing runs carry it:
+
+```
+[failure] :: 33 tests passed, 1 failed.
+```
+
+That annotation, on the **Android** job, was emitted from inside the emulator
+action's `sh -c` — which is the proof that workflow commands from in there reach
+GitHub at all. The mechanism was never in doubt; it simply was not being used
+for the case that mattered.
+
+Because what Flutter does *not* annotate is success. `🎉 N tests passed.` is
+printed as plain text. So failing counts have always been retrievable and
+passing counts never were — exactly backwards, since the passing count is the
+one worth recording.
+
+**Fixed** in `scripts/ci-device-report.sh`, which now emits one `::notice::`
+carrying the summary on **every** run, pass or fail, under a stable per-platform
+title. Three lines, not a workflow restructure.
+
+Controls, run against fixtures shaped like the real logs before anything was
+pushed:
+
+| Fixture | Annotation emitted |
+| --- | --- |
+| `🎉 34 tests passed.` | `34 tests passed (flutter test exited 0)` |
+| `33 tests passed, 1 failed.` | `33 tests passed, 1 failed (flutter test exited 1)` |
+| build output only, no reporter | `NO TEST SUMMARY IN THE LOG — the run did not reach the reporter` |
+| no log file at all | `NO LOG — <path> was never written` |
+
+**The fourth row is there because a control found a hole.** The script returns
+early when the log is missing, so the first version emitted *nothing* in that
+case — and that case is the KI-020 signature, the run that died before Flutter
+produced anything. The most serious outcome would have been the only one leaving
+no trace, and an absent annotation is indistinguishable from nobody having
+looked. That branch now annotates too.
+
+**Not yet verified on a real run.** The fixtures prove the extraction and the
+formatting; they cannot prove GitHub renders the notice into the annotations
+list from inside the Android emulator action. Flutter's failure annotation is
+strong evidence it will, but it is evidence about `::error::`, not `::notice::`.
+This entry stays open until an annotation with the title *"Android device
+tests"* has actually been read back from the API.
