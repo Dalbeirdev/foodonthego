@@ -6,6 +6,7 @@ import 'package:foodonthego/core/network/api_exception.dart';
 import 'package:foodonthego/domain/models/customer_summary.dart';
 import 'package:foodonthego/domain/models/home_dashboard.dart';
 import 'package:foodonthego/domain/models/saved_address.dart';
+import 'package:foodonthego/features/addresses/saved_addresses_screen.dart';
 import 'package:foodonthego/features/trips/trip_planner_screen.dart';
 import 'package:foodonthego/features/trips/widgets/location_picker_sheet.dart';
 
@@ -189,6 +190,56 @@ void main() {
         expect(find.text('Choose your starting point'), findsOneWidget);
       },
     );
+  });
+
+  group('managing saved addresses from the sheet', () {
+    testWidgets('the link opens saved addresses rather than Page Not Found', (
+      WidgetTester tester,
+    ) async {
+      // FOUND BY A FAILING DEVICE TEST, WHICH IS THE ONLY REASON IT WAS FOUND.
+      //
+      // The link captured the router, popped the sheet and called
+      // `router.push('/profile/addresses')`. GoRouter does not know that path:
+      // the router registers `/profile` with no children, and both the profile
+      // editor and the saved-addresses screen are reached with a plain
+      // Navigator push from the profile screen. So the tap navigated the
+      // customer to the Page Not Found screen.
+      //
+      // Nothing caught it. No test touched this link, and the constant it used
+      // -- Routes.savedAddressesPath -- read exactly like a route that exists.
+      // That constant, and the two beside it, have since been deleted: they
+      // named paths the router never registered.
+      await openPlanner(
+        tester,
+        customer: FakeCustomerRepository(addresses: <SavedAddress>[home()]),
+      );
+
+      await tester.tap(find.text('Setting off from'));
+      await tester.pumpAndSettle();
+
+      final Finder link = inSheet('Manage saved addresses');
+      await tester.ensureVisible(link);
+      await tester.pumpAndSettle();
+      await tester.tap(link);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Page Not Found'),
+        findsNothing,
+        reason: 'the link navigated to the router error screen',
+      );
+      expect(find.byType(SavedAddressesScreen), findsOneWidget);
+
+      // And back returns to the planner. Not a bonus assertion: that screen's
+      // back button asks GoRouter whether anything can be popped and falls back
+      // to `go('/profile')` when the answer is no, so pushing onto the wrong
+      // navigator would strand the customer on the profile tab instead of the
+      // journey they were part-way through planning.
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.arrow_back));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Setting off from'), findsOneWidget);
+    });
   });
 
   group('swap and clear', () {

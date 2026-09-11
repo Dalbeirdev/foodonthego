@@ -30,17 +30,20 @@ class Routes {
   static const String notifications = '/notifications';
   static const String profile = '/profile';
 
-  /// Profile and saved addresses (Module 04). Pushed over the Profile branch
-  /// rather than sitting in the shell, so the bottom bar stays put and Android
-  /// back returns to the list the customer came from.
-  static const String profileEdit = 'edit';
-  static const String savedAddresses = 'addresses';
-  static const String addressForm = 'form';
-
-  /// Absolute forms, for the places that need one.
-  static const String profileEditPath = '/profile/edit';
-  static const String savedAddressesPath = '/profile/addresses';
-  static const String addressFormPath = '/profile/addresses/form';
+  // Profile and saved addresses (Module 04) HAVE NO CONSTANTS HERE, AND THAT IS
+  // DELIBERATE. The profile editor, the saved-addresses list and the address
+  // form are pushed over the Profile branch with a plain Navigator push (see
+  // ProfileScreen) so the bottom bar stays put and Android back returns to the
+  // list the customer came from. None of them is registered with the router.
+  //
+  // This file used to declare `/profile/edit`, `/profile/addresses` and
+  // `/profile/addresses/form` anyway. They read exactly like routes that exist,
+  // and twice they were used as if they did: the location picker's "Manage
+  // saved addresses" link shipped a tap that landed the customer on Page Not
+  // Found, and a device test deep-linked to the editor and failed the same way.
+  // A constant naming a path nobody registered is not documentation; it is a
+  // trap with a doc comment on it. If these screens ever need real routes, add
+  // them to the router and the constants together, in one change.
 
   /// The trip planner (Module 05). Pushed over the Trips branch for the same
   /// reason: the bottom bar stays put, and Android back returns to the list.

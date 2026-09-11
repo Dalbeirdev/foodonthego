@@ -29,6 +29,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodonthego/core/routing/routes.dart';
 import 'package:foodonthego/domain/models/customer.dart';
+import 'package:foodonthego/features/addresses/saved_addresses_screen.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'support/device_support.dart';
@@ -54,11 +55,16 @@ void main() {
   ) async {
     final Customer customer = await whoAmI(apiAs());
 
-    await launchSignedIn(
-      tester,
-      customer: customer,
-      location: Routes.profileEditPath,
-    );
+    await launchSignedIn(tester, customer: customer, location: Routes.profile);
+
+    // Opened by tapping the row, not by a deep link. The profile sub-screens
+    // have no registered paths — ProfileScreen pushes them over its branch so
+    // the bottom bar stays put — so this is the only way in, and it is the way
+    // a customer gets here.
+    final Finder row = find.text('Personal information');
+    await scrollTo(tester, row);
+    await tapAt(tester, row.last);
+    await settle(tester);
 
     // Located by position, and the save button by its widget type — the same
     // way test/profile_edit_test.dart addresses this form. Matching an existing
@@ -116,18 +122,9 @@ void main() {
     await tapAt(tester, row.last);
     await settle(tester);
 
-    // Either state is correct — what is being checked is that the screen opened
-    // on the device and rendered the server's answer, not which answer it was.
-    final bool empty = find
-        .text('No saved addresses yet')
-        .evaluate()
-        .isNotEmpty;
-    final bool listed = find.text('Saved addresses').evaluate().isNotEmpty;
-
-    expect(
-      empty || listed,
-      isTrue,
-      reason: 'the saved-addresses screen did not render either state',
-    );
+    // By widget type, not by its title text: the profile row behind the pushed
+    // route carries the same words, so a text finder here would pass whether or
+    // not anything opened.
+    await waitFor(tester, find.byType(SavedAddressesScreen));
   });
 }

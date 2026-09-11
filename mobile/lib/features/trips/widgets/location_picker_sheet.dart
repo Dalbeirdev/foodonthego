@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/location/location_service.dart';
 import '../../../core/network/api_exception.dart';
-import '../../../core/routing/routes.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../domain/models/place.dart';
 import '../../../domain/models/saved_address.dart';
@@ -16,6 +14,7 @@ import '../../../shared/state/place_search_controller.dart';
 import '../../../shared/state/providers.dart';
 import '../../../shared/state/trip_planner_controller.dart';
 import '../../../shared/widgets/buttons.dart';
+import '../../addresses/saved_addresses_screen.dart';
 
 /// Choosing one end of a journey.
 ///
@@ -372,12 +371,21 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
       LinkAction(
         label: strings.placePickerManageAddresses,
         onPressed: () {
-          // The router is taken before the sheet closes: afterwards this
+          // The navigator is taken before the sheet closes: afterwards this
           // context is gone, and looking it up then is how a "nothing happened"
           // tap gets shipped.
-          final GoRouter router = GoRouter.of(context);
-          Navigator.of(context).pop();
-          router.push(Routes.savedAddressesPath);
+          //
+          // Pushed, not routed. The profile sub-screens have no registered
+          // paths — ProfileScreen pushes them over its branch so the bottom bar
+          // stays put — so routing to one here lands the customer on Page Not
+          // Found instead of their addresses.
+          final NavigatorState navigator = Navigator.of(context);
+          navigator.pop();
+          navigator.push<void>(
+            MaterialPageRoute<void>(
+              builder: (BuildContext _) => const SavedAddressesScreen(),
+            ),
+          );
         },
       ),
     ];
