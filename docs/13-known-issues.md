@@ -2621,3 +2621,46 @@ to be fresh, and assuming otherwise is how a check passes without checking.
 `module_11` and `module_12` are deliberately left alone. They never ask for a
 travel estimate, so refreshing there would be the billed cost those modules
 correctly refused.
+
+### KI-041 — a pickup selection was lost, and the test blamed the verdict — **Low, diagnosis quality** — INSTRUMENTED, not yet explained
+
+`module_13_pickup_test.dart: the readiness verdict comes from the server` failed
+once on Android while **iOS passed on the same commit**, and the commit itself
+(`0d38d67`) changed only documentation.
+
+```
+Timed out waiting for the server verdict.
+On screen instead: Choose a time | 9:30 am – 9:40 am | ... | Check my order
+```
+
+**The message named the wrong thing.** The test had already waited successfully
+for *"Your pickup time"* three lines earlier, and that panel is absent from the
+dump — so the selection had gone by the time the verdict was awaited. The check
+button is gated:
+
+```dart
+onPressed: state.isValidating || state.selectedOptionId == null ? null : validate
+```
+
+A disabled `PrimaryButton` is **still hit-testable**, so `tapAt` lands on it,
+does nothing, and the run fails a minute later pointing at the verdict. The
+verdict was never the problem.
+
+**What is NOT known** is why the selection was lost. Candidates, none confirmed:
+a background reload of the options dropping a selection the server still holds;
+the pickup plan's fingerprint changing under the screen; or a race between the
+selection landing and the widget rebuilding. It happened once, on one platform,
+and the identical code passed 41/41 on both platforms in the run before.
+
+**What was done:** the test now waits for the button to be *enabled* rather than
+merely present, with a message that says the selection was lost if it times out.
+That is deliberately not a fix — it is instrumentation, so the next occurrence
+names its own cause instead of blaming the verdict. Recorded rather than
+dismissed, because a test that fails pointing at the wrong thing is how an hour
+gets spent on the wrong screen.
+
+**A note on what made this readable at all.** The count came from the KI-038
+annotation in one API call. The *assertion* did not: on Android it still needs a
+wide log fetch, because the report is pushed out of the tail by a second emulator
+step. KI-038 fixed the count and left the detail — worth knowing before the next
+Android failure.

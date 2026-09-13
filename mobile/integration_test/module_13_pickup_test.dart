@@ -64,6 +64,7 @@ import 'package:foodonthego/domain/models/pre_checkout.dart';
 import 'package:foodonthego/domain/models/restaurant_menu.dart';
 import 'package:foodonthego/domain/models/trip.dart';
 import 'package:foodonthego/domain/repositories/trip_repository.dart';
+import 'package:foodonthego/shared/widgets/buttons.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'support/device_support.dart';
@@ -385,6 +386,32 @@ void main() {
 
     await tapAt(tester, find.textContaining('–').first);
     await waitFor(tester, find.text('Your pickup time'));
+
+    // Wait for the button to be ENABLED, not merely present. It is gated on
+    // `state.selectedOptionId == null || state.isValidating`, and a disabled
+    // PrimaryButton is still hit-testable — so tapping it lands, does nothing,
+    // and the failure surfaces much later as "timed out waiting for the server
+    // verdict" with no hint that the tap was the problem.
+    //
+    // That is exactly how this failed once on Android while iOS passed on the
+    // same commit: the screen dump showed the chooser with no "Your pickup
+    // time" panel, meaning the selection had gone and the button was dead.
+    //
+    // This does not explain WHY the selection was lost — that is not yet known,
+    // and this is not a claim to have fixed it. What it does is make the next
+    // occurrence say so precisely, instead of blaming the verdict.
+    await waitFor(
+      tester,
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is PrimaryButton &&
+            widget.key == const ValueKey<String>('pickup-check-order') &&
+            widget.onPressed != null,
+      ),
+      describe:
+          'the Check my order button to become enabled — if this times '
+          'out, the pickup selection was lost before it could be checked',
+    );
 
     await tapAt(
       tester,
