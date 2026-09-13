@@ -387,19 +387,28 @@ void main() {
     await tapAt(tester, find.textContaining('–').first);
     await waitFor(tester, find.text('Your pickup time'));
 
-    // Wait for the button to be ENABLED, not merely present. It is gated on
-    // `state.selectedOptionId == null || state.isValidating`, and a disabled
-    // PrimaryButton is still hit-testable — so tapping it lands, does nothing,
-    // and the failure surfaces much later as "timed out waiting for the server
-    // verdict" with no hint that the tap was the problem.
+    final Finder checkOrder = find.byKey(
+      const ValueKey<String>('pickup-check-order'),
+    );
+
+    // SCROLL FIRST, THEN WAIT, THEN TAP — and the order is the whole point.
     //
-    // That is exactly how this failed once on Android while iOS passed on the
-    // same commit: the screen dump showed the chooser with no "Your pickup
-    // time" panel, meaning the selection had gone and the button was dead.
+    // The button sits below the fold in a lazy list, so until it is scrolled to
+    // it is not built and no finder can see it. The first version of this guard
+    // waited for it before scrolling, and failed on iOS for that reason alone,
+    // reporting a lost selection while the screen plainly showed "Your pickup
+    // time | Collecting between 10:10 am – 10:20 am". A check that invents its
+    // own failure is worse than no check.
+    await scrollTo(tester, checkOrder);
+
+    // Now that it exists, wait for it to be ENABLED rather than merely present.
+    // It is gated on `state.isValidating || state.selectedOptionId == null`, and
+    // a disabled PrimaryButton is still hit-testable — so a tap lands, does
+    // nothing, and the run fails a minute later blaming the verdict.
     //
-    // This does not explain WHY the selection was lost — that is not yet known,
-    // and this is not a claim to have fixed it. What it does is make the next
-    // occurrence say so precisely, instead of blaming the verdict.
+    // That is how this failed on Android: the dump showed the chooser with no
+    // "Your pickup time" panel, so the selection really had gone. Why is still
+    // not known (KI-041); this only makes the next occurrence say so.
     await waitFor(
       tester,
       find.byWidgetPredicate(
@@ -410,13 +419,11 @@ void main() {
       ),
       describe:
           'the Check my order button to become enabled — if this times '
-          'out, the pickup selection was lost before it could be checked',
+          'out with a pickup time on screen, the selection reached the cart but '
+          'not the controller',
     );
 
-    await tapAt(
-      tester,
-      find.byKey(const ValueKey<String>('pickup-check-order')),
-    );
+    await tapAt(tester, checkOrder);
 
     await waitFor(
       tester,

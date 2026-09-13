@@ -2659,6 +2659,25 @@ names its own cause instead of blaming the verdict. Recorded rather than
 dismissed, because a test that fails pointing at the wrong thing is how an hour
 gets spent on the wrong screen.
 
+**AND THE FIRST VERSION OF THAT INSTRUMENTATION INVENTED ITS OWN FAILURE.** It
+waited for the button *before* scrolling to it. The button sits below the fold in
+a lazy list, so until it is scrolled to it is not built and no finder can see it
+— the original code only worked because `tapAt` scrolls first. iOS then failed
+reporting a lost selection while the screen plainly showed:
+
+```
+Your pickup time | Collecting between 10:10 am – 10:20 am
+```
+
+The selection was right there. **A check that manufactures its own failure is
+worse than no check**, and this one did it while claiming to diagnose. Corrected
+to scroll, then wait, then tap — and the ordering is now stated at the call site,
+because it is the entire point.
+
+Worth keeping as the lesson: the guard was added to stop a test blaming the wrong
+thing, and its first draft blamed the wrong thing. Verified only by CI, because
+nothing local exercises a lazy list on a device.
+
 **A note on what made this readable at all.** The count came from the KI-038
 annotation in one API call. The *assertion* did not: on Android it still needs a
 wide log fetch, because the report is pushed out of the tail by a second emulator
