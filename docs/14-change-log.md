@@ -1762,3 +1762,36 @@ customer app got a screen that reads it without ever deciding it.
   added: the spread is wider than the first four runs suggested, and the
   30-minute limit those runs nearly breached was never a limit so much as a coin
   toss.
+
+- **Module 06 is verified on a device, and the device gap is down to Module 03.**
+  Four tests drive the route screen on real hardware: opening a routeless journey
+  works one out and the figures on screen are the server's; a second visit reads
+  that route rather than buying another; a stand-in route is *labelled* as one
+  rather than passing as a road; and a keyless build shows the documented map
+  fallback with the journey and its figures intact.
+
+  It costs exactly one route calculation, which is the module's own design —
+  `RouteController.open` calculates once, only when there is nothing to show and
+  the server says asking again could help.
+
+  **The map itself is still unverified and the test says so.** No Maps key exists
+  (KI-011). What a keyless build *shows* is the honest claim available, and that
+  is what is asserted.
+
+- **A fixture that depended on the suite being fast enough.** Adding those tests
+  lengthened the run, and five `module_13` tests failed on a travel estimate the
+  server refused to give: `route_estimate_max_age_seconds` is 900 s, and the
+  shared journey's route was older than that by the time the pickup screen opened.
+
+  **The proof was a controlled experiment nobody set up**: the same commit passed
+  on Android in 24m12s and failed on iOS in 35m46s. Nothing differed but elapsed
+  time.
+
+  Four files carried the same guard — `if (!trip.routeStatus.hasUsableRoute)` —
+  above a correct comment about not re-buying a route the journey already has.
+  The reasoning was right; what it missed is that **"has a route" and "has a route
+  this screen can use" are different claims, and only the second decays.** KI-040
+  has the fix, which keeps the original intent and adds only the half that rots.
+
+  Verified on `f3d20e3`: 7/7 green, **41 tests on each platform**, with iOS at
+  28m34s — well past the window that broke it before.

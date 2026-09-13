@@ -13,12 +13,12 @@ stands; no Module 18 specification has been supplied.
 
 ### CI — last verified state
 
-Commit `f11ffeb`, verified 2026-09-11 against the GitHub API (not inferred):
+Commit `f3d20e3`, verified 2026-09-13 against the GitHub API (not inferred):
 
 | Run | Event | Result |
 | --- | --- | --- |
-| 34644794651 | `pull_request` | **success — 7/7** |
-| 34644787065 | `push` | success |
+| 34728442293 | `pull_request` | **success — 7/7** |
+| 34728440581 | `push` | success |
 
 **The iOS device step is the number to watch.** Six measurements now, and the
 spread is wider than the first four suggested: **29m59s, 23m52s, 28m46s,
@@ -51,7 +51,7 @@ Backend job step order, all green:
 | --- | --- |
 | Backend (PHPUnit, real MySQL) | **1,305 passed**, 5,826 assertions |
 | Flutter (widget + unit) | 1,016 passed |
-| On-device (integration_test) | **37 on each platform**, read from the run's check-run annotations (KI-038) |
+| On-device (integration_test) | **41 on each platform**, read from the run's check-run annotations (KI-038) |
 | Static analysis | PHPStan level 3, **0 errors** |
 
 The suite includes an eight-process parallel race against one order (KI-029), and it

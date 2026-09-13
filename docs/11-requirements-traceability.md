@@ -55,13 +55,26 @@ Legend: ✅ done · ➖ not applicable to this requirement · ⛔ blocked by env
 > So the caveat carried on every Android row since Module 02 is **retired**. Both
 > platforms run the same 34 tests and both counts have been read.
 >
-> **What is still genuinely unverified on a device is narrower again.**
+> **What is still genuinely unverified on a device is one module.**
 > The on-device suite covers **Modules 11–14** (add to cart, cart management, pickup
 > timing, checkout), the Module 16 confirmation and Module 17 tracking screens, the
-> Module 02 shell, **Module 04** (profile and addresses) and now **Module 05** (the
-> trip planner). It does **not** exercise **Modules 03 and 06** — OTP sign-in, or
-> routing and the map layer. Those rows are correct that they are unverified on a
-> handset; they are **wrong about why**.
+> Module 02 shell, **Module 04** (profile and addresses), **Module 05** (the trip
+> planner) and now **Module 06** (working out a route). What it does **not**
+> exercise is **Module 03** — OTP sign-in.
+>
+> **And Module 03 is unverified for a reason that will not dissolve.** The device
+> harness is handed a session token because a device cannot complete sign-in on its
+> own: the development OTP provider writes the code to a log file on the *server*,
+> and there is deliberately no endpoint that hands one back over HTTP. That design
+> is what stops the provider ever being usable in production. Closing this row means
+> either a real SMS to a real handset, or a test-only path that must not exist in a
+> production build — a decision, not a task.
+>
+> **Module 06's device test does not verify the map**, and says so. No Maps API key
+> exists (KI-011), so the SDK render is unverified there as everywhere else. What it
+> does verify is what a keyless build actually shows: the documented fallback, with
+> the journey and its figures intact — and that a route from a development stand-in
+> is **labelled** as one rather than passing as a road.
 >
 > **Module 05 was the interesting one.** It had been *exercised* by every later
 > device test and *driven* by none: cart, pickup and checkout each build a journey
