@@ -2622,7 +2622,7 @@ to be fresh, and assuming otherwise is how a check passes without checking.
 travel estimate, so refreshing there would be the billed cost those modules
 correctly refused.
 
-### KI-041 — a pickup selection was lost, and the test blamed the verdict — **Low, diagnosis quality** — INSTRUMENTED, not yet explained
+### KI-041 — a pickup selection vanished from the screen while the cart still held it — **Medium, customer-facing** — FIXED (mobile), device confirmation pending
 
 `module_13_pickup_test.dart: the readiness verdict comes from the server` failed
 once on Android while **iOS passed on the same commit**, and the commit itself
@@ -2683,3 +2683,67 @@ annotation in one API call. The *assertion* did not: on Android it still needs a
 wide log fetch, because the report is pushed out of the tail by a second emulator
 step. KI-038 fixed the count and left the detail — worth knowing before the next
 Android failure.
+
+---
+
+**THE CAUSE, ON THE THIRD OCCURRENCE.** With the instrumentation finally correct,
+`f348e44` gave a clean reading: iOS passed **41/41**, Android failed the same
+test, and the dump was unambiguous.
+
+```
+On screen instead: Choose a time | 10:50 am – 11:00 am | ... | 12:00 pm – 12:10 pm |
+How we worked this out | You're about 66 minutes away | You arrive around 10:40 am |
+... | Check my order | When will you collect?
+```
+
+Read it for what is **missing**. No "Your pickup time" card. No stale notice, no
+invalid notice, no route-refresh notice, no error banner. The screen renders one
+for every one of those states, so their absence is evidence: the client's
+`selection.status` was `none` — not stale, not invalid, *nothing chosen*.
+
+The server cannot produce that. `PickupSelectionEvaluator::statusFor` returns
+`NONE` only when the cart's stored status is not `SELECTED`, and
+`pickup_selection_status` is written in exactly one place in the whole backend —
+`PickupOptionSelectionService`, setting it to `SELECTED`. **Nothing clears it.**
+A selection whose facts have moved reads `STALE`; one whose window has gone reads
+`INVALID`. Both put a notice on screen. Neither was there.
+
+So the server still held the choice and the screen did not. That is an ordering
+failure in the client, and `PickupController` had no defence against one:
+`_load()`, `choose()` and `validate()` each assigned `state.plan` from whatever
+came back, whenever it came back. A load still in flight when the customer taps a
+time answers with the plan as it stood *before* the tap — no error, nothing in the
+response marking it old — and overwrites the selection with an empty chooser.
+
+**Reproduced off-device**, in `test/pickup_controller_ordering_test.dart`: hold a
+`refresh()` open, choose a time, release it. Before the fix the selection was gone
+and `selectedOptionId` was null — the exact state of the Android dump.
+
+**Fixed** by request sequencing: every call that will write the plan takes a
+ticket on the way out and applies its answer only if no later one has been issued
+since. Newest-issued wins, which is right in both directions — a refresh started
+*after* a choice is newer information and must replace it. Three tests, including
+a control that fails if the controller simply ignores later answers; all three
+fail on a mutated fix.
+
+**What this was for the customer**, which is why the severity moved: they tap a
+pickup time, it is accepted, and a moment later the screen shows an empty chooser
+and a dead "Check my order" button — over a cart the server considers ready. No
+error, nothing to retry, no way to tell what happened. Tapping a time again would
+have worked; nothing on screen says so.
+
+**Still open:** whether a second load was genuinely in flight during that run has
+not been shown — the fix is correct regardless, but it is not yet *confirmed* as
+that run's cause. Two loads would need the screen mounted twice on the deep link
+or a pull-to-refresh from a drag, neither observed. The device test now asks the
+server at the moment of failure and prints its selection status, so a recurrence
+says plainly which side lost it. Left open until Android passes this test on
+consecutive runs.
+
+**Not the cause, and briefly written down as though it might be:** the route
+freshness threshold in `device_support.dart`. It was raised from five to twelve
+minutes in the same breath as this investigation, on the theory that repeated
+route recalculation was moving the plan's fingerprint under the selection. The
+dump refutes it — a moved fingerprint reads `STALE` and draws a notice. The
+threshold change stands on its own merits (a fixture should not recalculate a
+route it does not need to) and is recorded as no part of this fix.

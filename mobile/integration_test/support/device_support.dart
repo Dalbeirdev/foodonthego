@@ -318,9 +318,28 @@ Finder reachableOrFail(Finder finder) {
 /// "We worked out your travel time a while ago. Refresh it and we'll show
 /// current pickup times", and no pickup window ever loads.
 ///
-/// Five minutes, not fifteen, because the route has to still be fresh when the
-/// LAST assertion of a test runs, not merely when the fixture was built.
-const Duration _routeStaleAfter = Duration(minutes: 5);
+/// TWELVE minutes, deliberately close to the server's fifteen.
+///
+/// It was five, on the reasoning that the route must still be fresh when the
+/// last assertion runs and not merely when the fixture was built. That is true,
+/// and five was still wrong: `prepare()` runs before every test in a file, so a
+/// five-minute threshold refreshes the route repeatedly through a run, and each
+/// recalculation moves the whole pickup plan — every window is derived from the
+/// travel time, and the fingerprint a selection is held to includes the route's
+/// calculation time.
+///
+/// Twelve keeps the guarantee the helper exists for — the server refuses at
+/// fifteen, and no single test file spends three minutes between `prepare()`
+/// and its last assertion — while making a mid-run refresh rare rather than
+/// routine. It stands on that alone.
+///
+/// It is NOT the fix for KI-041, and was briefly written here as though it
+/// might be. The evidence says otherwise: when the selection went missing on
+/// Android the screen carried no stale notice and no route-refresh notice,
+/// which is what a moved fingerprint would have produced. What it showed was an
+/// untouched chooser — the state a response that predates the choice leaves
+/// behind. That was reproduced off-device and fixed in `PickupController`.
+const Duration _routeStaleAfter = Duration(minutes: 12);
 
 /// Gives [trip] a route the pickup and checkout screens will actually accept.
 ///

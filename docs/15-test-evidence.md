@@ -2790,3 +2790,22 @@ renders as boxes under this harness while every other string resolves. The cause
 was not found, it does not reproduce on either device run, and the README says
 so — a screenshot with something quietly removed is worth less than one with
 something visibly unexplained.
+
+## Response ordering on the pickup screen
+
+`mobile/test/pickup_controller_ordering_test.dart` — three tests, and the reason
+they exist is in `evidence/module-17/ki-041-pickup-selection-ordering.txt`.
+
+A customer's confirmed pickup time disappeared from the Android screen while the
+cart on the server still held it. The failing state is reproduced here without a
+device: hold an options response open, choose a time while it is in flight,
+release it, and watch the older answer overwrite the choice with an empty
+chooser — no error, no notice, nothing to retry.
+
+The third test is the control, and it is the one that matters. The first two
+would both pass on a controller that ignored every answer after the first, which
+is a worse defect wearing the fix's clothes; the control asserts that a refresh
+issued *after* a choice still replaces it. All three fail on a mutated fix, and
+that run is in the evidence file rather than described.
+
+Counted in the 1,019 the mobile suite now runs.

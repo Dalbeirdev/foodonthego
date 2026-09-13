@@ -193,6 +193,25 @@ class PickupController extends Notifier<PickupState> {
   /// merits — a refusal is an answer, and the next try is a new request.
   final Map<String, String> _keys = <String, String>{};
 
+  /// Which request the state on screen is allowed to reflect.
+  ///
+  /// Responses do not come back in the order they went out. A load can still be
+  /// in the air when the customer taps a time; the selection lands first, and
+  /// then the load answers with the plan as it stood BEFORE the tap — nothing
+  /// chosen, no error, no notice. The screen goes quietly back to an empty
+  /// chooser over a cart the server considers chosen, and the customer is left
+  /// with a dead button and nothing to read.
+  ///
+  /// So every call that will write [PickupState.plan] takes the next ticket on
+  /// its way out and applies its answer only if no later one has been issued
+  /// since. Newest-issued wins, which is the only ordering that is right in
+  /// both directions: a refresh started after a choice is newer information and
+  /// must replace it, and a load started before one is older and must not.
+  ///
+  /// A dropped answer needs no repair. The request that superseded it owns the
+  /// flags it would have cleared, and clears them when it lands.
+  int _generation = 0;
+
   PickupRepository get _pickup => ref.read(pickupRepositoryProvider);
 
   @override
@@ -237,10 +256,12 @@ class PickupController extends Notifier<PickupState> {
 
     if (tripId == null) return;
 
+    final int ticket = ++_generation;
+
     try {
       final PickupView view = await _pickup.options(tripId: tripId);
 
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         plan: view.plan,
@@ -255,7 +276,7 @@ class PickupController extends Notifier<PickupState> {
         clearPreCheckout: true,
       );
     } on ApiException catch (error) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         isLoading: false,
@@ -266,7 +287,7 @@ class PickupController extends Notifier<PickupState> {
             error.code == ApiErrorCode.network && state.options.isNotEmpty,
       );
     } catch (_) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         isLoading: false,
@@ -289,6 +310,7 @@ class PickupController extends Notifier<PickupState> {
     state = state.copyWith(selectingOptionId: optionId, clearFailure: true);
 
     final String key = _keys.putIfAbsent(optionId, _newKey);
+    final int ticket = ++_generation;
 
     try {
       final PickupView view = await _pickup.selectOption(
@@ -297,7 +319,7 @@ class PickupController extends Notifier<PickupState> {
         idempotencyKey: key,
       );
 
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       _keys.remove(optionId);
 
@@ -310,7 +332,7 @@ class PickupController extends Notifier<PickupState> {
         clearPreCheckout: true,
       );
     } on ApiException catch (error) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       if (error.code != ApiErrorCode.network) _keys.remove(optionId);
 
@@ -331,7 +353,7 @@ class PickupController extends Notifier<PickupState> {
         await _load();
       }
     } catch (_) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       _keys.remove(optionId);
 
@@ -353,12 +375,14 @@ class PickupController extends Notifier<PickupState> {
 
     state = state.copyWith(isValidating: true, clearFailure: true);
 
+    final int ticket = ++_generation;
+
     try {
       final PreCheckoutResult result = await _pickup.preCheckout(
         tripId: tripId,
       );
 
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         preCheckout: result,
@@ -366,7 +390,7 @@ class PickupController extends Notifier<PickupState> {
         isValidating: false,
       );
     } on ApiException catch (error) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         isValidating: false,
@@ -374,7 +398,7 @@ class PickupController extends Notifier<PickupState> {
         failureMessage: error.message,
       );
     } catch (_) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         isValidating: false,

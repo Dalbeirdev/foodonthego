@@ -1821,3 +1821,32 @@ customer app got a screen that reads it without ever deciding it.
   **The re-run remedy is unavailable**: the API returns 403 for this session's
   token. Recorded explicitly, because "just re-run it" is the standard answer to
   this shape of failure and it cannot be done here.
+
+- **A confirmed pickup time could disappear from the screen while the cart still
+  held it (KI-041), and it is now fixed rather than instrumented.** With the
+  diagnostic finally correct, `f348e44` read cleanly: iOS passed 41/41, Android
+  lost the selection, and what the dump was *missing* identified the fault. No
+  "Your pickup time" card, and no stale, invalid, route-refresh or error notice —
+  the screen draws one for every one of those, so their absence says the client's
+  selection status was `none`.
+
+  The server cannot report `none` for a cart that has chosen. `pickup_selection_status`
+  is written in exactly one place in the backend and only ever to `SELECTED`;
+  nothing clears it, and a choice whose facts have moved reads `STALE` with a
+  notice. So the server held the selection and the screen did not.
+
+  `PickupController` assigned `state.plan` from whatever response arrived, whenever
+  it arrived. A load still in flight when a customer taps a time answers with the
+  plan as it stood *before* the tap and quietly overwrites the choice: an empty
+  chooser and a dead "Check my order" button over a cart the server considers
+  ready, with nothing on screen to explain it or retry.
+
+  Fixed with request sequencing — every call that writes the plan takes a ticket
+  and applies its answer only if no later one has been issued since, so newest-issued
+  wins in both directions. Reproduced first as a failing test
+  (`test/pickup_controller_ordering_test.dart`), with a control that fails if the
+  controller instead ignores later answers; all three fail on a mutated fix.
+
+  The device test now asks the server at the moment of failure and prints its
+  selection status, so any recurrence names the side that lost it. KI-041 stays
+  open until Android passes on consecutive runs.

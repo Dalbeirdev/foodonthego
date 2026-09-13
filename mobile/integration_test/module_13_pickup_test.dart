@@ -409,19 +409,40 @@ void main() {
     // That is how this failed on Android: the dump showed the chooser with no
     // "Your pickup time" panel, so the selection really had gone. Why is still
     // not known (KI-041); this only makes the next occurrence say so.
-    await waitFor(
-      tester,
-      find.byWidgetPredicate(
-        (Widget widget) =>
-            widget is PrimaryButton &&
-            widget.key == const ValueKey<String>('pickup-check-order') &&
-            widget.onPressed != null,
-      ),
-      describe:
-          'the Check my order button to become enabled — if this times '
-          'out with a pickup time on screen, the selection reached the cart but '
-          'not the controller',
-    );
+    try {
+      await waitFor(
+        tester,
+        find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is PrimaryButton &&
+              widget.key == const ValueKey<String>('pickup-check-order') &&
+              widget.onPressed != null,
+        ),
+        describe: 'the Check my order button to become enabled',
+      );
+    } on TestFailure catch (failure) {
+      // Ask the server, at the moment of the failure, what it thinks the
+      // customer chose.
+      //
+      // Without this the run can only say the button never lit, which is true
+      // of two opposite faults: the screen lost a selection the cart still
+      // holds, or the cart never held one. They need different fixes and the
+      // screen looks identical under both. This call mints a fresh set of
+      // option ids and spends the screen's — which would matter if the run
+      // were continuing, and it is not.
+      final PickupPlan server = await serverPlan();
+
+      fail(
+        '${failure.message}\n'
+        'The server, asked as this failed: '
+        'selection=${server.selection.status.name}, '
+        'window=${server.selection.startAt}–${server.selection.endAt}, '
+        'options=${server.options.length}, '
+        'feasible=${server.isFeasible}, '
+        'requiresRouteRefresh=${server.requiresRouteRefresh}. '
+        'A selection the SERVER still holds means the screen dropped it.',
+      );
+    }
 
     await tapAt(tester, checkOrder);
 

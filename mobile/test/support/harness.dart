@@ -2585,6 +2585,14 @@ class FakePickupRepository implements PickupRepository {
   int selectCalls = 0;
   int preCheckoutCalls = 0;
 
+  /// Holds the next `options` answer open until a test lets it go.
+  ///
+  /// The plan it will carry is taken when the call ARRIVES, not when it
+  /// returns. That is what a server does — it answers the question it was
+  /// asked, in the state the world was in when it was asked — and it is the
+  /// whole point: a response can be older than the screen it lands on.
+  Completer<void>? holdOptions;
+
   /// Exactly what was sent, in order. A test proving the client never sends a
   /// time reads this.
   final List<String> optionIdsSent = <String>[];
@@ -2633,7 +2641,15 @@ class FakePickupRepository implements PickupRepository {
       throw error;
     }
 
-    return PickupView(cart: const CartView.empty(), plan: _plan());
+    final PickupPlan answer = _plan();
+    final Completer<void>? gate = holdOptions;
+
+    if (gate != null) {
+      holdOptions = null;
+      await gate.future;
+    }
+
+    return PickupView(cart: const CartView.empty(), plan: answer);
   }
 
   @override
