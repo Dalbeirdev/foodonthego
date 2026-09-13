@@ -1850,3 +1850,17 @@ customer app got a screen that reads it without ever deciding it.
   The device test now asks the server at the moment of failure and prints its
   selection status, so any recurrence names the side that lost it. KI-041 stays
   open until Android passes on consecutive runs.
+
+- **The same ordering fault, found in the cart by looking for it (KI-042).** After
+  KI-041 every controller was audited. The cart had it in an easier place to
+  reach: `_revalidateQuietly()` is fired unawaited behind every successful edit,
+  so a customer tapping "+" twice has the first tap's revalidation in flight
+  across the second tap's response. When it lands the quantity drops from 3 back
+  to 2 on screen, over a cart the server holds at 3. No slow network needed, and
+  nothing in CI would have caught it.
+
+  Fixed with the same rule, reproduced first, and covered by three tests with the
+  same control. Five other controllers already had sequencing of their own;
+  checkout, order, order tracking, route, trips, addresses and auth have not been
+  examined yet and are named as such in the known issues rather than left to look
+  clean.

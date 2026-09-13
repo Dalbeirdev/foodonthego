@@ -2808,4 +2808,9 @@ is a worse defect wearing the fix's clothes; the control asserts that a refresh
 issued *after* a choice still replaces it. All three fail on a mutated fix, and
 that run is in the evidence file rather than described.
 
-Counted in the 1,019 the mobile suite now runs.
+`mobile/test/cart_controller_ordering_test.dart` is the same three tests for the
+cart, where the fault was found by audit rather than by a failure — including
+the one that passed on its first draft having exercised nothing, which is
+written up in KI-042 rather than quietly corrected.
+
+Counted in the 1,022 the mobile suite now runs.

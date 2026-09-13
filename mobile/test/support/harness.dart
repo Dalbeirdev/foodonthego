@@ -2310,6 +2310,14 @@ class FakeCartRepository implements CartRepository {
   int removeCalls = 0;
   int emptyCalls = 0;
 
+  /// Holds the next `revalidate` answer open until a test lets it go.
+  ///
+  /// The cart it will carry is taken when the call ARRIVES, not when it
+  /// returns — the same reasoning as [FakePickupRepository.holdOptions]. A
+  /// revalidation is a read, and a read can be overtaken by a write the
+  /// customer made after it went out.
+  Completer<void>? holdRevalidate;
+
   /// The quantities asked for, in order. A test asserting that a stepper never
   /// sends a zero reads this.
   final List<int> quantitiesRequested = <int>[];
@@ -2333,7 +2341,19 @@ class FakeCartRepository implements CartRepository {
     revalidateCalls++;
     _throwRead();
 
-    return RevalidatedCart(view: _view(), revalidation: _verdict());
+    final RevalidatedCart answer = RevalidatedCart(
+      view: _view(),
+      revalidation: _verdict(),
+    );
+
+    final Completer<void>? gate = holdRevalidate;
+
+    if (gate != null) {
+      holdRevalidate = null;
+      await gate.future;
+    }
+
+    return answer;
   }
 
   @override

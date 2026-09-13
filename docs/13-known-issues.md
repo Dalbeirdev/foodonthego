@@ -2747,3 +2747,40 @@ route recalculation was moving the plan's fingerprint under the selection. The
 dump refutes it — a moved fingerprint reads `STALE` and draws a notice. The
 threshold change stands on its own merits (a fixture should not recalculate a
 route it does not need to) and is recorded as no part of this fix.
+
+### KI-042 — the same ordering fault in the cart — **Medium, customer-facing** — FIXED
+
+Found by auditing every controller after KI-041, not by a failure. Nothing in CI
+had gone red on it, and nothing was going to: it needs two requests overlapping,
+which a device suite driving one tap at a time rarely produces.
+
+The cart has it in an easier place to reach than the pickup screen did.
+`_load()` revalidates, `_edit()` and `empty()` write, and `_revalidateQuietly()`
+is fired **unawaited behind every successful edit**. All four assigned
+`CartState.view` from whatever came back, whenever it came back.
+
+That last one is the reachable path, and it needs no slow network. A customer
+tapping "+" twice has the first tap's quiet revalidation in flight across the
+second tap's response. When it lands it carries the cart as it stood before the
+second tap, and the quantity drops from 3 back to 2 on screen — over a cart the
+server holds at 3. Tapping again would fix it; nothing on screen says so.
+
+Fixed with the same rule as KI-041, and reproduced the same way first, in
+`test/cart_controller_ordering_test.dart`. Evidence in
+`evidence/module-17/ki-042-cart-ordering.txt`.
+
+**One of those tests passed on its first draft for no reason**, and that is worth
+keeping. The gate holding the revalidation open was armed *after* the first
+increment — by which time that edit had already fired its quiet revalidation and
+the fake had answered it. The test exercised nothing and reported success. Armed
+before the first tap, it reproduces. It was caught only because the failure it
+claimed to cover was already understood from KI-041; a test written that way for
+an unknown fault would have been believed.
+
+**Controllers audited, and where this rule now applies.** `PickupController` and
+`CartController` are fixed. `DiscoveryController`, `MenuController`,
+`PlaceSearchController`, `RestaurantDetailController` and
+`ItemCustomizationController` already carried a sequencing guard of their own.
+**Not yet examined:** checkout, order, order tracking, route, trips, addresses
+and auth. They are named rather than quietly left out — an audit that lists only
+what it fixed reads as an all-clear it has not earned.

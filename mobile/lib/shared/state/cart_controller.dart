@@ -196,6 +196,24 @@ class CartController extends Notifier<CartState> {
   String? _tripId;
   bool _disposed = false;
 
+  /// Which request the cart on screen is allowed to reflect.
+  ///
+  /// A revalidation is a read of the cart as it stood when the request went
+  /// out. An edit is a write that can land after it. Without an ordering rule
+  /// the read wins by arriving last, and the quantity the customer just set
+  /// drops back on screen over a cart the server has already changed.
+  ///
+  /// It does not take a slow connection. Every successful edit fires a quiet
+  /// revalidation behind it, so two taps on the stepper are enough: the first
+  /// tap's revalidation can outlive the second tap's response.
+  ///
+  /// So every call that will write [CartState.view] takes the next ticket on
+  /// its way out and applies its answer only if no later one has been issued
+  /// since. Newest-issued wins, in both directions — a refresh started after an
+  /// edit is newer information and must replace it. The same rule as
+  /// `PickupController`, for the same reason (KI-041).
+  int _generation = 0;
+
   /// One key per attempt at an unsafe request, kept across a retry.
   ///
   /// A retry after a lost response replays the *same* request rather than
@@ -248,10 +266,12 @@ class CartController extends Notifier<CartState> {
 
     if (tripId == null) return;
 
+    final int ticket = ++_generation;
+
     try {
       final RevalidatedCart answer = await _carts.revalidate(tripId: tripId);
 
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         view: answer.view,
@@ -263,7 +283,7 @@ class CartController extends Notifier<CartState> {
         clearLoadFailure: true,
       );
     } on ApiException catch (error) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       // A journey with no cart is not a failure. The server has nothing to
       // revalidate and says so; to the customer this is the ordinary empty
@@ -292,7 +312,7 @@ class CartController extends Notifier<CartState> {
         isOffline: error.code == ApiErrorCode.network && !state.isEmpty,
       );
     } catch (_) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         isLoading: false,
@@ -352,13 +372,15 @@ class CartController extends Notifier<CartState> {
 
     state = state.copyWith(isEmptying: true, clearFailure: true);
 
+    final int ticket = ++_generation;
+
     try {
       final CartView view = await _carts.empty(
         tripId: tripId,
         idempotencyKey: _keyFor('empty'),
       );
 
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       _keys.remove('empty');
 
@@ -372,11 +394,11 @@ class CartController extends Notifier<CartState> {
         clearFailure: true,
       );
     } on ApiException catch (error) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       _applyFailure(error, null, isEmptying: false);
     } catch (_) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         isEmptying: false,
@@ -397,10 +419,12 @@ class CartController extends Notifier<CartState> {
 
     state = state.copyWith(busyLineId: lineId, clearFailure: true);
 
+    final int ticket = ++_generation;
+
     try {
       final CartView view = await request(tripId, _keyFor(lineId));
 
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       _keys.remove(lineId);
 
@@ -417,11 +441,11 @@ class CartController extends Notifier<CartState> {
       // response to a PATCH carries the cart, not an opinion about it.
       unawaited(_revalidateQuietly());
     } on ApiException catch (error) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       _applyFailure(error, lineId, clearBusyLine: true);
     } catch (_) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         clearBusyLine: true,
@@ -441,10 +465,15 @@ class CartController extends Notifier<CartState> {
 
     if (tripId == null || state.isEmpty) return;
 
+    final int ticket = ++_generation;
+
     try {
       final RevalidatedCart answer = await _carts.revalidate(tripId: tripId);
 
-      if (_disposed) return;
+      // This one is the reason the rule exists. It is fired unawaited behind
+      // every edit, so a customer tapping the stepper twice has one of these in
+      // flight across the second tap.
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         view: answer.view,
