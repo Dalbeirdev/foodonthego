@@ -1627,11 +1627,60 @@ What has not changed: the per-file Xcode build is the cost, it grows with every
 module that adds a device test, and a split or a shared build is the real fix
 whenever that becomes worth doing.
 
+**IT RECURRED ON 2026-09-13, AND THE BOUND DID ITS JOB.** Commit `dd83e7b` — a
+**documentation-only** change; the identical code had passed 41/41 on `f3d20e3`
+two commits earlier, and **Android passed on this very commit in 24m04s**. The
+iOS step was killed at the 45-minute limit.
+
+The evidence steps added by this issue's own fix fired for the first time on a
+real stall, and they caught it. The last lines the run ever wrote:
+
+```
+Running pod install...          29.5s
+Running Xcode build...
+Xcode build done.               146.4s
+```
+
+Then nothing at all. That is this issue's signature exactly — silence after
+`Xcode build done`, no test names, no assertion — and it is what distinguishes
+the stall from a slow run, which prints tests all the way to the wall.
+
+**Three facts this occurrence adds that the first two did not have:**
+
+1. **It hung on the FIRST test file.** The whole captured log is one pub-get, one
+   `pod install` and one Xcode build. Earlier runs of this suite build once per
+   file, so a stall partway through would have left several builds behind. This
+   one never got past the first launch.
+2. **`dartvm` survived cleanup, alongside `simctl`** — the VM process was alive
+   and the test simply never reported. That matches the attach hypothesis this
+   entry has always carried, and is now observed rather than inferred.
+3. **Every occurrence follows an unusually slow first build:**
+
+   | Commit | `Xcode build done` | Outcome |
+   | --- | --- | --- |
+   | `fd2e136` | 132.3 s | stalled |
+   | `8253730` | 148.4 s | stalled |
+   | `dd83e7b` | **146.4 s** | stalled |
+
+   Per-file builds in passing runs are 39–97 s. All three stalls follow a build
+   of roughly 130–150 s. That is a correlation across three points, not a
+   mechanism — it is recorded as a lead, not a cause, and the obvious confound
+   is that the first build of a run is the cold one that also runs `pod install`.
+
+**Re-run: not possible.** `POST /actions/runs/<id>/rerun-failed-jobs` returns
+**403** for this session's token, as it did the last time a rerun was needed.
+Recorded here rather than left implicit, because "re-run it once" is the
+standard remedy for exactly this shape of failure and it is unavailable.
+
 **The stall has not recurred in six completed runs.** Every one of them printed
 its tests, including the failure: run 158's two failures were a real defect and
 a real timeout, both with output, which is the opposite of this issue's
 signature. The bound works, and iOS device results have been dependable enough
 this module to have found a genuine defect nothing else could reach.
+
+*(That paragraph described the state before 2026-09-13. It is now seven
+occurrences-free runs followed by a recurrence — which is what "intermittent"
+looks like, and why the entry was kept open.)*
 
 **It is still OPEN, and the reason is not superstition.** The cause — the VM
 service attach, on the evidence of `dartvm` and `simctl` surviving cleanup —

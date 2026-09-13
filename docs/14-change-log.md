@@ -1795,3 +1795,29 @@ customer app got a screen that reads it without ever deciding it.
 
   Verified on `f3d20e3`: 7/7 green, **41 tests on each platform**, with iOS at
   28m34s — well past the window that broke it before.
+
+- **The iOS simulator stall (KI-020) recurred, and the evidence its own fix added
+  finally caught it.** On `dd83e7b` — a documentation-only commit, whose code had
+  passed 41/41 two commits earlier and which **Android passed at 24m04s** — the
+  iOS step was killed at the 45-minute limit having written:
+
+  ```
+  Running pod install...          29.5s
+  Running Xcode build...
+  Xcode build done.               146.4s
+  ```
+
+  and then nothing. Silence after the build, no test names: the signature that
+  separates this stall from a slow run.
+
+  Three things this occurrence adds. It hung on the **first** test file — the
+  whole log is one build, and this suite builds once per file. **`dartvm`
+  survived cleanup** alongside `simctl`, so the VM was alive and the test never
+  reported, which is the attach hypothesis observed rather than inferred. And all
+  three recorded stalls follow a first build of 130–150 s where passing per-file
+  builds take 39–97 s — recorded as a lead, not a cause, with the obvious
+  confound that the first build is the cold one that also runs `pod install`.
+
+  **The re-run remedy is unavailable**: the API returns 403 for this session's
+  token. Recorded explicitly, because "just re-run it" is the standard answer to
+  this shape of failure and it cannot be done here.
