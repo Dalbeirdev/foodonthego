@@ -65,7 +65,6 @@ import 'package:foodonthego/data/repositories/api_menu_repository.dart';
 import 'package:foodonthego/data/repositories/api_order_repository.dart';
 import 'package:foodonthego/data/repositories/api_pickup_repository.dart';
 import 'package:foodonthego/data/repositories/api_place_repository.dart';
-import 'package:foodonthego/data/repositories/api_route_repository.dart';
 import 'package:foodonthego/data/repositories/api_trip_repository.dart';
 import 'package:foodonthego/domain/models/checkout.dart';
 import 'package:foodonthego/domain/models/customer.dart';
@@ -136,12 +135,13 @@ void main() {
       );
     }
 
-    // Only when there is not one already. A route is a billed call against a
-    // real provider, and re-asking for one the journey already has is exactly
-    // the cost this module is not allowed to add.
-    if (!trip.routeStatus.hasUsableRoute) {
-      await ApiRouteRepository(api).calculate(trip.id);
-    }
+    // A route this screen can USE, which is not the same as a route existing.
+    // The server refuses a travel estimate derived from one older than fifteen
+    // minutes, and the device suite can take longer than that between the file
+    // that calculates the route and this one. `ensureUsableRoute` keeps the
+    // original guard's intent — it still does not re-ask for a route the
+    // journey already has and can use — and adds the half that decays.
+    trip = await ensureUsableRoute(api, trip);
 
     final RestaurantDiscovery found = await ApiDiscoveryRepository(api)
         .discover(trip.id);

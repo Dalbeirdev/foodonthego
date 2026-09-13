@@ -17,8 +17,11 @@ import 'package:foodonthego/core/network/api_client.dart';
 import 'package:foodonthego/core/routing/app_router.dart';
 import 'package:foodonthego/data/auth/session_store.dart';
 import 'package:foodonthego/data/repositories/api_customer_repository.dart';
+import 'package:foodonthego/data/repositories/api_route_repository.dart';
+import 'package:foodonthego/data/repositories/api_trip_repository.dart';
 import 'package:foodonthego/domain/models/auth_models.dart';
 import 'package:foodonthego/domain/models/customer.dart';
+import 'package:foodonthego/domain/models/trip.dart';
 import 'package:foodonthego/shared/state/providers.dart';
 import 'package:go_router/go_router.dart';
 
@@ -306,4 +309,57 @@ Finder reachableOrFail(Finder finder) {
               'built, but off screen or behind something.'
         : 'Scrolled as far as it goes and $finder was never built at all.',
   );
+}
+
+/// How old a calculated route may be before this suite stops trusting it.
+///
+/// The server's own limit is `route_estimate_max_age_seconds` — 900 s. Past
+/// that it will not present a travel estimate at all: the pickup screen says
+/// "We worked out your travel time a while ago. Refresh it and we'll show
+/// current pickup times", and no pickup window ever loads.
+///
+/// Five minutes, not fifteen, because the route has to still be fresh when the
+/// LAST assertion of a test runs, not merely when the fixture was built.
+const Duration _routeStaleAfter = Duration(minutes: 5);
+
+/// Gives [trip] a route the pickup and checkout screens will actually accept.
+///
+/// WHY THIS EXISTS, AND WHY IT IS NOT THE COST THE MODULES REFUSED.
+///
+/// module_11 through module_14 each guarded their route calculation with
+/// `if (!trip.routeStatus.hasUsableRoute)`, above a comment explaining that a
+/// route is a billed provider call and re-asking for one the journey already
+/// has is a cost those modules must not add. That reasoning is right and this
+/// helper keeps it: it recalculates ONLY when there is no route, or when the
+/// route that exists is one the server will refuse to use.
+///
+/// What the guard missed is that "has a route" and "has a route this screen can
+/// use" are different claims, and the second one decays with the clock. The
+/// device suite shares one journey; whichever file runs first calculates its
+/// route; module_13 and module_14 open screens that need a travel estimate much
+/// later in the same run. Once the suite took longer than fifteen minutes
+/// between those two points, the estimate was refused and five tests failed.
+///
+/// It was found the way these things are: the SAME COMMIT passed on Android in
+/// 24m12s and failed on iOS in 35m46s. Nothing differed but elapsed time.
+///
+/// A stale route is, for these screens, no route at all — so refreshing it is
+/// the minimum needed to proceed, and it is exactly what the app asks the
+/// customer to do when it happens to them.
+Future<Trip> ensureUsableRoute(ApiClient api, Trip trip) async {
+  final DateTime? calculatedAt = trip.selectedRoute?.calculatedAt;
+
+  // A route with no timestamp cannot be shown to be fresh, so it is treated as
+  // stale. Assuming otherwise is how a check passes without checking.
+  final bool usable =
+      trip.routeStatus.hasUsableRoute &&
+      calculatedAt != null &&
+      DateTime.now().toUtc().difference(calculatedAt).abs() < _routeStaleAfter;
+
+  if (usable) return trip;
+
+  await ApiRouteRepository(api)
+      .calculate(trip.id, refresh: trip.routeStatus.hasUsableRoute);
+
+  return ApiTripRepository(api).trip(trip.id);
 }

@@ -2516,3 +2516,59 @@ KI-038. The failing count came back from `/check-runs/<id>/annotations` in one
 call — *"35 tests passed, 2 failed"* — on the **Android** job, whose log tail
 has never been able to show it. Before that annotation existed this would have
 meant a blind large-window log fetch or a twenty-minute wait for iOS.
+
+### KI-040 — the shared device journey's route goes stale mid-run — **Medium, time-dependent fixture** — FIXED
+
+Five `module_13_pickup_test.dart` tests failed with the screen showing:
+
+```
+Your journey needs refreshing | We worked out your travel time a while ago.
+Refresh it and we'll show current pickup times.
+```
+
+**The app was right again.** `route_estimate_max_age_seconds` is **900 s**: past
+fifteen minutes the server will not present a travel estimate derived from that
+route, and the customer is asked to refresh instead. The device suite shares one
+journey, whichever file runs first calculates its route, and `module_13` opens a
+screen that needs a travel estimate much later in the same run.
+
+**The evidence is a controlled experiment nobody had to set up.** The *same
+commit*, the *same tests*:
+
+| Platform | Test step | Result |
+| --- | --- | --- |
+| Android | 24m12s | **passed** |
+| iOS | 35m46s | **failed** |
+
+Nothing differed but elapsed time. A fixture whose validity depends on the suite
+finishing quickly enough is the same defect KI-034 recorded in a different
+costume — *a fixed wait against "however long this takes" is a coin toss* — and
+this one was a fifteen-minute wait against a suite that grew past it.
+
+**What made it fire now:** two device-test files were added (Modules 05 and 06),
+lengthening the run. The fragility predates them; the growth is what crossed the
+threshold. Recording both halves, because "my change broke it" and "the fixture
+was always time-dependent" are both true and only the second one stays useful.
+
+**Four files carried the same guard** — `module_11`, `12`, `13`, `14` each wrote
+`if (!trip.routeStatus.hasUsableRoute)` above a comment explaining, correctly,
+that a route is a billed provider call and re-asking for one the journey already
+has is a cost the module must not add. The reasoning was right. What it missed is
+that **"has a route" and "has a route this screen can use" are different claims,
+and only the second one decays.**
+
+**Fixed** with `ensureUsableRoute` in `integration_test/support/device_support.dart`,
+used by `module_13` and `module_14` — the two that open screens needing a travel
+estimate. It keeps the original intent: it recalculates only when there is no
+route, or when the route that exists is one the server will refuse. A stale route
+is, for these screens, no route at all, so refreshing is the minimum needed to
+proceed — and it is exactly what the app asks a customer to do.
+
+Threshold **five** minutes rather than fifteen, because the route has to still be
+fresh when the last assertion of a test runs, not merely when the fixture was
+built. A route with no `calculated_at` is treated as stale: it cannot be *shown*
+to be fresh, and assuming otherwise is how a check passes without checking.
+
+`module_11` and `module_12` are deliberately left alone. They never ask for a
+travel estimate, so refreshing there would be the billed cost those modules
+correctly refused.
