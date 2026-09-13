@@ -1,0 +1,83 @@
+KI-044 — closing the ordering audit: the session, the journeys, the addresses
+=============================================================================
+
+The last three controllers KI-043 had named as unexamined. All three had the
+fault; one of them is not a display fault at all.
+
+AUTH — the serious one. restore() reads the stored session, shows the stored
+profile immediately, and then asks the server to correct it. The optimistic step
+is deliberate and right: nobody should watch a splash screen because the network
+is slow. The consequence is that the app is SIGNED IN AND USABLE for the whole
+of that confirming request — the router has let the customer through, and the
+Sign out button is on a screen they can reach.
+
+Before the fix, using it did not stick:
+
+  00:00 +0 -1: signing out during a restore is not undone by it [E]
+    Expected: <Instance of 'AuthSignedOut'>
+      Actual: <Instance of 'AuthAuthenticated'>
+    a restore in flight signed the customer back in after they had signed out
+
+And the store was rewritten too, so the cleared credentials came back to disk.
+Everywhere else in this audit the cost of losing the race is a wrong thing on a
+screen. Here it is a customer who signed out — possibly before handing the phone
+to somebody else — being signed back in.
+
+TRIPS — refreshQuietly() has a caller that does not wait for it:
+RouteController._refreshTripSurfaces() fires it and moves on, so that a
+selection which succeeded is not reported as failed because the list behind it
+was slow. That is right, and it means a read can be in flight while the customer
+discards a journey:
+
+  00:00 +0 -1: a read that answers after a discard does not bring it back [E]
+    Expected: not contains 'trip-1'
+      Actual: ['trip-2', 'trip-1']
+
+The discarded journey, back on a list the server has already cancelled it from.
+CurrentTripController has the same unawaited caller and the same guard now.
+
+ADDRESSES — the screen guards its own row controls with a busy id, so two edits
+cannot overlap. Its RefreshIndicator is outside that guard:
+
+  00:00 +0 -1: a refresh that answers after a change does not undo it [E]
+    Expected: 'addr-2'
+      Actual: 'addr-1'
+
+The default address flips back over a server that has already moved it.
+
+TWO MORE TESTS THAT WERE WRONG BEFORE THEY WERE RIGHT, both caught by their own
+controls rather than by inspection.
+
+  1. The first auth test called restore() itself — but AuthController.build()
+     already starts one for itself in a microtask, so what raced was TWO
+     RESTORES, not a restore and a sign-out. It failed before the fix and passed
+     after it, for reasons that had nothing to do with either. The control
+     ("a restore with nothing racing it still applies the correction") failed on
+     the FIXED code, which is what exposed it: the state was still Restoring
+     because the real restore had not finished. Rewritten to let build()'s own
+     restore be the subject.
+
+  2. The first trips test read the list before the session had restored, so it
+     asserted against an empty list. Its race assertion was `isNot(contains(...))`,
+     which an empty list satisfies — the control passed while testing nothing.
+     It now signs in first, and the control additionally asserts that a journey
+     IS present, so an empty list fails instead of passing.
+
+AFTER THE FIXES:
+  00:00 +0: loading /home/user/foodonthego/mobile/test/auth_controller_ordering_test.dart
+  00:00 +0: signing out during a restore is not undone by it
+  00:00 +1: a restore with nothing racing it still applies the correction
+  00:00 +2: All tests passed!
+  00:00 +0: loading /home/user/foodonthego/mobile/test/trips_controller_ordering_test.dart
+  00:00 +0: a read that answers after a discard does not bring it back
+  00:00 +1: a read with nothing newer behind it is still applied
+  00:00 +2: All tests passed!
+  00:00 +0: loading /home/user/foodonthego/mobile/test/addresses_controller_ordering_test.dart
+  00:00 +0: a refresh that answers after a change does not undo it
+  00:00 +1: a refresh with nothing newer behind it is still applied
+  00:00 +2: All tests passed!
+
+FORMAT, ANALYZE, FULL SUITE:
+  Formatted 263 files (0 changed) in 1.32 seconds.
+  No issues found! (ran in 3.5s)
+  01:35 +1032: All tests passed!

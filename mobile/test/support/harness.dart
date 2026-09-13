@@ -128,6 +128,13 @@ class FakeAuthRepository implements AuthRepository {
   int logoutCount = 0;
   int currentCustomerCount = 0;
 
+  /// Holds the next `currentCustomer` answer open until a test lets it go.
+  ///
+  /// Restoring a session shows the stored profile first and corrects it after,
+  /// so the app is signed in and usable across this call. What a test needs to
+  /// drive is what happens if the customer acts during it.
+  Completer<void>? holdCurrentCustomer;
+
   int resendAvailableInSeconds = 30;
   int expiresInSeconds = 300;
 
@@ -232,6 +239,13 @@ class FakeAuthRepository implements AuthRepository {
       () => nextCurrentCustomerError = null,
     );
     if (error != null) throw error;
+
+    final Completer<void>? gate = holdCurrentCustomer;
+
+    if (gate != null) {
+      holdCurrentCustomer = null;
+      await gate.future;
+    }
 
     return customer;
   }
@@ -367,8 +381,25 @@ class FakeCustomerRepository implements CustomerRepository {
     );
     if (error != null) throw error;
 
-    return List<SavedAddress>.unmodifiable(_addresses);
+    final List<SavedAddress> answer = List<SavedAddress>.unmodifiable(
+      _addresses,
+    );
+
+    final Completer<void>? gate = holdAddresses;
+
+    if (gate != null) {
+      holdAddresses = null;
+      await gate.future;
+    }
+
+    return answer;
   }
+
+  /// Holds the next `addresses` answer open until a test lets it go.
+  ///
+  /// The list it will carry is taken when the call ARRIVES, not when it
+  /// returns — the same as every other gate in this file.
+  Completer<void>? holdAddresses;
 
   @override
   Future<SavedAddress> createAddress(AddressDraft draft) async {
@@ -655,6 +686,14 @@ class FakeTripRepository implements TripRepository {
 
   final int openLimit;
 
+  /// Holds the next `trips` answer open until a test lets it go.
+  ///
+  /// The list it will carry is taken when the call ARRIVES, not when it returns
+  /// — the same as every other gate in this file, and the whole point here: a
+  /// journey discarded while the read was in flight is still in the answer,
+  /// because the server answered the question it was asked.
+  Completer<void>? holdTrips;
+
   /// Thrown by the next matching call and then cleared, so a test can script one
   /// failure followed by a success.
   ApiException? nextListError;
@@ -701,6 +740,13 @@ class FakeTripRepository implements TripRepository {
       TripScope.cancelled => _trips.where((Trip t) => t.isCancelled).toList(),
       TripScope.all => <Trip>[..._trips],
     };
+
+    final Completer<void>? gate = holdTrips;
+
+    if (gate != null) {
+      holdTrips = null;
+      await gate.future;
+    }
 
     return List<Trip>.unmodifiable(matching.reversed);
   }

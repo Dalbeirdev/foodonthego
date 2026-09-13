@@ -2832,3 +2832,59 @@ initialized" — a selection fans out through `_refreshTripSurfaces()` to the tr
 list and the home card, which watch the session and reach a Keychain over a
 platform channel no plain `test()` has. Nothing to do with routes. Two overrides
 were needed before the file could say anything about its own subject.
+
+### KI-044 — closing the ordering audit: the session, the journeys, the addresses — **Medium→High, one of them not a display fault** — FIXED
+
+The last three controllers KI-043 named as unexamined. All three had it.
+Evidence in `evidence/module-17/ki-044-ordering-audit-closed.txt`.
+
+**Auth, and this one is different in kind.** `restore()` reads the stored
+session, shows the stored profile immediately, and asks the server to correct it
+after. The optimistic step is deliberate and right — nobody should watch a
+splash screen because the network is slow — but it means the app is **signed in
+and usable for the whole of that confirming request**. The router has let the
+customer through and the Sign out button is on a screen they can reach. Before
+the fix, using it did not stick: the restore's answer signed them back in, and
+rewrote the cleared session to storage. Everywhere else in this audit the cost of
+losing the race is a wrong thing on a screen. Here it is a customer who signed
+out — possibly before handing the phone to somebody else — being signed back in,
+with working credentials returned to disk.
+
+**Trips.** `refreshQuietly()` has a caller that does not wait for it:
+`RouteController._refreshTripSurfaces()` fires it and moves on, so a selection
+that succeeded is not reported as failed because the list behind it was slow.
+That is right, and it means a read can be in flight while the customer discards a
+journey — which then reappears on a list the server has already cancelled it
+from. `CurrentTripController` has the same unawaited caller and now the same
+guard.
+
+**Addresses.** The screen guards its row controls with a busy id, so two edits
+cannot overlap; its `RefreshIndicator` is outside that guard. A pull-to-refresh
+in flight when the customer changes their default address puts the old default
+back, over a server that has already moved it.
+
+**TWO MORE TESTS THAT WERE WRONG BEFORE THEY WERE RIGHT**, and in both cases the
+control caught it rather than inspection.
+
+The first auth test called `restore()` itself — but `build()` already starts one
+in a microtask, so what raced was **two restores**, not a restore and a sign-out.
+It failed before the fix and passed after, for reasons unrelated to either. What
+exposed it was the control failing on the *fixed* code: the state was still
+`Restoring`, because the real restore had not finished. Rewritten so `build()`'s
+own restore is the subject.
+
+The first trips test read the list before the session had restored and so
+asserted against an empty one. Its race assertion was `isNot(contains(...))`,
+which an empty list satisfies — the control passed while testing nothing. It now
+signs in first, and the control also asserts a journey **is** present, so an
+empty list fails instead of passing.
+
+**That is three vacuous tests in this audit** (the cart's, and these two), all
+three caught by controls. The lesson is not that the controls worked; it is that
+without them, three fixes would have shipped with tests that proved nothing and
+looked like proof.
+
+**The audit is now closed.** Every controller in `lib/shared/state` either has a
+sequencing guard or has a recorded reason not to: order tracking already had one
+plus a server `version` check, and `OrderController` has no reachable overlap —
+`place()` and `pay()` are gated on `isBusy` and `load()` has no caller.

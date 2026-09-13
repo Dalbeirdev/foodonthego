@@ -47,13 +47,41 @@ class TripsController extends AsyncNotifier<List<Trip>> {
 
   TripScope get _scope => ref.read(tripScopeProvider);
 
+  /// Which read the list on screen is allowed to reflect.
+  ///
+  /// [refreshQuietly] has a caller that does not wait for it:
+  /// `RouteController._refreshTripSurfaces()` fires it and moves on, so that a
+  /// selection which succeeded is not reported as failed because the list
+  /// behind it was slow. That is right, and it means a read can be in flight
+  /// while the customer discards a journey — and an older read landing after
+  /// puts the discarded journey back on a list the server has already cancelled
+  /// it from.
+  ///
+  /// So every call that writes the list takes the next ticket and applies its
+  /// answer only if no later one has been issued since. The same rule as the
+  /// other controllers (KI-041 onwards).
+  int _generation = 0;
+
   /// Re-fetches. Used by pull-to-refresh and after an error.
   Future<void> reload() async {
+    final int ticket = ++_generation;
+
     state = const AsyncValue<List<Trip>>.loading();
-    state = await AsyncValue.guard(() => _repository.trips(scope: _scope));
+
+    final AsyncValue<List<Trip>> answer = await AsyncValue.guard(
+      () => _repository.trips(scope: _scope),
+    );
+
+    if (ticket != _generation) return;
+
+    state = answer;
   }
 
   Future<Trip> discard(String id) async {
+    // Claimed before the write, so a read already in flight cannot land on top
+    // of the discard while its own re-read is still on its way.
+    _generation++;
+
     final Trip discarded = await _repository.discardTrip(id);
 
     // A discarded trip leaves the open list entirely, so filtering locally would
@@ -68,10 +96,14 @@ class TripsController extends AsyncNotifier<List<Trip>> {
   ///
   /// A list that blanks out after every successful change reads as a failure.
   Future<void> refreshQuietly() async {
+    final int ticket = ++_generation;
+
     try {
-      state = AsyncValue<List<Trip>>.data(
-        await _repository.trips(scope: _scope),
-      );
+      final List<Trip> fresh = await _repository.trips(scope: _scope);
+
+      if (ticket != _generation) return;
+
+      state = AsyncValue<List<Trip>>.data(fresh);
     } on ApiException {
       // The write succeeded; only the re-read failed. Leaving the previous list
       // in place beats replacing a correct screen with an error about something
@@ -105,19 +137,36 @@ class CurrentTripController extends AsyncNotifier<Trip?> {
     return ref.read(tripRepositoryProvider).currentTrip();
   }
 
+  /// The same ordering rule as [TripsController], and for the same caller:
+  /// `RouteController._refreshTripSurfaces()` fires [refreshQuietly] without
+  /// waiting for it, so a read can be in flight while the journey it describes
+  /// is discarded.
+  int _generation = 0;
+
   Future<void> reload() async {
+    final int ticket = ++_generation;
+
     state = const AsyncValue<Trip?>.loading();
-    state = await AsyncValue.guard(
+
+    final AsyncValue<Trip?> answer = await AsyncValue.guard(
       () => ref.read(tripRepositoryProvider).currentTrip(),
     );
+
+    if (ticket != _generation) return;
+
+    state = answer;
   }
 
   /// Re-reads without blanking the card first.
   Future<void> refreshQuietly() async {
+    final int ticket = ++_generation;
+
     try {
-      state = AsyncValue<Trip?>.data(
-        await ref.read(tripRepositoryProvider).currentTrip(),
-      );
+      final Trip? fresh = await ref.read(tripRepositoryProvider).currentTrip();
+
+      if (ticket != _generation) return;
+
+      state = AsyncValue<Trip?>.data(fresh);
     } on ApiException {
       // The card on screen is still correct. Replacing it with an error about a
       // refresh is worse than showing it one change late.

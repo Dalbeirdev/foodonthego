@@ -34,10 +34,31 @@ class AddressesController extends AsyncNotifier<List<SavedAddress>> {
 
   CustomerRepository get _repository => ref.read(customerRepositoryProvider);
 
+  /// Which read the list on screen is allowed to reflect.
+  ///
+  /// The screen guards its own row controls with a busy id, so two edits cannot
+  /// overlap — but the pull-to-refresh is outside that guard. A [reload] in
+  /// flight when the customer makes an address their default answers with the
+  /// list as it stood before, and the default flips back over a server that has
+  /// already moved it.
+  ///
+  /// The same rule as the other controllers (KI-041 onwards): a ticket taken on
+  /// the way out, an answer applied only if nothing newer has been issued.
+  int _generation = 0;
+
   /// Re-fetches. Used by pull-to-refresh and after an error.
   Future<void> reload() async {
+    final int ticket = ++_generation;
+
     state = const AsyncValue<List<SavedAddress>>.loading();
-    state = await AsyncValue.guard(() => _repository.addresses());
+
+    final AsyncValue<List<SavedAddress>> answer = await AsyncValue.guard(
+      () => _repository.addresses(),
+    );
+
+    if (ticket != _generation) return;
+
+    state = answer;
   }
 
   /// Saves a new address and returns it.
@@ -46,6 +67,10 @@ class AddressesController extends AsyncNotifier<List<SavedAddress>> {
   /// called this needs to keep its own contents and show the message against the
   /// right field, which it cannot do if the error has become the whole screen's.
   Future<SavedAddress> add(AddressDraft draft) async {
+    // Claimed before the write, so a read already in flight cannot land on top
+    // of it while this call's own re-read is still on its way.
+    _generation++;
+
     final SavedAddress created = await _repository.createAddress(draft);
 
     // Re-read rather than appending. Creating an address can change another one
@@ -57,6 +82,8 @@ class AddressesController extends AsyncNotifier<List<SavedAddress>> {
   }
 
   Future<SavedAddress> edit(String id, AddressDraft draft) async {
+    _generation++;
+
     final SavedAddress updated = await _repository.updateAddress(id, draft);
     await _refreshQuietly();
 
@@ -64,6 +91,8 @@ class AddressesController extends AsyncNotifier<List<SavedAddress>> {
   }
 
   Future<void> remove(String id) async {
+    _generation++;
+
     await _repository.deleteAddress(id);
 
     // Deleting the default promotes another one, server-side. Appending or
@@ -72,6 +101,8 @@ class AddressesController extends AsyncNotifier<List<SavedAddress>> {
   }
 
   Future<void> makeDefault(String id) async {
+    _generation++;
+
     await _repository.makeDefault(id);
     await _refreshQuietly();
   }
@@ -81,10 +112,14 @@ class AddressesController extends AsyncNotifier<List<SavedAddress>> {
   /// A list that blanks out after every successful edit reads as a failure. The
   /// row-level control shows its own progress instead.
   Future<void> _refreshQuietly() async {
+    final int ticket = ++_generation;
+
     try {
-      state = AsyncValue<List<SavedAddress>>.data(
-        await _repository.addresses(),
-      );
+      final List<SavedAddress> fresh = await _repository.addresses();
+
+      if (ticket != _generation) return;
+
+      state = AsyncValue<List<SavedAddress>>.data(fresh);
     } on ApiException {
       // The write succeeded; only the re-read failed. Leaving the previous list
       // in place is better than replacing a correct screen with an error about

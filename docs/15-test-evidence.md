@@ -2819,4 +2819,10 @@ needs three provider overrides and a live listener before it can say anything
 about routes at all, and the comments there say why — its first draft reported a
 fault that was entirely the harness.
 
-Counted in the 1,026 the mobile suite now runs.
+`auth_controller_ordering_test.dart`, `trips_controller_ordering_test.dart` and
+`addresses_controller_ordering_test.dart` close the audit. The auth pair is the
+one to read first: its subject is the restore the controller starts for itself,
+and the comments say why an earlier draft that called `restore()` by hand was
+racing two restores rather than a restore and a sign-out.
+
+Counted in the 1,032 the mobile suite now runs.

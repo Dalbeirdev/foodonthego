@@ -1888,3 +1888,21 @@ customer app got a screen that reads it without ever deciding it.
   CI checks it. Two new test files were reformatted and the pre-push routine now
   includes the formatter. Recorded rather than quietly fixed: the cost was a
   wasted CI cycle on a branch whose whole point that week was keeping CI honest.
+
+- **The ordering audit is closed (KI-044), and the last one found was the worst.**
+  `AuthController.restore()` shows the stored profile before confirming it, which
+  means the app is signed in and usable across that request — so a customer can
+  reach Sign out during it. Before the fix the restore's answer signed them back
+  in and rewrote the cleared session to storage. Everywhere else in this audit a
+  lost race puts a wrong thing on a screen; here it returns working credentials
+  to a device somebody may have just handed over.
+
+  Trips and the home card had it through the one caller that does not wait —
+  the route screen's fan-out — so a discarded journey could reappear. Saved
+  addresses had it through the pull-to-refresh, which sits outside the screen's
+  own busy guard, so a changed default could flip back.
+
+  Every controller in `lib/shared/state` now either carries the guard or has a
+  recorded reason not to. Three of the tests written during this audit were
+  vacuous on their first draft and all three were caught by their controls —
+  which is the argument for the controls, not for the drafts.

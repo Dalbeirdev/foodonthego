@@ -28,6 +28,22 @@ class AuthController extends Notifier<AuthState> {
   /// it is in flight hits it. Checking is cheaper than the alternative.
   bool _disposed = false;
 
+  /// Which session decision the state is allowed to reflect.
+  ///
+  /// [restore] shows the stored profile before it confirms it, which is
+  /// deliberate: a customer should not watch a splash screen because the
+  /// network is slow. The consequence is that **the app is signed in and usable
+  /// for the whole of that confirming request** — the router has let them
+  /// through, and the Sign out button is on a screen they can reach.
+  ///
+  /// If they use it, the answer still in flight must not put the session back.
+  /// Every call that decides whether there is a session takes the next ticket
+  /// and applies its answer only if no later decision has been made since. The
+  /// same rule as the other controllers (KI-041 onwards) — and the only place
+  /// in the app where getting it wrong is not a display fault: it signs a
+  /// customer back in on a device they may have just handed to somebody else.
+  int _generation = 0;
+
   @override
   AuthState build() {
     ref.onDispose(() => _disposed = true);
@@ -39,9 +55,13 @@ class AuthController extends Notifier<AuthState> {
     return const AuthRestoring();
   }
 
-  /// Writes state unless this notifier has gone.
-  void _set(AuthState next) {
+  /// Writes state unless this notifier has gone, or has been overtaken.
+  ///
+  /// [ticket] is the generation the caller took on its way out. Omitted by
+  /// callers that ARE the newest decision at the moment they write.
+  void _set(AuthState next, {int? ticket}) {
     if (_disposed) return;
+    if (ticket != null && ticket != _generation) return;
     state = next;
   }
 
@@ -56,14 +76,16 @@ class AuthController extends Notifier<AuthState> {
   /// the first real request. Requiring the network would lock a customer out in
   /// a tunnel, so a session that fails to *reach* the server is kept.
   Future<void> restore() async {
-    _set(const AuthRestoring());
+    final int ticket = ++_generation;
+
+    _set(const AuthRestoring(), ticket: ticket);
 
     final AuthSession? stored = await _store.read();
 
-    if (_disposed) return;
+    if (_disposed || ticket != _generation) return;
 
     if (stored == null) {
-      _set(const AuthSignedOut());
+      _set(const AuthSignedOut(), ticket: ticket);
       return;
     }
 
@@ -71,15 +93,25 @@ class AuthController extends Notifier<AuthState> {
       // The server told us when this would stop working, so there is no need to
       // ask it.
       await _store.clear();
-      _set(const AuthSignedOut(reason: SignedOutReason.sessionExpired));
+      _set(
+        const AuthSignedOut(reason: SignedOutReason.sessionExpired),
+        ticket: ticket,
+      );
       return;
     }
 
     // Optimistic: show the stored profile immediately, then correct it.
-    _set(AuthAuthenticated(stored.customer));
+    _set(AuthAuthenticated(stored.customer), ticket: ticket);
 
     try {
       final Customer fresh = await _auth.currentCustomer();
+
+      // Checked BEFORE the write, not only before the state change. A restore
+      // that lost the race must not put a session back into storage either —
+      // signing out clears it, and rewriting it here would leave a signed-out
+      // customer with working credentials on disk.
+      if (_disposed || ticket != _generation) return;
+
       await _store.write(
         AuthSession(
           accessToken: stored.accessToken,
@@ -87,11 +119,16 @@ class AuthController extends Notifier<AuthState> {
           customer: fresh,
         ),
       );
-      _set(AuthAuthenticated(fresh));
+      _set(AuthAuthenticated(fresh), ticket: ticket);
     } on ApiException catch (error) {
+      if (_disposed || ticket != _generation) return;
+
       if (_endsSession(error.code)) {
         await _store.clear();
-        _set(const AuthSignedOut(reason: SignedOutReason.sessionExpired));
+        _set(
+          const AuthSignedOut(reason: SignedOutReason.sessionExpired),
+          ticket: ticket,
+        );
       }
       // Any other failure — no network, a 500, a timeout — leaves the restored
       // session in place. A backend outage must not sign everybody out.
@@ -100,6 +137,8 @@ class AuthController extends Notifier<AuthState> {
 
   /// Accepts a session produced by sign-in or registration.
   Future<void> accept(AuthSession session) async {
+    _generation++;
+
     await _store.write(session);
     state = AuthAuthenticated(session.customer);
   }
@@ -136,6 +175,10 @@ class AuthController extends Notifier<AuthState> {
   /// the moment somebody handing their phone over most needs it to work. The
   /// token is revoked server-side on a best-effort basis, and expires anyway.
   Future<void> logout() async {
+    // Claimed before anything is awaited. A restore still confirming a stored
+    // session is now the older decision and will not undo this.
+    _generation++;
+
     final Future<void> revoke = _revokeQuietly();
 
     await _store.clear();
@@ -157,6 +200,8 @@ class AuthController extends Notifier<AuthState> {
   Future<void> handleAuthenticationFailure(ApiErrorCode code) async {
     if (!_endsSession(code)) return;
     if (state is! AuthAuthenticated) return;
+
+    _generation++;
 
     await _store.clear();
     state = const AuthSignedOut(reason: SignedOutReason.sessionExpired);
