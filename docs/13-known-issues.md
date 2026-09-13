@@ -2784,3 +2784,51 @@ an unknown fault would have been believed.
 **Not yet examined:** checkout, order, order tracking, route, trips, addresses
 and auth. They are named rather than quietly left out — an audit that lists only
 what it fixed reads as an all-clear it has not earned.
+
+### KI-043 — the audit that followed, and the two further places it was found — **Medium, customer-facing** — FIXED
+
+KI-042 named seven controllers as not yet examined. Two of them had the fault.
+Evidence for both, and for the two harness lessons below, in
+`evidence/module-17/ki-043-ordering-audit.txt`.
+
+**Checkout.** `_prepare()` and `validate()` both write the quote. A
+pull-to-refresh still in flight when the customer taps Proceed answers with the
+quote as it stood before the server was asked about it — so a quote the server
+has just called `STALE` is replaced on screen by one that looks payable, along
+with the id a payment would be raised against. This is the screen that carries
+the money, which is why it is fixed rather than noted.
+
+**Route.** `select()` already guarded itself against an abandoned tap *of its
+own*; it did not guard against `calculate()`. The screen leaves the alternatives
+tappable while a recalculation runs — the body switches on `hasRoutes`, not on
+`isCalculating`, and only the Recalculate button is disabled — so a customer can
+tap Recalculate, pick a different route while it works, and watch their choice
+replaced by the recommended one. The existing `_selectionGeneration` is now one
+`_generation` covering the read, the calculation and the selection alike.
+
+**Examined and left alone, with reasons.** `OrderTrackingController` already
+carries both a sequence guard and a server-side `version` comparison, and is the
+best-behaved of the family. `OrderController` has no reachable overlap: `place()`
+and `pay()` are gated on `isBusy`, and `load()` has no caller in the app —
+recorded as unreachable rather than patched, because a guard added to code
+nothing calls is a guard nobody will maintain. Trips, addresses and auth remain
+unexamined and are still named here as such.
+
+**TWO HARNESS LESSONS, both of which produced a confident wrong reading.**
+
+The route test's first draft reported the **entire route set vanishing** —
+`routes` null, no failure, which would have meant the screen falling through to
+its problem view with nothing to explain. That was not the product.
+`routeControllerProvider` is `autoDispose`, alone among these four controllers,
+so with no listener it was disposed and rebuilt between awaits and the test was
+reading a *fresh, empty controller* rather than the one it had driven. Held open
+with `container.listen`, the real fault appears, and it is narrower: the
+selection is replaced, not the set. **A wrong diagnosis that is more alarming
+than the truth is still a wrong diagnosis**, and it would have sent the next
+reader looking for a state-clearing bug that does not exist.
+
+Before that, every test in the file failed with "Binding has not yet been
+initialized" — a selection fans out through `_refreshTripSurfaces()` to the trips
+list and the home card, which watch the session and reach a Keychain over a
+platform channel no plain `test()` has. Nothing to do with routes. Two overrides
+were needed before the file could say anything about its own subject.

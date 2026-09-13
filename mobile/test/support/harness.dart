@@ -2836,6 +2836,12 @@ class FakeCheckoutRepository implements CheckoutRepository {
   int prepareCalls = 0;
   int validateCalls = 0;
 
+  /// Holds the next `prepare` answer open until a test lets it go.
+  ///
+  /// The quote it will carry is taken when the call ARRIVES, not when it
+  /// returns — the same reasoning as the other two gates in this file.
+  Completer<void>? holdPrepare;
+
   /// Every checkout id the client sent, in order. A test proving the screen
   /// echoes the server's id — rather than one it made up — reads this.
   final List<String> checkoutIdsSent = <String>[];
@@ -2863,7 +2869,15 @@ class FakeCheckoutRepository implements CheckoutRepository {
       throw error;
     }
 
-    return _checkout();
+    final Checkout answer = _checkout();
+    final Completer<void>? gate = holdPrepare;
+
+    if (gate != null) {
+      holdPrepare = null;
+      await gate.future;
+    }
+
+    return answer;
   }
 
   @override

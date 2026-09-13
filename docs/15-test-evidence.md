@@ -2813,4 +2813,10 @@ cart, where the fault was found by audit rather than by a failure — including
 the one that passed on its first draft having exercised nothing, which is
 written up in KI-042 rather than quietly corrected.
 
-Counted in the 1,022 the mobile suite now runs.
+`checkout_controller_ordering_test.dart` and `route_controller_ordering_test.dart`
+carry the same pair for the other two places the audit found it. The route file
+needs three provider overrides and a live listener before it can say anything
+about routes at all, and the comments there say why — its first draft reported a
+fault that was entirely the harness.
+
+Counted in the 1,026 the mobile suite now runs.

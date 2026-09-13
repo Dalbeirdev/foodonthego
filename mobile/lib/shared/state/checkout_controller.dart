@@ -101,6 +101,21 @@ class CheckoutController extends Notifier<CheckoutState> {
   String? _tripId;
   bool _disposed = false;
 
+  /// Which request the quote on screen is allowed to reflect.
+  ///
+  /// `_prepare()` and `validate()` both write the quote. A pull-to-refresh
+  /// still in flight when the customer taps Proceed answers with the quote as
+  /// it stood before the server was asked about it, and puts that back — so a
+  /// quote the server has just called stale can be replaced on screen by one
+  /// that looks payable, along with the id a payment would be raised against.
+  ///
+  /// Every call that writes the quote takes the next ticket on its way out and
+  /// applies its answer only if no later one has been issued since. The same
+  /// rule as `PickupController` and `CartController`, for the same reason
+  /// (KI-041, KI-042) — and it matters most here, because this screen carries
+  /// money.
+  int _generation = 0;
+
   CheckoutRepository get _checkout => ref.read(checkoutRepositoryProvider);
 
   @override
@@ -144,10 +159,12 @@ class CheckoutController extends Notifier<CheckoutState> {
 
     if (tripId == null) return;
 
+    final int ticket = ++_generation;
+
     try {
       final Checkout checkout = await _checkout.prepare(tripId: tripId);
 
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         checkout: checkout,
@@ -157,7 +174,7 @@ class CheckoutController extends Notifier<CheckoutState> {
         clearLoadFailure: true,
       );
     } on ApiException catch (error) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         isLoading: false,
@@ -166,7 +183,7 @@ class CheckoutController extends Notifier<CheckoutState> {
         loadFailure: _failureFor(error),
       );
     } catch (_) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         isLoading: false,
@@ -190,17 +207,19 @@ class CheckoutController extends Notifier<CheckoutState> {
 
     state = state.copyWith(isValidating: true, clearFailure: true);
 
+    final int ticket = ++_generation;
+
     try {
       final Checkout checkout = await _checkout.validate(
         tripId: tripId,
         checkoutId: checkoutId,
       );
 
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(checkout: checkout, isValidating: false);
     } on ApiException catch (error) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       final CheckoutFailure failure = _failureFor(error);
 
@@ -215,7 +234,7 @@ class CheckoutController extends Notifier<CheckoutState> {
       // honest response, and it is what the screen would offer anyway.
       if (failure == CheckoutFailure.quoteGone) await _prepare();
     } catch (_) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         isValidating: false,

@@ -1864,3 +1864,27 @@ customer app got a screen that reads it without ever deciding it.
   checkout, order, order tracking, route, trips, addresses and auth have not been
   examined yet and are named as such in the known issues rather than left to look
   clean.
+
+- **The audit found two more (KI-043), and one of them is on the money screen.**
+  Checkout: `_prepare()` and `validate()` both write the quote, so a
+  pull-to-refresh in flight when the customer taps Proceed could put a quote the
+  server has just called `STALE` back on screen looking payable. Route:
+  `select()` guarded itself but not `calculate()`, and the alternatives stay
+  tappable while a recalculation runs, so a customer's chosen route could be
+  replaced by the recommended one.
+
+  Order tracking already had a sequence guard *and* a server version check and
+  needed nothing. The order controller has no reachable overlap and was left
+  alone rather than given a guard nobody would maintain. Trips, addresses and
+  auth are still unexamined and still named as such.
+
+  Two harness lessons are recorded with it, because both produced a confident
+  wrong reading: an `autoDispose` provider disposed between awaits made the test
+  read a fresh controller and report the whole route set vanishing, and a fan-out
+  to the trips surfaces reached a Keychain no plain `test()` has.
+
+- **A push went red on formatting, which was avoidable.** `flutter analyze` and
+  the full suite were run before pushing the cart fix; `dart format` was not, and
+  CI checks it. Two new test files were reformatted and the pre-push routine now
+  includes the formatter. Recorded rather than quietly fixed: the cost was a
+  wasted CI cycle on a branch whose whole point that week was keeping CI honest.

@@ -26,9 +26,7 @@ void main() {
   late ProviderContainer container;
 
   setUp(() {
-    carts = FakeCartRepository(
-      lines: <CartLine>[sampleCartLine(quantity: 1)],
-    );
+    carts = FakeCartRepository(lines: <CartLine>[sampleCartLine(quantity: 1)]);
     container = ProviderContainer(
       // Inferred rather than annotated: flutter_riverpod does not export
       // `Override`, so naming the element type does not compile.
@@ -38,8 +36,7 @@ void main() {
   });
 
   CartState read() => container.read(cartControllerProvider);
-  CartController notifier() =>
-      container.read(cartControllerProvider.notifier);
+  CartController notifier() => container.read(cartControllerProvider.notifier);
 
   int quantityOnScreen() => read().view.cart!.lines.first.quantity;
 

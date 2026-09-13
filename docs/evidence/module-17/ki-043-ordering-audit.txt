@@ -1,0 +1,73 @@
+KI-043 — the audit after KI-041/042: two more places, and two harness lessons
+==============================================================================
+
+CHECKOUT. _prepare() and validate() both write the quote, with no ordering. A
+pull-to-refresh still in flight when the customer taps Proceed answers with the
+quote as it stood before the server was asked about it. Before the fix:
+
+  00:00 +0 -1: a prepare that answers after a validation does not undo it [E]
+    Expected: CheckoutStatus:<CheckoutStatus.stale>
+      Actual: CheckoutStatus:<CheckoutStatus.active>
+
+A quote the server has just called STALE, replaced on screen by one that looks
+payable — on the screen that carries the money and the id a payment is raised
+against.
+
+ROUTE. select() already guarded itself against an abandoned tap of its own. It
+did not guard against calculate(), and the screen leaves the alternatives
+tappable while a recalculation runs: the body switches on `hasRoutes`, not on
+`isCalculating`, and only the Recalculate button is disabled. Before the fix:
+
+  00:00 +0 -1: a recalculation that answers after a selection does not undo it [E]
+    Expected: 'route-1'
+      Actual: 'route-0'
+
+The customer's chosen route, replaced by the recommended one.
+
+TWO HARNESS LESSONS FROM THE ROUTE TEST, both of which produced a confident
+wrong reading before they were understood.
+
+  1. The first draft reported the ENTIRE route set vanishing — `routes` null,
+     no failure set. That was not the product. `routeControllerProvider` is
+     autoDispose, alone among these four controllers, so with no listener it was
+     disposed and rebuilt between awaits and the test was reading a fresh, empty
+     controller rather than the one it had driven. Held open with
+     `container.listen`, the real fault appeared, and it is narrower: the
+     selection is replaced, not the set.
+
+  2. Before that, every test in the file failed with "Binding has not yet been
+     initialized". A selection fans out through _refreshTripSurfaces() to the
+     trips list and the home card, which watch the session and reach a Keychain
+     over a platform channel that does not exist in a plain test(). Nothing to
+     do with routes; it took two overrides to get the file to say anything about
+     its subject at all.
+
+AFTER THE FIXES:
+  00:00 +0: loading /home/user/foodonthego/mobile/test/checkout_controller_ordering_test.dart
+  00:00 +0: a prepare that answers after a validation does not undo it
+  00:00 +1: a prepare with nothing newer behind it is still applied
+  00:00 +2: All tests passed!
+  00:00 +0: loading /home/user/foodonthego/mobile/test/route_controller_ordering_test.dart
+  00:00 +0: a recalculation that answers after a selection does not undo it
+  00:00 +1: a recalculation with nothing newer behind it is still applied
+  00:00 +2: All tests passed!
+
+THE CONTROLS, on mutated fixes (controllers that ignore every answer after
+the first — the opposite fault):
+  00:00 +0: loading /home/user/foodonthego/mobile/test/checkout_controller_ordering_test.dart
+  00:00 +0: a prepare that answers after a validation does not undo it
+  00:00 +0 -1: a prepare that answers after a validation does not undo it [E]
+  00:00 +0 -1: a prepare with nothing newer behind it is still applied
+  00:00 +0 -2: a prepare with nothing newer behind it is still applied [E]
+  00:00 +0 -2: Some tests failed.
+  00:00 +0: loading /home/user/foodonthego/mobile/test/route_controller_ordering_test.dart
+  00:00 +0: a recalculation that answers after a selection does not undo it
+  00:00 +0 -1: a recalculation that answers after a selection does not undo it [E]
+  00:00 +0 -1: a recalculation with nothing newer behind it is still applied
+  00:00 +0 -2: a recalculation with nothing newer behind it is still applied [E]
+  00:00 +0 -2: Some tests failed.
+
+FORMAT, ANALYZE, FULL SUITE:
+  Formatted 260 files (0 changed) in 1.32 seconds.
+  No issues found! (ran in 3.5s)
+  01:33 +1026: All tests passed!

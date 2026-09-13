@@ -123,9 +123,24 @@ class RouteController extends Notifier<RouteViewState> {
 
   late final RouteRepository _routes;
 
-  /// Incremented on every selection, so a slow answer to an abandoned tap
-  /// cannot land on top of a newer one.
-  int _selectionGeneration = 0;
+  /// Which request the route set on screen is allowed to reflect.
+  ///
+  /// This began as a guard on selections alone — a slow answer to an abandoned
+  /// tap must not land on top of a newer one — and that was half the problem.
+  /// `calculate()` writes the same field, and the screen leaves the
+  /// alternatives tappable while one is in flight: the body switches on
+  /// `hasRoutes`, not on `isCalculating`, and only the Recalculate button is
+  /// disabled. So a customer could tap Recalculate, pick a different route
+  /// while it worked, and watch their choice replaced by the recommended one
+  /// when the older answer landed.
+  ///
+  /// Now every call that writes the route set takes the next ticket on its way
+  /// out and applies its answer only if no later one has been issued since.
+  /// Newest-issued wins, in both directions — a recalculation the customer asks
+  /// for AFTER choosing is newer information and replaces the set,
+  /// recommendation and all. The same rule as `PickupController`,
+  /// `CartController` and `CheckoutController` (KI-041, KI-042).
+  int _generation = 0;
 
   @override
   RouteViewState build() {
@@ -171,10 +186,12 @@ class RouteController extends Notifier<RouteViewState> {
     final String? tripId = _tripId;
     if (tripId == null) return false;
 
+    final int ticket = ++_generation;
+
     try {
       final TripRoutes routes = await _routes.routes(tripId);
 
-      if (_disposed) return false;
+      if (_disposed || ticket != _generation) return false;
 
       state = state.copyWith(
         routes: routes,
@@ -185,7 +202,7 @@ class RouteController extends Notifier<RouteViewState> {
 
       return true;
     } on ApiException catch (error) {
-      if (_disposed) return false;
+      if (_disposed || ticket != _generation) return false;
 
       state = state.copyWith(
         isLoading: false,
@@ -211,13 +228,15 @@ class RouteController extends Notifier<RouteViewState> {
 
     state = state.copyWith(isCalculating: true, clearFailure: true);
 
+    final int ticket = ++_generation;
+
     try {
       final TripRoutes routes = await _routes.calculate(
         tripId,
         refresh: refresh,
       );
 
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         routes: routes,
@@ -231,7 +250,7 @@ class RouteController extends Notifier<RouteViewState> {
       // `ref` after the await, which would throw if the screen has closed.
       _refreshTripSurfaces();
     } on ApiException catch (error) {
-      if (_disposed) return;
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         isCalculating: false,
@@ -252,7 +271,7 @@ class RouteController extends Notifier<RouteViewState> {
     final String? tripId = _tripId;
     if (tripId == null) return;
 
-    final int generation = ++_selectionGeneration;
+    final int generation = ++_generation;
 
     state = state.copyWith(selectingRouteId: routeId, clearFailure: true);
 
@@ -261,7 +280,7 @@ class RouteController extends Notifier<RouteViewState> {
 
       // A slow answer to a tap the customer has already changed their mind
       // about must not land on top of the newer one.
-      if (_disposed || generation != _selectionGeneration) return;
+      if (_disposed || generation != _generation) return;
 
       state = state.copyWith(
         routes: routes,
@@ -271,7 +290,7 @@ class RouteController extends Notifier<RouteViewState> {
 
       _refreshTripSurfaces();
     } on ApiException catch (error) {
-      if (_disposed || generation != _selectionGeneration) return;
+      if (_disposed || generation != _generation) return;
 
       state = state.copyWith(clearSelecting: true, failure: _failureFor(error));
     }
