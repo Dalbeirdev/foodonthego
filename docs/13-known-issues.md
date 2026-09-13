@@ -2888,3 +2888,52 @@ looked like proof.
 sequencing guard or has a recorded reason not to: order tracking already had one
 plus a server `version` check, and `OrderController` has no reachable overlap —
 `place()` and `pay()` are gated on `isBusy` and `load()` has no caller.
+
+### KI-041 — CLOSED
+
+Android has now passed `module_13: the readiness verdict comes from the server`
+on both device runs that have executed since the fix: `85316ec` (41/41) and
+`dc39a2c` (41/41). The two commits in between contributed no Android evidence —
+`1033ffb`'s device jobs were skipped when the formatting check failed, and
+`d101b86`'s were cancelled when the next push superseded them — so these are the
+two consecutive Android device runs the closing condition asked for, not two
+picked out of a longer list.
+
+iOS passed 41/41 on `85316ec`, was cancelled on `d101b86`, and stalled on
+`dc39a2c` for reasons that are KI-020's and not this defect's (see below).
+
+The server-side diagnostic added to the device test stays. It has never fired,
+which is the outcome it was built for, and it is the thing that will name the
+side that lost a selection if this ever comes back.
+
+### KI-020 — fourth occurrence, and the lead it kills
+
+On `dc39a2c` the iOS step was killed at 45 minutes with the signature exactly as
+recorded:
+
+```
+Running pod install...                11.7s
+Running Xcode build...
+Xcode build done.                    115.5s
+        ← nothing further. No test names at all.
+Terminate orphan process: pid (17482) (simctl)
+Terminate orphan process: pid  (7359) (dartvm)
+```
+
+The uploaded `device-tests.log` is **788 bytes**, against roughly 12 KB for a run
+that completes — so the log is not truncated in transit, there was nothing to
+write. `simctl` and `dartvm` both survived cleanup again: the VM was alive and
+the test never reported.
+
+**This occurrence retracts the lead recorded with the third.** That note said all
+three recorded stalls followed a first Xcode build of 130–150 s, where passing
+per-file builds take 39–97 s, and offered it as a lead rather than a cause. This
+one built in **115.5 s**, and `pod install` took 11.7 s against 29.5 s in the
+stall before it. The correlation does not survive a fourth data point and should
+not be carried forward — it was offered as a lead, and the honest thing to do
+with a lead that fails is to strike it, not to widen the band until it fits.
+
+**The re-run remedy is still unavailable**: `POST /actions/runs/<id>/rerun-failed-jobs`
+returned 403 again for this session's token. The standing-down comment for this
+failure is already on the pull request from the previous occurrence; the check,
+the cause and the position are unchanged, so it is not repeated here.

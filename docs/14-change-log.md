@@ -1906,3 +1906,17 @@ customer app got a screen that reads it without ever deciding it.
   recorded reason not to. Three of the tests written during this audit were
   vacuous on their first draft and all three were caught by their controls —
   which is the argument for the controls, not for the drafts.
+
+- **KI-041 is closed.** Android passed the readiness test on both device runs that
+  have executed since the fix — `85316ec` and `dc39a2c`, 41/41 each. The two
+  commits between them produced no Android evidence at all (one skipped behind a
+  formatting failure, one cancelled by the next push), so these are genuinely the
+  two consecutive runs the closing condition asked for.
+
+- **KI-020 recurred a fourth time on `dc39a2c`, and it kills the only lead this
+  investigation had.** The signature is unchanged — silence after the first Xcode
+  build, no test names, `simctl` and `dartvm` surviving cleanup, a 788-byte log
+  against ~12 KB for a completed run. But the build took 115.5 s, and the lead
+  recorded with the third occurrence was that all three stalls followed a
+  130–150 s first build. A fourth data point outside the band ends it. Struck
+  rather than widened.
