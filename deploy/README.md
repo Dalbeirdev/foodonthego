@@ -288,6 +288,50 @@ the restaurant shell at `/restaurant`, the admin shell at `/admin`.
 **Confirm piodesk.com still works** before you call this done. That is the one
 check this whole design exists to protect.
 
+## If `.env` stops parsing
+
+```
+failed to read /opt/foodonthego/deploy/.env: line 76: unexpected character "+" in variable name
+```
+
+Every compose command fails at once, including the ones that would tell you why.
+It has already happened once, and the cause was mundane: a private key printed
+with `cat` in one command and a `>> .env` append in the next, with the paste
+landing in the wrong one. The key's continuation lines are not `NAME=value`, so
+the parser stops on the first of them.
+
+**Do not delete and recreate the file.** It holds `APP_KEY` and the MySQL
+passwords, and `DB_PASSWORD` is what makes the existing database readable —
+regenerating it is how a review deployment loses its data.
+
+```bash
+cd /opt/foodonthego/deploy
+cp .env .env.broken.bak
+awk '/^[[:space:]]*#/ || /^[[:space:]]*$/ || /^[A-Za-z_][A-Za-z0-9_]*=/' \
+  .env.broken.bak > .env
+
+for k in APP_ENV APP_KEY DB_PASSWORD DB_ROOT_PASSWORD; do
+  printf '%-18s %s\n' "$k" "$(grep -c "^$k=" .env)"   # each must print 1
+done
+docker compose config >/dev/null && echo 'ENV PARSES OK'
+```
+
+Comments, blank lines and proper assignments are kept; everything else goes,
+which is exactly what stray pasted text is.
+
+Then **delete the backup** — if what got pasted was a credential, that file still
+holds it:
+
+```bash
+shred -u .env.broken.bak 2>/dev/null || rm -f .env.broken.bak
+```
+
+And if it was an SSH key, check it is not also authorising logins:
+
+```bash
+grep -c 'github-actions deploy' ~/.ssh/authorized_keys   # want 0
+```
+
 ## Updating after new commits
 
 ```bash
