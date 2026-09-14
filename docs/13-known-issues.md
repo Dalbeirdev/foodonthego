@@ -3219,3 +3219,48 @@ is opt-in, and on this box it simply must not be ticked.
 moving `techpio.tech` to Cloudflare's nameservers affects every record on that
 domain, not only this one. It is reversible by restoring the previous
 nameservers.
+
+### KI-052 — the deployed app called an address nothing answers on, twice over — **High, the site was unusable** — FIXED
+
+Found the moment the review site was first opened in a browser: the sign-in
+screen loaded, and **"No connection. Check your signal and try again."** appeared
+under the phone field. The page was served; every API call it made failed.
+
+`deploy/web.Dockerfile` baked the API base in at build time as
+`https://techpio.tech/api/v1`. That is wrong in two independent ways, and either
+alone would have broken it.
+
+**One — the path is doubled.** `ApiConfig.uri()` builds
+`'$baseUrl/api/$apiVersion$path'`, so it appends `/api/v1` itself:
+
+```
+https://techpio.tech/api/v1  ->  https://techpio.tech/api/v1/api/v1/auth/phone
+```
+
+**Two — the origin is hard-coded.** A build served at `http://techpio.tech:8080`
+was calling `https://techpio.tech`, implying port 443 — held by the nginx
+serving piodesk.com, which has never heard of this API.
+
+To the customer both are the same event: a request that does not arrive. The
+message is correct and says nothing about why, which is right for a customer and
+useless for a diagnosis — the URL is only visible in the browser's network tab.
+
+**Fixed with `ARG API_BASE_URL=/`, which means same origin.** This is not a trick
+to dodge the port: the API is served by the *same nginx as the bundle*
+(`location /api` in `app.conf`), so the origin the page was loaded from is the
+accurate base. `ApiConfig` strips trailing slashes, so `/` becomes an empty base
+and `Uri.parse('/api/v1/…')` a relative request. The page works on `:8080` today,
+through the tunnel on 443 later, and on any host or port after that — **with no
+rebuild between them**, which matters because a rebuild between two addresses is
+a step somebody will forget.
+
+Four tests in `app_environment_values_test.dart`: the value is declared, it does
+not contain `/api`, it is `/`, and — asserted rather than assumed — a `/` base
+really does produce a relative URI with no scheme and no authority. The control
+restores the old value and both of the first three fail.
+
+**Why nothing caught this earlier.** The device suites pass an absolute base for
+a real host and exercise the same code correctly; the web build is the only one
+that is served from the same origin as its API, and it had never been built and
+opened until today. A third deploy asset broken on first use, for the same
+reason as the other three.

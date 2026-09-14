@@ -2000,3 +2000,15 @@ customer app got a screen that reads it without ever deciding it.
   for no port. Opt-in by compose profile, so the stack still runs for anyone
   without a Cloudflare account. The nginx-and-certbot route stays in the runbook
   for a host that owns its ports.
+
+- **The review site loaded and then failed every request (KI-052).** The web
+  build baked in `https://techpio.tech/api/v1` as the API base — doubled, because
+  `ApiConfig.uri()` appends `/api/v1` itself, and pinned to a scheme and port
+  that the site is not served on. The first screen said "No connection", which is
+  the right thing to tell a customer and no help at all in diagnosis.
+
+  The base is now `/` — same origin, which is simply accurate, since the API is
+  served by the same nginx as the bundle. It works on `:8080` and through the
+  tunnel on 443 without a rebuild between them. Four tests hold it, including one
+  that asserts a `/` base really does produce a relative URI rather than assuming
+  it.

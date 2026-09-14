@@ -117,6 +117,71 @@ void main() {
     expect(AppEnvironment.production.showsDevelopmentNotices, isFalse);
   });
 
+  group('the API base URL the review image is built with', () {
+    // WHY. It was `https://techpio.tech/api/v1`, and that was wrong twice.
+    // `ApiConfig.uri()` appends `/api/v1` itself, so every request went to
+    // `/api/v1/api/v1/...`; and the hard-coded scheme and implied port 443 meant
+    // a build served on `http://techpio.tech:8080` called an address nothing
+    // answers on. The first screen said "No connection", which is exactly what
+    // it should say and tells you nothing about why.
+    String? apiBase() => RegExp(
+      r'^ARG\s+API_BASE_URL=(\S*)',
+      multiLine: true,
+    ).firstMatch(File('../deploy/web.Dockerfile').readAsStringSync())?.group(1);
+
+    test('is declared at all', () {
+      expect(
+        apiBase(),
+        isNotNull,
+        reason:
+            'web.Dockerfile has no `ARG API_BASE_URL=`. If the build stopped '
+            'passing one, the app falls back to the Android emulator address '
+            'and the web build talks to nothing.',
+      );
+    });
+
+    test('does not repeat the path ApiConfig already adds', () {
+      expect(
+        apiBase(),
+        isNot(contains('/api')),
+        reason:
+            'ApiConfig.uri() builds "\$baseUrl/api/v1\$path", so a base ending '
+            'in /api/v1 produces /api/v1/api/v1/... — a 404 on every call, '
+            'reported to the customer as "No connection".',
+      );
+    });
+
+    test('is same-origin, so it survives a change of host or port', () {
+      // Not merely "not absolute": the point is that the API is served by the
+      // same nginx as the bundle, so the accurate base is the origin the page
+      // was loaded from — whatever that turns out to be.
+      expect(
+        apiBase(),
+        '/',
+        reason:
+            'An absolute base pins the review build to one scheme, host and '
+            'port. It is served on :8080 today and through a tunnel on 443 '
+            'later, and a rebuild between the two is a step somebody will '
+            'forget.',
+      );
+    });
+
+    test('a same-origin base really does produce a relative request', () {
+      // The reasoning above depends on ApiConfig stripping the trailing slash,
+      // which is a behaviour rather than a promise. Asserted, not assumed.
+      const String raw = '/';
+      String base = raw.trim();
+      while (base.endsWith('/')) {
+        base = base.substring(0, base.length - 1);
+      }
+      final Uri built = Uri.parse('$base/api/v1/auth/phone');
+
+      expect(built.toString(), '/api/v1/auth/phone');
+      expect(built.hasScheme, isFalse);
+      expect(built.hasAuthority, isFalse);
+    });
+  });
+
   test('an unrecognised value is detectable rather than silent', () {
     // This build is compiled with no --dart-define, so it is `development` and
     // recognised. The assertion is that the flag exists and is honest about

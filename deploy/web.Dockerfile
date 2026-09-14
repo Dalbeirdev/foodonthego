@@ -59,7 +59,23 @@ WORKDIR /src
 COPY mobile/pubspec.yaml mobile/pubspec.lock ./
 RUN flutter pub get
 COPY mobile/ ./
-ARG API_BASE_URL=https://techpio.tech/api/v1
+# `/` means SAME ORIGIN, and it is the only value that is right everywhere.
+#
+# This said `https://techpio.tech/api/v1`, and it was wrong twice over. First,
+# `ApiConfig.uri()` appends `/api/v1` itself, so every call went to
+# `/api/v1/api/v1/...`. Second, it hard-coded a scheme and an implied port 443,
+# so the build served at `http://techpio.tech:8080` called an address nothing
+# answers on — the app showed "No connection" on its first screen.
+#
+# The API is served by the same nginx as this bundle (`location /api` in
+# app.conf), so a relative base is not a trick: it is the accurate description.
+# `ApiConfig` strips trailing slashes, which turns `/` into an empty base and
+# `Uri.parse('/api/v1/…')` into a same-origin request. The page then works on
+# `:8080` today, on `https://techpio.tech` through the tunnel, and on any host
+# or port after that, without rebuilding.
+#
+# `app_environment_values_test.dart` fails if this ever contains `/api` again.
+ARG API_BASE_URL=/
 RUN flutter build web --release \
       --dart-define=FOTG_API_BASE_URL=${API_BASE_URL} \
       --dart-define=FOTG_ENV=review
