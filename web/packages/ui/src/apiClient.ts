@@ -36,8 +36,24 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Where the API lives, as a prefix to join to a path.
+ *
+ * The fallback is the empty string, meaning **same origin** — not a host and
+ * port. It used to be `http://localhost:8000`, which is correct for `vite dev`
+ * (still set that way in .env.development) and wrong everywhere else: nothing
+ * passes VITE_API_BASE_URL to the production build, so both deployed shells
+ * asked the *viewer's own machine* for the API and reported "API unreachable".
+ * Nobody saw it until the shells were first opened in a browser, because until
+ * then their assets 404ed and no page rendered at all.
+ *
+ * Same origin is the accurate answer rather than a convenient one: deploy/nginx
+ * serves `location ^~ /api` from the same server as these bundles, so the origin
+ * the page was loaded from is where its API is. It is also what lets one build
+ * work on :8080 today and on 443 later without being rebuilt between them.
+ */
 const baseUrl = (): string =>
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8000';
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';

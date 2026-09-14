@@ -84,3 +84,58 @@ describe('apiRequest', () => {
     await expect(apiRequest('/api/v1/health/ready')).rejects.toMatchObject({ name: 'AbortError' });
   });
 });
+
+/**
+ * Where a request actually goes.
+ *
+ * Every assertion here failed on the deployed build. Both shells were compiled
+ * with no VITE_API_BASE_URL, fell back to `http://localhost:8000`, and asked the
+ * *viewer's own machine* for the API — which is why a freshly deployed dashboard
+ * showed "API unreachable" while the API was up and answering on the same host
+ * the page had just been served from.
+ *
+ * Nothing caught it because these tests stub `fetch` and, until this group, only
+ * ever looked at what came back. The URL that was passed in was never read.
+ */
+describe('the API base URL', () => {
+  const urlOf = (mock: ReturnType<typeof stubFetch>): string => String(mock.mock.calls[0][0]);
+
+  it('is same-origin by default, not a host and port', async () => {
+    const mock = stubFetch({ text: JSON.stringify({ data: {}, meta: { request_id: 'x' } }) });
+
+    await apiRequest('/api/v1/health/ready');
+
+    // Relative. Anything absolute here names a machine that is not necessarily
+    // the one serving the page.
+    expect(urlOf(mock)).toBe('/api/v1/health/ready');
+  });
+
+  it('never points at localhost, which in a browser is the viewer', async () => {
+    const mock = stubFetch({ text: JSON.stringify({ data: {}, meta: { request_id: 'x' } }) });
+
+    await apiRequest('/api/v1/health/ready');
+
+    expect(urlOf(mock)).not.toContain('localhost');
+    expect(urlOf(mock)).not.toContain('127.0.0.1');
+  });
+
+  it('does not carry a scheme or an authority', async () => {
+    const mock = stubFetch({ text: JSON.stringify({ data: {}, meta: { request_id: 'x' } }) });
+
+    await apiRequest('/api/v1/health/ready');
+
+    // Asserted rather than assumed: a relative URL is what lets one build work
+    // on :8080 today and on 443 through the tunnel later, with no rebuild.
+    const resolved = new URL(urlOf(mock), 'http://example.test:9999');
+    expect(resolved.origin).toBe('http://example.test:9999');
+    expect(resolved.pathname).toBe('/api/v1/health/ready');
+  });
+
+  it('does not double the /api prefix the way the Flutter build once did', async () => {
+    const mock = stubFetch({ text: JSON.stringify({ data: {}, meta: { request_id: 'x' } }) });
+
+    await apiRequest('/api/v1/health/ready');
+
+    expect(urlOf(mock)).not.toContain('/api/v1/api/v1');
+  });
+});

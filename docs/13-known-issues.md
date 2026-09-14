@@ -3405,3 +3405,54 @@ that might turn a broken map into a crash is worse than the broken map.
 To close it: supply a Google Maps SDK key with Maps SDK for Android and Maps SDK
 for iOS enabled, and say whether it should be restricted to the application id
 `com.foodonthego.foodonthego`.
+
+## KI-059 — both dashboards asked the viewer's own computer for the API — FIXED
+
+The red **API unreachable** badge on every page of both shells, the first time
+either was opened in a browser.
+
+`web/packages/ui/src/apiClient.ts` resolved its base URL as
+`import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'`. Nothing passes
+that variable to the production build — `.env.development` sets it, and that file
+is read by `vite dev`, not `vite build` — so both deployed bundles fell back to
+the literal string `http://localhost:8000`. In a browser that is **the machine
+the browser is running on**, so every dashboard asked the reviewer's own laptop
+for the FoodOnTheGo API and correctly reported that nothing answered.
+
+This is the third instance of one mistake: a client compiled with an address that
+is right on a developer's machine and wrong everywhere else. KI-052 was the
+Flutter web build calling `https://techpio.tech/api/v1`; KI-057 was the review APK
+calling `http://10.0.2.2:8000`. All three were invisible until somebody opened the
+thing on a device that was not the one that built it.
+
+**Fixed:** the fallback is now the empty string, meaning same origin. That is the
+accurate answer rather than a convenient one — `deploy/nginx/app.conf` serves
+`location ^~ /api` from the same server as these bundles — and it is what lets one
+build work on `:8080` today and on 443 through the tunnel later without being
+rebuilt in between. `.env.development` still points at `http://localhost:8000`,
+which is correct for `npm run dev`, where Vite serves on 5173 and Laravel on 8000.
+
+No build argument was added for it. A setting that has one correct value for every
+deployment of this stack is better as a default than as a knob somebody can set
+wrongly — which is exactly how the other two happened.
+
+Four tests in `apiClient.test.ts` read the URL passed to `fetch`, which no
+existing test did: they only ever inspected what came back. Three of the four fail
+on the previous default. The fourth — that the path is not doubled to
+`/api/v1/api/v1` — stays silent, because the web client never had that bug; it
+guards against KI-052's failure arriving here later.
+
+Verified on the artefact rather than the source: `grep -c 'localhost:8000'` over
+the built `apps/admin/dist/assets/*.js` returns **0**.
+
+### What this does NOT fix
+
+The placeholder screens are not a bug. **One of 14 admin areas and none of the 11
+restaurant areas are built** — `implemented: true` appears once in the admin
+navigation and zero times in the restaurant navigation, and every other route
+renders `ModulePlaceholder`. Neither shell makes any API call but the health
+check. Modules 01–17 delivered the customer journey and the backend behind it;
+the operator surfaces have had nothing since their shells in Module 01.
+
+With this fix the badge goes green and the screens still say "Not built yet",
+which is now an honest report rather than two faults wearing one label.

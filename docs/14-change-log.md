@@ -2124,3 +2124,26 @@ account.
   unregistered template is dropped by the carrier *after* Twilio returns 201, so
   a successful-looking send proves nothing. Recorded in
   `docs/18-customer-authentication.md`.
+
+## Dashboards can reach the API
+
+### Fixed
+
+- **KI-059** — `apiClient.ts` fell back to `http://localhost:8000` when
+  `VITE_API_BASE_URL` was unset, which it is in every production build. Both
+  deployed shells asked the viewer's own machine for the API and showed "API
+  unreachable" on every page. The fallback is now same origin.
+
+### Added
+
+- Four tests in `packages/ui/src/apiClient.test.ts` that assert the URL handed to
+  `fetch` — no existing test looked at it, only at the response. Three fail on
+  the previous default.
+
+### Stated plainly
+
+The operator dashboards remain shells. One admin area of 14 is implemented
+(System Health) and zero of 11 restaurant areas are. Seven restaurant API
+endpoints exist, are tested, and are called by nothing. That is the plan as
+executed, not a regression — but the module status table read as though the whole
+product were 90% delivered, which for the operator surfaces it is not.
