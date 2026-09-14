@@ -115,9 +115,28 @@ class OrderConfirmationController extends Notifier<OrderConfirmationState> {
 
   Timer? _timer;
 
+  bool _disposed = false;
+
+  /// Which status read the screen is allowed to reflect.
+  ///
+  /// [load] is started by [build], re-armed by its own timer while the order is
+  /// settling, and started again by [retry] — which its doc offers to "the
+  /// impatient customer". Today the screen only shows Retry once a load has
+  /// finished, so two cannot overlap from a tap; but the gate is in the screen
+  /// and the promise is in this class, and a Retry added to the settling view
+  /// would let an older report land on a newer one. When it does, the phase
+  /// slides back from placed to creating and the poll timer is re-armed over
+  /// an order that is already placed. The same rule as the other controllers
+  /// (KI-041 onwards): a ticket on the way out, an answer applied only if
+  /// nothing newer has been issued since.
+  int _generation = 0;
+
   @override
   OrderConfirmationState build() {
-    ref.onDispose(() => _timer?.cancel());
+    ref.onDispose(() {
+      _disposed = true;
+      _timer?.cancel();
+    });
 
     // Kicked off after the first frame so the screen can paint its loading
     // state rather than appearing blank while the first request is in flight.
@@ -129,8 +148,12 @@ class OrderConfirmationController extends Notifier<OrderConfirmationState> {
   OrderRepository get _orders => ref.read(orderRepositoryProvider);
 
   Future<void> load() async {
+    final int ticket = ++_generation;
+
     try {
       final OrderStatusReport report = await _orders.statusOf(orderId);
+
+      if (_disposed || ticket != _generation) return;
 
       state = state.copyWith(
         phase: switch (report.state) {
@@ -157,6 +180,8 @@ class OrderConfirmationController extends Notifier<OrderConfirmationState> {
         _timer = Timer(pollInterval, load);
       }
     } on ApiException catch (error) {
+      if (_disposed || ticket != _generation) return;
+
       state = state.copyWith(
         phase: switch (error.code) {
           ApiErrorCode.unauthenticated ||
@@ -182,10 +207,16 @@ class OrderConfirmationController extends Notifier<OrderConfirmationState> {
   Future<void> _loadCredential() async {
     if (state.order?.status.canBeCollected != true) return;
 
+    final int ticket = ++_generation;
+
     try {
-      state = state.copyWith(
-        credential: await _orders.pickupCredential(orderId),
+      final PickupCredential credential = await _orders.pickupCredential(
+        orderId,
       );
+
+      if (_disposed || ticket != _generation) return;
+
+      state = state.copyWith(credential: credential);
     } on ApiException {
       // Left null. The screen shows the order and offers to fetch it again.
     }

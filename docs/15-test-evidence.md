@@ -2825,4 +2825,9 @@ one to read first: its subject is the restore the controller starts for itself,
 and the comments say why an earlier draft that called `restore()` by hand was
 racing two restores rather than a restore and a sign-out.
 
-Counted in the 1,032 the mobile suite now runs.
+`controllers_order_their_answers_test.dart` is the one to read last and keep
+first. The seven files above each prove one controller orders its answers; this
+one proves they all do, and keeps proving it for controllers not yet written. Its
+six string-snippet controls exist because it was wrong twice before it was right.
+
+Counted in the 1,045 the mobile suite now runs.

@@ -1920,3 +1920,20 @@ customer app got a screen that reads it without ever deciding it.
   recorded with the third occurrence was that all three stalls followed a
   130–150 s first build. A fourth data point outside the band ends it. Struck
   rather than widened.
+
+- **The ordering audit was closed for the controllers that existed that day
+  (KI-045).** Seven were fixed by hand; nothing made the eighth follow the rule.
+  A source-scan guard now reads every file in `lib/shared/state` and fails any
+  class that awaits, assigns `state`, and never compares a ticket against its
+  counter — the comparison, not the declaration.
+
+  It found an eighth on its first run: the order confirmation screen, the one
+  that tells a customer their money is safe. A status read issued before a retry
+  could slide the screen back from "your order is placed" to "still creating" and
+  re-arm the poll over an order already placed. Narrowly reachable today only
+  because the screen gates Retry — the gate is in the screen and the promise is
+  in the controller.
+
+  The scanner produced two false positives before it was right, both from reading
+  a file as one text rather than as classes, and both are now pinned by controls
+  that run on snippets rather than on the real tree.

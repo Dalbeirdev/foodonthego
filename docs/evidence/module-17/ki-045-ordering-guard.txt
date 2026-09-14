@@ -1,0 +1,65 @@
+KI-045 — a guard for the ordering rule, and the eighth controller it found
+==========================================================================
+
+Seven controllers were fixed by hand across KI-041 to KI-044, each with its own
+reproduction. What none of that produced was anything that makes the EIGHTH
+controller follow the rule. Module 18 adds an eighth.
+
+`test/controllers_order_their_answers_test.dart` reads every file in
+lib/shared/state, strips comments, and asserts that any class which both awaits
+and assigns `state` also COMPARES a ticket against its counter. Not declares one
+— compares. Anything else needs an allowlist entry with a reason.
+
+IT FOUND ONE THE HAND AUDIT HAD MISSED, on its first run:
+order_confirmation_controller.dart. The screen that tells a customer their money
+is safe. load() is started by build(), re-armed by its own timer while the order
+settles, and started again by retry() — offered in its own doc comment to "the
+impatient customer".
+
+  00:00 +0 -1: a status read that answers after a retry does not undo it [E]
+    Expected: OrderConfirmationPhase:<OrderConfirmationPhase.placed>
+      Actual: OrderConfirmationPhase:<OrderConfirmationPhase.creating>
+
+A read issued before the retry slides the screen back from "your order is
+placed" to "still creating", and re-arms the poll timer over an order that is
+already placed. Reachability today is narrow — the screen only renders Retry
+once a load has finished — but the gate is in the SCREEN and the promise is in
+the CONTROLLER, and a Retry added to the settling view would open it. Fixed with
+the same rule.
+
+TWO FALSE POSITIVES THE SCANNER PRODUCED BEFORE IT WAS RIGHT, both from reading
+a file as one text rather than as classes.
+
+  1. providers.dart was flagged. It holds two synchronous notifiers that assign
+     state, and — forty lines away — an API client whose token reader awaits
+     storage. Neither class is an async writer. Scoped per class.
+
+  2. Scoping per class as "from this `class` keyword to the next" was still
+     wrong: the LAST class in a file swallowed every provider and helper
+     declared after it, which reproduced the same false positive by a different
+     route. Brace-matched now, so a class body ends where it ends.
+
+Both are pinned by controls that run on string snippets rather than on the real
+files, so the scanner is proved to reject what it should reject before it is
+trusted to accept anything.
+
+THE CONTROL THAT MATTERS — a guard removed from a real controller:
+
+  00:00 +8 -1: the controllers the scan found the controllers it is meant to cover [E]
+  00:00 +8 -2: the controllers every controller that writes state after an await is guarded [E]
+      Actual: ['pickup_controller.dart']
+  00:00 +9 -2: Some tests failed.
+
+ALLOWLISTED, each re-checked against the tree at the time of writing:
+  order_controller.dart          place()/pay() gated on isBusy; load() has no
+                                 caller (grep: 0). KI-043 recorded it unreachable.
+  trip_planner_controller.dart   the only post-await write clears isCreating in a
+                                 finally; the plan is written before the request.
+  current_location_controller.dart  resolve() is single-flight by construction —
+                                 the picker renders Locating with onTap: null —
+                                 and reset() has no caller (grep: 0).
+
+FORMAT, ANALYZE, FULL SUITE:
+  Formatted 265 files (0 changed) in 1.15 seconds.
+  No issues found! (ran in 3.3s)
+  01:34 +1045: All tests passed!

@@ -3230,13 +3230,29 @@ class FakeOrderRepository implements OrderRepository {
 
     if (statusFailure case final ApiException error) throw error;
 
-    return statusReport ??
+    final OrderStatusReport answer =
+        statusReport ??
         OrderStatusReport(
           state: OrderCreationState.placed,
           isPaidFor: true,
           order: _order(status: PlacedOrderStatus.placed),
         );
+
+    final Completer<void>? gate = holdStatus;
+
+    if (gate != null) {
+      holdStatus = null;
+      await gate.future;
+    }
+
+    return answer;
   }
+
+  /// Holds the next `statusOf` answer open until a test lets it go.
+  ///
+  /// The report it will carry is taken when the call ARRIVES, not when it
+  /// returns — the same as every other gate in this file.
+  Completer<void>? holdStatus;
 
   PickupCredential? credential;
 

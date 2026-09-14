@@ -2937,3 +2937,50 @@ with a lead that fails is to strike it, not to widen the band until it fits.
 returned 403 again for this session's token. The standing-down comment for this
 failure is already on the pull request from the previous occurrence; the check,
 the cause and the position are unchanged, so it is not repeated here.
+
+### KI-045 — nothing made the eighth controller follow the rule — **Medium, customer-facing** — FIXED
+
+Seven controllers were fixed by hand across KI-041 to KI-044, each with its own
+reproduction, and KI-044 called the audit closed. It was closed only for the
+controllers that existed that day. **Nothing in the suite made the next one
+follow the rule**, and Module 18 adds a next one.
+
+`test/controllers_order_their_answers_test.dart` reads every file in
+`lib/shared/state`, strips comments, and asserts that any class which both awaits
+and assigns `state` also **compares** a ticket against its counter. Not declares
+one — compares; a counter that is declared and never checked is the original
+fault with a field added, and there is a control on exactly that. Anything else
+needs an allowlist entry carrying a reason the next reader can check.
+
+**It found an eighth on its first run**, which is the answer to whether it earns
+its place: `order_confirmation_controller.dart`, the screen that tells a customer
+their money is safe. `load()` is started by `build()`, re-armed by its own timer
+while the order settles, and started again by `retry()` — offered in its own doc
+comment to "the impatient customer". A read issued before a retry slides the
+screen back from *your order is placed* to *still creating*, and re-arms the poll
+timer over an order that is already placed.
+
+Reachability today is narrow: the screen renders Retry only once a load has
+finished, so a tap cannot overlap one. But **the gate is in the screen and the
+promise is in the controller** — a Retry added to the settling view opens it, and
+nothing would have said so. Fixed with the same rule and its own reproduction.
+
+**Two false positives the scanner produced before it was right**, both from
+reading a file as one text rather than as classes. `providers.dart` was flagged:
+two synchronous notifiers assign `state`, and forty lines away an API client's
+token reader awaits storage — neither class is an async writer. Scoping per class
+as "from this `class` keyword to the next" then reproduced the same false
+positive by a different route, because the last class in a file swallowed every
+provider declared after it. Brace-matched now. Both are pinned by controls that
+run on string snippets, so the scanner is shown to reject what it should reject
+before it is trusted to accept anything — and one more control removes a guard
+from a real controller and confirms the scan names the file.
+
+**Allowlisted, each re-checked against the tree:** `order_controller.dart`
+(`place()`/`pay()` gated on `isBusy`, `load()` has no caller),
+`trip_planner_controller.dart` (the only post-await write clears a flag in a
+`finally`), `current_location_controller.dart` (`resolve()` is single-flight by
+construction — the picker renders its Locating row with `onTap: null` — and
+`reset()` has no caller). The allowlist is checked in both directions: an entry
+whose file has since gained a guard fails, because a stale exemption is how a
+future edit that drops the guard goes unnoticed.
