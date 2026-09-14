@@ -328,32 +328,14 @@ passwords, and `DB_PASSWORD` is what makes the existing database readable —
 regenerating it is how a review deployment loses its data.
 
 ```bash
-cd /opt/foodonthego/deploy
-cp .env .env.broken.bak
-awk '/^[[:space:]]*#/ || /^[[:space:]]*$/ || /^[A-Za-z_][A-Za-z0-9_]*=/' \
-  .env.broken.bak > .env
-
-for k in APP_ENV APP_KEY DB_PASSWORD DB_ROOT_PASSWORD; do
-  printf '%-18s %s\n' "$k" "$(grep -c "^$k=" .env)"   # each must print 1
-done
-docker compose config >/dev/null && echo 'ENV PARSES OK'
+cd /opt/foodonthego/deploy && ./env-repair.sh
 ```
 
-Comments, blank lines and proper assignments are kept; everything else goes,
-which is exactly what stray pasted text is.
-
-Then **delete the backup** — if what got pasted was a credential, that file still
-holds it:
-
-```bash
-shred -u .env.broken.bak 2>/dev/null || rm -f .env.broken.bak
-```
-
-And if it was an SSH key, check it is not also authorising logins:
-
-```bash
-grep -c 'github-actions deploy' ~/.ssh/authorized_keys   # want 0
-```
+It keeps comments, blank lines and proper assignments and drops everything else,
+which is exactly what stray pasted text is. It checks the required keys survive
+**before** replacing the file, so a repair cannot quietly lose `DB_PASSWORD`; if
+one would be lost it refuses and leaves your `.env` untouched. Then it shreds its
+own backup, because that backup holds whatever was pasted in.
 
 ## Updating after new commits
 
