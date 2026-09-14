@@ -6,6 +6,7 @@ namespace Tests\Unit;
 
 use App\Services\Otp\OtpDeliveryProvider;
 use App\Services\Otp\Providers\LogOtpProvider;
+use App\Services\Otp\Providers\TwilioOtpProvider;
 use App\Services\Payments\PaymentGateway;
 use App\Services\Payments\RazorpayGateway;
 use App\Services\Payments\UnconfiguredPaymentGateway;
@@ -298,6 +299,96 @@ final class ProductionConfigGuardTest extends TestCase
         config(['foodonthego.otp.simulate_provider_failure' => true]);
 
         $this->expectExceptionMessageMatches('/OTP_SIMULATE_PROVIDER_FAILURE/');
+
+        ProductionConfigGuard::assert($this->appIn('production'));
+    }
+
+    /*
+     |--------------------------------------------------------------------------
+     | Twilio
+     |--------------------------------------------------------------------------
+     |
+     | A Twilio provider reports that it reaches real handsets whether or not it
+     | has a credential, so every check above passes on a half-configured one and
+     | the first customer to tap "Send code" finds out. These move that discovery
+     | to boot. None of the values below is a real credential; the guard asks
+     | whether a setting is present, never whether it works.
+     */
+
+    private function twilioProduction(array $settings = []): void
+    {
+        $this->validProductionConfig();
+
+        config(['foodonthego.otp.twilio' => array_merge([
+            'account_sid' => 'AC-guard-placeholder',
+            'api_key_sid' => 'SK-guard-placeholder',
+            'api_key_secret' => 'guard-placeholder-secret',
+            'messaging_service_sid' => 'MG-guard-placeholder',
+            'from' => null,
+            'message_template' => '{code} is your code.',
+            'timeout_seconds' => 10,
+            'base_url' => 'https://api.twilio.example',
+        ], $settings)]);
+
+        // Bound, never called. What makes the Twilio branch of the guard run is
+        // the provider's name, so the real class is used rather than a double
+        // that would have to lie about being Twilio.
+        $this->app->instance(OtpDeliveryProvider::class, new TwilioOtpProvider(
+            accountSid: 'AC-guard-placeholder',
+            apiKeySid: 'SK-guard-placeholder',
+            apiKeySecret: 'guard-placeholder-secret',
+            messagingServiceSid: 'MG-guard-placeholder',
+        ));
+    }
+
+    public function test_a_fully_configured_twilio_starts_production(): void
+    {
+        $this->twilioProduction();
+
+        // The control for every case below. Without it they would pass on a
+        // guard that refused every Twilio configuration, correct or not.
+        ProductionConfigGuard::assert($this->appIn('production'));
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_a_missing_twilio_credential_stops_production_from_starting(): void
+    {
+        $this->twilioProduction(['api_key_secret' => null]);
+
+        $this->expectExceptionMessageMatches('/TWILIO_API_KEY_SECRET is not set/');
+
+        ProductionConfigGuard::assert($this->appIn('production'));
+    }
+
+    public function test_twilio_with_no_sender_at_all_stops_production_from_starting(): void
+    {
+        $this->twilioProduction(['messaging_service_sid' => null, 'from' => null]);
+
+        // Twilio requires exactly one. Neither is a request it rejects, once
+        // per sign-in, with the customer watching.
+        $this->expectExceptionMessageMatches('/no sender is configured/');
+
+        ProductionConfigGuard::assert($this->appIn('production'));
+    }
+
+    public function test_a_from_number_alone_is_an_acceptable_sender(): void
+    {
+        $this->twilioProduction(['messaging_service_sid' => null, 'from' => '+15005550006']);
+
+        ProductionConfigGuard::assert($this->appIn('production'));
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_a_template_without_the_placeholder_stops_production_from_starting(): void
+    {
+        $this->twilioProduction(['message_template' => 'Your FoodOnTheGo verification code.']);
+
+        // The nastiest of the three, because everything succeeds: Twilio accepts
+        // it, the carrier delivers it, the customer receives a message, and it
+        // contains no code.
+        $this->expectExceptionMessageMatches('/no \{code\} placeholder/');
 
         ProductionConfigGuard::assert($this->appIn('production'));
     }

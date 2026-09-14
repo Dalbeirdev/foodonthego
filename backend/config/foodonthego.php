@@ -69,6 +69,61 @@ return [
 
         // Development-only switch for exercising the delivery-failure path.
         'simulate_provider_failure' => (bool) env('OTP_SIMULATE_PROVIDER_FAILURE', false),
+
+        /*
+         | Twilio, used when OTP_PROVIDER=twilio.
+         |
+         | The credential pair is an API key, not the account's auth token. An
+         | API key can be revoked on its own, so a leak costs one key rather than
+         | the account, and rotating it does not break every other integration.
+         | The account SID is still needed: it names the account the key acts on.
+         |
+         | Nothing here has a default. A blank credential that falls back to
+         | something is how a deployment ends up half-configured and failing at
+         | the first sign-in rather than at boot; the production guard checks
+         | these are present before a single request is served.
+         */
+        'twilio' => [
+            'account_sid' => env('TWILIO_ACCOUNT_SID'),
+            'api_key_sid' => env('TWILIO_API_KEY_SID'),
+            'api_key_secret' => env('TWILIO_API_KEY_SECRET'),
+
+            // One of these, not both. A messaging service is the better choice
+            // in India: it is what carries the registered sender, and it lets
+            // the sender change without a deployment.
+            'messaging_service_sid' => env('TWILIO_MESSAGING_SERVICE_SID'),
+            'from' => env('TWILIO_FROM'),
+
+            /*
+             | The message, with {code} substituted.
+             |
+             | In India this text is NOT free. Transactional SMS must match a
+             | template registered with a DLT platform, character for character
+             | apart from the variable, or the carrier drops it silently — the
+             | API call still succeeds. Whoever registers the template sets this
+             | value to match it.
+             |
+             | `?:` rather than env()'s second argument, and the same below: a
+             | key present but blank in a .env file reads as an empty string,
+             | not as absent, so the default would never apply. An operator who
+             | leaves the line in place after copying .env.example would send a
+             | message with no code in it.
+             */
+            'message_template' => env('TWILIO_MESSAGE_TEMPLATE')
+                ?: '{code} is your FoodOnTheGo verification code. It expires in 5 minutes. Do not share it with anyone.',
+
+            // A customer is watching a spinner while this runs, and a hung
+            // request is worse than a failed one: the failure path invalidates
+            // the challenge and tells them to try again.
+            //
+            // A blank value must not become (int) '' = 0, which Guzzle reads as
+            // "no timeout at all" — the exact opposite of what is wanted here.
+            'timeout_seconds' => (int) (env('TWILIO_TIMEOUT_SECONDS') ?: 10),
+
+            // Overridable so tests can point at a local double without faking
+            // the whole HTTP layer, and so a regional endpoint can be used.
+            'base_url' => env('TWILIO_BASE_URL') ?: 'https://api.twilio.com',
+        ],
     ],
 
     /*

@@ -2074,3 +2074,53 @@ of them lives in a file the tests do not read.
   tiles will not load on either platform until the client supplies one.
 - **KI-056 is fixed in code and unverified on a handset.** No Android device or
   Apple hardware is reachable from this environment.
+
+## Twilio SMS delivery
+
+`OTP_PROVIDER=twilio` now sends the one-time code as a real SMS. Chosen over the
+alternatives by the client; the credential pair is an API key rather than the
+account auth token, so a leak costs one revocable credential instead of the
+account.
+
+### Added
+
+- `app/Services/Otp/Providers/TwilioOtpProvider.php` — implements the existing
+  `OtpDeliveryProvider` contract, so `OtpChallengeService` is unchanged
+- `foodonthego.otp.twilio` configuration, and the matching `.env.example` block
+  with every value blank
+- `ProductionConfigGuard` now refuses to boot a Twilio deployment missing a
+  credential, missing a sender, or carrying a message template with no `{code}`
+  placeholder — each of which otherwise fails for the first customer to tap
+  "Send code" and for nobody else
+- 13 tests in `TwilioOtpProviderTest` and 5 in `ProductionConfigGuardTest`
+
+### Decisions worth knowing
+
+- **A `queued` status is a success.** `OtpDeliveryFailed` makes the caller
+  invalidate the challenge, so throwing it on a message Twilio has accepted
+  leaves the customer holding a working code the server has already discarded.
+  Only a rejected request, a transport error, or a message already `failed` at
+  creation count as failure.
+- **The code cannot reach a log.** A failure message is written to
+  `auth.otp.delivery_failed`. A test drives all three failure paths and asserts
+  that neither the one-time code nor the API key secret appears in any of them;
+  leaking the payload into the rejection message makes it fail.
+- **A blank `.env` value is not an absent one.** `env('X', $default)` returns
+  `''` for a key present but empty, so copying `.env.example` unedited would have
+  given a zero timeout — which Guzzle reads as no timeout — and a template with
+  no `{code}`. Both settings use `?:` instead, with a test that fails if the
+  `env()` default is restored.
+
+### Not done, and why
+
+- **The admin dashboard cannot hold these credentials.** There is no staff login
+  yet: the platform surface is gated on `auth:sanctum`, and nothing mints a token
+  for those roles. Staff authentication and an encrypted settings store are the
+  next module; the values move into the dashboard then.
+- **No SMS has been sent.** No Twilio account, credentials or DLT registration
+  exist here, and none were invented. Every test runs against a faked HTTP layer.
+  The first real message is the client's to send.
+- **India needs DLT registration** before any message is delivered. An
+  unregistered template is dropped by the carrier *after* Twilio returns 201, so
+  a successful-looking send proves nothing. Recorded in
+  `docs/18-customer-authentication.md`.

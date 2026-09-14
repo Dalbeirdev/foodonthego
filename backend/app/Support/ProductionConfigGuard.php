@@ -231,6 +231,56 @@ final class ProductionConfigGuard
             );
         }
 
+        if ($provider->name() === 'twilio') {
+            $failures = [...$failures, ...self::twilioFailures()];
+        }
+
+        return $failures;
+    }
+
+    /**
+     * Twilio settings that are only wrong once a customer is waiting.
+     *
+     * A provider that reports it delivers to real devices but has no credential
+     * passes every check above and then fails at the first sign-in — which is
+     * the worst place to find out, because the customer sees it and nobody else
+     * does. These are cheap to check at boot and there is no reason not to.
+     *
+     * @return array<int, string>
+     */
+    private static function twilioFailures(): array
+    {
+        $failures = [];
+
+        /** @var array<string, mixed> $settings */
+        $settings = (array) config('foodonthego.otp.twilio', []);
+
+        $missing = static fn (string $key): bool => ! is_string($settings[$key] ?? null) || $settings[$key] === '';
+
+        foreach ([
+            'account_sid' => 'TWILIO_ACCOUNT_SID',
+            'api_key_sid' => 'TWILIO_API_KEY_SID',
+            'api_key_secret' => 'TWILIO_API_KEY_SECRET',
+        ] as $key => $variable) {
+            if ($missing($key)) {
+                $failures[] = $variable.' is not set, and OTP_PROVIDER is twilio.';
+            }
+        }
+
+        // One sender is required and Twilio rejects a request carrying both.
+        // Checking here rather than letting Twilio say so means the deployment
+        // refuses to start instead of failing per sign-in.
+        if ($missing('messaging_service_sid') && $missing('from')) {
+            $failures[] = 'Neither TWILIO_MESSAGING_SERVICE_SID nor TWILIO_FROM is set, so no sender is configured.';
+        }
+
+        // Substitution is a plain str_replace: a template without the
+        // placeholder sends a perfectly well-formed SMS containing no code.
+        $template = is_string($settings['message_template'] ?? null) ? $settings['message_template'] : '';
+        if (! str_contains($template, '{code}')) {
+            $failures[] = 'TWILIO_MESSAGE_TEMPLATE has no {code} placeholder, so the message would not contain the code.';
+        }
+
         return $failures;
     }
 }

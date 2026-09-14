@@ -305,3 +305,86 @@ ever requested one.
 
 Test numbers use the Indian range reserved for documentation (`+919999900000`–`+919999999999`), so a
 code can never reach a real person's handset even if a real provider were configured by mistake.
+
+---
+
+## Sending real SMS with Twilio
+
+`OTP_PROVIDER=twilio` swaps `LogOtpProvider` for `TwilioOtpProvider`. Nothing
+else changes: challenge creation, hashing, expiry, attempt limits and the resend
+cooldown are in `OtpChallengeService` and know nothing about who sends the
+message.
+
+### What to create in the Twilio console
+
+1. **An API key**, under Account → API keys & tokens → Create API key. Note the
+   **SID** (`SK…`) and the **Secret**, which is shown once. This is deliberately
+   not the account auth token: an API key can be revoked on its own, so a leak
+   costs one credential rather than the account, and rotating it does not break
+   anything else using Twilio.
+2. **A Messaging Service**, under Messaging → Services. Note its SID (`MG…`).
+   A plain sender number works too, but the messaging service is what carries a
+   registered sender and lets that sender change without a deployment.
+3. Your **Account SID** (`AC…`), from the console home. Not secret, but needed:
+   it names the account the key acts on.
+
+### What to put in the deployment's `.env`
+
+Never in `.env.example`, which is committed.
+
+```
+OTP_PROVIDER=twilio
+TWILIO_ACCOUNT_SID=AC…
+TWILIO_API_KEY_SID=SK…
+TWILIO_API_KEY_SECRET=…
+TWILIO_MESSAGING_SERVICE_SID=MG…
+TWILIO_MESSAGE_TEMPLATE={code} is your FoodOnTheGo verification code. It expires in 5 minutes. Do not share it with anyone.
+```
+
+Set `TWILIO_MESSAGING_SERVICE_SID` **or** `TWILIO_FROM`, not both — Twilio
+rejects a request carrying both, and `ProductionConfigGuard` refuses to boot if
+neither is set.
+
+### India: DLT registration is not optional
+
+This is the part that surprises people, so it is stated plainly.
+
+Transactional SMS to an Indian handset requires the sender to be registered on a
+DLT platform, and the message body to match a **registered template**, character
+for character apart from the variable. An unregistered template is dropped by the
+carrier **after** Twilio returns `201 Created`. There is no failure to see: the
+API call succeeds, the receipt has a message SID, the application log records a
+successful send, and the customer's phone stays silent.
+
+So:
+
+- Register the entity, the header/sender ID and the template through Twilio's
+  India sender registration, or directly with a DLT operator.
+- Set `TWILIO_MESSAGE_TEMPLATE` to match the registered template exactly.
+- Registration takes days, not minutes. Start it before you need it.
+
+Until registration completes, `OTP_PROVIDER=log` remains the working path and the
+code is read from `storage/logs/otp-development.log`.
+
+### What counts as a failure
+
+`OtpDeliveryFailed` means the code **definitely** was not sent — the caller
+invalidates the challenge on it, so throwing it wrongly leaves a customer holding
+a working code the server has discarded. `TwilioOtpProvider` therefore treats as
+failure only: a rejected request, a transport error, and a message Twilio reports
+as already `failed` or `undelivered` at creation. A `queued` or `accepted` status
+is a success, which is as much as any SMS API can promise synchronously.
+
+Whatever the failure, the customer is told the same fixed sentence. The provider
+detail goes to `auth.otp.delivery_failed` in the application log, and a test
+asserts that neither the one-time code nor the API key secret can reach it.
+
+### Configuring this from the admin dashboard
+
+Not yet, and deliberately. There is no staff login — see `routes/api.php`, where
+the platform surface is gated on `auth:sanctum` with the note that no login mints
+a token for those roles. A settings page holding a Twilio credential behind no
+authentication would be worse than a file on the server that only root can read.
+
+Staff authentication and an encrypted settings store are the next module. When
+they land, these values move into the dashboard and out of `.env`.
