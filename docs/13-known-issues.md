@@ -3050,3 +3050,51 @@ The gate now emits a `::warning::` annotation naming the missing secrets, so a
 skipped deploy is visible on the run list and the pull request without opening a
 log — the KI-038 lesson applied to a second workflow. The run still does not
 fail, for the forking reason above.
+
+### KI-048 — the image build booted the application, and the guard stopped it — **High, the deployment could not build at all** — FIXED
+
+Found the first time `deploy/backend.Dockerfile` was ever built, which was the
+first time the deployment had ever run.
+
+```
+=> ERROR [stage-0 9/9] RUN composer dump-autoload --optimize --no-dev
+   > @php artisan package:discover --ansi
+   In ProductionConfigGuard.php line 78:
+   FoodOnTheGo refused to start in the "production" environment.
+     - APP_KEY is not set …
+     - OTP_PROVIDER could not be resolved …
+     - RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must both be set …
+```
+
+`composer install` in that file correctly passed `--no-scripts`;
+`composer dump-autoload`, twenty lines below it, did not. Composer's
+`post-autoload-dump` hook runs `artisan package:discover`, **which boots
+Laravel**. At image-build time there is no `.env`, so `APP_ENV` falls back to
+`production`, and `ProductionConfigGuard` did exactly what it exists to do:
+refused to start without a real SMS vendor, Places, Routes, Razorpay and a
+pickup pepper.
+
+**The guard was right and the build was wrong.** Nothing about the guard needed
+changing, and changing it would have been the wrong instinct — it would have
+traded a build failure for a production one. An image must not depend on runtime
+configuration: the same image is meant to run in review and in production and
+cannot know which while it is being built. Package discovery is a runtime
+concern, and Laravel regenerates `bootstrap/cache/packages.php` on first boot
+when it is absent, which is why that directory is already writable.
+
+Fixed by adding `--no-scripts`.
+
+**It survived unseen because the deployment had never once run** — the workflow
+skipped for want of credentials and reported green forty-six times (KI-047). A
+Dockerfile that has never been built is not a Dockerfile anybody has checked.
+
+`backend/tests/Unit/ImageBuildDoesNotBootTheAppTest.php` now reads every
+`deploy/*.Dockerfile`, joins each `RUN` across its backslash continuations —
+because the real fault had its flags on the line after the command — and fails
+if any build step invokes `artisan`, or runs `composer install|update|dump-autoload`
+without `--no-scripts`. Both controls were seen to fail against the real files.
+
+**And it immediately caught a mistake of my own.** Restoring the file after the
+control run, a `$`-anchored `sed` silently failed to match a line ending in a
+continuation backslash, leaving the fault in the tree. The test failed on the
+next run and named the line. That is the entire argument for writing it.

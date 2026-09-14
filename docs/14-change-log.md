@@ -1955,3 +1955,16 @@ customer app got a screen that reads it without ever deciding it.
   (KI-047).** It skips when the SSH secrets are absent, which is correct for
   forks; it skipped invisibly, which is not. The gate now emits a warning
   annotation naming what is missing.
+
+- **The deployment could not build at all (KI-048), found by building it for the
+  first time.** `deploy/backend.Dockerfile` ran `composer dump-autoload` without
+  `--no-scripts`, so composer's post-autoload-dump hook ran `artisan
+  package:discover` and booted Laravel during the image build. With no `.env`,
+  `APP_ENV` fell back to `production` and `ProductionConfigGuard` refused —
+  correctly. The guard was right; the build was wrong, and an image must not
+  depend on runtime configuration.
+
+  A new backend unit test reads every deploy Dockerfile, joins each `RUN` across
+  its continuations, and fails on any build step that invokes artisan or runs
+  composer with its scripts enabled. It caught a botched `sed` of mine during the
+  control run, which is the shortest possible argument for its existence.

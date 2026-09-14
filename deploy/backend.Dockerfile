@@ -26,7 +26,22 @@ COPY backend/composer.json backend/composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction
 
 COPY backend/ ./
-RUN composer dump-autoload --optimize --no-dev \
+
+# --no-scripts, and it is not an optimisation.
+#
+# composer's post-autoload-dump hook runs `artisan package:discover`, which
+# BOOTS THE APPLICATION. There is no .env at image-build time, so Laravel falls
+# back to APP_ENV=production, and ProductionConfigGuard does exactly what it was
+# written to do: refuses to start without a real SMS vendor, Places, Routes,
+# Razorpay and a pickup pepper. The build then dies with a page of correct
+# complaints about credentials that have nothing to do with building an image.
+#
+# The guard is right and the build was wrong. An image must not depend on
+# runtime configuration — the same image is meant to run in review and in
+# production, and it cannot know which while it is being built. Package
+# discovery is a runtime concern: Laravel regenerates bootstrap/cache/packages.php
+# on first boot when it is absent, which is why that directory is writable below.
+RUN composer dump-autoload --optimize --no-dev --no-scripts \
     && mkdir -p storage/logs storage/framework/{cache,sessions,views} bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache
 
