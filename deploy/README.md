@@ -228,6 +228,29 @@ which is deliberate: the stack must run for someone who has no token, and a
 compose file that refused to come up without one would make the review
 deployment depend on a Cloudflare account.
 
+### The quicker, worse alternative
+
+If the Cloudflare setup is more than you want right now, the stack can be
+published on a plain HTTP port instead, with no account, no nameserver change
+and no certificate:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.public-http.yml up -d
+```
+
+`http://techpio.tech:8080` then answers, using the A record that already points
+at this box.
+
+**It is worse, and the file says so at the top.** There is no TLS: the one-time
+code at sign-in and the session token afterwards travel in clear text, readable
+by anyone on the network path. For seeded test data with no real customers and
+no real payments that is contained, and it is not a configuration to carry into
+anything real. The browser will also say "Not secure" on every page, which is a
+poor frame for showing somebody a product.
+
+It is a separate file rather than a flag precisely so that publishing to the
+internet has to be typed out deliberately every time.
+
 ### Stopping it
 
 ```bash
