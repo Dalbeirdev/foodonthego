@@ -3456,3 +3456,42 @@ the operator surfaces have had nothing since their shells in Module 01.
 
 With this fix the badge goes green and the screens still say "Not built yet",
 which is now an honest report rather than two faults wearing one label.
+
+## KI-060 — preflight reported a check it was not running — FIXED
+
+`scripts/preflight.sh` contained:
+
+```sh
+run 'web · typecheck and test' web npm test --silent
+```
+
+The label says two things; the command does one. Every run has therefore printed
+`web · typecheck and test — pass` without ever invoking `tsc`, since the script
+was written.
+
+It was caught the only way it could be: KI-059's fix introduced
+`error TS2532: Object is possibly 'undefined'` in `apiClient.test.ts`, preflight
+declared the tree clean, and CI failed the push on that exact line. The gate
+built to stop a push going red on something already verified locally had a hole
+in the shape of its own label.
+
+This is worse than having no check. A missing check is a known gap; a green line
+that covers nothing is read as coverage, and the whole reason preflight exists is
+to be trusted without re-reading it.
+
+**Fixed:** one label, one command.
+
+```sh
+run 'web · typecheck' web npm run typecheck --silent
+run 'web · test'      web npm test --silent
+```
+
+Control: reintroducing the exact expression CI rejected makes preflight report
+`web · typecheck FAIL` while `web · test` still passes — the split the old label
+concealed.
+
+The commit's other lesson is smaller and worth writing down too. The first
+attempt to reproduce the failure ran `npm run typecheck 2>&1 | tail -12` and read
+`$?`, which is `tail`'s status and always 0. That briefly looked like CI and local
+disagreeing about the same code. When a check and a machine disagree, suspect the
+measurement before the machine.

@@ -98,7 +98,16 @@ describe('apiRequest', () => {
  * ever looked at what came back. The URL that was passed in was never read.
  */
 describe('the API base URL', () => {
-  const urlOf = (mock: ReturnType<typeof stubFetch>): string => String(mock.mock.calls[0][0]);
+  const urlOf = (mock: ReturnType<typeof stubFetch>): string => {
+    const call = mock.mock.calls.at(0);
+    // Not a type-checker appeasement. Without it, a fetch that never happened
+    // reaches the assertions as the string "undefined", which contains neither
+    // "localhost" nor "/api/v1/api/v1" — so two of the four tests below would
+    // pass on a client that made no request at all.
+    if (call === undefined) throw new Error('fetch was never called.');
+
+    return String(call[0]);
+  };
 
   it('is same-origin by default, not a host and port', async () => {
     const mock = stubFetch({ text: JSON.stringify({ data: {}, meta: { request_id: 'x' } }) });

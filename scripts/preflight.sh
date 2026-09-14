@@ -73,8 +73,21 @@ fi
 SKIP+=('backend — the test suite and PHPStan need MySQL and Redis; CI runs those')
 
 # --- web -------------------------------------------------------------------
+#
+# Two checks, because one of them used to be a lie. This block read
+#
+#   run 'web · typecheck and test' web npm test --silent
+#
+# and reported "web · typecheck and test — pass" while running only the tests.
+# A push then went red on `error TS2532` that this script had just declared
+# clean, which is worse than having no check: a green line that covers nothing
+# is read as coverage.
+#
+# So each command gets its own labelled line. A label may now describe exactly
+# one command, and if that stops being true the summary says which one failed.
 if [ -d web/node_modules ]; then
-  run 'web · typecheck and test' web npm test --silent
+  run 'web · typecheck' web npm run typecheck --silent
+  run 'web · test' web npm test --silent
 else
   SKIP+=('web — node_modules is absent; run npm install in web/')
 fi

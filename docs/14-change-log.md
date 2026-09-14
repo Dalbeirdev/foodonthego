@@ -2147,3 +2147,11 @@ The operator dashboards remain shells. One admin area of 14 is implemented
 endpoints exist, are tested, and are called by nothing. That is the plan as
 executed, not a regression — but the module status table read as though the whole
 product were 90% delivered, which for the operator surfaces it is not.
+
+### Fixed — the preflight gate
+
+- **KI-060** — `scripts/preflight.sh` ran `npm test` under the label
+  `web · typecheck and test`, so every run reported a typecheck it never
+  performed. Split into `web · typecheck` and `web · test`, one command per
+  label. Found when KI-059's fix broke the typecheck, preflight passed, and CI
+  failed the push.
