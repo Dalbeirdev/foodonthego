@@ -260,6 +260,20 @@ jobs:
           echo "techpio.tech resolves to ${resolved:-nothing}"
           [ -n "$resolved" ] || { echo "DNS does not resolve yet; certbot would fail. Stopping."; exit 1; }
 
+          # Resolving somewhere ELSE is the case that used to slip through, and
+          # it is the likelier mistake: the name has always resolved, just not
+          # here. Certbot would then fail its HTTP-01 challenge against a server
+          # that has never heard of this site, and say so in terms that send the
+          # reader looking at nginx. Compared against what this box answers as,
+          # so the message names the real problem.
+          mine=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -v '^$' || true)
+          if [ -n "$mine" ] && ! printf '%s\n' "$mine" | grep -qx "$resolved"; then
+            echo "techpio.tech resolves to $resolved, which is not an address of this machine:"
+            printf '  %s\n' $mine
+            echo 'Point the A record at this box and re-run. Nothing has been changed.'
+            exit 1
+          fi
+
           cp "$SRC" /etc/nginx/sites-available/techpio.tech.conf
           ln -sfn /etc/nginx/sites-available/techpio.tech.conf \
                   /etc/nginx/sites-enabled/techpio.tech.conf

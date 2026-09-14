@@ -64,18 +64,20 @@ the Dockerfiles, the nginx vhost, and `.github/workflows/deploy.yml`, all design
 so that nothing touches the site already on ports 80 and 443. See
 [../deploy/README.md](../deploy/README.md).
 
-### B-1 — The two things that block it, both owner actions
+### B-1 — What blocks it (one of two done)
 
-**1. DNS.** `techpio.tech` resolves to `2.57.91.91`, which is a different
-server. It must point at the VPS:
+**1. DNS — DONE.** As of 14 September 2026, `techpio.tech` and
+`www.techpio.tech` both resolve to `93.188.167.45`:
 
 ```
-A    techpio.tech        93.188.167.45
-A    www.techpio.tech    93.188.167.45
+A      @      93.188.167.45     TTL 60
+CNAME  www    techpio.tech      TTL 300
 ```
 
-Whatever `2.57.91.91` currently serves for that name stops being served once
-this changes. That was a deliberate choice, taken knowingly.
+The `www` CNAME to the root is equivalent to the second A record the deployment
+was written for, and the certificate covers both names. Whatever `2.57.91.91`
+served for this name before is no longer reachable at it — a deliberate choice,
+taken knowingly.
 
 **2. A deploy key.** `.github/workflows/deploy.yml` has run 46 times and
 deployed nothing — it skips when its SSH secrets are absent, and until KI-047
