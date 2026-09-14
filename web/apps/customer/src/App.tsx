@@ -2,8 +2,10 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { CustomerShell } from './shell/CustomerShell.js';
 import { HomeScreen } from './home/HomeScreen.js';
 import { SectionComingLater } from './shell/SectionComingLater.js';
+import { ProfileScreen } from './session/ProfileScreen.js';
 import { RequireSession } from './session/RequireSession.js';
-import { SignInRequired } from './session/SignInRequired.js';
+import { SignInScreen } from './auth/SignInScreen.js';
+import { RedirectIfSignedIn } from './session/RedirectIfSignedIn.js';
 
 /**
  * Every customer route.
@@ -18,7 +20,16 @@ import { SignInRequired } from './session/SignInRequired.js';
  */
 export const App = () => (
   <Routes>
-    <Route path="/login" element={<SignInRequired />} />
+    {/* A signed-in customer who lands here is sent Home rather than shown a
+        form they do not need. */}
+    <Route
+      path="/login"
+      element={
+        <RedirectIfSignedIn>
+          <SignInScreen />
+        </RedirectIfSignedIn>
+      }
+    />
 
     <Route
       element={
@@ -83,15 +94,7 @@ export const App = () => (
           />
         }
       />
-      <Route
-        path="/profile"
-        element={
-          <SectionComingLater
-            title="Profile"
-            description="Your details and saved addresses will appear here."
-          />
-        }
-      />
+      <Route path="/profile" element={<ProfileScreen />} />
 
       {/* Anything else inside the shell goes Home rather than to a dead end. */}
       <Route path="*" element={<Navigate to="/" replace />} />

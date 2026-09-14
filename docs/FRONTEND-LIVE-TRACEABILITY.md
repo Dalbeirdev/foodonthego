@@ -118,3 +118,84 @@ CI, and are not claimed as live inspection.
 | RM02-058 | Missing feature update | ✔ | — | — | — | — | — | MF-01, MF-02 closed; MF-17, MF-18 added |
 | RM02-059 | Flow documentation | ✔ | — | — | — | — | — | Updated |
 | RM02-060 | Restart Module 03 handoff | ✔ | — | — | — | — | — | See the report |
+
+## Restart Module 03 — Customer Authentication
+
+Web verified live in this module. Android and iOS were not inspected by a person;
+their entries come from CI and from the unchanged Flutter implementation.
+
+| ID | Requirement | Web | Android | iOS | Evidence | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| RM03-001 | Web login | ✔ | n/a | n/a | screenshot | **VERIFIED COMPLETE** |
+| RM03-002 | Android login | n/a | ✔ | n/a | CI integration tests | IMPLEMENTED, DEVICE PENDING |
+| RM03-003 | iOS login | n/a | n/a | ✔ | CI simulator | **IOS TEST PENDING** |
+| RM03-004 | Phone input | ✔ | ✔ | ✔ | `type=tel`, `inputmode=numeric` | **VERIFIED COMPLETE (Web)** |
+| RM03-005 | Country code | ✔ | ✔ | ✔ | `+91` shown, architecture not India-only | **PARTIAL** — no country picker yet |
+| RM03-006 | Phone normalization | ✔ | ✔ | ✔ | backend test: every written form reaches one account | **VERIFIED COMPLETE** |
+| RM03-007 | E.164 storage | ✔ | ✔ | ✔ | `users.phone_e164` UNIQUE | **VERIFIED COMPLETE** |
+| RM03-008 | OTP request API | ✔ | ✔ | ✔ | live | **VERIFIED COMPLETE** |
+| RM03-009 | Secure generation | — | — | — | `random_int` per digit | **VERIFIED COMPLETE** |
+| RM03-010 | Hash storage | — | — | — | HMAC-SHA256; 64-hex in the database | **VERIFIED COMPLETE** |
+| RM03-011 | TTL | — | — | — | 300 s, configurable | **VERIFIED COMPLETE** |
+| RM03-012 | Resend delay | ✔ | ✔ | ✔ | 30 s, server-supplied countdown | **VERIFIED COMPLETE** |
+| RM03-013 | Request rate limit | — | — | — | 5/number, 20/IP per hour | **VERIFIED COMPLETE** |
+| RM03-014 | Attempt limit | — | — | — | 5, backend test | **VERIFIED COMPLETE** |
+| RM03-015 | Challenge record | — | — | — | `otp_challenges` | **VERIFIED COMPLETE** |
+| RM03-016 | Challenge/phone binding | — | — | — | backend test | **VERIFIED COMPLETE** |
+| RM03-017 | Verify API | ✔ | ✔ | ✔ | live | **VERIFIED COMPLETE** |
+| RM03-018 | Invalid OTP | ✔ | ✔ | ✔ | live screenshot | **VERIFIED COMPLETE (Web)** |
+| RM03-019 | Expired OTP | — | ✔ | ✔ | backend test; web unit test | **VERIFIED COMPLETE** |
+| RM03-020 | Replay protection | — | — | — | `consumed_at`; backend test | **VERIFIED COMPLETE** |
+| RM03-021 | Brute force | — | — | — | attempts + rate limit | **VERIFIED COMPLETE** |
+| RM03-022 | Existing customer | ✔ | ✔ | ✔ | live — straight Home | **VERIFIED COMPLETE (Web)** |
+| RM03-023 | New customer detection | ✔ | ✔ | ✔ | live — registration step | **VERIFIED COMPLETE (Web)** |
+| RM03-024 | Registration Web | ✔ | — | — | live screenshot | **VERIFIED COMPLETE** |
+| RM03-025 | Registration Android | — | ✔ | — | CI | DEVICE PENDING |
+| RM03-026 | Registration iOS | — | — | ✔ | CI | **IOS TEST PENDING** |
+| RM03-027 | Unique phone | — | — | — | DB constraint; verified no duplicates | **VERIFIED COMPLETE** |
+| RM03-028 | Registration race | — | — | — | backend test | **VERIFIED COMPLETE** |
+| RM03-029 | Verified phone read-only | ✔ | ✔ | ✔ | not editable, not submitted; web test | **VERIFIED COMPLETE** |
+| RM03-030 | Role assignment | — | — | — | server-assigned; `role=customer` in DB | **VERIFIED COMPLETE** |
+| RM03-031 | Status ACTIVE | ✔ | ✔ | ✔ | live | **VERIFIED COMPLETE** |
+| RM03-032 | Status SUSPENDED | ✖ | ✔ | ✔ | backend test only — **not seen on screen** | **PARTIAL — MF-19** |
+| RM03-033 | Status DISABLED | ✖ | ✔ | ✔ | backend test only | **PARTIAL — MF-19** |
+| RM03-034 | Deleted policy | — | — | — | not defined | **MISSING** |
+| RM03-035 | Session creation | ✔ | ✔ | ✔ | Sanctum, ability-scoped | **VERIFIED COMPLETE** |
+| RM03-036 | Web session security | ✔ | n/a | n/a | sessionStorage; Authorization header only | **PARTIAL — see MF-18 note** |
+| RM03-037 | Mobile secure storage | n/a | ✔ | ✔ | `flutter_secure_storage` | **VERIFIED COMPLETE** |
+| RM03-038 | Session restore Web | ✔ | — | — | live refresh | **VERIFIED COMPLETE** |
+| RM03-039 | Session restore Android | — | ✔ | — | CI | DEVICE PENDING |
+| RM03-040 | Session restore iOS | — | — | ✔ | CI | **IOS TEST PENDING** |
+| RM03-041 | `/customer/me` | ✔ | ✔ | ✔ | backend test | **VERIFIED COMPLETE** |
+| RM03-042 | Auth route guard | ✔ | ✔ | ✔ | live, route-level | **VERIFIED COMPLETE** |
+| RM03-043 | No auth flash | ✔ | ✔ | ✔ | 0 API calls while anonymous | **VERIFIED COMPLETE** |
+| RM03-044 | Session expiry | ✔ | ✔ | ✔ | live — forged token cleared | **VERIFIED COMPLETE (Web)** |
+| RM03-045 | Central 401 handling | ✔ | ✔ | ✔ | one handler, not per screen | **VERIFIED COMPLETE** |
+| RM03-046 | Logout API | ✔ | ✔ | ✔ | live | **VERIFIED COMPLETE** |
+| RM03-047 | Logout local cleanup | ✔ | ✔ | ✔ | token cleared; back does not reopen Home | **VERIFIED COMPLETE (Web)** |
+| RM03-048 | Account switching | ✔ | ✔ | ✔ | live — no name leaked between customers | **VERIFIED COMPLETE (Web)** |
+| RM03-049 | Role isolation | — | — | — | backend tests, both directions | **VERIFIED COMPLETE** |
+| RM03-050 | Open redirect | ✔ | n/a | n/a | only `/`-prefixed internal paths | **VERIFIED COMPLETE** |
+| RM03-051 | No production bypass | — | — | — | three defences, each tested | **VERIFIED COMPLETE** |
+| RM03-052 | OTP logging | — | — | — | 0 in the application log | **VERIFIED COMPLETE** |
+| RM03-053 | Token logging | — | — | — | 0 | **VERIFIED COMPLETE** |
+| RM03-054 | Enumeration | — | — | — | backend test: identical response either way | **VERIFIED COMPLETE** |
+| RM03-055 | Network failure | ✔ | ✔ | ✔ | offline message; no fake success | **VERIFIED COMPLETE** |
+| RM03-056 | Device clock independence | ✔ | ✔ | ✔ | server owns expiry and resend | **VERIFIED COMPLETE** |
+| RM03-057 | Android OTP autofill | — | ✔ | — | `autocomplete=one-time-code`; no READ_SMS | DEVICE PENDING |
+| RM03-058 | iOS OTP autofill | — | — | ✔ | same attribute | **IOS TEST PENDING** |
+| RM03-059 | Accessibility | ✔ | ? | ? | labels, `role=alert`, focus rings, 48px targets | **PARTIAL** — no screen-reader run |
+| RM03-060 | Responsive | ✔ | n/a | n/a | eight widths, no overflow | **VERIFIED COMPLETE** |
+| RM03-061 | Backend tests | ✔ | ✔ | ✔ | 1341 | **VERIFIED COMPLETE** |
+| RM03-062 | Web tests | ✔ | — | — | 61 (28 customer) | **VERIFIED COMPLETE** |
+| RM03-063 | Flutter tests | — | ✔ | ✔ | 1065 | **VERIFIED COMPLETE** |
+| RM03-064 | Security tests | ✔ | ✔ | ✔ | see above | **VERIFIED COMPLETE** |
+| RM03-065 | Live Web verification | ✔ | — | — | 19 screenshots | **VERIFIED COMPLETE** |
+| RM03-066 | Live Android verification | — | ✖ | — | — | **PENDING — environment** |
+| RM03-067 | Live iOS verification | — | — | ✖ | — | **PENDING — environment** |
+| RM03-068 | Screenshot evidence | ✔ | ✖ | ✖ | Web only | **PARTIAL** |
+| RM03-069 | Platform parity | ✔ | ✔ | ? | Web live, mobile by CI | **PARTIAL** |
+| RM03-070 | Review credential documentation | ✔ | ✔ | ✔ | no fake credentials; log-read procedure | **VERIFIED COMPLETE** |
+| RM03-071 | Client guide update | ✔ | — | — | module document | **VERIFIED COMPLETE** |
+| RM03-072 | Missing feature update | ✔ | — | — | MF-17 closed, MF-19/20 added | **VERIFIED COMPLETE** |
+| RM03-073 | Restart Module 04 handoff | ✔ | — | — | see report | **VERIFIED COMPLETE** |

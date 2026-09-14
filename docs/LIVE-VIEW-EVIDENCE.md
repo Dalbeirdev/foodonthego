@@ -129,3 +129,51 @@ party. That is the architectural close-out of MF-01.
   screenshot: the live customer had neither, and seeding one purely to make Home
   look populated would be exactly the kind of evidence this restart exists to
   reject.
+
+---
+
+# RESTART MODULE 03 — LIVE VIEW EVIDENCE
+
+| | |
+| --- | --- |
+| Captured | 2026-09-14, ~15:30 UTC |
+| Customer Web build | `index-ZKYO5Ulo.js` (256 KB) / `index-rFJ08GHV.css` |
+| Backend | Laravel 12, `APP_ENV=local`, MySQL 8, Redis 7, `OTP_PROVIDER=log` |
+| Capture tool | Playwright 1.63.0 / Chromium 1194 |
+| Raw log | `docs/evidence/restart-module-03/capture-log.json` |
+
+**Codes were read from the server's log, never from the UI.** The browser was
+driven exactly as a person would drive it: type a number, press the button, read
+the code from elsewhere, type it in.
+
+| Screenshot | Scenario | Verified | Verdict |
+| --- | --- | --- | --- |
+| `restart-m03-web-login-desktop.png` | `/login` @1280 | Branded panel, phone field with `+91`, Send code | **PASS** |
+| `restart-m03-web-login-mobile.png` | `/login` @390 | Full-bleed on a phone, 48px controls | **PASS** |
+| `restart-m03-web-otp.png` | Code entry | `Sent to +91 ••••••1122` — the server's mask. "Change number". "Resend code in 30s", disabled. | **PASS** |
+| `restart-m03-auth-error.png` | Wrong code | "That code isn't correct. Please check it and try again." No attempts-remaining hint. | **PASS** |
+| `restart-m03-web-registration.png` | New number | "What should we call you?"; the number is shown masked and is not editable | **PASS** |
+| `restart-m03-web-home-after-signin.png` | After registration | **"Good afternoon, Meera"** — Home, real data | **PASS** |
+| `restart-m03-web-existing-customer-home.png` | Existing number | **"Good afternoon, Rahul"** — straight Home, no registration step, no trace of the previous customer | **PASS** |
+| `restart-m03-web-signed-in-login-redirect.png` | Signed-in `/login` | Redirected to `/` | **PASS** |
+| `restart-m03-web-after-logout.png` | Sign out | Token cleared; back button does not reopen Home | **PASS** |
+| `restart-m03-web-session-expired.png` | Forged token | Cleared and sent to sign-in by the central handler | **PASS** |
+| `restart-m03-web-login-{360…1920}.png` | Eight widths | No horizontal overflow at any width | **PASS** |
+
+## Database and log checks after the run
+
+- OTP hashes: 64-character hex. **No plaintext code is stored anywhere.**
+- One customer row per number. No duplicates.
+- New accounts: `role=customer`, `status=active` — server-assigned.
+- Plaintext codes in the application log: **0**.
+
+## Console
+
+One console error across the whole run: the expected `422` from the deliberate
+wrong-code test. Every other screen was clean.
+
+## Not inspected live
+
+Android and iOS authentication was **not** driven by a person — no SDK, emulator
+or Apple hardware is reachable. **iOS RESTART MODULE 03 = PENDING — RUNTIME
+ENVIRONMENT UNAVAILABLE.**

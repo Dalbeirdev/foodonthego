@@ -75,9 +75,11 @@ const ActiveOrderCard = ({ order }: { order: HomeOrder }) => (
 );
 
 export const HomeScreen = () => {
-  const { state: sessionState } = useSession();
+  const { state: sessionState, signOut } = useSession();
   const token = sessionState.status === 'authenticated' ? sessionState.session.token : '';
-  const { state, reload } = useHome(token);
+  // Clearing the session re-renders RequireSession, which sends the customer to
+  // sign-in. No screen navigates on a 401 itself.
+  const { state, reload } = useHome(token, signOut);
   const now = new Date();
 
   if (state.status === 'loading') return <AppLoading />;

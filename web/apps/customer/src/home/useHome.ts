@@ -38,7 +38,7 @@ export type HomeState =
   | { readonly status: 'ready'; readonly data: HomePayload }
   | { readonly status: 'failed'; readonly error: ApiError };
 
-export const useHome = (token: string) => {
+export const useHome = (token: string, onUnauthorized?: () => void) => {
   const [state, setState] = useState<HomeState>({ status: 'loading' });
   const [reloads, setReloads] = useState(0);
 
@@ -62,6 +62,14 @@ export const useHome = (token: string) => {
         // Setting state here would replace a fresh render with a stale error.
         if (caught instanceof Error && caught.name === 'AbortError') return;
 
+        // A 401 is not a screen-level error. The token is gone or revoked, so
+        // the session is over and the customer belongs at sign-in — handled in
+        // one place rather than re-implemented by every screen that fetches.
+        if (caught instanceof ApiError && caught.status === 401) {
+          onUnauthorized?.();
+          return;
+        }
+
         setState({
           status: 'failed',
           error:
@@ -73,7 +81,7 @@ export const useHome = (token: string) => {
     })();
 
     return () => controller.abort();
-  }, [token, reloads]);
+  }, [token, reloads, onUnauthorized]);
 
   return { state, reload };
 };

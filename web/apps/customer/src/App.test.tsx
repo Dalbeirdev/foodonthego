@@ -61,7 +61,7 @@ describe('the auth guard', () => {
 
     // The guard is on the route, so this holds for a typed URL too — hiding a
     // link from the navigation would not.
-    await waitFor(() => expect(screen.getByText(/Sign in to FoodOnTheGo/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/What is your mobile number/i)).toBeInTheDocument());
     expect(screen.queryByText(/Where are you travelling today/i)).not.toBeInTheDocument();
   });
 
@@ -71,7 +71,7 @@ describe('the auth guard', () => {
       stubFetch(homePayload());
 
       const view = renderAt(path);
-      await waitFor(() => expect(screen.getByText(/Sign in to FoodOnTheGo/i)).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText(/What is your mobile number/i)).toBeInTheDocument());
       view.unmount();
     }
   });
@@ -84,7 +84,7 @@ describe('the auth guard', () => {
 
     // The first paint must not be the sign-in screen for a customer who is in
     // fact signed in — that flash is the bug this state machine exists for.
-    expect(screen.queryByText(/Sign in to FoodOnTheGo/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/What is your mobile number/i)).not.toBeInTheDocument();
   });
 });
 

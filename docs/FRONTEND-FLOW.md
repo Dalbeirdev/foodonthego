@@ -102,7 +102,7 @@ The three columns no longer come from one codebase, so each is stated separately
 
 | Stage | Customer Web | Android / iOS | Backend |
 | --- | --- | --- | --- |
-| LOGIN | **route exists, form missing** (MF-17 → R-03) | VERIFIED COMPLETE | VERIFIED COMPLETE |
+| LOGIN | **VERIFIED COMPLETE** — live, new and existing customer, screenshots | VERIFIED COMPLETE | VERIFIED COMPLETE |
 | HOME | **VERIFIED COMPLETE** — live, real data, screenshot | IMPLEMENTED, device pending | **VERIFIED COMPLETE** — `GET /customer/home` |
 | PLAN JOURNEY | route exists, content R-05 | IMPLEMENTED | VERIFIED COMPLETE |
 | ROUTE | route exists, content R-06 | IMPLEMENTED | map tiles BLOCKED (MF-08) |
