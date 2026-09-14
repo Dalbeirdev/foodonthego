@@ -2984,3 +2984,69 @@ construction — the picker renders its Locating row with `onTap: null` — and
 `reset()` has no caller). The allowlist is checked in both directions: an entry
 whose file has since gained a guard fails, because a stale exemption is how a
 future edit that drops the guard goes unnoticed.
+
+### KI-046 — the review deployment would have shown a debug panel and invented data — **High, it would have made the review worthless** — FIXED
+
+Found while wiring the live review deployment, by reading what `FOTG_ENV=review`
+actually resolves to rather than assuming.
+
+`deploy/web.Dockerfile` has passed `--dart-define=FOTG_ENV=review` since the
+deployment was written. `AppEnvironment` knew `development`, `staging` and
+`production`; `review` matched none of them and fell through the ternary chain
+to **`development`**. Silently, because a `const` expression cannot complain.
+
+What that build would have put on a public URL for a client to review:
+
+- a **floating debug panel** on every screen (`DevelopmentHarness`), offering to
+  switch personas and force failure states;
+- **fixture home-screen data** — invented journeys and orders, from
+  `FixtureHomeRepository`;
+- a **fake connectivity toggle** (`ControllableConnectivity`) in place of the
+  honest always-online default.
+
+None of that is a security hole — it is all client-side and the API stays
+authoritative — and that is precisely why it would have been so damaging. Every
+screen would have looked correct, and nothing on any of them could have been
+trusted as real. A reviewer cannot tell an invented journey from a stored one.
+
+**Fixed by making `review` a value the enum knows**, with the two flags
+deliberately pulling opposite ways:
+
+| | `allowsFixtures` | `showsDevelopmentNotices` |
+| --- | --- | --- |
+| development | yes | yes |
+| **review** | **no** | **yes** |
+| staging | yes | yes |
+| production | no | no |
+
+No invented data, and every stand-in notice shown. That pairing is the reason
+the value exists: a reviewer must see what the server actually holds, and must
+be told when a figure came from a stand-in — the review deployment computes
+routes as **straight lines between two points**, and a distance that is
+arithmetic rather than roads looks exactly like one that is not.
+
+**A `const` cannot throw, so the next misspelling would fail the same way.**
+`test/app_environment_values_test.dart` walks the repository, reads every
+literal `FOTG_ENV=` in Dockerfiles, workflows and scripts, and fails on any
+value the enum does not recognise — naming the value and the file. It reads the
+tree rather than a maintained list, so a workflow added next year is covered the
+day it is written; values composed from shell variables are skipped rather than
+falsely passed. Both controls were seen to fail: the old enum, and a deliberate
+`FOTG_ENV=reviewing` in the real Dockerfile.
+
+### KI-047 — the deploy workflow reported success 46 times without deploying — **Medium, false signal** — FIXED
+
+`deploy.yml` skips rather than fails when the SSH secrets are absent, which is
+right: anyone can fork this repository, and a red X about credentials that were
+never theirs to set is noise.
+
+What was wrong is that it skipped **invisibly**. Forty-six runs, every one
+green, every one stopping at *Prepare the SSH identity* having shipped nothing.
+The pull request showed a passing deploy check for a deployment that has never
+once happened — the same fault as a test that passes without exercising its
+subject, which this session has now found four times in its own work.
+
+The gate now emits a `::warning::` annotation naming the missing secrets, so a
+skipped deploy is visible on the run list and the pull request without opening a
+log — the KI-038 lesson applied to a second workflow. The run still does not
+fail, for the forking reason above.

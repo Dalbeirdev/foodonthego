@@ -1937,3 +1937,21 @@ customer app got a screen that reads it without ever deciding it.
   The scanner produced two false positives before it was right, both from reading
   a file as one text rather than as classes, and both are now pinned by controls
   that run on snippets rather than on the real tree.
+
+- **The review deployment would have shipped a debug panel and invented data
+  (KI-046).** `deploy/web.Dockerfile` passes `FOTG_ENV=review`; the enum knew
+  only development, staging and production, so `review` fell through to
+  `development` — floating debug harness, fixture journeys and orders, fake
+  connectivity toggle, on a public URL for a client to review. Not a security
+  hole, which is why it was dangerous: every screen would have looked right and
+  none of it could have been trusted as real.
+
+  `review` is now a value the enum knows, with fixtures **off** and development
+  notices **on** — the opposite pairing to every other environment, and the
+  reason it exists. A repository-walking test now fails on any `FOTG_ENV` value
+  the app does not recognise, naming the value and the file.
+
+- **The deploy workflow had reported success 46 times without deploying
+  (KI-047).** It skips when the SSH secrets are absent, which is correct for
+  forks; it skipped invisibly, which is not. The gate now emits a warning
+  annotation naming what is missing.

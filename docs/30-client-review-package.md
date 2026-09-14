@@ -49,21 +49,55 @@ a pickup credential that is never stored in readable form.
 
 | Surface | URL | State |
 | --- | --- | --- |
-| Customer app (web) | — | `EXTERNAL REVIEW URL = PENDING` |
-| Restaurant dashboard | — | `EXTERNAL REVIEW URL = PENDING` |
-| Admin panel | — | `EXTERNAL REVIEW URL = PENDING` |
-| API | — | `EXTERNAL REVIEW URL = PENDING` |
+| Customer app (web) | `https://techpio.tech/` | `DEPLOYMENT PENDING TWO OWNER ACTIONS` |
+| Restaurant dashboard | `https://techpio.tech/restaurant` | `DEPLOYMENT PENDING TWO OWNER ACTIONS` |
+| Admin panel | `https://techpio.tech/admin` | `DEPLOYMENT PENDING TWO OWNER ACTIONS` |
+| API | `https://techpio.tech/api/v1` | `DEPLOYMENT PENDING TWO OWNER ACTIONS` |
 
-**`EXTERNAL REVIEW URL = PENDING — NOTHING IS DEPLOYED`.**
+**Nothing is serving these yet, and the URLs above are where it will be rather
+than where it is.** Do not send them to anybody until section B-1 says the
+deployment has run.
 
-There is no hosting environment for this project yet. Everything above runs on a
-developer machine at `localhost`, and a localhost address is not a review URL:
-it would resolve to the reviewer's own computer, where nothing is listening.
+The hosting exists: a Hostinger VPS at `93.188.167.45`, Ubuntu, already serving
+`piodesk.com`. The whole deployment is built for it — `deploy/docker-compose.yml`,
+the Dockerfiles, the nginx vhost, and `.github/workflows/deploy.yml`, all designed
+so that nothing touches the site already on ports 80 and 443. See
+[../deploy/README.md](../deploy/README.md).
 
-What exists instead: the deployment topology is designed and written down in
-[10-deployment.md](10-deployment.md), and the environment contract that a
-staging deployment must satisfy is in [04-environments.md](04-environments.md).
-Standing one up is a decision with a cost attached and has not been approved.
+### B-1 — The two things that block it, both owner actions
+
+**1. DNS.** `techpio.tech` resolves to `2.57.91.91`, which is a different
+server. It must point at the VPS:
+
+```
+A    techpio.tech        93.188.167.45
+A    www.techpio.tech    93.188.167.45
+```
+
+Whatever `2.57.91.91` currently serves for that name stops being served once
+this changes. That was a deliberate choice, taken knowingly.
+
+**2. A deploy key.** `.github/workflows/deploy.yml` has run 46 times and
+deployed nothing — it skips when its SSH secrets are absent, and until KI-047
+it skipped silently, reporting green each time. It needs, as repository secrets:
+`DEPLOY_HOST` (`93.188.167.45`), `DEPLOY_USER`, and `DEPLOY_SSH_KEY` (a private
+key generated for this and nothing else). The key is generated on the server and
+pasted straight into GitHub; it does not pass through a chat window or a commit.
+
+Once both are done, the vhost and certificate are a one-time opt-in run:
+**Actions → Deploy — techpio.tech → Run workflow → tick "Also install the
+techpio.tech vhost"**. Every push after that redeploys on its own.
+
+### B-2 — What the deployed site is, and is not
+
+`APP_ENV=review`. Real server, real database, real money arithmetic, real
+tenant isolation. Stand-in providers where no credentials exist — and the app
+**says so on the screens it affects**, which is the point of the `review`
+environment existing (KI-046): no invented data, every stand-in notice shown.
+
+The limitation most likely to mislead: **routes are straight lines between two
+points**. Distances and durations are arithmetic, not roads. It looks like a
+real answer, so the route screen says that it is not.
 
 ---
 

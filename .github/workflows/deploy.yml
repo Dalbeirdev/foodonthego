@@ -67,9 +67,16 @@ jobs:
               echo
               echo 'Settings → Secrets and variables → Actions → New repository secret.'
             } >> "$GITHUB_STEP_SUMMARY"
+            # A warning annotation, not just a step summary. This skipped
+            # silently 46 times while every run reported green — a deploy that
+            # has never happened looked exactly like one that had. An
+            # annotation is visible on the run list and the pull request
+            # without opening a log, which is the whole difference.
+            echo "::warning title=Deploy skipped — nothing was deployed::Missing secrets:$missing. Every run of this workflow so far has skipped for this reason. See deploy/README.md."
             echo "Deploy skipped — missing:$missing"
           else
             echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deploy credentials present::Deploying to ${HOST}."
           fi
 
       - name: Prepare the SSH identity
