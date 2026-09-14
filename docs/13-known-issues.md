@@ -3129,3 +3129,47 @@ summary that way. It tried to run "the backend tests that need no database" via
 pulled in half the suite, which then failed on a database that is not there.
 Guessing which tests are database-free is not worth doing; it now names the one
 file that guards the deploy, by path.
+
+### KI-050 — the review image pinned a Flutter base image that does not exist — **High, the site could not be built** — FIXED
+
+The third deploy asset to fail the first time it was ever run, and the same root
+cause as the other two: the deployment had never once executed, so nothing in it
+had been checked.
+
+```
+target web: failed to solve: ghcr.io/cirruslabs/flutter:3.47.2:
+  failed to resolve source metadata … not found
+```
+
+`deploy/web.Dockerfile` built the customer web app `FROM
+ghcr.io/cirruslabs/flutter:3.47.2`. That tag does not exist in that registry —
+whether it was never published or has since been retired does not much matter.
+The comment above the line was right about what it wanted:
+
+> The same Flutter version CI pins. A review build produced by a different
+> toolchain than the tested one is not the tested app.
+
+**and nothing enforced it.** Worse, when a pinned base image disappears the
+quickest repair is to slacken the pin to `:stable` — which is precisely what
+that comment forbids, and it would have shipped a review site built with a
+toolchain no test has ever run.
+
+**Fixed by removing the dependency on somebody else's tag.** The stage now starts
+from `debian:bookworm-slim` and installs the pinned SDK from Google's own release
+archive, whose entry for 3.47.2 is published with a SHA-256 that is now checked
+during the build. A corrupted or substituted archive fails loudly instead of
+quietly producing a review app from an unknown toolchain.
+
+`mobile/test/toolchain_versions_agree_test.dart` holds the invariant the comment
+claimed: CI must pin exactly one Flutter version across all its jobs, the
+Dockerfile's `FLUTTER_VERSION` must equal it, and the checksum must be both
+present and actually verified — a declared `FLUTTER_SHA256` that nothing compares
+against is decoration. All four controls were seen to fail against the real files.
+
+**Three of this session's own mistakes are worth recording beside it.** The
+rewrite was destroyed once by a `git checkout` of an uncommitted file during the
+control run — the controls had already fired, so nothing was lost but the typing.
+The new test then failed `dart format`, which `scripts/preflight.sh` caught
+**before** the push rather than after: the first time in this session that a
+formatter was caught on the right side of a commit, and the reason that script
+exists.

@@ -1976,3 +1976,15 @@ customer app got a screen that reads it without ever deciding it.
   it could not check as skipped rather than passing it by omission. Its own first
   draft failed its own check — a `--filter` that matched method names as well as
   class names — which is written up rather than quietly corrected.
+
+- **The review site could not be built at all (KI-050).** `deploy/web.Dockerfile`
+  built the customer app from `ghcr.io/cirruslabs/flutter:3.47.2`, a tag that
+  does not exist; the build failed the first time it was ever run. The stage now
+  installs the pinned SDK from Google's own archive with its published SHA-256
+  verified during the build, which removes the dependency on a tag somebody else
+  controls — and removes the temptation, when such a tag disappears, to slacken
+  the pin to `:stable` and ship a review site built with an untested toolchain.
+
+  A new mobile test holds what the Dockerfile's comment had only claimed: CI pins
+  exactly one Flutter version, the Dockerfile matches it, and the checksum is
+  present and actually checked.
