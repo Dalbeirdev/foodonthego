@@ -1,8 +1,31 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      These belong in the MAIN manifest, not in src/debug and src/profile.
+
+      INTERNET was declared only there, which meant every debug build and
+      every integration test could reach the network and the release APK — the
+      one a reviewer installs — could not. The location permissions were
+      declared nowhere at all. Nothing caught either: the
+      unit tests do not touch a real socket, and the emulator smoke test
+      installs the release APK, launches it and checks the process is alive,
+      which it is. An app with no INTERNET permission starts perfectly well and
+      then fails every request, reporting it to the customer as "No connection".
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      The journey planner asks for the current location. geolocator does not
+      declare these itself by design: the app has to say what it wants, because
+      the app is what the customer is granting it to.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:label="foodonthego"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
             android:exported="true"

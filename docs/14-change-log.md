@@ -2012,3 +2012,65 @@ customer app got a screen that reads it without ever deciding it.
   tunnel on 443 without a rebuild between them. Four tests hold it, including one
   that asserts a `/` base really does produce a relative URI rather than assuming
   it.
+
+## Deployment and release artefacts — the first browser and the first handset
+
+The review deployment was opened in a browser for the first time, and both
+operator shells and both mobile release artefacts were examined for the first
+time. Six faults, none of which a test suite could have seen, because every one
+of them lives in a file the tests do not read.
+
+### Fixed
+
+**Deployment (`deploy/nginx/app.conf`)**
+- Flutter's unfingerprinted entry points are no longer served `immutable` for
+  thirty days (KI-053) — the reason a corrected bundle sat on the server while
+  the browser ran the old one
+- `/restaurant`, `/admin` and `/api` declared with `^~` so the static-asset regex
+  cannot claim their files and look for them in the wrong directory (KI-054)
+- `immutable` retained only under `/restaurant/assets/` and `/admin/assets/`,
+  where Vite genuinely hashes filenames
+- Request scheme derived from `X-Forwarded-Proto` instead of asserting HTTPS
+  unconditionally (KI-055)
+- A missing asset 404s instead of falling back to `index.html`, which handed the
+  browser HTML where it asked for JavaScript
+
+**Web shells (`web/apps/{restaurant,admin}`)**
+- `base: '/restaurant/'` and `base: '/admin/'` in the Vite configs, so built HTML
+  asks for its own files rather than the customer app's (KI-054)
+- `BrowserRouter basename={import.meta.env.BASE_URL}`, from the same single
+  source, so assets and routes cannot disagree
+
+**Mobile release artefacts**
+- `android.permission.INTERNET` moved into the **main** manifest, where release
+  builds read it. It had been declared only in `src/debug` and `src/profile`, so
+  no release APK had ever been able to make a request (KI-056)
+- `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` declared for the first
+  time — they were in no manifest at all
+- `NSLocationWhenInUseUsageDescription` added to `ios/Runner/Info.plist`; without
+  it iOS terminates the app when it asks for a location
+- Cleartext permitted to the named review host only, on both platforms, with the
+  Android base config set to `cleartextTrafficPermitted="false"` and no
+  `NSAllowsArbitraryLoads` on iOS
+
+**CI (`.github/workflows/ci.yml`)**
+- The review APK's default API base is the review deployment rather than
+  `10.0.2.2`, which exists only inside an emulator (KI-057)
+- Pull-request artefact retention 1 day → 7 days
+
+### Added
+
+- `backend/tests/Unit/DeployedShellsAreReachableTest.php` — 6 tests over the
+  nginx and Vite configuration; all 6 fail on the previous tree
+- `mobile/test/release_builds_can_reach_the_network_test.dart` — 9 tests reading
+  the real manifest and plist; 7 fail on the previous tree, and the 2 that stay
+  silent are recorded as forward-looking rather than counted as passes
+- `docs/12-module-status.md` — modules 15, 16 and 17 added to the summary table,
+  which had stopped at 14T while their detail sections existed further down
+
+### Still open
+
+- **KI-058** — no Google Maps API key exists, and one cannot be invented. Map
+  tiles will not load on either platform until the client supplies one.
+- **KI-056 is fixed in code and unverified on a handset.** No Android device or
+  Apple hardware is reachable from this environment.

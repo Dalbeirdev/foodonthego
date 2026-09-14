@@ -26,6 +26,41 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!--
+	  iOS does not treat a missing usage description as a permission denial: the
+	  system terminates the app the moment it asks. The journey planner asks on
+	  the first screen that needs a starting point, so without this key the app
+	  does not misbehave, it disappears.
+
+	  The text is what the customer reads in the system prompt, so it says what
+	  the location is for rather than that the app would like it.
+	-->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>FoodOnTheGo uses your location to set the start of your journey and to find restaurants along the route you are driving.</string>
+	<!--
+	  Cleartext HTTP, for one named host and nothing else.
+
+	  App Transport Security blocks plain HTTP by default, which is correct. The
+	  review deployment is served on http://techpio.tech:8080 because port 443 of
+	  that host belongs to a different product, so a reviewer's build has to be
+	  allowed to reach it. NSAllowsArbitraryLoads is deliberately absent: this
+	  opens one domain, not the internet.
+
+	  This whole block comes out when the review site is reachable over TLS.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>techpio.tech</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

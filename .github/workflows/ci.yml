@@ -237,15 +237,25 @@ jobs:
       # is honest about the fact that there is nowhere else for it to point.
       # Whichever it used is written into the manifest below rather than left
       # for somebody to guess from a screenshot.
+      # 10.0.2.2 used to be the fallback here. It is the Android emulator's
+      # alias for the machine running it and resolves to nothing on a handset,
+      # so the artifact whose entire purpose is testing on a real phone was
+      # built pointing at an address that phone cannot reach. It reported that
+      # the only way the app can: "No connection."
+      #
+      # The fallback is now the review deployment, which is a real running
+      # address rather than a placeholder. Setting the repository variable
+      # still overrides it, which is how this moves to the tunnel's https URL
+      # without touching the workflow.
       - name: Resolve the review API address
         id: api
         run: |
           url='${{ vars.FOTG_REVIEW_API_BASE_URL }}'
           if [ -z "$url" ]; then
-            url='http://10.0.2.2:8000'
-            echo "deployed=false" >> "$GITHUB_OUTPUT"
+            url='http://techpio.tech:8080'
+            echo "source=the workflow default" >> "$GITHUB_OUTPUT"
           else
-            echo "deployed=true" >> "$GITHUB_OUTPUT"
+            echo "source=repository variable FOTG_REVIEW_API_BASE_URL" >> "$GITHUB_OUTPUT"
           fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
@@ -300,7 +310,7 @@ jobs:
             echo
             echo "Environment:      staging (FOTG_ENV=staging) — NOT a production build"
             echo "API base URL:     ${{ steps.api.outputs.url }}"
-            echo "Backend deployed: ${{ steps.api.outputs.deployed }}"
+            echo "                  (from ${{ steps.api.outputs.source }})"
             echo
             echo "                  A staging binary contains the demo personas and shows"
             echo "                  the \"arrives in a later module\" notices. Both are"
@@ -321,11 +331,16 @@ jobs:
         with:
           name: android-review-build-${{ github.event.pull_request.head.sha || github.sha }}
           path: mobile/build/review/
-          # A day on a pull request, where the artefact exists so the emulator
-          # job can install it; a month on main, where it is the thing a client
-          # is handed. Thirty days of every intermediate commit is storage
-          # nobody asked for.
-          retention-days: ${{ github.event_name == 'pull_request' && 1 || 30 }}
+          # A week on a pull request, a month on main.
+          #
+          # It was a day, on the reasoning that the artefact existed only so the
+          # emulator job could install it. That stopped being true the moment a
+          # reviewer was handed this link: the work is on a branch, nothing has
+          # merged to main yet, and so the pull request's artefact IS the build
+          # under review. A day is long enough for CI and too short for a person
+          # who reads the message tomorrow. Still not thirty days of every
+          # intermediate commit, which is storage nobody asked for.
+          retention-days: ${{ github.event_name == 'pull_request' && 7 || 30 }}
           if-no-files-found: error
 
   ios:

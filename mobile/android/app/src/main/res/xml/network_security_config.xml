@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Which hosts this app may talk to without TLS.
+
+  The default is none. That is stricter than Android's own default on older API
+  levels and matches it on newer ones, and it is stated here rather than assumed
+  so that adding an exception is a visible edit to this file.
+
+  Every exception below is a named host with a reason. None of them is a
+  wildcard, and none of them permits cleartext to an address that carries real
+  customer data or a real payment.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+
+    <domain-config cleartextTrafficPermitted="true">
+        <!--
+          The review deployment. It is served on plain HTTP because port 443 of
+          that host belongs to a different product that must not be touched, so
+          the review stack is published on 8080 instead. Nothing signs in there
+          but reviewers, and the runbook says in as many words that the one-time
+          code and the session token travel in clear text.
+
+          This entry comes out the moment the review site is reachable over TLS.
+        -->
+        <domain includeSubdomains="true">techpio.tech</domain>
+
+        <!--
+          The emulator's alias for the machine running the tests, and the same
+          address by its other name. Neither resolves to anything on a real
+          device, so neither widens what a customer's build can reach.
+        -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

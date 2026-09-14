@@ -19,7 +19,11 @@ if (!container) throw new Error('No #root element to mount into.');
 createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      {/* Vite's BASE_URL, so the router's base and the asset base cannot
+          drift apart: both come from `base` in vite.config.ts. Hard-coding it
+          here is how a shell ends up serving its files correctly and then
+          matching no route. */}
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <App />
       </BrowserRouter>
     </QueryClientProvider>

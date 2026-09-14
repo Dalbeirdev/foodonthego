@@ -3264,3 +3264,144 @@ a real host and exercise the same code correctly; the web build is the only one
 that is served from the same origin as its API, and it had never been built and
 opened until today. A third deploy asset broken on first use, for the same
 reason as the other three.
+
+---
+
+## KI-053 — the deployed browser kept running a bundle the server had already replaced — FIXED
+
+`deploy/nginx/app.conf` served every `.js`, `.css`, image and font with
+`expires 30d` and `Cache-Control: public, immutable`, under a comment saying the
+files were fingerprinted. The React bundles are. **The customer app's are not.**
+
+A Flutter web build writes `main.dart.js`, `flutter.js`, `flutter_bootstrap.js`
+and `flutter_service_worker.js` under those exact names on every build, and
+neither `assets/` nor `canvaskit/` is content-addressed either. `immutable` tells
+a browser it need never revalidate, so the first build a reviewer ever loaded was
+the build they kept — for thirty days, across every deployment in between.
+
+This is why KI-052's fix appeared not to work. The corrected bundle was on the
+server and verified there (`grep -c 'techpio.tech/api/v1' main.dart.js` → 0)
+while the browser went on running the old one and reporting "No connection",
+which is exactly what the old one does.
+
+**Fixed:** `no-cache` for everything served out of the customer app. That is not
+a missing optimisation — it is the only correct answer for files whose names do
+not change. The file is still stored and still revalidated; an unchanged asset
+costs a 304 and a header exchange, not a re-download. Long `immutable` caching
+now applies only under `/restaurant/assets/` and `/admin/assets/`, where Vite
+really does put the hash in the filename.
+
+## KI-054 — the restaurant dashboard and admin panel served a blank page — FIXED
+
+Two independent faults, either one sufficient. Neither had ever been seen,
+because nobody had opened either shell in a browser from a deployment: an earlier
+check recorded `/restaurant` → 301 and `/admin` → 301 and went no further, and a
+301 to a trailing slash tells you nothing about what comes next.
+
+**One — nginx location precedence.** A regex location outranks a plain prefix
+one. `location ~* \.(js|css|…)$` therefore claimed
+`/restaurant/assets/index-<hash>.js` out from under `location /restaurant`, and
+served it with `root /var/www/customer` — the wrong directory. Every asset 404ed.
+Fixed by declaring both shells (and `/api`) with `^~`, which is the one thing
+that stops a regex winning.
+
+**Two — the shells were built for the origin root.** Neither Vite config set
+`base`, so both emitted `src="/assets/index-<hash>.js"`. Served under
+`/restaurant/`, the browser asks the customer app for that file. And with no
+`basename` on `BrowserRouter`, a shell that *did* load its files would then match
+no route and render nothing. Both are now driven by one value: `base` in
+`vite.config.ts`, read back as `import.meta.env.BASE_URL` by the router, so they
+cannot drift.
+
+## KI-055 — nginx told Laravel every request was HTTPS — FIXED
+
+`fastcgi_param HTTPS on;` and `REQUEST_SCHEME https;` were hard-coded, under a
+comment that was true when written: a host proxy always terminated TLS. Published
+on a plain port it became false, so every absolute URL Laravel generated pointed
+at an origin the browser could not reach, and `Strict-Transport-Security` was
+emitted over a connection that had none. (Browsers ignore HSTS received over
+plain HTTP, so no browser was actually pinned — it was wrong to send, not
+harmful.) Both now derive from `X-Forwarded-Proto`, falling back to the
+connection's own scheme when no proxy set one.
+
+## KI-056 — no APK or IPA has ever been able to reach the network — FIXED IN CODE, UNVERIFIED ON A HANDSET
+
+The most serious of this batch, and the one that had been true longest.
+
+`android/app/src/main/AndroidManifest.xml` did not declare
+`android.permission.INTERNET`. It was declared **only** in `src/debug` and
+`src/profile`. Debug builds and the integration-test APK therefore had network
+access, and the *release* APK — the artefact a reviewer installs — had none.
+
+Nothing caught it, and it is worth being precise about why, because each check
+was doing its job:
+
+- The 1,056 Dart tests exercise the app against fakes and never open a socket.
+- The 29 on-device integration tests run a **debug** build, where the permission
+  is present.
+- The emulator smoke test installs the **release** APK, launches it, and asserts
+  the process is alive and has not crashed. An app with no INTERNET permission
+  starts perfectly well. It just fails every request afterwards — reporting it
+  to the customer, correctly and uselessly, as "No connection."
+
+Three further faults in the same two files:
+
+- **`ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` were declared nowhere at
+  all**, in any build type. `geolocator` deliberately does not declare them for
+  the app. The journey planner cannot find where the customer is starting from
+  without them.
+- **`NSLocationWhenInUseUsageDescription` was absent from `ios/Runner/Info.plist`.**
+  iOS does not treat that as a denied permission: it terminates the process the
+  moment the app asks. The app would not misbehave, it would vanish.
+- **Cleartext.** `targetSdk` is 36 and iOS enforces App Transport Security, so
+  `http://techpio.tech:8080` would be refused even with the permissions in place.
+  Both platforms now permit cleartext to **that named host only** — Android via
+  `network_security_config.xml` with `cleartextTrafficPermitted="false"` as the
+  base, iOS via a single `NSExceptionDomains` entry. `NSAllowsArbitraryLoads` is
+  not used. Both entries come out when the review site is reachable over TLS.
+
+Nine tests in `mobile/test/release_builds_can_reach_the_network_test.dart` read
+the real manifest and the real plist. Seven of the nine fail on the previous
+tree. The two that do not — "never turns on cleartext for everything" and "does
+not disable ATS wholesale" — stay silent because the old files did not make those
+mistakes either; they guard a direction this fix could have taken and did not.
+
+**Status is FIXED IN CODE and NOT VERIFIED ON A HANDSET.** No Android device or
+Apple hardware is reachable from here. CI builds and the emulator will confirm
+the app still starts; only a real phone confirms it can now sign in.
+
+## KI-057 — the review APK was built for an address no phone can resolve — FIXED
+
+The Android review build resolved its API base from repository variable
+`FOTG_REVIEW_API_BASE_URL`, falling back to `http://10.0.2.2:8000` when unset.
+That variable has never been set, so every review APK ever produced carries that
+fallback — and `10.0.2.2` is the Android **emulator's** alias for the machine
+running it. On a handset it resolves to nothing.
+
+The build manifest inside the artefact said so (`Backend deployed: false`), which
+is a footnote inside a zip rather than something a reviewer meets before the app
+fails. The fallback is now `http://techpio.tech:8080`, an address that is
+actually running. The repository variable still overrides it, which is how this
+moves to the tunnel's `https://` URL without editing the workflow.
+
+Pull-request artefact retention also went from 1 day to 7. A day was right while
+the artefact existed only for the emulator job to install; it is far too short
+now that the pull request's artefact *is* the build under review.
+
+## KI-058 — the map has no API key, and one cannot be invented — OPEN, BLOCKED ON THE CLIENT
+
+`google_maps_flutter_android` requires
+`<meta-data android:name="com.google.android.geo.API_KEY" …>` in the manifest and
+iOS requires the equivalent. Neither is present, so map tiles will not load on
+either platform regardless of everything fixed above.
+
+**A key cannot be fabricated.** It is a billable credential tied to a Google
+Cloud project that belongs to the client. This is recorded rather than worked
+around, and it is deliberately **not** wired up with an empty placeholder: no
+Android device is available here to establish whether an empty key renders a grey
+tile or terminates the app, and shipping an unverifiable change to the manifest
+that might turn a broken map into a crash is worse than the broken map.
+
+To close it: supply a Google Maps SDK key with Maps SDK for Android and Maps SDK
+for iOS enabled, and say whether it should be restricted to the application id
+`com.foodonthego.foodonthego`.

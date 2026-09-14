@@ -17,6 +17,10 @@
 | 13 | Pickup Time Selection, Arrival Window & Pre-Checkout Validation | **COMPLETE** | 1,914 tests; live server run recorded; device runs as CI reports them. See below |
 | 14 | Checkout, Final Order Review, Commercial Calculation & Payment Readiness | **COMPLETE** | 2,023 tests; **Android 5/5 and iOS 5/5 on real devices**; 12 screenshots; review APK built by CI. See below |
 | 14T | Multi-Tenancy, Tenant Assignment & Cross-Tenant Isolation | **COMPLETE** | 1,141 backend tests; 22 cross-tenant security tests over HTTP; 7 negative controls, all fired. See below |
+| 15 | Orders, Payment, Webhooks & Reconciliation | **COMPLETE — no payment has ever been taken** | No Razorpay credentials exist and none were invented; the gateway is exercised through a deterministic fake. See below |
+| 16 | Order Creation, Confirmation, Order Number & Secure Pickup Code | **COMPLETE** | One captured payment produces at most one order; pickup credential survives a database dump. See below |
+| 17 | Customer Order Tracking, Status Timeline & Order State Presentation | **COMPLETE** | The app displays order state and never decides it; a router test keeps it that way. See below |
+| — | **Release artefacts reach the network** | **FIXED, not yet verified on a handset** | The release APK had no INTERNET permission and the iOS build no location usage string. See KI-057 |
 
 ## Roadmap numbering — not the delivery sequence above
 
