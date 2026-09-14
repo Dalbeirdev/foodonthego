@@ -1,0 +1,278 @@
+[
+  {
+    "name": "customer-web-desktop-home",
+    "path": "/",
+    "width": 1440,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "customer-web-mobile-home",
+    "path": "/",
+    "width": 390,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "restaurant-web-current",
+    "path": "/restaurant/",
+    "width": 1440,
+    "status": "http 200",
+    "title": "FoodOnTheGo · Restaurant Dashboard",
+    "consoleErrors": [],
+    "requestFailures": [],
+    "visibleText": "Skip to content F FoodOnTheGo Restaurant Overview SERVICE Orders Availability CATALOGUE Menu Restaurant Staff BUSINESS Earnings Reports Reviews ACCOUNT Support Settings Collapse Overview API local PV Priya Verma Restaurant owner · Highway Spice Kitchen Good evening, Priya This is the Highway Spice Kitchen dashboard shell. Module 01 delivers the navigation architecture, design system and A"
+  },
+  {
+    "name": "admin-web-current",
+    "path": "/admin/",
+    "width": 1440,
+    "status": "http 200",
+    "title": "FoodOnTheGo · Admin Panel",
+    "consoleErrors": [],
+    "requestFailures": [],
+    "visibleText": "Skip to content F FoodOnTheGo Admin Overview MARKETPLACE Customers Restaurants Routes Orders MONEY Payments Promotions OPERATIONS Reviews Support Analytics PLATFORM Administration Settings Audit Logs System Health Collapse Overview API local FP FoodOnTheGo Platform Admin Super administrator Platform overview FoodOnTheGo admin shell. Module 01 delivers the navigation architecture, the desi"
+  },
+  {
+    "name": "admin-web-system-health",
+    "path": "/admin/system-health",
+    "width": 1440,
+    "status": "http 200",
+    "title": "FoodOnTheGo · Admin Panel",
+    "consoleErrors": [],
+    "requestFailures": [],
+    "visibleText": "Skip to content F FoodOnTheGo Admin Overview MARKETPLACE Customers Restaurants Routes Orders MONEY Payments Promotions OPERATIONS Reviews Support Analytics PLATFORM Administration Settings Audit Logs System Health Collapse Overview System Health API local FP FoodOnTheGo Platform Admin Super administrator System health Live readiness of the FoodOnTheGo API and its dependencies. This page c"
+  },
+  {
+    "name": "customer-web-360",
+    "path": "/",
+    "width": 360,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "customer-web-390",
+    "path": "/",
+    "width": 390,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "customer-web-430",
+    "path": "/",
+    "width": 430,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "customer-web-768",
+    "path": "/",
+    "width": 768,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "customer-web-1024",
+    "path": "/",
+    "width": 1024,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "customer-web-1280",
+    "path": "/",
+    "width": 1280,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "customer-web-1440",
+    "path": "/",
+    "width": 1440,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "customer-web-1920",
+    "path": "/",
+    "width": 1920,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "customer-web-auth-phone",
+    "path": "/#/auth/phone",
+    "width": 390,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notocoloremoji/v32/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.0.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notocoloremoji/v32/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.0.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "customer-web-trips",
+    "path": "/#/trips",
+    "width": 390,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "customer-web-orders",
+    "path": "/#/orders",
+    "width": 390,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  },
+  {
+    "name": "customer-web-profile",
+    "path": "/#/profile",
+    "width": 390,
+    "status": "http 200",
+    "title": "FoodOnTheGo",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET",
+      "Failed to load resource: net::ERR_CONNECTION_RESET"
+    ],
+    "requestFailures": [
+      "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET",
+      "https://fonts.gstatic.com/s/notosanssymbols2/v24/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2 net::ERR_CONNECTION_RESET"
+    ],
+    "visibleText": ""
+  }
+]

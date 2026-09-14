@@ -126,3 +126,34 @@ scope. An entry records the system as it was the day it was written.
 
 Develop and push only on `claude/foodonthego-s0x2vt`; always
 `git push -u origin <branch>`; retry network failures with exponential backoff.
+
+## The live-verification rule (permanent, from Restart Module 01)
+
+**A FEATURE CANNOT BE MARKED COMPLETE UNTIL IT IS VISIBLE AND USABLE IN THE LIVE
+APPLICATION.**
+
+For anything a customer or an operator touches:
+
+- Backend complete ≠ feature complete.
+- API complete ≠ feature complete.
+- A component existing in the source tree ≠ feature complete.
+- Tests passing ≠ feature complete.
+
+COMPLETE requires all seven:
+**CODE + API + UI + NAVIGATION + LIVE VIEW + TEST + SCREENSHOT.**
+
+If a feature exists in source but cannot be reached by a real user through the
+frontend, its status is **NOT ACCESSIBLE**. If the API exists and no frontend
+does, it is **BACKEND ONLY**. If the UI exists and calls nothing, it is
+**UI ONLY**. If the page renders but fails, it is **BROKEN**. None of those may
+be reported as COMPLETE.
+
+A screenshot counts only if it came from the application actually running, and it
+must carry its commit, environment and capture time. A design mock, a reused
+older image, or a picture of a passing test suite is not evidence that a customer
+can use the feature.
+
+Status vocabulary — use these words, not "PASS" everywhere:
+VERIFIED COMPLETE · IMPLEMENTED BUT NOT LIVE · BACKEND ONLY · FRONTEND ONLY ·
+PARTIALLY IMPLEMENTED · PLATFORM GAP · BROKEN · MISSING · NOT YET SCHEDULED ·
+BLOCKED · IOS TEST PENDING
