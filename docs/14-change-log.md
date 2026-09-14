@@ -1988,3 +1988,15 @@ customer app got a screen that reads it without ever deciding it.
   A new mobile test holds what the Dockerfile's comment had only claimed: CI pins
   exactly one Flutter version, the Dockerfile matches it, and the checksum is
   present and actually checked.
+
+- **The review site is published through a Cloudflare Tunnel, not an nginx vhost
+  (KI-051).** Ports 80 and 443 on the VPS belong to the containerised nginx
+  serving piodesk.com — a live product that is not to be touched — and its config
+  is generated from a template outside this repository. With those ports spoken
+  for, standard-port HTTPS was not achievable there, which was said plainly
+  rather than worked around.
+
+  `cloudflared` reverses the direction: it dials out, binds nothing, and contends
+  for no port. Opt-in by compose profile, so the stack still runs for anyone
+  without a Cloudflare account. The nginx-and-certbot route stays in the runbook
+  for a host that owns its ports.

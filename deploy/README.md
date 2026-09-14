@@ -27,6 +27,11 @@ Everything else — discovery along a route, search and filters, menus,
 customisation, the cart, pickup times, the priced checkout, tenant isolation —
 is the real implementation against a real database.
 
+**How it is published, on the box we have.** Not by nginx on the host — ports 80
+and 443 belong to the nginx serving piodesk.com, and that application is not to
+be touched. A Cloudflare Tunnel publishes it instead, binding no port and
+contending for nothing. See step 4.
+
 ## The automated route (preferred)
 
 `.github/workflows/deploy.yml` does everything below on every push, so the
@@ -158,7 +163,83 @@ docker compose run --rm php php artisan key:generate --show
 # paste the base64:... value into .env, then continue
 ```
 
-## Step 4 — the vhost
+## Step 4 — publishing it: the Cloudflare Tunnel
+
+**Read this instead of steps 4 and 5 on the box we actually have.** Those two
+steps assume nginx on the host with a free share of ports 80 and 443. This box
+has neither: `piodesk-edge-1`, the nginx serving **piodesk.com**, owns 80 and
+443 on both IPv4 and IPv6, its configuration is generated from a template
+outside this repository, and **that application is not to be touched**. A vhost,
+a certificate and a reload are all off the table, and no amount of care makes
+them otherwise.
+
+cloudflared solves it by turning the direction around. It dials **out** to
+Cloudflare and serves the hostname from Cloudflare's edge, so it binds no port,
+publishes nothing, needs no inbound firewall rule, and has nothing to contend
+with `piodesk-edge-1` over. TLS is terminated at the edge; `deploy/nginx/app.conf`
+already tells PHP-FPM the scheme is `https`, so generated URLs are right without
+trusting a forwarded header.
+
+### Once, in Cloudflare
+
+1. Create a free account and **Add a site** for `techpio.tech`.
+2. Cloudflare gives you two nameservers. Set them at the registrar, replacing
+   what is there. **This is the one irreversible-feeling step** — DNS for the
+   whole domain moves to Cloudflare. It is reversible by putting the old
+   nameservers back, and the A record that points at this box is imported
+   automatically, but it does affect every record on the domain, not just this
+   one.
+3. **Zero Trust → Networks → Tunnels → Create a tunnel**, choose **Cloudflared**,
+   name it `foodonthego-review`.
+4. Copy the **token** it shows — a long string. That is the credential; treat it
+   the way you would a password, and put it straight in `deploy/.env`, not
+   through a chat window or a screenshot.
+5. On the tunnel's **Public Hostnames** tab, add one:
+
+   | Field | Value |
+   | --- | --- |
+   | Subdomain | *(leave empty)* |
+   | Domain | `techpio.tech` |
+   | Service type | `HTTP` |
+   | URL | `web:80` |
+
+   `web` is the compose service name. cloudflared runs on the same network and
+   resolves it by name — which is why this does not go through `127.0.0.1:8090`.
+   That port is bound to the **host's** loopback, and a container's loopback is
+   itself; it would never be reachable from cloudflared.
+
+   Add a second hostname for `www.techpio.tech` pointing at the same service if
+   you want it to work too.
+
+### On the box
+
+```bash
+cd /opt/foodonthego/deploy
+printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' 'PASTE_THE_TOKEN_HERE' >> .env
+docker compose --profile tunnel up -d
+docker compose logs --tail 30 tunnel
+```
+
+The log should say `Registered tunnel connection` two or four times — one per
+Cloudflare edge location. Then `https://techpio.tech` answers.
+
+**The profile matters.** Without `--profile tunnel` the tunnel does not start,
+which is deliberate: the stack must run for someone who has no token, and a
+compose file that refused to come up without one would make the review
+deployment depend on a Cloudflare account.
+
+### Stopping it
+
+```bash
+docker compose --profile tunnel stop tunnel
+```
+
+The site goes dark, everything else keeps running, and nothing on the box
+changed. Deleting the tunnel in the dashboard is the permanent version.
+
+---
+
+## Step 4 (alternative) — the vhost, where the host owns nginx
 
 Only if the host runs nginx directly. **This adds a file. It edits nothing.**
 

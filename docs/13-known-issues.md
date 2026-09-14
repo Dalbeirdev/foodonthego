@@ -3173,3 +3173,49 @@ The new test then failed `dart format`, which `scripts/preflight.sh` caught
 **before** the push rather than after: the first time in this session that a
 formatter was caught on the right side of a commit, and the reason that script
 exists.
+
+### KI-051 — the deployment assumed a free share of ports 80 and 443, and this box has none — **Medium, design assumption** — RESOLVED, differently than designed
+
+The deploy was written to install an nginx vhost on the host and request a
+certificate with certbot, taking care not to disturb whatever already served
+port 443. On the box we actually have, that care is not enough, because there is
+no host nginx to add a vhost to:
+
+```
+LISTEN 0.0.0.0:443  users:(("docker-proxy" …))
+LISTEN 0.0.0.0:80   users:(("docker-proxy" …))
+--- nginx ---   no host nginx
+--- certbot --- no certbot
+```
+
+Both ports belong to `piodesk-edge-1`, an `nginx:1.29-alpine` **container**
+serving **piodesk.com**, with `piodesk-certbot-1` beside it and a live product
+behind it — dashboard, API, Postgres, MinIO, Mailpit. Its configuration is
+generated from a template at `/root/piodesk/infrastructure/docker/edge-letsencrypt.nginx.conf`,
+so a file dropped into its `conf.d` would not even survive a restart: the real
+change would be to PioDesk's own template.
+
+**The owner's instruction was not to touch that application**, which settles it.
+Stated plainly at the time rather than worked around: with those ports spoken
+for, `https://techpio.tech` on the standard port is not achievable on this box,
+and no amount of care makes a shared edge into an unshared one.
+
+**Resolved by reversing the direction.** A `cloudflared` container dials *out* to
+Cloudflare and the hostname is served from Cloudflare's edge. It binds no port,
+publishes nothing, needs no inbound firewall rule, and has nothing to contend
+with `piodesk-edge-1` over. TLS terminates at the edge, and `deploy/nginx/app.conf`
+already tells PHP-FPM the scheme is `https`, so generated URLs are correct
+without trusting a forwarded header.
+
+It is **opt-in by compose profile**. Without `--profile tunnel` the stack runs
+exactly as before, because a review deployment must not require a Cloudflare
+account of whoever runs it next.
+
+The nginx-and-certbot route is kept in the runbook as the alternative for a host
+that does own its ports, and the deploy workflow's vhost step is unchanged — it
+is opt-in, and on this box it simply must not be ticked.
+
+**One honest cost, recorded because it is the owner's to weigh, not mine:**
+moving `techpio.tech` to Cloudflare's nameservers affects every record on that
+domain, not only this one. It is reversible by restoring the previous
+nameservers.

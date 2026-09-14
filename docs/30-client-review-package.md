@@ -86,9 +86,11 @@ it skipped silently, reporting green each time. It needs, as repository secrets:
 key generated for this and nothing else). The key is generated on the server and
 pasted straight into GitHub; it does not pass through a chat window or a commit.
 
-Once both are done, the vhost and certificate are a one-time opt-in run:
-**Actions → Deploy — techpio.tech → Run workflow → tick "Also install the
-techpio.tech vhost"**. Every push after that redeploys on its own.
+**Not by a vhost on this box.** Ports 80 and 443 belong to `piodesk-edge-1`, the
+nginx serving **piodesk.com**, and that application is not to be touched. The
+review site is published through a **Cloudflare Tunnel** instead: `cloudflared`
+dials out from the stack, binds no port, and contends for nothing. Setup is in
+[../deploy/README.md](../deploy/README.md), step 4.
 
 ### B-2 — What the deployed site is, and is not
 

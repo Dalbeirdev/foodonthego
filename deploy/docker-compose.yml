@@ -64,6 +64,41 @@ services:
     volumes:
       - backend-storage:/app/storage:ro
 
+  # How the outside world reaches this stack.
+  #
+  # NOT A REVERSE PROXY ON THIS BOX. Ports 80 and 443 belong to `piodesk-edge-1`,
+  # the nginx serving piodesk.com, and that application is not to be touched —
+  # which rules out a vhost, a certificate, and anything else that would need a
+  # share of those ports. Its config is generated from a template outside this
+  # repository, so even a file dropped into its conf.d would not survive a
+  # restart of it.
+  #
+  # cloudflared dials OUT to Cloudflare and serves the hostname from there. It
+  # binds nothing, publishes nothing, and needs no inbound firewall rule, so
+  # there is no port for it to contend over. TLS is terminated at Cloudflare's
+  # edge; `deploy/nginx/app.conf` already tells PHP-FPM the scheme is https, so
+  # generated URLs are correct without trusting a forwarded header.
+  #
+  # Opt-in, by profile: `docker compose --profile tunnel up -d`. Without it the
+  # stack runs exactly as before and a missing token breaks nothing.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ['tunnel']
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      # Created in the Cloudflare Zero Trust dashboard; it carries the tunnel's
+      # identity and its routing lives there rather than in a file here. Put it
+      # in deploy/.env, which is gitignored.
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - web
+    # `latest` deliberately, and it is the one place in this deployment that is
+    # not pinned. A tunnel client talks to a moving edge and Cloudflare warns on
+    # stale versions; pinning it would trade a supported client for a
+    # reproducible one. Nothing it builds ends up in the product — it only
+    # forwards bytes to `web`.
+
 volumes:
   mysql-data:
   redis-data:
