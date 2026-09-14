@@ -92,3 +92,33 @@ going back up the stack cannot lose the trip or the restaurant — they are in t
 URL. Browser back, Android system back and the iOS back gesture all drive the same
 router. **Not exercised by hand in this audit** — asserted from the routing
 structure, and listed for its own restart module to verify with a person driving it.
+
+---
+
+## Updated by Restart Module 02
+
+Customer Web is now React (`web/apps/customer`); Flutter is Android and iOS.
+The three columns no longer come from one codebase, so each is stated separately.
+
+| Stage | Customer Web | Android / iOS | Backend |
+| --- | --- | --- | --- |
+| LOGIN | **route exists, form missing** (MF-17 → R-03) | VERIFIED COMPLETE | VERIFIED COMPLETE |
+| HOME | **VERIFIED COMPLETE** — live, real data, screenshot | IMPLEMENTED, device pending | **VERIFIED COMPLETE** — `GET /customer/home` |
+| PLAN JOURNEY | route exists, content R-05 | IMPLEMENTED | VERIFIED COMPLETE |
+| ROUTE | route exists, content R-06 | IMPLEMENTED | map tiles BLOCKED (MF-08) |
+| RESTAURANTS | **MISSING — R-07** | IMPLEMENTED | VERIFIED COMPLETE |
+| RESTAURANT | **MISSING — R-09** | IMPLEMENTED | VERIFIED COMPLETE |
+| MENU | **MISSING — R-10** | IMPLEMENTED | VERIFIED COMPLETE |
+| ITEM | **MISSING — R-11** | IMPLEMENTED | VERIFIED COMPLETE |
+| CART | **MISSING — R-12** | IMPLEMENTED | VERIFIED COMPLETE |
+| PICKUP | **MISSING — R-13** | IMPLEMENTED | VERIFIED COMPLETE |
+| CHECKOUT | **MISSING — R-14** | IMPLEMENTED | VERIFIED COMPLETE |
+| PAYMENT | **MISSING — R-15** | IMPLEMENTED | BLOCKED — no credentials |
+| CONFIRMATION | **MISSING — R-16** | IMPLEMENTED | VERIFIED COMPLETE |
+| TRACKING | **MISSING — R-17** | IMPLEMENTED | PARTIAL — nothing advances state |
+| ETA | MISSING | MISSING | **NOT YET SCHEDULED** |
+
+Choosing React created a real web gap that did not exist before: eleven journey
+stages are on Android and iOS and not yet on the web. That is the cost the client
+accepted, it is tracked here rather than glossed, and each stage is closed by its
+own restart module.

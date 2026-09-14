@@ -5,7 +5,14 @@ Restart Module 01 — live audit. Commit `b49dcb4`, captured 2026-09-14.
 Everything here was established by running the software, not by reading a
 previous completion report. Where something could not be run, it says so.
 
-## The single most important finding
+## Superseded in part by Restart Module 02
+
+The client chose React for Customer Web. `web/apps/customer` now exists and is
+what `deploy/web.Dockerfile` copies to `/var/www/customer`; the Dockerfile has no
+Flutter stage. Flutter builds Android and iOS only. The finding below is kept as
+the record of what was true before that decision.
+
+## The single most important finding (as at Restart Module 01)
 
 **A Customer Web application already exists.** It is not a React app and it is
 not listed under `web/apps/`. It is the Flutter customer app compiled with
@@ -25,7 +32,7 @@ rather than taken here. See PLATFORM-PARITY.md for the trade-off.
 | Thing | Actual path | Notes |
 | --- | --- | --- |
 | Backend (Laravel 12, PHP 8.4) | `backend/` | 58 routes in `backend/routes/api.php` |
-| Customer Web | `mobile/` → `flutter build web` | **Same codebase as Android/iOS** |
+| Customer Web | `web/apps/customer/` | **React 19 + TS + Vite, added by Restart Module 02.** Served at the origin root |
 | Customer Android | `mobile/android/` | `com.foodonthego.foodonthego` |
 | Customer iOS | `mobile/ios/` | Runner target, no signing configured |
 | Restaurant Web | `web/apps/restaurant/` | React 19 + TS + Vite, base `/restaurant/` |

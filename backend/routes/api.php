@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Customer\AddressController;
 use App\Http\Controllers\Api\V1\Customer\CartController;
 use App\Http\Controllers\Api\V1\Customer\CartItemController;
 use App\Http\Controllers\Api\V1\Customer\CheckoutController;
+use App\Http\Controllers\Api\V1\Customer\HomeController;
 use App\Http\Controllers\Api\V1\Customer\OrderController;
 use App\Http\Controllers\Api\V1\Customer\PaymentController;
 use App\Http\Controllers\Api\V1\Customer\PickupController;
@@ -97,6 +98,15 @@ Route::prefix('v1')->group(function (): void {
     Route::middleware(['auth:sanctum', 'role:customer', 'abilities:customer', 'throttle:api-public'])
         ->group(function (): void {
             Route::get('/customer/me', [SessionController::class, 'me'])->name('api.v1.customer.me');
+
+            /*
+             | Everything Home needs, in one request.
+             |
+             | Composes the same services the dedicated endpoints use rather
+             | than deciding anything itself, so Home cannot describe an order
+             | or a journey differently from the tab that owns it.
+             */
+            Route::get('/customer/home', HomeController::class)->name('api.v1.customer.home');
             Route::post('/auth/logout', [SessionController::class, 'logout'])->name('api.v1.auth.logout');
 
             /*

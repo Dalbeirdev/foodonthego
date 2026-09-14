@@ -30,15 +30,8 @@ Set<String> _ciPins(String workflow) =>
         .map((RegExpMatch m) => m.group(1)!)
         .toSet();
 
-/// The default of the Dockerfile's `FLUTTER_VERSION` build argument.
-String? _dockerPin(String dockerfile) => RegExp(
-  r'^ARG\s+FLUTTER_VERSION=(\S+)',
-  multiLine: true,
-).firstMatch(dockerfile)?.group(1);
-
 void main() {
   final File workflow = File('../.github/workflows/ci.yml');
-  final File dockerfile = File('../deploy/web.Dockerfile');
 
   test('the files this test reads are where it thinks they are', () {
     // A missing file read as an empty string would make every assertion below
@@ -47,11 +40,6 @@ void main() {
       workflow.existsSync(),
       isTrue,
       reason: '${workflow.path} is missing',
-    );
-    expect(
-      dockerfile.existsSync(),
-      isTrue,
-      reason: '${dockerfile.path} is missing',
     );
   });
 
@@ -75,51 +63,23 @@ void main() {
     );
   });
 
-  test('the review image is built with the version CI tested', () {
-    final String ci = _ciPins(workflow.readAsStringSync()).single;
-    final String? image = _dockerPin(dockerfile.readAsStringSync());
-
-    expect(
-      image,
-      isNotNull,
-      reason:
-          'web.Dockerfile has no `ARG FLUTTER_VERSION=`. If the Flutter stage '
-          'went back to a prebuilt base image, this check no longer covers it '
-          'and the comment in that file is claiming more than is enforced.',
-    );
-    expect(
-      image,
-      ci,
-      reason:
-          'The review site would be built with Flutter $image while the tests '
-          'ran on $ci. Bring them together — and if the Dockerfile version is '
-          'changed, its FLUTTER_SHA256 must change with it, because the '
-          'checksum belongs to the archive rather than to the pin.',
-    );
-  });
-
-  test('a pinned version carries a pinned checksum', () {
-    final String source = dockerfile.readAsStringSync();
-
-    // The point of downloading rather than pulling an image is that nobody
-    // else controls the bytes. That only holds if the bytes are checked.
-    expect(
-      RegExp(
-        r'^ARG\s+FLUTTER_SHA256=[0-9a-f]{64}$',
-        multiLine: true,
-      ).hasMatch(source),
-      isTrue,
-      reason:
-          'web.Dockerfile downloads the Flutter SDK without a 64-character '
-          'FLUTTER_SHA256 to check it against, so a corrupted or substituted '
-          'archive would build a review app from an unknown toolchain.',
-    );
-    expect(
-      source.contains('sha256sum -c -'),
-      isTrue,
-      reason:
-          'FLUTTER_SHA256 is declared but never verified. A checksum nothing '
-          'compares against is decoration.',
-    );
-  });
+  /*
+   * The Dockerfile half of this file is gone, and deliberately not replaced
+   * with nothing.
+   *
+   * deploy/web.Dockerfile used to build the customer app with Flutter for the
+   * web, so it pinned and checksummed its own copy of the SDK and this file
+   * checked that pin against CI's. Restart Module 02 replaced that build with a
+   * React application, so the Dockerfile installs no Flutter at all and there
+   * is no second pin to disagree with.
+   *
+   * What remains worth guarding is that CI names exactly one version — asserted
+   * above. Flutter still builds Android and iOS, and two workflow jobs drifting
+   * apart would mean the tested app and the shipped app were compiled by
+   * different toolchains, which is the same failure this file was written for.
+   *
+   * If a Flutter build ever returns to a Dockerfile, restore the archive
+   * checksum assertions with it: downloading the SDK instead of pulling an
+   * image is only safer while the bytes are actually checked.
+   */
 }

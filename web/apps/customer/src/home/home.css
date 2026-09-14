@@ -1,0 +1,162 @@
+/*
+ * Home.
+ *
+ * The container is capped and centred. That is the fix for the defect Restart
+ * Module 01 photographed: the previous customer web stretched a phone layout
+ * to 1920px, so the primary call to action was a button the width of the
+ * screen. Text that runs the full width of a desktop monitor is also simply
+ * hard to read — around 70 characters is the comfortable maximum, and the cap
+ * here keeps prose near that.
+ */
+
+.home {
+  width: 100%;
+  max-width: 68rem;
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-4) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.home__greeting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.home__greeting-title {
+  margin: 0;
+  /* Scales with the viewport instead of stepping at a breakpoint, so 360 and
+     430 both get a heading in proportion rather than one tuned for 390. */
+  font-size: clamp(1.5rem, 1.1rem + 2vw, var(--font-size-h1));
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+}
+
+.home__greeting-sub {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+/* ---- the journey call to action ----------------------------------------- */
+
+.home__hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-primary-200);
+  /* A warm wash rather than a photograph: it survives a slow connection, has
+     no licensing question, and does not compete with the text on top of it. */
+  background: linear-gradient(135deg, var(--color-primary-50), var(--color-surface) 70%);
+}
+
+.home__hero-title {
+  margin: 0;
+  font-size: clamp(1.25rem, 1rem + 1.4vw, var(--font-size-h2));
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.01em;
+}
+
+.home__hero-sub {
+  margin: 0;
+  max-width: 44ch;
+  color: var(--color-text-secondary);
+}
+
+.home__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  /* align-self keeps the button the width of its label on a wide screen and
+     lets it fill the column on a phone — the specific thing that was wrong. */
+  align-self: flex-start;
+  min-height: 3rem;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-interactive);
+  color: var(--color-text-on-primary);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  transition: background 120ms ease;
+}
+
+.home__cta:hover {
+  background: var(--color-primary-interactive-hover);
+}
+
+.home__cta:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (max-width: 599px) {
+  .home__cta {
+    align-self: stretch;
+  }
+}
+
+/* ---- the two status cards ------------------------------------------------ */
+
+.home__grid {
+  display: grid;
+  gap: var(--space-4);
+  /* Side by side when there is room for both, stacked when there is not. No
+     breakpoint needed: the cards decide from their own minimum width. */
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+}
+
+.home__card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.home__card-title {
+  margin: 0;
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-semibold);
+}
+
+.home__card-line {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-primary);
+}
+
+.home__card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-label);
+  color: var(--color-text-secondary);
+}
+
+.home__status {
+  text-transform: capitalize;
+}
+
+.home__card-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  min-height: 2.75rem;
+  color: var(--color-primary-interactive);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.home__card-cta:hover {
+  text-decoration: underline;
+}
+
+.home__card-cta:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}

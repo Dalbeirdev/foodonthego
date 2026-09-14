@@ -70,3 +70,62 @@ words in it.
 - **iOS LIVE VIEW = PENDING — ENVIRONMENT UNAVAILABLE.** No Apple hardware is
   reachable from here. CI builds on `macos-latest` and runs the integration tests
   on an iPhone simulator; green on this commit. **Not marked PASS.**
+
+---
+
+# RESTART MODULE 02 — LIVE VIEW EVIDENCE
+
+| | |
+| --- | --- |
+| Captured | 2026-09-14, 14:20–14:25 UTC |
+| Customer Web build | `index-DOKa6EBA.js` (249 KB) / `index-UTrU5lQU.css` (28 KB), Vite 6 |
+| Backend | Laravel 12 on `127.0.0.1:8000`, `APP_ENV=local`, MySQL 8, Redis 7 |
+| Session | **A real customer**, registered through the real OTP flow: phone → code read from the server log → verify → register → bearer token |
+| Capture tool | Playwright 1.63.0 / Chromium 1194 |
+| Raw log | `docs/evidence/restart-module-02/capture-log.json` |
+
+The session is not a fixture and not a stub. `+919999900101` requested a code,
+the code was read from `storage/logs/otp-development.log`, verification returned a
+registration token, registration returned a 50-character bearer token, and that
+token was put in `sessionStorage` before each page load. Home then rendered
+`Good afternoon, Rahul` from `GET /api/v1/customer/home`.
+
+## Screens opened
+
+| Screenshot | Route | Verified | Verdict |
+| --- | --- | --- | --- |
+| `restart-m02-web-logged-out.png` | `/` anonymous | Landed on `/login`. **0 API calls made.** | **PASS** |
+| `restart-m02-web-protected-route-logged-out.png` | `/orders` anonymous | Landed on `/login`. 0 API calls. | **PASS** |
+| `restart-m02-web-home-desktop.png` | `/` @1440 | Rail with five destinations, Home active; "Good afternoon, Rahul"; journey CTA sized to its label; "No active journey". **1 API call.** | **PASS** |
+| `restart-m02-web-home-mobile.png` | `/` @390 | Bottom bar with five destinations, Home active; CTA full-width; no rail. **1 API call.** | **PASS** |
+| `restart-m02-empty-home.png` | `/` @1024 | Empty-state Home with no order card at all. | **PASS** |
+| `restart-m02-web-trips.png` | `/trips` | Renders "Trips — Journeys you have planned will appear here." | **PASS** |
+| `restart-m02-web-orders.png` | `/orders` | Renders "Orders — Orders you have placed will appear here." | **PASS** |
+| `restart-m02-web-notifications.png` | `/notifications` | "No notifications yet." No fabricated badge. | **PASS** |
+| `restart-m02-web-profile.png` | `/profile` | Renders. | **PASS** |
+| `restart-m02-web-plan-journey.png` | `/trips/plan` | Renders — the CTA destination exists. | **PASS** |
+| `restart-m02-web-{360,390,430,768,1024,1280,1440,1920}.png` | `/` | All eight render. Bottom bar ≤768, rail ≥1024. No horizontal overflow. | **PASS** |
+| `restart-m02-web-home-error.png` | `/` with a rejected token | "We couldn't load your home screen", request id `a2228a46-…`, Try again — **and Plan a journey still present**. | **PASS** |
+| `restart-m02-web-keyboard-focus.png` | `/` | Tab order: Skip to content → Home → Trips → Orders → Notifications → Profile → Plan a journey. | **PASS** |
+
+## Console and network
+
+**Zero console errors on every screen** except the deliberate error-state capture,
+where the only entry is the expected `401 (Unauthorized)`.
+
+**Zero external requests on every screen.** No font CDN, no analytics, no third
+party. That is the architectural close-out of MF-01.
+
+**Cost control, measured:** Home issued exactly **one** request,
+`/api/v1/customer/home`. Google 0, Razorpay 0 — the target was 0/0.
+
+## Not inspected live, stated plainly
+
+- **Android — NOT INSPECTED.** No SDK or emulator in this environment (KI-001).
+  CI runs the release APK on a Pixel 6 / API 34 emulator.
+- **iOS RESTART MODULE 02 = PENDING — RUNTIME ENVIRONMENT UNAVAILABLE.** No Apple
+  hardware is reachable. Not marked PASS.
+- **Active trip and active order cards** have unit-test coverage but no
+  screenshot: the live customer had neither, and seeding one purely to make Home
+  look populated would be exactly the kind of evidence this restart exists to
+  reject.

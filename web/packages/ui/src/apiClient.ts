@@ -61,12 +61,22 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Sent as Idempotency-Key; only meaningful on unsafe methods. */
   idempotencyKey?: string;
+  /**
+   * A customer bearer token.
+   *
+   * Authorization header only, never a query parameter: a token in a URL ends
+   * up in access logs, proxy logs and the Referer sent to the next site. Passed
+   * in per request rather than held in a module variable so that signing out
+   * cannot leave a token behind in this module for the next caller to send.
+   */
+  token?: string;
 }
 
 export const apiRequest = async <T>(path: string, options: RequestOptions = {}): Promise<ApiEnvelope<T>> => {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
   if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey;
+  if (options.token) headers.Authorization = `Bearer ${options.token}`;
 
   let response: Response;
   try {

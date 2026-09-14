@@ -117,26 +117,30 @@ void main() {
     expect(AppEnvironment.production.showsDevelopmentNotices, isFalse);
   });
 
-  group('the API base URL the review image is built with', () {
-    // WHY. It was `https://techpio.tech/api/v1`, and that was wrong twice.
-    // `ApiConfig.uri()` appends `/api/v1` itself, so every request went to
-    // `/api/v1/api/v1/...`; and the hard-coded scheme and implied port 443 meant
-    // a build served on `http://techpio.tech:8080` called an address nothing
-    // answers on. The first screen said "No connection", which is exactly what
-    // it should say and tells you nothing about why.
-    String? apiBase() => RegExp(
-      r'^ARG\s+API_BASE_URL=(\S*)',
-      multiLine: true,
-    ).firstMatch(File('../deploy/web.Dockerfile').readAsStringSync())?.group(1);
+  group('the API base URL the review APK is built with', () {
+    /*
+     * This group used to read deploy/web.Dockerfile, because the customer web
+     * app was Flutter compiled for the browser and its base URL was an ARG in
+     * that file. Restart Module 02 replaced the web app with React, so the
+     * Dockerfile builds no Flutter and the value moved: the only Flutter build
+     * that still needs a base URL is the Android review APK, and CI sets it.
+     *
+     * The guard followed rather than being deleted. Two of the three faults it
+     * was written for can happen just as easily in a workflow as in a
+     * Dockerfile — and one of them already did, as KI-057.
+     */
+    String? apiBase() => RegExp(r"""url='(http[^']*)'""", multiLine: true)
+        .firstMatch(File('../.github/workflows/ci.yml').readAsStringSync())
+        ?.group(1);
 
     test('is declared at all', () {
       expect(
         apiBase(),
         isNotNull,
         reason:
-            'web.Dockerfile has no `ARG API_BASE_URL=`. If the build stopped '
-            'passing one, the app falls back to the Android emulator address '
-            'and the web build talks to nothing.',
+            'ci.yml no longer resolves an API address for the review APK. '
+            'Without one the app falls back to a default and the build a '
+            'reviewer installs talks to nothing.',
       );
     });
 
@@ -151,24 +155,30 @@ void main() {
       );
     });
 
-    test('is same-origin, so it survives a change of host or port', () {
-      // Not merely "not absolute": the point is that the API is served by the
-      // same nginx as the bundle, so the accurate base is the origin the page
-      // was loaded from — whatever that turns out to be.
+    test('is not an address that only exists inside an emulator', () {
+      // KI-057. Every review APK ever produced was built against
+      // http://10.0.2.2:8000, which is the Android emulator's alias for the
+      // machine running it. On a handset it resolves to nothing, so the
+      // artefact whose whole purpose is testing on a real phone could not
+      // reach the server.
       expect(
         apiBase(),
-        '/',
+        isNot(contains('10.0.2.2')),
         reason:
-            'An absolute base pins the review build to one scheme, host and '
-            'port. It is served on :8080 today and through a tunnel on 443 '
-            'later, and a rebuild between the two is a step somebody will '
-            'forget.',
+            'The review APK is for a real device. 10.0.2.2 exists only inside '
+            'an emulator and resolves to nothing on a phone.',
+      );
+      expect(
+        apiBase(),
+        isNot(contains('localhost')),
+        reason: 'localhost on a handset is the handset, not the server.',
       );
     });
 
     test('a same-origin base really does produce a relative request', () {
-      // The reasoning above depends on ApiConfig stripping the trailing slash,
-      // which is a behaviour rather than a promise. Asserted, not assumed.
+      // ApiConfig still accepts an empty base and the React web client relies
+      // on the equivalent behaviour, so the contract is asserted rather than
+      // assumed even though no Flutter build passes '/' today.
       const String raw = '/';
       String base = raw.trim();
       while (base.endsWith('/')) {

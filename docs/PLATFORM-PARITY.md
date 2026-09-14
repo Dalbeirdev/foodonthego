@@ -2,9 +2,21 @@
 
 Restart Module 01. Commit `b49dcb4`.
 
-## The architectural fact that decides this document
+## SUPERSEDED IN PART BY RESTART MODULE 02
 
-Customer Web, Customer Android and Customer iOS are **the same Dart codebase**,
+The client chose React for Customer Web. Customer Web is now
+`web/apps/customer`; Flutter builds Android and iOS only. Parity is therefore
+**no longer structural** — it is a property that has to be maintained, and this
+document is where the two surfaces are compared. The trade-off below was written
+before that decision and is kept because it states the cost that was accepted.
+
+Restart Module 02 verified the first row of that parity: the five destinations,
+the Home screen and the authentication routing exist on both, with the same
+labels and the same behaviour.
+
+## The architectural fact that decided this document, before Restart Module 02
+
+Customer Web, Customer Android and Customer iOS were **the same Dart codebase**,
 `mobile/`, compiled three ways:
 
 - `flutter build web`      → `/var/www/customer`, served at the site root

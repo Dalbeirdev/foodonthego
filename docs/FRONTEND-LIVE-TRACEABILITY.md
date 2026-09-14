@@ -56,3 +56,65 @@ under Module 16, and Module 16 was reported complete. A pickup *credential* is
 generated, hashed and served by `/api/v1/customer/orders/{order}/pickup-credential`
 — but nothing renders it as a QR code, on any platform, and no QR library is a
 dependency of the mobile app. This was not previously recorded as missing.
+
+## Restart Module 02 — Customer Home & Navigation
+
+Customer Web is now `web/apps/customer` (React). Flutter builds Android and iOS.
+The Web column is from screenshots taken in this module; Android and iOS are from
+CI, and are not claimed as live inspection.
+
+| ID | Requirement | Web | Android | iOS | Live route | Screenshot | Test | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| RM02-001 | Customer Web shell | ✔ | n/a | n/a | `/` | ✔ | ✔ | **VERIFIED COMPLETE** |
+| RM02-002 | Flutter shell | n/a | ✔ | ✔ | `/` | ✖ | ✔ | AUDITED, NOT REBUILT — device inspection pending |
+| RM02-003 | Authenticated root | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** |
+| RM02-004 | Home — Web | ✔ | — | — | `/` | ✔ | ✔ | **VERIFIED COMPLETE** |
+| RM02-005 | Home — Android | — | ✔ | — | `/` | ✖ | ✔ | IMPLEMENTED, DEVICE VERIFICATION PENDING |
+| RM02-006 | Home — iOS | — | — | ✔ | `/` | ✖ | ✔ | **IOS TEST PENDING** |
+| RM02-007 | Web primary navigation | ✔ | n/a | n/a | all | ✔ | ✔ | **VERIFIED COMPLETE** |
+| RM02-008 | Mobile bottom navigation | ✔ | ✔ | ✔ | all | ✔ | ✔ | **VERIFIED COMPLETE (Web)** |
+| RM02-009 | Active nav state | ✔ | ✔ | ✔ | all | ✔ | ✔ | **VERIFIED COMPLETE (Web)** |
+| RM02-010 | Home greeting | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** — "Good afternoon, Rahul" from the live API |
+| RM02-011 | Journey CTA | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** |
+| RM02-012 | Journey CTA navigation | ✔ | ✔ | ✔ | `/trips/plan` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** — route exists; content is Restart Module 05 |
+| RM02-013 | Active trip | ✔ | ✔ | ✔ | `/` | ✖ | ✔ | IMPLEMENTED — no live journey existed to photograph |
+| RM02-014 | Active trip empty state | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** |
+| RM02-015 | Active order | ✔ | ✔ | ✔ | `/` | ✖ | ✔ | IMPLEMENTED — no live order existed to photograph |
+| RM02-016 | Active order empty behaviour | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** — section absent, not an empty card |
+| RM02-017 | Trips entry | ✔ | ✔ | ✔ | `/trips` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** |
+| RM02-018 | Orders entry | ✔ | ✔ | ✔ | `/orders` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** |
+| RM02-019 | Notifications entry | ✔ | ✔ | ✔ | `/notifications` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** |
+| RM02-020 | Profile entry | ✔ | ✔ | ✔ | `/profile` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** |
+| RM02-021 | Authentication guard | ✔ | ✔ | ✔ | all | ✔ | ✔ | **VERIFIED COMPLETE (Web)** — route-level, not nav-level |
+| RM02-022 | No auth flash | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** — 0 API calls while anonymous |
+| RM02-023 | Session expiry | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **PARTIAL** — a rejected token shows the error state; automatic sign-out on 401 is Restart Module 03 |
+| RM02-024 | Browser refresh on protected routes | ✔ | n/a | n/a | all | ✔ | ✔ | **VERIFIED COMPLETE** — SPA fallback returns 200, not 404 |
+| RM02-025 | Direct protected route | ✔ | n/a | n/a | `/orders` | ✔ | ✔ | **VERIFIED COMPLETE** — anonymous deep link lands on `/login` |
+| RM02-026 | Android system back | — | ✔ | — | all | ✖ | ✔ | **PENDING — no device** |
+| RM02-027 | iOS navigation | — | — | ✔ | all | ✖ | ✔ | **IOS TEST PENDING** |
+| RM02-028 | Tab state | ✔ | ✔ | ✔ | all | ✔ | ✔ | Flutter uses `StatefulShellRoute.indexedStack`; Web re-renders per route by design |
+| RM02-029 | Home loading | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** — skeleton, not a blank screen |
+| RM02-030 | Home error | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** — CTA survives the failure |
+| RM02-031 | Home refresh | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **VERIFIED COMPLETE (Web)** — Try again re-requests |
+| RM02-032 | Offline state | ✖ | ✔ | ✔ | `/` | ✖ | ✖ | **MISSING on Web** — a network failure renders the error state; no cached view |
+| RM02-033 | Account isolation | ✔ | ✔ | ✔ | `/` | ✖ | ✔ | Home is derived from the token; no id is accepted |
+| RM02-034 | Role isolation | ✔ | ✔ | ✔ | `/` | ✖ | ✔ | `role:customer` on the route group |
+| RM02-035 | Home API efficiency | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **VERIFIED COMPLETE** — exactly 1 request, measured |
+| RM02-036 | Google cost control | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **VERIFIED COMPLETE** — 0 calls, asserted by a failing double |
+| RM02-037 | Razorpay cost control | ✔ | ✔ | ✔ | `/` | ✔ | ✔ | **VERIFIED COMPLETE** — 0 calls |
+| RM02-038…045 | Responsive 360→1920 | ✔ | n/a | n/a | `/` | ✔ | ✖ | **VERIFIED COMPLETE** — all eight captured |
+| RM02-046 | Accessibility | ✔ | ? | ? | all | ✔ | partial | **PARTIAL** — keyboard and semantics verified; no screen-reader run |
+| RM02-047 | Keyboard navigation | ✔ | n/a | n/a | all | ✔ | ✖ | **VERIFIED COMPLETE** — tab order captured |
+| RM02-048 | Android live view | — | ✖ | — | — | ✖ | — | **PENDING — environment** |
+| RM02-049 | iOS live view | — | — | ✖ | — | ✖ | — | **PENDING — environment** |
+| RM02-050 | Web live view | ✔ | — | — | all | ✔ | — | **VERIFIED COMPLETE** |
+| RM02-051 | Screenshot evidence | ✔ | ✖ | ✖ | — | ✔ | — | 19 Web captures; none for Android or iOS |
+| RM02-052 | Console audit | ✔ | n/a | n/a | all | ✔ | — | **VERIFIED COMPLETE** — zero console errors on every screen |
+| RM02-053 | Flutter runtime audit | — | ✖ | ✖ | — | ✖ | — | **PENDING — no device** |
+| RM02-054 | Backend tests | ✔ | ✔ | ✔ | — | — | ✔ | 1341 passed |
+| RM02-055 | Web tests | ✔ | — | — | — | — | ✔ | 46 passed (13 new) |
+| RM02-056 | Flutter tests | — | ✔ | ✔ | — | — | ✔ | 1065 passed |
+| RM02-057 | Platform parity | ✔ | ✔ | ? | — | partial | ✔ | Web verified live; mobile by CI |
+| RM02-058 | Missing feature update | ✔ | — | — | — | — | — | MF-01, MF-02 closed; MF-17, MF-18 added |
+| RM02-059 | Flow documentation | ✔ | — | — | — | — | — | Updated |
+| RM02-060 | Restart Module 03 handoff | ✔ | — | — | — | — | — | See the report |
