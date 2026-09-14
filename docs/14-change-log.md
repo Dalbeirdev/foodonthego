@@ -1968,3 +1968,11 @@ customer app got a screen that reads it without ever deciding it.
   its continuations, and fails on any build step that invokes artisan or runs
   composer with its scripts enabled. It caught a botched `sed` of mine during the
   control run, which is the shortest possible argument for its existence.
+
+- **A preflight script, because "remember to run the formatter" failed twice
+  (KI-049).** Two pushes in one session went red on a formatter after the tests
+  and analyzer had passed. `scripts/preflight.sh` runs every check CI makes that
+  does not need CI's services, does not stop at the first failure, and lists what
+  it could not check as skipped rather than passing it by omission. Its own first
+  draft failed its own check — a `--filter` that matched method names as well as
+  class names — which is written up rather than quietly corrected.

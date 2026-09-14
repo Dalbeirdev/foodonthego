@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Support\ProductionConfigGuard;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -13,7 +14,7 @@ use PHPUnit\Framework\TestCase;
  * without `--no-scripts`. Composer's post-autoload-dump hook runs
  * `artisan package:discover`, which boots Laravel — and at image-build time
  * there is no `.env`, so `APP_ENV` falls back to `production` and
- * {@see \App\Support\ProductionConfigGuard} refuses to start without a real SMS
+ * {@see ProductionConfigGuard} refuses to start without a real SMS
  * vendor, Places, Routes, Razorpay and a pickup pepper. The build died on a page
  * of entirely correct complaints about credentials that have nothing to do with
  * building an image, twenty minutes into a deploy.

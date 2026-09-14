@@ -3098,3 +3098,34 @@ without `--no-scripts`. Both controls were seen to fail against the real files.
 control run, a `$`-anchored `sed` silently failed to match a line ending in a
 continuation backslash, leaving the fault in the tree. The test failed on the
 next run and named the line. That is the entire argument for writing it.
+
+### KI-049 — two pushes went red on a formatter, and "remember next time" was not a fix — **Low, wasted cycles** — FIXED
+
+`dart format` once, `vendor/bin/pint` once, in the same session. Both times the
+tests and the analyzer had been run and reported clean, and both times the push
+went red on a check that takes under two seconds to run locally. The second one
+is the damning one: after the first, the recorded fix was "the pre-push routine
+now includes the formatter", which is a promise, not a mechanism — and the
+promise was then applied to Dart and not to PHP.
+
+`scripts/preflight.sh` runs everything CI checks that can be checked without CI's
+services: the mobile formatter, analyzer and suite; Pint; the deploy Dockerfile
+guard; the web typecheck and tests.
+
+Two things it does deliberately:
+
+- **It does not stop at the first failure.** A run that dies on Pint says nothing
+  about the analyzer, and the next push is then as blind as the last. Every check
+  runs; the summary lists all of them.
+- **It prints what it could not check as `skip`, not as nothing.** The backend
+  suite and PHPStan need MySQL and Redis. Those are CI's, and a script that
+  quietly omitted them would read as a full pass.
+
+**Its own first draft failed its own check**, which is the reason to write the
+summary that way. It tried to run "the backend tests that need no database" via
+`--filter 'ImageBuildDoesNotBootTheApp|StructuredLogging|Money|PhoneNormalizer'`
+— but `--filter` matches method names too, so
+`test_money_stays_in_integer_minor_units_at_every_step` matched `Money` and
+pulled in half the suite, which then failed on a database that is not there.
+Guessing which tests are database-free is not worth doing; it now names the one
+file that guards the deploy, by path.
