@@ -87,6 +87,18 @@ final class TripLoggingTest extends TestCase
         $this->asRahul()->getJson('/api/v1/customer/places/search?q=Jaipur+International+Airport')
             ->assertOk();
 
+        /*
+         | Resolving the chosen suggestion.
+         |
+         | This round did not include it until Restart Module 05, and that gap
+         | is why the suite stayed green while the live log carried
+         | `api/v1/customer/places/dev%3Ataj-mahal` beside the customer who
+         | asked for it. The search query was covered, the create was covered,
+         | and the one endpoint that puts a place identifier in the URL was not.
+         */
+        $this->asRahul()->getJson('/api/v1/customer/places/dev%3Ajaipur-airport')
+            ->assertOk();
+
         $id = $this->asRahul()->postJson(self::BASE, [
             'origin' => [
                 'source_type' => 'CURRENT_LOCATION',
@@ -133,6 +145,27 @@ final class TripLoggingTest extends TestCase
         ] as $place) {
             $this->assertStringNotContainsString($place, $log);
         }
+    }
+
+    /**
+     * A place identifier in a URL is still a place.
+     *
+     * The request log keeps the concrete path because that is what makes a line
+     * useful — but a provider place id names somewhere real, and a line pairing
+     * one with `actor_id` records where a named customer was going. Both the
+     * raw and url-encoded spellings, because the client sends the encoded one
+     * and a check for only the raw form would pass while the log leaked.
+     */
+    public function test_no_place_identifier_reaches_the_request_log(): void
+    {
+        $log = $this->runAFullRound();
+
+        $this->assertStringNotContainsString('dev:jaipur-airport', $log);
+        $this->assertStringNotContainsString('dev%3Ajaipur-airport', $log);
+
+        // The route pattern is still there, so the endpoint's traffic and
+        // latency remain visible. Only the value is gone.
+        $this->assertStringContainsString('api/v1/customer/places/{place}', $log);
     }
 
     public function test_no_coordinate_reaches_the_log(): void

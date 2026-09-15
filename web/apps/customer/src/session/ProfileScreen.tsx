@@ -1,16 +1,19 @@
 import { useState } from 'react';
-import { LogOut } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, LogOut, MapPin } from 'lucide-react';
 import { Card } from '@fotg/ui';
 import { useSession } from './SessionProvider.js';
 import { signOut } from '../auth/authApi.js';
 import '../home/home.css';
 
 /**
- * Profile, which for now is one working control: sign out.
+ * Profile: sign out, and saved places.
  *
- * Restart Module 04 owns the details and saved addresses. Sign-out lives here
- * because authentication is this module's and a customer who can sign in and
- * not out has half a session.
+ * Restart Module 04 owns this screen properly — name, phone, email, the full
+ * address surface. It was never run for Customer Web, so what is here is the
+ * part Restart Module 05 could not do without: saved places, because the trip
+ * planner is required to offer Home, Work and Other and cannot offer what a
+ * browser has no way to create. The rest stays a recorded gap.
  */
 export const ProfileScreen = () => {
   const { state, signOut: clearSession } = useSession();
@@ -23,7 +26,20 @@ export const ProfileScreen = () => {
       </header>
 
       <Card>
-        <p className="home__card-line">Your details and saved addresses will appear here.</p>
+        <div className="home__card-head">
+          <MapPin size={18} aria-hidden="true" />
+          <h2 className="home__card-title">Saved places</h2>
+        </div>
+        <p className="home__card-line">
+          Home, work and anywhere else you travel from — ready to pick when you plan a journey.
+        </p>
+        <Link className="home__card-cta" to="/profile/addresses">
+          Manage saved places <ArrowRight size={16} aria-hidden="true" />
+        </Link>
+      </Card>
+
+      <Card>
+        <p className="home__card-line">Your name, phone and email will appear here.</p>
       </Card>
 
       <Card>

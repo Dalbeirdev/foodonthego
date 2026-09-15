@@ -49,7 +49,7 @@ const ActiveTripCard = ({ trip }: { trip: HomeTrip }) => (
     {/* The CTA goes to the journey, which exists. It deliberately does not say
         "Find food on this route": restaurant listing is Restart Module 07 and
         a dead CTA is worse than no CTA. */}
-    <Link className="home__card-cta" to={`/trips/${trip.uuid}`}>
+    <Link className="home__card-cta" to={`/trips/${trip.id}`}>
       View journey <ArrowRight size={16} aria-hidden="true" />
     </Link>
   </Card>
@@ -68,7 +68,7 @@ const ActiveOrderCard = ({ order }: { order: HomeOrder }) => (
       {order.order_number ? <span>{order.order_number}</span> : null}
       {order.status ? <span className="home__status">{order.status.replaceAll('_', ' ').toLowerCase()}</span> : null}
     </p>
-    <Link className="home__card-cta" to={`/orders/${order.uuid}`}>
+    <Link className="home__card-cta" to={`/orders/${order.id}`}>
       Track order <ArrowRight size={16} aria-hidden="true" />
     </Link>
   </Card>

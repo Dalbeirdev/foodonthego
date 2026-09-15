@@ -98,6 +98,21 @@ final class TripOwnershipTest extends TestCase
         ], $overrides);
     }
 
+    private function rahulsAddress(): string
+    {
+        return $this->asRahul()->postJson(self::ADDRESSES, [
+            'type' => 'HOME',
+            'label' => 'Rahul Home',
+            'address_line_1' => '12 Mandi House',
+            'city' => 'New Delhi',
+            'state' => 'Delhi',
+            'postal_code' => '110001',
+            'country_code' => 'IN',
+            'latitude' => 28.6100,
+            'longitude' => 77.2300,
+        ])->assertCreated()->json('data.id');
+    }
+
     private function ananyasAddress(): string
     {
         return $this->as($this->ananyaToken)->postJson(self::ADDRESSES, [
@@ -222,6 +237,77 @@ final class TripOwnershipTest extends TestCase
     }
 
     // --- injection ---------------------------------------------------------
+
+    /**
+     * A saved address supplies its own position, whatever the client claims.
+     *
+     * The attack is subtler than an IDOR and easy to miss: Rahul uses *his own*
+     * address, which he is entitled to, but sends coordinates a thousand
+     * kilometres away with it. If those were written, a customer could make a
+     * journey appear to start anywhere while pointing at a legitimate saved
+     * record — and Module 07 would then look for restaurants along a corridor
+     * that has nothing to do with where they are.
+     *
+     * Nothing rejects the extra fields. They are simply never read: the service
+     * resolves the row through Module 04 and takes the position from it, so a
+     * tampered client is sending values into a void. The assertion is on what
+     * the trip *holds*, not on a refusal.
+     */
+    public function test_coordinates_sent_with_a_saved_address_are_ignored(): void
+    {
+        $his = $this->rahulsAddress();
+
+        $response = $this->asRahul()->postJson(self::BASE, $this->payload([
+            'origin' => [
+                'source_type' => 'SAVED_ADDRESS',
+                'saved_address_id' => $his,
+                // Mumbai, roughly 1,150 km from the saved address in Delhi.
+                'latitude' => 19.0760,
+                'longitude' => 72.8777,
+                'display_name' => 'NOT WHERE HE LIVES',
+                'formatted_address' => 'Somewhere else entirely',
+                'place_id' => 'attacker-supplied',
+            ],
+        ]));
+
+        $response->assertCreated();
+
+        $trip = Trip::query()->where('uuid', $response->json('data.id'))->firstOrFail();
+
+        $this->assertSame('28.6100000', (string) $trip->origin_latitude);
+        $this->assertSame('77.2300000', (string) $trip->origin_longitude);
+        $this->assertSame('Rahul Home', $trip->origin_name);
+        $this->assertNotSame('attacker-supplied', $trip->origin_place_id);
+        $this->assertStringNotContainsString('NOT WHERE HE LIVES', (string) $response->getContent());
+    }
+
+    /**
+     * The negative control for the test above.
+     *
+     * Those same coordinates *are* honoured for a place-search endpoint, which
+     * is what makes the previous assertion mean something: the values are not
+     * being dropped by a validator that discards unknown keys, they are being
+     * overridden by the saved address specifically.
+     */
+    public function test_the_same_coordinates_are_honoured_for_a_searched_place(): void
+    {
+        $response = $this->asRahul()->postJson(self::BASE, $this->payload([
+            'origin' => [
+                'source_type' => 'PLACE_SEARCH',
+                'place_id' => 'dev:somewhere',
+                'display_name' => 'A place in Mumbai',
+                'latitude' => 19.0760,
+                'longitude' => 72.8777,
+            ],
+        ]));
+
+        $response->assertCreated();
+
+        $trip = Trip::query()->where('uuid', $response->json('data.id'))->firstOrFail();
+
+        $this->assertSame('19.0760000', (string) $trip->origin_latitude);
+        $this->assertSame('72.8777000', (string) $trip->origin_longitude);
+    }
 
     public function test_a_customer_id_in_the_body_does_not_change_ownership(): void
     {

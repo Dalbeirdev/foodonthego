@@ -94,3 +94,43 @@ rather than by the compiler — which is precisely the failure mode the brief's
 This is not a recommendation dressed up as a fact: both are legitimate. But it is
 a decision to take deliberately, with the cost visible, rather than by treating
 "Customer Web is missing" as true when it is not.
+
+---
+
+# Restart Module 05 — trip planner parity
+
+Web is the React customer app driven live in Chromium. Android and iOS are the
+Flutter app: the code exists and its tests pass, but **no Android SDK, emulator
+or Apple hardware is reachable from this environment**, so no screen on either
+was looked at by a person. That is recorded as PENDING, never as a pass.
+
+| Feature | Web | Android | iOS | Backend | Live | Screenshot | Gap |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Open planner | ✅ | code + tests | code + tests | ✅ | Web | ✅ | device runtime |
+| Origin search | ✅ | code + tests | code + tests | ✅ | Web | ✅ | device runtime |
+| Destination search | ✅ | code + tests | code + tests | ✅ | Web | ✅ | device runtime |
+| Saved HOME | ✅ | code + tests | code + tests | ✅ | Web | ✅ | device runtime |
+| Saved WORK | ✅ | code + tests | code + tests | ✅ | Web | ✅ | device runtime |
+| Saved OTHER | ✅ tests | code + tests | code + tests | ✅ | — | — | not driven live on any platform |
+| Current location | ✅ | code + tests | code + tests | ✅ | Web | ✅ | **http review site blocks it — MF-28** |
+| Permission granted | ✅ | code + tests | code + tests | — | Web | ✅ | device runtime |
+| Permission denied | ✅ | code + tests | code + tests | — | Web | ✅ | device runtime |
+| Place suggestions | ✅ | code + tests | code + tests | ✅ | Web | ✅ | Google never called — MF-29 |
+| Place details | ✅ | code + tests | code + tests | ✅ | Web | ✅ | as above |
+| Clear location | ✅ | code + tests | code + tests | — | Web | ✅ | device runtime |
+| Swap | ✅ | code + tests | code + tests | — | Web | ✅ | device runtime |
+| Same-location validation | ✅ | code + tests | code + tests | ✅ | Web + API | ✅ | device runtime |
+| Create journey | ✅ | code + tests | code + tests | ✅ | Web + API | ✅ | device runtime |
+| Idempotency | ✅ | code + tests | code + tests | ✅ | API | — | — |
+| Route handoff | ✅ | code + tests | code + tests | ✅ | Web | ✅ | Module 06 content |
+| Active trip on Home | ✅ | code + tests | code + tests | ✅ | Web | ✅ | device runtime |
+| Saved places — create | ✅ | code + tests | code + tests | ✅ | Web | ✅ | web edit/default missing — MF-26 |
+| Map preview | — | — | — | — | — | — | **out of scope**: Module 06 owns the map |
+
+## The one place the platforms genuinely differ
+
+Browser geolocation requires a secure context. On the review deployment
+(`http://techpio.tech:8080`) `navigator.geolocation` is unavailable, so
+"Use my current location" reports the insecure-context message to every visitor
+there. Android and iOS have no such restriction. This is not a parity defect in
+the code — it is **MF-28**, and it closes when **MF-16** (TLS) does.

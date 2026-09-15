@@ -45,7 +45,25 @@
     transform var(--duration-instant) var(--easing-standard);
 }
 .fotg-button:active:not(:disabled) { transform: translateY(1px); }
-.fotg-button:disabled { opacity: 0.5; cursor: not-allowed; }
+/*
+ * A disabled button must look disabled, not faded.
+ *
+ * `opacity: 0.5` on a filled primary gives white text on a pale orange — about
+ * 2:1, well under the 4.5:1 floor — and it still reads as a button somebody
+ * should press. Restart Module 05's planner has a CTA that is disabled until
+ * both ends of a journey are chosen, which is most of the time somebody is
+ * looking at that screen, so this is the state they see.
+ *
+ * A flat grey surface with legible grey text says "not yet" and stays readable.
+ */
+.fotg-button:disabled {
+  cursor: not-allowed;
+  background: var(--color-surface-sunken);
+  /* neutral-500 on neutral-100 is 4.76:1 — legible, and clearly inactive. */
+  color: var(--color-neutral-500);
+  border-color: var(--color-border);
+  box-shadow: none;
+}
 
 /* Height floors, not fixed heights: text that wraps must not be clipped. */
 .fotg-button--sm { min-height: var(--control-height-sm); padding: 0 var(--space-3); }

@@ -92,3 +92,50 @@ port 443 on that host belongs to a different product.
 | `mobile: flutter analyze` | **passed** |
 | Android on-device integration | **CI only** — green on `b49dcb4` |
 | iOS on-device integration | **CI only** — green on `b49dcb4` |
+
+---
+
+# Status after Restart Module 05
+
+## What a customer can now do in a browser, end to end
+
+Sign in with a phone number and a one-time code → land on Home → tap **Plan a
+journey** → choose a starting point from a saved place, a place search or their
+current location → choose a destination from a saved place or a search → have the
+same place at both ends refused → create a real journey → be taken to it by id →
+reload and still find it → see it in the Trips tab and on Home. They can also
+create, list and delete saved places.
+
+Everything after the journey is still Android and iOS only: restaurants along
+the route, the menu, the cart, pickup time, checkout, payment and tracking. Each
+is closed by its own restart module.
+
+## Test results — commands actually run on this commit
+
+| Command | Result |
+| --- | --- |
+| `backend: vendor/bin/phpunit` | **1,344 passed** |
+| `backend: vendor/bin/pint --test` | **passed** |
+| `web: npm run typecheck` | **passed** (all workspaces) |
+| `web: npm test` | **107 passed** — customer 74, ui 22, admin 7, restaurant 4 |
+| `mobile: flutter analyze --fatal-infos` | **passed** |
+| `mobile: flutter test` | **1,063 passed** |
+| `mobile: dart format --set-exit-if-changed` | **passed** (268 files, 0 changed) |
+| `scripts/preflight.sh` | **all runnable checks passed** |
+| Android on a device | **NOT PERFORMED** — no SDK or emulator here |
+| iOS on a device or simulator | **PENDING — environment unavailable** |
+
+PHPStan is not in preflight (it needs MySQL for database reflection); CI runs it.
+
+## The blockers that are still the client's to clear
+
+| | What is needed | What it unblocks |
+| --- | --- | --- |
+| **Twilio** | API Key SID + Secret, a Messaging Service, DLT registration for India | A real SMS. Codes currently go to a log file |
+| **Google Places** | A Places API key | Real place search. Today a fixed gazetteer of twelve real places |
+| **Google Maps** | A Maps SDK key for Android and iOS | Any map tile, on any platform |
+| **Routing provider** | Credentials | Real traffic-aware distance and travel time |
+| **Razorpay** | Live keys | Any real payment |
+| **Apple Developer** | Account, certificate, provisioning profile | An installable iOS build |
+| **TLS on the review host** | A Cloudflare Tunnel or equivalent | HTTPS — and with it browser geolocation, which browsers refuse over http |
+| **A decision on staff sign-in** | Email + password, or phone + OTP | Every operator screen. No staff login exists at all |

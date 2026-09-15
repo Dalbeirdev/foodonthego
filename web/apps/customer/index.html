@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="FoodOnTheGo — order food along your route and collect it on the way." />
     <meta name="theme-color" content="#C2410C" />
+    <!--
+      Without this the browser asks for /favicon.ico on every page load, gets a
+      404, and logs it to the console — which is exactly the kind of small
+      permanent error the Restart Module 01 audit was about. An SVG rather than
+      an .ico so there is one file for every size.
+    -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>FoodOnTheGo</title>
   </head>
   <body>

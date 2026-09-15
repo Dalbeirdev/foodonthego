@@ -70,7 +70,7 @@ final class LogApiRequests
             // The matched route pattern, not the concrete URL: /api/v1/orders/{order}
             // aggregates, whereas one line per order id does not.
             'route' => $request->route()?->uri() ?? $request->path(),
-            'path' => $request->path(),
+            'path' => self::loggablePath($request),
             'status' => $status,
             'duration_ms' => $durationMs,
             'ip' => $request->ip(),
@@ -83,5 +83,51 @@ final class LogApiRequests
         };
 
         return $response;
+    }
+
+    /**
+     * Route parameters whose *values* must never be written to a log.
+     *
+     * Everything else in a path is an internal uuid, which says which record
+     * without saying anything about it. A provider place id is different: it
+     * names a real place, and a line that pairs one with `actor_id` is a record
+     * of where a specific customer was going. Restart Module 05's log
+     * inspection found exactly that — `api/v1/customer/places/dev%3Ataj-mahal`
+     * beside the customer who asked for it.
+     *
+     * The search *query* was never logged and still is not: the query string is
+     * not part of `path()`, and the request body is never logged at all.
+     *
+     * @var list<string>
+     */
+    private const PRIVATE_ROUTE_PARAMETERS = ['place'];
+
+    /**
+     * The concrete path, with private parameter values replaced by their name.
+     *
+     * Kept rather than dropped, because the path is what makes a log line
+     * useful for everything else; only the sensitive segment is removed, and it
+     * is removed by *value* so a place id cannot survive by being url-encoded.
+     */
+    private static function loggablePath(Request $request): string
+    {
+        $path = $request->path();
+        $route = $request->route();
+
+        if ($route === null) {
+            return $path;
+        }
+
+        foreach (self::PRIVATE_ROUTE_PARAMETERS as $name) {
+            $value = $route->parameter($name);
+
+            if (! is_string($value) || $value === '') {
+                continue;
+            }
+
+            $path = str_replace([$value, rawurlencode($value)], '{'.$name.'}', $path);
+        }
+
+        return $path;
     }
 }

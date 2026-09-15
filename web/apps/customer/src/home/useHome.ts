@@ -12,18 +12,29 @@ export interface HomeCustomer {
 }
 
 export interface HomeTrip {
-  readonly uuid: string;
+  /*
+   | `id`, not `uuid`.
+   |
+   | The server presents every resource with its public uuid under the key
+   | `id` — `Trip::toApiArray()` and `OrderPresenter::summary()` both do — and
+   | this interface said `uuid`. TypeScript could not catch it: the payload is
+   | `unknown` until it is cast here, so the field was simply undefined and the
+   | two Home CTAs linked to `/trips/undefined` and `/orders/undefined`. Found
+   | by Restart Module 05's audit, on the first journey that existed to click.
+   */
+  readonly id: string;
   readonly status?: string | null;
   readonly origin?: { readonly display_name?: string | null } | null;
   readonly destination?: { readonly display_name?: string | null } | null;
 }
 
 export interface HomeOrder {
-  readonly uuid: string;
+  readonly id: string;
   readonly order_number?: string | null;
   readonly status?: string | null;
   readonly restaurant?: { readonly name?: string | null } | null;
-  readonly pickup_start_at?: string | null;
+  /* Nested under `pickup` in the payload; not read by this screen today. */
+  readonly pickup?: { readonly start_at?: string | null } | null;
 }
 
 export interface HomePayload {

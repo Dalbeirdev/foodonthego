@@ -104,8 +104,8 @@ The three columns no longer come from one codebase, so each is stated separately
 | --- | --- | --- | --- |
 | LOGIN | **VERIFIED COMPLETE** — live, new and existing customer, screenshots | VERIFIED COMPLETE | VERIFIED COMPLETE |
 | HOME | **VERIFIED COMPLETE** — live, real data, screenshot | IMPLEMENTED, device pending | **VERIFIED COMPLETE** — `GET /customer/home` |
-| PLAN JOURNEY | route exists, content R-05 | IMPLEMENTED | VERIFIED COMPLETE |
-| ROUTE | route exists, content R-06 | IMPLEMENTED | map tiles BLOCKED (MF-08) |
+| PLAN JOURNEY | **VERIFIED COMPLETE** — live: saved places, place search, current location, validation, create, handoff | IMPLEMENTED, device pending | VERIFIED COMPLETE |
+| ROUTE | handoff screen live, route content R-06 | IMPLEMENTED | map tiles BLOCKED (MF-08) |
 | RESTAURANTS | **MISSING — R-07** | IMPLEMENTED | VERIFIED COMPLETE |
 | RESTAURANT | **MISSING — R-09** | IMPLEMENTED | VERIFIED COMPLETE |
 | MENU | **MISSING — R-10** | IMPLEMENTED | VERIFIED COMPLETE |
@@ -118,7 +118,47 @@ The three columns no longer come from one codebase, so each is stated separately
 | TRACKING | **MISSING — R-17** | IMPLEMENTED | PARTIAL — nothing advances state |
 | ETA | MISSING | MISSING | **NOT YET SCHEDULED** |
 
-Choosing React created a real web gap that did not exist before: eleven journey
+Choosing React created a real web gap that did not exist before: ten journey
 stages are on Android and iOS and not yet on the web. That is the cost the client
 accepted, it is tracked here rather than glossed, and each stage is closed by its
 own restart module.
+
+
+## Added by Restart Module 05
+
+Two routes that existed as placeholders now have content, and two are new.
+
+| Route | Screen | State |
+| --- | --- | --- |
+| `/trips` | Trips tab — real journeys from `GET /customer/trips` | **LIVE** |
+| `/trips/plan` | Trip planner | **LIVE** |
+| `/trips/:tripId` | One journey — the Restart Module 06 handoff | **LIVE** |
+| `/profile/addresses` | Saved places — list, create, delete | **LIVE** (new) |
+
+The planner's flow, as built:
+
+```
+HOME  ──"Plan a journey"──▶  /trips/plan
+                                 │
+                   ┌─────────────┴──────────────┐
+              Starting point                Destination
+                   │                             │
+      ┌────────────┼────────────┐        ┌───────┴───────┐
+ Current location  Saved place  Search   Saved place  Search
+      │                 │          │         │           │
+      └────────── one LocationSelection ─────┴───────────┘
+                                 │
+                    both ends, not the same place
+                                 │
+                        "Plan journey"  ──▶  POST /customer/trips
+                                 │             (Idempotency-Key)
+                                 ▼
+                        /trips/{id}  ──▶  GET /customer/trips/{id}
+                                 │
+                        "Route not calculated yet"
+                                 │
+                        ── Restart Module 06 ──▶
+```
+
+Current location is offered for the starting point only. A destination that
+defaults to where somebody already is is not a journey.

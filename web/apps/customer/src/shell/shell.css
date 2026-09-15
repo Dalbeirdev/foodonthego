@@ -42,8 +42,18 @@
 }
 
 .shell__main {
-  /* Room for the bottom bar plus the home indicator on a notched phone. */
-  padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+  /*
+   | Every screen's breathing room, set once here rather than by each page.
+   |
+   | It was only padding-bottom. Every heading in the app therefore sat flush
+   | against the top of the viewport, and a large one — "Plan your journey" at
+   | 32px with a 1.2 line height — had its ascenders clipped by the edge. The
+   | live captures show it on Home too; nobody had looked at the top of a page
+   | until Restart Module 05's screenshots.
+   |
+   | Room for the bottom bar plus the home indicator on a notched phone.
+   */
+  padding: var(--space-6) var(--space-4) calc(4.75rem + env(safe-area-inset-bottom, 0px));
 }
 
 .shell__bottom {
@@ -170,7 +180,7 @@
   }
 
   .shell__main {
-    padding-bottom: var(--space-10);
+    padding: var(--space-8) var(--space-6) var(--space-10);
   }
 
   .shell__bottom {

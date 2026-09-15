@@ -38,6 +38,26 @@ const stubFetch = (body: unknown, ok = true) => {
   return mock;
 };
 
+/** Answers by path, so a list endpoint returns a list and a screen returns its own shape. */
+const stubByPath = (over: { home?: unknown } = {}) => {
+  const mock = vi.fn(async (url: string) => {
+    const body =
+      url.includes('/customer/home') ? over.home ?? homePayload().data
+      : url.includes('/customer/trips') ? []
+      : url.includes('/customer/addresses') ? []
+      : null;
+
+    return {
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'X-Request-Id': 'req-1' }),
+      text: async () => JSON.stringify({ data: body, meta: { request_id: 'req-1' } }),
+    };
+  });
+  vi.stubGlobal('fetch', mock);
+  return mock;
+};
+
 const signedIn = () =>
   window.sessionStorage.setItem('fotg.customer.session', JSON.stringify({ token: TOKEN }));
 
@@ -212,13 +232,20 @@ describe('navigation', () => {
   it('renders a real screen for every destination rather than a dead end', async () => {
     for (const [path, heading] of [
       ['/trips', 'Trips'],
+      ['/trips/plan', 'Plan your journey'],
       ['/orders', 'Orders'],
       ['/notifications', 'Notifications'],
       ['/profile', 'Profile'],
+      ['/profile/addresses', 'Saved places'],
     ] as const) {
       window.sessionStorage.clear();
       signedIn();
-      stubFetch(homePayload());
+      // Answers each screen with the shape its own endpoint returns. The single
+      // home payload this loop used to serve for every route handed the trips
+      // tab an object where it expected a list; `.map` threw during render and
+      // the whole tree unmounted to a blank page. Both halves were wrong and
+      // both are fixed: the stub, and the screen that could not survive it.
+      stubByPath({ home: homePayload().data });
 
       const view = renderAt(path);
       await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: heading })).toBeInTheDocument());

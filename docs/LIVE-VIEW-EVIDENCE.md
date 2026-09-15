@@ -177,3 +177,70 @@ wrong-code test. Every other screen was clean.
 Android and iOS authentication was **not** driven by a person — no SDK, emulator
 or Apple hardware is reachable. **iOS RESTART MODULE 03 = PENDING — RUNTIME
 ENVIRONMENT UNAVAILABLE.**
+
+---
+
+# Restart Module 05 — trip planner
+
+Chromium 1194 (`/opt/pw-browsers/chromium-1194`) against the React customer app
+on `http://127.0.0.1:5175`, proxying `/api` to the Laravel API on
+`http://127.0.0.1:8000` — the same origin arrangement `deploy/nginx` serves in
+production, so no address in the client can be right here and wrong there.
+
+Backend: `PLACES_PROVIDER=development`, `OTP_PROVIDER=log`, MySQL
+`foodonthego_local`. Two controlled test customers signed in through the real
+OTP flow. **No real personal number, no real OTP, no token and no
+`Authorization` header appears in any screenshot.**
+
+## What was driven, and what it answered
+
+| # | State | Result |
+| --- | --- | --- |
+| 1 | Planner, both ends empty | CTA disabled, nothing invented |
+| 2 | Origin picker, saved places present | Home and Work, with their real stored addresses |
+| 3 | No saved places (second customer) | "No saved addresses yet" + a link to add one |
+| 4 | Place search, 10 characters typed | **1** autocomplete request |
+| 5 | Suggestion selected | **1** details request; coordinates 26.8242, 75.8122 |
+| 6 | Saved address selected | **0** provider requests |
+| 7 | Current location, granted | Controlled fix 28.6129, 77.2295 → "New Delhi"; **1** reverse-geocode |
+| 8 | Current location, nothing nearby to name | "Current location" over the real coordinates — no invented address |
+| 9 | Current location, blocked | Recovered after the 15 s watchdog; saved places and search still offered |
+| 10 | Same place at both ends | Inline error, CTA disabled |
+| 11 | No results | "No places match that search." |
+| 12 | Provider error (503) | "We could not load places right now." — no provider detail |
+| 13 | Offline | "We could not reach FoodOnTheGo. Check your connection and try again." |
+| 14 | Double-click create | One POST; one journey |
+| 15 | Journey created | `/trips/{uuid}`, "Route not calculated yet" |
+| 16 | Reload the handoff URL | The journey is still there — loaded from the server by id |
+| 17 | Trips tab | The new journey listed |
+| 18 | Home | Active-journey card, CTA href is the real trip id |
+| 19 | Session expires mid-search | Token cleared, `/login`, no anonymous trip |
+| 20 | Sign out, sign in as the other customer | Empty planner, no saved places, only her own trips |
+| 21 | Keyboard only, no mouse | Tab → Enter → type → arrows → Enter → Escape, all working |
+| 22 | 360 / 390 / 430 / 768 / 1024 / 1280 / 1440 / 1920 | 0 px overflow, planner and picker both |
+
+**Console errors: none.** Every capture above was recorded with console, page
+errors and every HTTP response ≥ 400 collected. The one error the first run did
+show — a 404 for `/favicon.ico` — was fixed and the control confirms it: adding
+the favicon removed it.
+
+## Server timings, measured
+
+| Call | Typical |
+| --- | --- |
+| `GET /customer/addresses` | 16–19 ms |
+| `GET /customer/places/search` | 17–18 ms |
+| `GET /customer/places/{place}` | 17–20 ms |
+| `POST /customer/places/reverse-geocode` | 17–20 ms |
+| `POST /customer/trips` | 23 ms |
+| `GET /customer/trips` | 19–20 ms |
+| `GET /customer/home` | 20–21 ms |
+
+Local, against the development gazetteer, so these are the application's own
+time and not a provider's. A live Google call adds its own network round trip
+that this environment cannot measure.
+
+## Screenshots
+
+`docs/evidence/restart-module-05/` — 27 files, all captured from the running
+application. None is a mockup.
