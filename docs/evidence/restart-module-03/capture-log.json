@@ -1,0 +1,73 @@
+[
+  {
+    "scenario": "new customer",
+    "maskedShown": "F FoodOnTheGo Enter the code Sent to +91 ••••••1122 Change number 6-digit code Verify Resend code in 30s",
+    "invalidMessage": "That code isn't correct. Please check it and try again.",
+    "homeAfterSignIn": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Good afternoon, Meera Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find fo",
+    "tokenStored": true,
+    "codeLengthReadFromServerLog": 6,
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"
+    ]
+  },
+  {
+    "scenario": "browser refresh",
+    "stillSignedIn": true
+  },
+  {
+    "scenario": "signed-in visits /login",
+    "landedOn": "/",
+    "sawSignInForm": false
+  },
+  {
+    "scenario": "logout",
+    "afterLogout": "F FoodOnTheGo What is your mobile number? We’ll send a one-time code to confirm it’s you. Mobile number +91 Country code",
+    "tokenCleared": true,
+    "backAfterLogoutShowsHome": false
+  },
+  {
+    "scenario": "existing customer",
+    "home": "Skip to content Good afternoon, Rahul Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find food worth stopp",
+    "wentStraightHomeWithoutRegistration": true,
+    "previousCustomerNameLeaked": false,
+    "consoleErrors": []
+  },
+  {
+    "scenario": "revoked token",
+    "landedOn": "/login",
+    "sentToSignIn": true,
+    "tokenCleared": true
+  },
+  {
+    "scenario": "login @360",
+    "horizontalOverflow": false
+  },
+  {
+    "scenario": "login @390",
+    "horizontalOverflow": false
+  },
+  {
+    "scenario": "login @430",
+    "horizontalOverflow": false
+  },
+  {
+    "scenario": "login @768",
+    "horizontalOverflow": false
+  },
+  {
+    "scenario": "login @1024",
+    "horizontalOverflow": false
+  },
+  {
+    "scenario": "login @1280",
+    "horizontalOverflow": false
+  },
+  {
+    "scenario": "login @1440",
+    "horizontalOverflow": false
+  },
+  {
+    "scenario": "login @1920",
+    "horizontalOverflow": false
+  }
+]

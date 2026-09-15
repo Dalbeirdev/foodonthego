@@ -1,0 +1,57 @@
+KI-042 — the same ordering fault in the cart, found by looking rather than by failing
+====================================================================================
+
+Found by auditing every controller after KI-041, not by a test failure. Nothing
+in CI had failed on it.
+
+The cart has the fault in an easier place to reach than the pickup screen did.
+_load() revalidates; _edit() writes; empty() writes; and _revalidateQuietly() is
+fired UNAWAITED behind every successful edit. All four assigned CartState.view
+from whatever came back, whenever it came back.
+
+The second path needs no slow network. A customer tapping "+" twice has the
+first tap's quiet revalidation in flight across the second tap's response; when
+it lands it carries the cart as it was before the second tap, and the quantity
+drops from 3 back to 2 on screen, over a cart the server has at 3.
+
+REPRODUCTION, BEFORE THE FIX:
+
+  00:00 +0 -1: a revalidation that answers after an edit does not undo it [E]
+    Expected: <2>
+      Actual: <1>
+    a read issued before the edit was allowed to overwrite it — the quantity
+    reverts on screen over a cart the server has already changed
+
+  00:00 +0 -2: the revalidation behind one tap cannot undo the next tap [E]
+    Expected: <3>
+      Actual: <2>
+    the first tap's revalidation reverted the second tap
+
+A NOTE ON THE SECOND TEST, because it passed on its first draft for no reason.
+The gate was armed AFTER the first increment — by which time that edit had
+already fired its quiet revalidation and the fake had answered it. The test
+exercised nothing and said so by passing. Armed before the first tap, it
+reproduces. A test that passes without touching its subject is worth less than
+no test, and this one was caught only because the failure it claimed to cover
+was already understood.
+
+AFTER THE FIX:
+  00:00 +0: loading /home/user/foodonthego/mobile/test/cart_controller_ordering_test.dart
+  00:00 +0: a revalidation that answers after an edit does not undo it
+  00:00 +1: the revalidation behind one tap cannot undo the next tap
+  00:00 +2: a read with nothing newer behind it is still applied
+  00:00 +3: All tests passed!
+
+THE CONTROLS, on a mutated fix (a controller that ignores every answer after
+the first — the opposite fault, and one these tests must also reject):
+  00:00 +0: loading /home/user/foodonthego/mobile/test/cart_controller_ordering_test.dart
+  00:00 +0: a revalidation that answers after an edit does not undo it
+  00:00 +0 -1: a revalidation that answers after an edit does not undo it [E]
+  00:00 +0 -1: the revalidation behind one tap cannot undo the next tap
+  00:00 +0 -2: the revalidation behind one tap cannot undo the next tap [E]
+  00:00 +0 -2: a read with nothing newer behind it is still applied
+  00:00 +0 -3: a read with nothing newer behind it is still applied [E]
+  00:00 +0 -3: Some tests failed.
+
+FULL MOBILE SUITE:
+  01:31 +1022: All tests passed!

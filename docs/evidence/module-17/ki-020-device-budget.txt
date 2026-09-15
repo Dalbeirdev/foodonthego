@@ -1,0 +1,181 @@
+KI-020 / KI-037 / KI-038 — the iOS device budget, measured
+Recorded 2026-09-11 on branch claude/foodonthego-s0x2vt
+
+
+1. THE RUN THAT SETTLED IT
+---------------------------------------------------------------------------
+
+  Commit d22d176, run 34609493236 (pull_request), read from the GitHub API.
+
+  All seven jobs green:
+
+    Backend — Laravel 12            success
+    Web — React + TypeScript        success
+    Mobile — Flutter                success
+    Mobile — iOS build              success
+    Mobile — Android review build   success
+    Mobile — iOS simulator          success
+    Mobile — Android emulator       success
+
+  Device test steps:
+
+    iOS      14:25:44Z -> 14:55:43Z   = 29m59s   success
+    Android  14:35:25Z -> 14:57:29Z   = 22m04s   success
+
+  iOS test count, read from the log rather than inferred:
+
+    🎉 34 tests passed.
+
+  Android test count: NOT READ. See section 4.
+
+
+2. ONE SECOND
+---------------------------------------------------------------------------
+
+  The step limit at the time was 30 minutes. The step took 29m59s and passed.
+
+  An hour earlier, the previous run had been measured at 27.7 min and the
+  prediction recorded was: removing the ~66s of wasted wait (KI-037) should
+  bring it to ~26.5 min, and the SEVENTH device-test file would be the one to
+  breach the budget.
+
+  THAT PREDICTION WAS WRONG, and wrong in the direction that matters. The step
+  went UP, not down. Run-to-run variance on these macOS runners is larger than
+  the minute that was saved, so the budget was already exhausted at six files.
+
+  A green that passes by one second is not evidence a limit is adequate. It is
+  evidence the limit is spent, and that the next red would have been variance
+  rather than a defect.
+
+
+3. WHY THE BUDGET IS SPENT — the per-file Xcode build
+---------------------------------------------------------------------------
+
+  `flutter test integration_test/` builds ONCE PER FILE. From one run's log:
+
+    Xcode build done.   69.8s
+    Xcode build done.   75.8s
+    Xcode build done.   97.2s
+
+  Six device-test files today:
+
+    module_02_shell_test.dart
+    module_04_profile_test.dart
+    module_11_add_to_cart_test.dart
+    module_12_cart_test.dart
+    module_13_pickup_test.dart
+    module_14_checkout_test.dart
+
+  So roughly eight minutes of the budget is Xcode before a single assertion
+  runs, and it grows by one build per module that adds a device test.
+
+  ACTION TAKEN: the iOS step limit is raised 30 -> 45 minutes, inside a job
+  timeout of 60. The standard set when this was first recorded — "the right
+  number is one a run measures, not one guessed in advance" — has been met by
+  a run measuring it.
+
+  KI-020's bound is NOT weakened. It tells a stall apart by its SIGNATURE —
+  silence after `Xcode build done`, no test names printed — not by duration,
+  and the report and simulator-log steps still fire.
+
+  The real fix, whenever it becomes worth doing, is a shared build or a split
+  across jobs. Not attempted here.
+
+
+4. WHY ANDROID'S COUNT IS STILL UNREAD (KI-038)
+---------------------------------------------------------------------------
+
+  ci-device-report.sh prints its report as the last thing the test step does,
+  so it lands in the log tail. Its own header explains why: later steps were
+  tried once and were unreadable from where these logs get read.
+
+  That works on iOS. On Android the tests run inside
+  reactivecircus/android-emulator-runner, which prints its teardown AFTER the
+  script it was given:
+
+    ERROR        | stop: Not implemented
+    WARNING      | Emulator client has not yet been configured..
+    INFO         | removeAll
+    WARNING      | Netsim Wifi dns:///localhost:39433 is gone ...
+
+  and the job then adds ~100 more lines of MySQL and Redis service-container
+  logs plus orphan-process termination. The report is pushed out of every tail
+  window that can practically be fetched.
+
+  Backwards, too: on a FAILING run the `##[error]NN tests passed, M failed.`
+  line lands close enough to read — it was read on 3260819 and on 865a1de, both
+  reporting 34 ran — but on a PASSING run the `🎉 NN tests passed.` line does
+  not. The count worth recording is the one out of reach.
+
+  So Android is recorded as green on the same suite with its count unread,
+  which is what every document here has said since Module 02 — now with a
+  cause rather than a caveat.
+
+
+5. THE VARIANCE, MEASURED — added after run 34613876526
+---------------------------------------------------------------------------
+
+  The next commit ran the SAME 34 tests, unchanged, and the iOS test step took
+  23m52s. All seven jobs green.
+
+    d22d176   34 tests   29m59s
+    609a809   34 tests   23m52s      <- same suite, six minutes faster
+
+  Android on the same two runs: 22m04s, then 21m34s. Both green.
+
+  So the spread on the iOS runner is about six minutes for identical work.
+  Against the old 30-minute limit that is the difference between finishing with
+  seven minutes to spare and finishing with one second — decided by which
+  runner the job drew, not by the code.
+
+  This is the measurement the raise to 45 is sized by. Before it, the raise was
+  reasoning; now it is evidence. It also means d22d176's one-second pass was
+  luck: on the slower draw that commit would have gone red, and the red would
+  have looked like a defect in a PR that had none.
+
+
+6. THREE POINTS — added after run 34617947498
+---------------------------------------------------------------------------
+
+  The same 34 tests, three consecutive commits, iOS test step:
+
+    d22d176   29m59s     1 second   under the old 30m limit
+    609a809   23m52s     6m08s      under
+    09b66fc   28m46s     1m14s      under
+
+  Android on the same three: 22m04s, 21m34s, 21m42s. All green.
+
+  TWO OF THREE RUNS LANDED WITHIN 75 SECONDS OF THE OLD CEILING.
+
+  With two points the spread could have been one unlucky machine. With three it
+  is clear the 30-minute limit was being cleared by luck roughly two runs in
+  three, on a suite that had not changed at all between them. Whether a commit
+  went green depended on which runner it drew.
+
+  The raise to 45 was overdue rather than precautionary, and it is sized by
+  these measurements rather than by guesswork. Android is comfortable at ~21-22
+  min and is not the constraint.
+
+
+7. FOUR POINTS, AND THE MEASUREMENT CLOSES HERE
+---------------------------------------------------------------------------
+
+  The same 34 tests, four consecutive commits, iOS test step:
+
+    d22d176   29m59s     1 second   under the old 30m limit
+    609a809   23m52s     6m08s      under
+    09b66fc   28m46s     1m14s      under
+    d054f26   27m59s     2m01s      under
+
+  Android on the same four: 22m04s, 21m34s, 21m42s, 21m05s. All green.
+
+  THREE OF FOUR RUNS FINISHED WITHIN ABOUT TWO MINUTES OF THE OLD CEILING.
+  Spread: 23m52s to 29m59s — six minutes, for work that did not change.
+
+  CLOSED AT FOUR POINTS, DELIBERATELY. Every commit that records a run produces
+  another run to record; continuing would be a loop whose subject is its own
+  documentation. Four is enough to establish the distribution and to justify the
+  45-minute limit.
+
+  Reopen only on a CHANGE: a device-test file added or removed, a runner image
+  update, or a step exceeding 45 minutes.

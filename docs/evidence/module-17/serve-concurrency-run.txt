@@ -1,0 +1,87 @@
+FoodOnTheGo — KI-032 evidence: the device CI backend answered one request at a time
+
+Why this file exists
+--------------------
+CI run 158 failed module_11's "a dish with no default size asks before it
+prices" on the iOS simulator only. It passed on Android on the identical
+commit. The tempting conclusion was "flake". This is the work that says
+otherwise, and it is recorded because the conclusion changed the CI harness.
+
+The instrument, checked first
+-----------------------------
+Laravel's ServeCommand starts its per-request timer on the built-in server's
+"Accepted" line and stops it on "Closing":
+
+  vendor/laravel/framework/src/Illuminate/Foundation/Console/ServeCommand.php
+    ~line 328  ' Accepted'  -> requestsPool[port] = [date, false, microtime(true)]
+    ~line 345  ' Closing'   -> runTimeForHumans(startMicrotime)
+
+So the duration `php artisan serve` prints INCLUDES time spent waiting for a
+worker. That matters: without checking it, a "~ 5s" line reads as five seconds
+of work, and the whole diagnosis goes the wrong way.
+
+The experiment
+--------------
+Server started by the real scripts/ci-backend-up.sh against real MySQL with
+the real seeders, and a real Sanctum token issued by tool/issue_token.dart.
+Nine concurrent authenticated requests — the shape of an app launch — issued
+from one curl process (--parallel --parallel-max 9) so the client is not the
+bottleneck. Three rounds each. Times are %{time_total}, in seconds, sorted.
+
+  PHP_CLI_SERVER_WORKERS=8 --no-reload   (what the script now does)
+    0.025 0.029 0.029 0.042 0.058 0.075 0.092 0.107 0.121
+    0.018 0.020 0.026 0.032 0.046 0.061 0.075 0.091 0.106
+    0.017 0.021 0.024 0.025 0.037 0.039 0.052 0.054 0.071
+
+  PHP_CLI_SERVER_WORKERS=1 --no-reload   (the control, and the old default)
+    0.282 0.301 0.316 0.331 0.345 0.362 0.376 0.390 0.403   <- cold
+    0.015 0.030 0.046 0.062 0.076 0.091 0.105 0.120 0.136
+    0.017 0.033 0.048 0.065 0.082 0.099 0.115 0.131 0.146
+
+Read the control rows across, not down. Every step is ~15-16 ms and not one is
+out of place: request N finishes exactly one request-cost after request N-1.
+That is a queue. The eight-worker rows open with a cluster that finished
+together — four on a four-core box — and only then begin to queue.
+
+The same shape, on an unauthenticated endpoint, before the token existed:
+
+  one worker    0.014 0.028 0.039 0.049 0.059 0.069 0.083 0.095 0.105
+  eight workers 0.014 0.014 0.014 0.014 0.024 0.024 0.033 0.033 0.042
+
+A control that stayed silent, and what it was saying
+----------------------------------------------------
+The first attempt at this measurement showed no difference at all between the
+two servers. The reason was in the log, on line one:
+
+  WARN  Unable to respect the `PHP_CLI_SERVER_WORKERS` environment variable
+        without the `--no-reload` flag. Only creating a single server.
+
+The treatment had never been applied. Both arms were the control. This is the
+third time in this project that a silent control turned out to mean "the thing
+you think you changed, you did not change" — so ci-backend-up.sh now greps its
+own serve.log for that warning and says loudly that it is single-worker, rather
+than leaving the next person to discover it from a device timeout.
+
+Verification of the fix, end to end
+-----------------------------------
+  $ scripts/ci-backend-up.sh 9999900933
+    migrating
+    seeding discovery and menu fixtures
+    starting the server
+    serving with 8 workers
+    signing a persona in
+  exit=0
+
+  $ pgrep -cf '\-S 0.0.0.0:8000'
+  10                       (the parent plus its workers; it was 1 before)
+
+What this does NOT claim
+------------------------
+  * Not that eight workers make CI fast. They remove a queue, nothing more.
+  * Not that the run 158 iOS failure is reproduced here. It is not: this box
+    is not that runner and the numbers are milliseconds, not seconds. What is
+    reproduced is the mechanism — strict serialization on one worker — which
+    the CI log independently shows at second scale.
+  * Not that the module_11 test is now guaranteed green. A shared runner can
+    still be slow. If it fails again, the serve.log staircase is the first
+    thing to look at, and the "serving with N workers" line is the second.

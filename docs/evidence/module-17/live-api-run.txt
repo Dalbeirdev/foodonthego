@@ -1,0 +1,93 @@
+FoodOnTheGo — Module 17 live verification
+A real Laravel server on 127.0.0.1:8000, a real MySQL database, real HTTP.
+Every line below is the API's own answer. Order a2f2017b-d106-4659-aa3a-df77c7837da5.
+
+The transitions are driven by dev:order-transition, because no restaurant
+screen exists. The command refuses to run outside local and testing, and
+records source TEST_HARNESS.
+
+--- PLACEMENT ---
+  status       PLACED  ("Order placed")
+  version      1
+  is_active    True
+  updated_at   2026-09-09T22:50:28+05:30
+  timeline     PLACED=CURRENT  ACCEPTED=UPCOMING  COOKING=UPCOMING  READY=UPCOMING  PICKED_UP=UPCOMING
+  credential   available
+  payment      CAPTURED
+
+--- ACCEPTED ---
+  status       ACCEPTED  ("Restaurant accepted your order")
+  version      2
+  is_active    True
+  updated_at   2026-09-09T22:50:44+05:30
+  timeline     PLACED=COMPLETED  ACCEPTED=CURRENT  COOKING=UPCOMING  READY=UPCOMING  PICKED_UP=UPCOMING
+  credential   available
+  payment      CAPTURED
+
+--- COOKING ---
+  status       COOKING  ("Your food is being prepared")
+  version      3
+  is_active    True
+  updated_at   2026-09-09T22:50:44+05:30
+  timeline     PLACED=COMPLETED  ACCEPTED=COMPLETED  COOKING=CURRENT  READY=UPCOMING  PICKED_UP=UPCOMING
+  credential   available
+  payment      CAPTURED
+
+--- READY ---
+  status       READY  ("Ready for pickup")
+  version      4
+  is_active    True
+  updated_at   2026-09-09T22:50:44+05:30
+  timeline     PLACED=COMPLETED  ACCEPTED=COMPLETED  COOKING=COMPLETED  READY=CURRENT  PICKED_UP=UPCOMING
+  credential   available
+  payment      CAPTURED
+
+--- PICKED_UP ---
+  status       PICKED_UP  ("Picked up")
+  version      5
+  is_active    False
+  updated_at   2026-09-09T22:50:44+05:30
+  timeline     PLACED=COMPLETED  ACCEPTED=COMPLETED  COOKING=COMPLETED  READY=COMPLETED  PICKED_UP=CURRENT
+  credential   not available
+  payment      CAPTURED
+
+--- illegal transitions, asked for against the live database ---
+  PICKED_UP -> READY : An order may not move from PICKED_UP to READY.
+  PICKED_UP -> COOKING : An order may not move from PICKED_UP to COOKING.
+  PICKED_UP -> ACCEPTED : An order may not move from PICKED_UP to ACCEPTED.
+
+--- security, over real HTTP ---
+  no token:                       HTTP 401
+  order number as identifier:     HTTP 404
+  PATCH the status:               HTTP 405
+  POST .../status:                HTTP 405
+  actor_id in response:          absent
+  reason_code in response:       absent
+  correlation_id in response:    absent
+  qr_payload in response:        absent
+
+--- the history, from the live database ---
+  (none)     -> PLACED      2026-09-09T17:20:28+00:00  source=SYSTEM
+  PLACED     -> ACCEPTED    2026-09-09T17:20:44+00:00  source=TEST_HARNESS
+  ACCEPTED   -> COOKING     2026-09-09T17:20:44+00:00  source=TEST_HARNESS
+  COOKING    -> READY       2026-09-09T17:20:44+00:00  source=TEST_HARNESS
+  READY      -> PICKED_UP   2026-09-09T17:20:44+00:00  source=TEST_HARNESS
+
+--- twenty consecutive tracking refreshes ---
+  requests             20
+  median               24.6 ms
+  slowest              32.1 ms
+  fastest              22.8 ms
+  orders list         21.1 ms
+
+  Google routing calls  0
+  Razorpay calls        0
+
+  Both are zero by construction rather than by measurement: this project
+  binds UnconfiguredPaymentGateway and has no routing key configured, so a
+  tracking refresh that reached either would raise rather than quietly
+  cost money. The laravel.log below is empty of provider traffic.
+
+  One machine, one run, a local server and a local MySQL. An observation,
+  not a benchmark.
+  provider mentions in laravel.log: 0

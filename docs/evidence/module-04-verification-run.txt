@@ -1,0 +1,184 @@
+==========================================================
+ FoodOnTheGo — Module 04 verification run
+ 2026-09-04 03:01:47 UTC
+ Customer Profile & Saved Addresses
+==========================================================
+
+--- TOOLCHAIN ---
+PHP 8.4.19 (cli) (built: Mar 30 2026 19:28:35) (NTS)
+/usr/sbin/mysqld  Ver 8.0.46-0ubuntu0.24.04.4 for Linux on x86_64 ((Ubuntu))
+Redis server v=7.0.15 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=b30e82fcf6da7c56
+v22.22.2
+Flutter 3.47.2 • channel stable • https://github.com/flutter/flutter.git
+
+--- BACKEND: php artisan test ---
+  Tests:    296 passed (1133 assertions)
+  Duration: 5.03s
+
+
+--- BACKEND: vendor/bin/pint --test ---
+{"tool":"pint","result":"passed"}
+--- BACKEND: composer audit ---
+No security vulnerability advisories found.
+
+--- BACKEND: Module 04 routes ---
+  GET|HEAD   api/v1/customer/addresses api.v1.customer.addresses.index › Api\…
+  POST       api/v1/customer/addresses api.v1.customer.addresses.store › Api\…
+  GET|HEAD   api/v1/customer/addresses/{address} api.v1.customer.addresses.sh…
+  PATCH      api/v1/customer/addresses/{address} api.v1.customer.addresses.up…
+  DELETE     api/v1/customer/addresses/{address} api.v1.customer.addresses.de…
+  POST       api/v1/customer/addresses/{address}/default api.v1.customer.addr…
+  GET|HEAD   api/v1/customer/me api.v1.customer.me › Api\V1\Auth\SessionContr…
+  GET|HEAD   api/v1/customer/profile api.v1.customer.profile.show › Api\V1\Cu…
+  PATCH      api/v1/customer/profile api.v1.customer.profile.update › Api\V1\…
+
+--- MOBILE: flutter analyze --fatal-infos ---
+No issues found! (ran in 3.5s)
+
+--- MOBILE: dart format --set-exit-if-changed ---
+Formatted 93 files (0 changed) in 0.38 seconds.
+
+--- MOBILE: flutter test ---
+00:25 +224: All tests passed!
+
+--- MOBILE: flutter build web --release ---
+✓ Built build/web
+
+--- WEB (regression, untouched by this module) ---
+TypeScript errors: 0
+      Tests  18 passed (18)
+      Tests  7 passed (7)
+      Tests  4 passed (4)
+
+--- INTEGRATION: Flutter network layer -> Laravel -> MySQL (no mocks) ---
+$ cd mobile && dart run --define=FOTG_API_BASE_URL=http://127.0.0.1:8000 \
+      tool/profile_addresses_smoke.dart
+
+FoodOnTheGo — Module 04 integration run
+Backend: http://127.0.0.1:8000
+
+  PASS  the profile comes back from the real API
+  PASS  a profile edit persists
+  PASS  a fresh read returns the edited profile
+  PASS  the verified number cannot be changed by a PATCH
+  PASS  an email change never claims to be verified
+  PASS  a new customer has no saved addresses
+  PASS  the first saved address becomes the default
+  PASS  coordinates are null, not invented from the text
+  PASS  a second address does not steal the default
+  PASS  the list is default first
+  PASS  setting a new default clears the old one
+  PASS  an edit persists and keeps the default
+  PASS  a custom label is kept as the customer wrote it
+  PASS  deleting the default promotes a replacement
+  PASS  Rahul cannot read Ananya's address
+  PASS  Rahul cannot update Ananya's address
+  PASS  Rahul cannot delete Ananya's address
+  PASS  Rahul cannot make Ananya's address his default
+  PASS  Ananya's address is untouched
+  PASS  a create naming another customer belongs to the caller
+  PASS  an invalid PIN code is refused
+  PASS  an unnamed Other address is refused
+  PASS  an unauthenticated call reaches no addresses
+  PASS  a revoked session stops reaching addresses
+
+24 passed, 0 failed
+
+--- REGRESSION: Module 03 authentication, against the same live backend ---
+$ cd mobile && dart run tool/integration_smoke.dart
+13 passed, 0 failed
+
+--- DATABASE VERIFICATION: real MySQL, after the integration run ---
+
+$ SHOW CREATE TABLE customer_addresses;   (abridged)
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT
+  `uuid` char(36) NOT NULL
+  `customer_id` bigint unsigned NOT NULL
+  `type` enum('HOME','WORK','OTHER') NOT NULL
+  `label` varchar(60) NOT NULL
+  `address_line_1` varchar(180) NOT NULL
+  `address_line_2` varchar(180) DEFAULT NULL
+  `landmark` varchar(120) DEFAULT NULL
+  `city` varchar(90) NOT NULL
+  `state` varchar(90) NOT NULL
+  `postal_code` varchar(16) DEFAULT NULL
+  `country_code` char(2) NOT NULL
+  `formatted_address` varchar(400) NOT NULL
+  `latitude` decimal(10,7) DEFAULT NULL
+  `longitude` decimal(10,7) DEFAULT NULL
+  `place_id` varchar(255) DEFAULT NULL
+  `is_default` tinyint(1) NOT NULL DEFAULT '0'
+  `default_for_customer` bigint unsigned
+      GENERATED ALWAYS AS (if((`is_default` = 1),`customer_id`,NULL)) STORED
+  PRIMARY KEY (`id`)
+  UNIQUE KEY `customer_addresses_uuid_unique` (`uuid`)
+  UNIQUE KEY `customer_addresses_one_default_unique` (`default_for_customer`)
+  KEY `customer_addresses_customer_id_is_default_index` (`customer_id`,`is_default`)
+  KEY `customer_addresses_customer_id_type_index` (`customer_id`,`type`)
+  CONSTRAINT `customer_addresses_customer_id_foreign`
+      FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+
+The one-default rule, proved against the database rather than the application:
+
+$ INSERT INTO customer_addresses (... is_default=1 ...);   -- second default
+ERROR 1062 (23000): Duplicate entry '10' for key
+  'customer_addresses.customer_addresses_one_default_unique'
+
+$ SELECT ... FROM users WHERE phone_e164='+919999900201';
+            uuid: 23d5759f-1a16-4ed7-a0e0-40457f4ea9db
+      first_name: Rahul
+       last_name: S. Sharma
+      phone_e164: +919999900201      (unchanged by the tampering attempt)
+            role: customer           (unchanged)
+          status: active             (unchanged)
+  phone_verified: 1
+email_unverified: 1
+
+$ SELECT ... FROM customer_addresses JOIN users ... WHERE phone_e164='+919999900201';
+uuid                                  type   label            city       is_default  lat_null  default_for_customer
+819aa3f5-1d06-4fc5-ab89-5d41f79c3db2  HOME   Home             New Delhi  0           1         NULL
+6c664219-9fc2-4d3f-b6c0-c8ee5f032621  OTHER  Parents' House   Jaipur     1           1         11
+
+$ SELECT ... WHERE phone_e164='+919999900202';   (Ananya, after Rahul's attacks)
+label  address_line_1  city       is_default
+Work   Cyber City      Gurugram   1
+
+$ SELECT customer_id, COUNT(*) FROM customer_addresses
+  WHERE is_default=1 GROUP BY customer_id HAVING COUNT(*)>1;
+Empty set.          -- no customer has two defaults
+
+$ SELECT customer_id, formatted_address, COUNT(*) c FROM customer_addresses
+  GROUP BY customer_id, formatted_address HAVING c>1;
+Empty set.          -- no duplicates from repeated submission
+
+--- LOG REVIEW: real application log, 1634 lines ---
+Occurrences of any saved address line, city or postcode:   0
+Occurrences of any customer email:                         0
+Occurrences of any full phone number:                      0
+
+Sample lines (verbatim, abridged):
+  "message":"address.created"        ... "actor_id":"23d5…","address_uuid":"39cc…","type":"OTHER","is_default":false
+  "message":"address.updated"        ... "actor_id":"23d5…","address_uuid":"39cc…","became_default":false
+  "message":"address.default_changed"... "actor_id":"23d5…","address_uuid":"6c66…"
+  "message":"address.deleted"        ... "actor_id":"23d5…","address_uuid":"39cc…","was_default":false
+  "message":"profile.updated"        ... "actor_id":"23d5…","fields":["first_name","last_name","email"]
+  "message":"address.access_denied"  ... "actor_id":"23d5…","address_uuid":"4221…"
+
+Every line names what happened, to which record, by which actor — and nothing
+about where anybody lives. The four access_denied lines are the IDOR attempts.
+
+--- LIVE-VIEW: real browser, real API, real database ---
+A Flutter web release build with FOTG_ENV=production (no fixtures, no
+development harness), served at http://localhost:5173 and talking to the Laravel
+server at http://localhost:8000 against MySQL. Driven with Playwright through
+Flutter's DOM semantics tree: sign in, edit the profile, save three addresses of
+three types, move the default, edit, open the delete confirmation, then the
+offline, dark, narrow, large-text and tablet variants.
+
+24 screenshots in docs/evidence/module-04/. Final run:
+  "No console errors, no page errors, all expected content present."
+
+Note on the screenshots: CanvasKit's fallback font is fetched from a CDN this
+environment blocks, so a font (LiberationSans) was bundled temporarily to make
+text render, then removed. The committed pubspec.yaml bundles no font and
+FotgTypography.fontFamily is null, as Module 01 requires.

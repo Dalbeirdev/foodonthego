@@ -1,0 +1,215 @@
+/*
+ * The sign-in screens.
+ *
+ * A centred card on every width rather than a split hero on desktop: the form
+ * is four fields long, and a photograph beside it would be decoration competing
+ * with the only thing on the page that matters. The panel is capped so the
+ * inputs stay a comfortable length to read and aim at.
+ */
+
+.auth {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6) var(--space-4);
+  background:
+    radial-gradient(60rem 40rem at 50% -20%, var(--color-primary-50), transparent 70%),
+    var(--color-background);
+}
+
+.auth__panel {
+  width: 100%;
+  max-width: 26rem;
+  padding: var(--space-8) var(--space-6);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 480px) {
+  .auth {
+    /* Full-bleed on a phone: a card with a margin on three sides wastes the
+       width the form needs, and the page has nothing else on it to frame. */
+    place-items: stretch;
+    padding: 0;
+  }
+  .auth__panel {
+    max-width: none;
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: var(--space-8) var(--space-5) var(--space-6);
+  }
+}
+
+.auth__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-8);
+}
+
+.auth__mark {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-interactive);
+  color: var(--color-text-on-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+.auth__wordmark {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body-lg);
+}
+
+.auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.auth__title {
+  margin: 0;
+  font-size: clamp(1.375rem, 1.1rem + 1.4vw, var(--font-size-h2));
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.01em;
+}
+
+.auth__sub {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-secondary);
+}
+
+.auth__label {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.auth__optional {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-disabled);
+}
+
+.auth__phone {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.auth__cc {
+  display: grid;
+  place-items: center;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.auth__input {
+  flex: 1;
+  /* 48px minimum, and 16px text — anything smaller makes iOS zoom the page on
+     focus, which on a sign-in screen looks like a bug. */
+  min-height: 3rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  font-family: inherit;
+}
+
+.auth__input:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+  border-color: var(--color-primary-interactive);
+}
+
+.auth__input--otp {
+  font-size: var(--font-size-h3);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5em;
+  text-align: center;
+}
+
+.auth__error {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-error-surface);
+  color: var(--color-error);
+  font-size: var(--font-size-body-sm);
+}
+
+.auth__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  min-height: 3rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-interactive);
+  color: var(--color-text-on-primary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.auth__cta:hover:not(:disabled) {
+  background: var(--color-primary-interactive-hover);
+}
+
+.auth__cta:disabled {
+  background: var(--color-neutral-300);
+  color: var(--color-neutral-600);
+  cursor: not-allowed;
+}
+
+.auth__cta:focus-visible,
+.auth__link:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.auth__link {
+  align-self: flex-start;
+  margin: var(--space-2) 0;
+  padding: var(--space-2) 0;
+  min-height: 2.75rem;
+  border: 0;
+  background: none;
+  color: var(--color-primary-interactive);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.auth__link:disabled {
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+
+.auth__spin {
+  animation: auth-spin 900ms linear infinite;
+}
+
+@keyframes auth-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth__spin { animation: none; }
+}

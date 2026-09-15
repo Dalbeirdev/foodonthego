@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="PULSE_ENABLED" value="false"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NIGHTWATCH_ENABLED" value="false"/>
+
+        <!--
+            Tests run against real MySQL 8, not SQLite. The schema uses MySQL types
+            (ENUM for roles, utf8mb4 collation) and later modules will use MySQL
+            locking semantics; a SQLite test run would pass on a schema production
+            cannot create. The database is separate from development and is
+            rebuilt by RefreshDatabase.
+        -->
+        <!-- A known pepper, so pickup credentials are derivable under test and
+             a test can assert the exact code an order will produce. Never a
+             production value: ProductionConfigGuard refuses to boot without a
+             real one. -->
+        <env name="PICKUP_CREDENTIAL_PEPPER" value="testing-pickup-pepper-not-a-secret"/>
+        <env name="DB_CONNECTION" value="mysql"/>
+        <env name="DB_DATABASE" value="foodonthego_testing"/>
+        <env name="DB_URL" value=""/>
+
+        <!--
+            Cache/session/queue use array drivers so a test run neither depends on
+            nor pollutes a live Redis. The Redis integration itself is covered by
+            the readiness test, which exercises the real connection.
+        -->
+        <env name="CACHE_STORE" value="array"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+
+        <!-- The suite declares its own providers rather than inheriting
+             whichever ones the developer happens to have in .env. Both are the
+             local stand-ins: deterministic, offline, and free.
+
+             This is not a convenience. Without it the suite quietly depends on
+             a variable it never states: .env.example ships
+             ROUTE_PROVIDER=unconfigured — correctly, because a fresh checkout
+             should not pretend to have routing — so a contributor whose .env
+             matched the example saw two failures that nobody else could
+             reproduce. CI found it on its first ever run. -->
+        <env name="ROUTE_PROVIDER" value="development"/>
+        <env name="PLACES_PROVIDER" value="development"/>
+    </php>
+</phpunit>

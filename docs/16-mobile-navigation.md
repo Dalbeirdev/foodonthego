@@ -1,0 +1,319 @@
+# 16 — Mobile navigation architecture
+
+## State management: Riverpod
+
+Module 01 did not name a state-management approach, so Module 02 chose one and it
+is **Riverpod 3** (`flutter_riverpod`). Do not introduce a second.
+
+Riverpod over Bloc because this app's state is mostly *derived, cached, async reads* rather than long
+event streams — and, decisively, because overriding a provider is the cleanest way to swap a fixture
+repository for a real one. That override is what keeps demo data out of production builds.
+
+### Two Riverpod 3 specifics worth knowing
+
+**`StateProvider` no longer exists.** Mutable state is a `Notifier` + `NotifierProvider`.
+
+**Failed providers retry automatically, and we switch that off.** Riverpod 3 re-runs a failed
+provider on its own with exponential backoff. For this app that is wrong: a traveller in a signal
+dead zone would have the app quietly re-requesting in a loop — spending battery and mobile data on
+requests that cannot succeed — while the *Try again* button in front of them does nothing they can
+observe. `homeDashboardProvider` passes `retry: (_, __) => null`; recovery is an explicit user
+action.
+
+## Routing: go_router with `StatefulShellRoute`
+
+```
+StatefulShellRoute.indexedStack          ← CustomerShell (offline banner + bottom bar)
+├── branch 0  /                          → HomeScreen
+├── branch 1  /trips                     → TripsScreen
+├── branch 2  /orders                    → OrdersScreen
+├── branch 3  /notifications             → NotificationsScreen
+└── branch 4  /profile                   → ProfileScreen
+
+/coming-soon?feature=…&module=…          ← pushed OVER the shell, covering the bar
+```
+
+`StatefulShellRoute.indexedStack` is the specific choice that makes tabs behave natively: **each
+branch keeps its own `Navigator` and its own state.** Scroll Orders halfway, visit Profile, come
+back — you are where you left off. A plain `IndexedStack` of screens would preserve widget state but
+give every tab one shared navigation history, which breaks Android's back button.
+
+Later modules attach nested routes beneath the branch they belong to (`/orders/:reference` under the
+Orders branch) and inherit its back stack for free.
+
+### Behaviours this buys, all covered by tests
+
+| Behaviour | How |
+| --- | --- |
+| Tab state survives switching | Per-branch `Navigator` |
+| No re-fetch on return | Branch state + a 2-minute `keepAlive` on the dashboard |
+| Android back from a non-home tab returns to Home | `PopScope` with `canPop: currentIndex == 0` |
+| Re-tapping the current tab pops it to its root | `goBranch(index, initialLocation: index == currentIndex)` |
+| Double-tap is harmless | The same call is idempotent |
+| Rapid switching does not corrupt the index | Asserted over 60 un-settled taps |
+
+## The five destinations
+
+| # | Route | Label | Icon (rest → selected) |
+| --: | --- | --- | --- |
+| 0 | `/` | Home | `home_outlined` → `home_rounded` |
+| 1 | `/trips` | Trips | `route_outlined` → `route_rounded` |
+| 2 | `/orders` | Orders | `receipt_long_outlined` → `receipt_long_rounded` |
+| 3 | `/notifications` | Alerts | `notifications_outlined` → `notifications_rounded` |
+| 4 | `/profile` | Profile | `person_outline_rounded` → `person_rounded` |
+
+Five is the practical ceiling for a bottom bar; beyond that the targets get too narrow for a thumb.
+The label is "Alerts" rather than "Notifications" purely because the longer word wraps at 320dp.
+
+**The selected state changes shape as well as colour** — outlined to filled — so the current tab is
+identifiable without relying on hue.
+
+## Authentication routes and the guard
+
+Four routes live **outside** the shell, because a customer who is not signed in has nowhere else to
+be and a bottom bar leading to five guarded screens would be a lie:
+
+| Route | Screen |
+| --- | --- |
+| `/welcome` | `WelcomeScreen` |
+| `/auth/phone` | `PhoneEntryScreen` |
+| `/auth/otp` | `OtpVerificationScreen` |
+| `/auth/register` | `RegistrationScreen` |
+
+`createRouter` takes a `redirect` with three cases, and the order matters:
+
+1. **Restoring** — return `null` and go nowhere. Redirecting while secure storage is still being
+   read would send a returning customer to the welcome screen for a frame and then bounce them back.
+   `SessionSplash` covers this state, so the home screen behind it never builds and never fires a
+   request for somebody who turns out not to be signed in.
+2. **Not authenticated** — anything outside the four routes above becomes `/welcome`.
+3. **Authenticated** — the four auth routes become `/`.
+
+`AuthChangeNotifier` bridges Riverpod's auth state to go_router's `refreshListenable`, so the guard
+re-runs when the session changes rather than only on an explicit navigation. Without it, a session
+that ended in the background would leave a customer looking at a screen they are no longer entitled
+to until they happened to tap something. It notifies only on *structural* changes — a refreshed
+profile with the same sign-in status must not rebuild the tree.
+
+Nothing in the auth screens navigates on success. Accepting a session flips the guard, which moves
+the app; so does signing out. One path in, one path out, whatever caused it.
+
+The auth screens navigate with `go`, not `push`, and their back buttons say where they go rather
+than calling `pop()` — on a cold start straight into one of them there may be nothing to pop, and
+popping an empty stack leaves a black page.
+
+`/auth/otp` and `/auth/register` take their arguments as route `extra` rather than query parameters:
+a phone number in a URL ends up in a deep-link log and in the browser history of the web build.
+Reached without those arguments — a deep link, or a hot restart mid-flow — they render the phone
+screen instead of a form bound to nothing.
+
+## Unbuilt features
+
+Tapping a future feature must never show a dead button and must never do nothing silently.
+
+- **Development:** it routes to `/coming-soon`, which names the feature and the module delivering it.
+- **Production:** the feature is *hidden* by its flag; the route is unreachable, and degrades to a
+  neutral message if it is somehow reached. No module numbers ever reach a customer.
+
+## Feature flags
+
+`FeatureFlags` in `core/config`. Coarse by design — one per significant capability, owned by the
+module that will deliver it, all `false` today: `tripPlannerEnabled`, `tripsEnabled`,
+`ordersEnabled`, `notificationsEnabled`, `savedPlacesEnabled`, `supportEnabled`,
+`profileEditingEnabled`.
+
+## Fixture isolation
+
+```
+AppEnvironment.current        ← compile-time constant from --dart-define=FOTG_ENV
+        │
+        ├── allowsFixtures ── true  → FixtureHomeRepository  (development personas)
+        └── allowsFixtures ── false → UnconfiguredHomeRepository (no trip, no order)
+```
+
+`AppEnvironment.current` is `const`, so the compiler can prove the fixture branch is dead in a
+release build and tree-shake it: development personas are not merely unreachable in production, they
+are **not in the binary**. `FixtureHomeRepository`'s constructor also asserts the environment allows
+fixtures, so a mistake fails loudly in debug.
+
+There is no `if (development)` scattered through widgets. The question is answered once, by which
+repository is injected.
+
+## Analytics
+
+Boundary only — no vendor SDK, because embedding a tracking library in an app with no consent flow
+is not a decision to make by accident.
+
+Convention: `object_verb`, lower snake case. `home_viewed`, `plan_journey_tapped`,
+`orders_tab_opened`, `profile_tab_opened`, `quick_action_tapped`, `unbuilt_feature_opened`.
+
+**Never in a payload:** a name, email, phone number, precise location, address, payment detail or an
+order's contents. Events carry what was interacted with, never who the person is.
+
+## Localization
+
+`AppStrings` + `AppStringsDelegate`. Every user-visible string lives there; widgets read
+`AppStrings.of(context)`. A hand-rolled class rather than `gen-l10n`, because with one language it
+gives the same separation without an ARB pipeline and a code-generation step in CI. When a second
+language is commissioned, this class becomes the interface `gen-l10n` implements.
+
+## Currency
+
+`ActiveOrderSummary` carries `totalMinorUnits` (an `int`) and `currencyCode` (default `INR`). Money
+is never a `double`, and no widget assumes a symbol.
+
+
+---
+
+## Journeys (Module 05)
+
+The Trips branch gained real destinations. The planner and the journey detail are
+**pushed over** the Trips branch rather than added to the shell, for the reason
+the profile screens already establish: the bottom bar stays put, and Android back
+returns to the list the customer came from.
+
+The home screen's "Plan a journey" call to action now pushes the planner instead
+of routing to the controlled placeholder that named this module — which is the
+placeholder convention working as intended.
+
+Routes: `/trips/plan` and `/trips/{id}`. There is no edit route: Module 05
+creates a trip from two chosen places and stops.
+
+**`plan` is declared before `:tripId`.** Otherwise "/trips/plan" matches the
+parameter and the planner becomes a detail screen for a journey called "plan" —
+the same rule `/customer/trips/current` follows on the server.
+
+Choosing a place is a **modal bottom sheet**, not a route. It is a transient
+choice that returns a value to the screen underneath, and giving it a URL would
+put a half-made decision in the back stack. Its state lives on `autoDispose`
+providers, so closing it disposes the query, the results and the provider session
+token — nothing about a search outlives the sheet, and nothing survives into the
+next customer's session.
+
+---
+
+## The menu, nested under the restaurant (Module 10)
+
+```
+/trips/:tripId/route/restaurants/:restaurantId/menu
+```
+
+Four levels deep, and each one earns its place. The menu belongs to the
+restaurant, which belongs to the route, which belongs to the journey — so
+Android back and the iOS swipe land on the restaurant page the customer came
+from, which lands on the discovery list with its search and filters still in
+place, which lands on the route.
+
+The restaurant's name is passed as `extra` so the app bar has a title during the
+first request rather than a blank space. It is never authoritative: the server's
+answer replaces it, exactly as the discovery card's preview is replaced on the
+restaurant page.
+
+The menu route is reached only from the restaurant page's sticky button, which
+exists only where the ordering state permits browsing — so a permanently closed
+restaurant's menu is not offered. Deep-linking to it directly still works and is
+still safe: the server refuses on eligibility, and the screen shows the same
+withdrawn state it would after a refresh.
+
+### The item preview is a sheet, not a route
+
+For the same reason the place picker is: it is a transient look at one dish that
+returns the customer to where they were. Giving it a URL would put "I glanced at
+the paneer tikka" in the back stack, and Android back would then take three
+presses to leave a menu. Its state lives on the same `autoDispose` controller as
+the menu and is cleared when the sheet closes.
+
+### The back button goes through the router
+
+`AppBar`'s automatic back button calls `Navigator.maybePop`, which pops the
+widget stack without telling go_router — leaving the router with an empty match
+list and the customer with a blank screen. Every screen from Module 09 onwards
+uses an explicit `BackButton` that routes through `context.pop()`. The menu is no
+exception.
+
+---
+
+## One dish, nested under the menu (Module 11)
+
+```
+/trips/:tripId/route/restaurants/:restaurantId/menu/items/:itemId
+```
+
+Five levels, and each one earns its place. Android back and the iOS swipe land
+on the menu the customer came from — with its search and its scroll position
+intact — which lands on the restaurant page, which lands on the discovery list
+with its filters, which lands on the route.
+
+The dish's name travels as `extra`, so the app bar has a title during the first
+request rather than a blank space. Never authoritative: the server's answer
+replaces it, exactly as the menu's restaurant name is replaced.
+
+### The screen was a route, not a sheet
+
+Module 10's read-only preview was a modal bottom sheet, and that was right for a
+glance. Configuring a dish is not a glance: it has required choices, a keyboard,
+a scroll and a submit, and losing it to an accidental swipe-down would lose all
+of that. It gets a URL and a back stack entry.
+
+The **item preview sheet is gone** — deleted, not left behind a flag. A
+placeholder that no route reaches is dead code that the next reader has to work
+out is dead.
+
+### Leaving with unsaved choices
+
+Back discards, with no confirmation. A dialogue on every back press would fire on
+the customer who opened a dish, glanced at the price and left — which is most of
+them — and asking somebody to confirm they meant to press back is how a screen
+teaches people to dismiss dialogues without reading.
+
+The cost of being wrong is one re-tap of a few options; the cost of the dialogue
+is friction on every exit. If a later module adds something genuinely expensive
+to lose here, that trade changes.
+
+---
+
+## The cart, beside the route rather than under it (Module 12)
+
+```
+/trips/:tripId
+  └── cart                       ← the cart screen
+  └── route
+        └── restaurants
+              └── :restaurantId
+                    └── menu
+                          └── items/:itemId
+```
+
+`/trips/:tripId/cart` is a **sibling of `route`, not a descendant of a
+restaurant**, and that mirrors the API exactly: a cart already knows which
+kitchen it belongs to, so a path that named a second one would be a chance for
+the two to disagree. The journey is the only thing the customer has to own.
+
+### Pushed, never `go`
+
+The cart is reached from three places — the menu's app bar, a dish's app bar,
+and the "View cart" action on the added-to-cart confirmation — and every one of
+them uses `context.push`. `go` would rewrite the stack to
+`/trips/x/cart` and leave Android back and the iOS swipe unwinding to the
+journey. A customer who opens the cart to check a quantity wants to come back to
+the menu they were reading, with its search and its scroll position intact.
+
+That is also why the cart is not a sixth bottom-bar destination. A cart is a
+place you visit mid-task and leave again, not a place you live; giving it a tab
+would make "back" mean "switch branch" and lose the menu underneath.
+
+### The door, and the badge
+
+`CartAppBarButton` is that door, and it is in the app bar of every screen a dish
+can be added from. Module 11 could add to a cart and had nowhere to send anybody
+afterwards, which is the gap this closes.
+
+The count on it is the server's, from `cartBadgeProvider` — a family keyed by
+the journey, because a customer with two journeys planned has two carts and a
+badge showing the wrong one is worse than no badge. While the read is in flight
+or after it has failed the badge is **absent rather than zero**: an invented "0"
+is indistinguishable from an empty cart, and a traveller in a dead zone would be
+told they have nothing.
+
+The badge is invalidated by a successful add rather than passed a count back
+through the pop, so it is right whichever way the customer returns.

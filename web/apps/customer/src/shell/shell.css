@@ -1,0 +1,189 @@
+/*
+ * The customer shell.
+ *
+ * One rule decides the whole layout: below 900px the bottom bar, above it the
+ * rail. Both are always in the DOM and CSS picks — no resize listener, no
+ * layout flash on first paint.
+ */
+
+.shell {
+  min-height: 100dvh;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+.shell__skip {
+  position: absolute;
+  left: -9999px;
+}
+.shell__skip:focus {
+  left: var(--space-4);
+  top: var(--space-4);
+  z-index: 50;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- phone first: bottom bar, no rail ----------------------------------- */
+
+.shell__rail {
+  display: none;
+}
+
+.shell__main {
+  /*
+   | Every screen's breathing room, set once here rather than by each page.
+   |
+   | It was only padding-bottom. Every heading in the app therefore sat flush
+   | against the top of the viewport, and a large one — "Plan your journey" at
+   | 32px with a 1.2 line height — had its ascenders clipped by the edge. The
+   | live captures show it on Home too; nobody had looked at the top of a page
+   | until Restart Module 05's screenshots.
+   |
+   | Room for the bottom bar plus the home indicator on a notched phone.
+   */
+  padding: var(--space-6) var(--space-4) calc(4.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+.shell__bottom {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 20;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.shell__bottom-list {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shell__bottom-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  /* 56px of height at the smallest size: a thumb target, not a mouse target. */
+  min-height: 56px;
+  padding: var(--space-2) 2px;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.shell__bottom-link span {
+  /* At 360px five labels have ~68px each. Truncation beats reflow. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell__bottom-link.is-active {
+  color: var(--color-primary-interactive);
+}
+
+.shell__bottom-link:focus-visible,
+.shell__rail-link:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---- desktop: rail, no bottom bar --------------------------------------- */
+
+@media (min-width: 900px) {
+  .shell {
+    display: grid;
+    grid-template-columns: 17rem 1fr;
+  }
+
+  .shell__rail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    padding: var(--space-6) var(--space-4);
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+  }
+
+  .shell__brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: 0 var(--space-2);
+  }
+
+  .shell__mark {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--radius-md);
+    background: var(--color-primary-interactive);
+    color: var(--color-text-on-primary);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .shell__wordmark {
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-body-lg);
+  }
+
+  .shell__rail-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .shell__rail-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+    text-decoration: none;
+  }
+
+  .shell__rail-link:hover {
+    background: var(--color-surface-sunken);
+    color: var(--color-text-primary);
+  }
+
+  .shell__rail-link.is-active {
+    background: var(--color-primary-50);
+    color: var(--color-primary-interactive);
+  }
+
+  .shell__main {
+    padding: var(--space-8) var(--space-6) var(--space-10);
+  }
+
+  .shell__bottom {
+    display: none;
+  }
+}

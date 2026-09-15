@@ -1,0 +1,179 @@
+/// Every route path in the customer app, in one place.
+///
+/// Declared as constants so a typo is a compile error rather than a silent
+/// navigation to nowhere, and so a future deep-link table has something to map
+/// onto. Paths are top-level and stable — a later module adds `/trips/:id`
+/// beneath an existing branch instead of reorganising the tree.
+class Routes {
+  const Routes._();
+
+  static const String home = '/';
+
+  /// Authentication. Deliberately top-level rather than nested under the shell:
+  /// these screens have no bottom navigation, because a customer who is not
+  /// signed in has nowhere else to be.
+  static const String welcome = '/welcome';
+  static const String authPhone = '/auth/phone';
+  static const String authOtp = '/auth/otp';
+  static const String authRegister = '/auth/register';
+
+  /// Every route that an unauthenticated visitor may reach.
+  static const Set<String> unauthenticated = <String>{
+    welcome,
+    authPhone,
+    authOtp,
+    authRegister,
+  };
+
+  static const String trips = '/trips';
+  static const String orders = '/orders';
+  static const String notifications = '/notifications';
+  static const String profile = '/profile';
+
+  // Profile and saved addresses (Module 04) HAVE NO CONSTANTS HERE, AND THAT IS
+  // DELIBERATE. The profile editor, the saved-addresses list and the address
+  // form are pushed over the Profile branch with a plain Navigator push (see
+  // ProfileScreen) so the bottom bar stays put and Android back returns to the
+  // list the customer came from. None of them is registered with the router.
+  //
+  // This file used to declare `/profile/edit`, `/profile/addresses` and
+  // `/profile/addresses/form` anyway. They read exactly like routes that exist,
+  // and twice they were used as if they did: the location picker's "Manage
+  // saved addresses" link shipped a tap that landed the customer on Page Not
+  // Found, and a device test deep-linked to the editor and failed the same way.
+  // A constant naming a path nobody registered is not documentation; it is a
+  // trap with a doc comment on it. If these screens ever need real routes, add
+  // them to the router and the constants together, in one change.
+
+  /// The trip planner (Module 05). Pushed over the Trips branch for the same
+  /// reason: the bottom bar stays put, and Android back returns to the list.
+  ///
+  /// `plan` is declared before `:tripId` in the router, or "/trips/plan" would
+  /// be read as a journey whose id is the word "plan".
+  static const String tripPlan = 'plan';
+  static const String tripDetail = ':tripId';
+
+  /// The route review screen (Module 06), nested under the journey it belongs
+  /// to — a route has no existence away from one.
+  static const String tripRoute = 'route';
+
+  /// Restaurants along the selected route (Module 07). Nested under the route
+  /// it belongs to, because discovery has no meaning without one — and because
+  /// Android back from here lands on the route the customer came from.
+  static const String tripRestaurants = 'restaurants';
+
+  static const String tripPlanPath = '/trips/plan';
+
+  static String tripDetailPath(String id) => '/trips/$id';
+
+  static String tripRoutePath(String id) => '/trips/$id/route';
+
+  static String tripRestaurantsPath(String id) =>
+      '/trips/$id/route/restaurants';
+
+  /// One of those restaurants (Module 09). Nested under discovery, so Android
+  /// back and the iOS swipe both land on the list the customer came from —
+  /// with its search, filters and sort still in place.
+  static const String restaurantDetail = ':restaurantId';
+
+  static String restaurantDetailPath(String tripId, String restaurantId) =>
+      '/trips/$tripId/route/restaurants/$restaurantId';
+
+  /// That restaurant's menu (Module 10). Nested under the restaurant, because
+  /// a menu has no existence away from one — and so Android back lands on the
+  /// restaurant page the customer came from rather than on the discovery list.
+  static const String restaurantMenu = 'menu';
+
+  static String restaurantMenuPath(String tripId, String restaurantId) =>
+      '/trips/$tripId/route/restaurants/$restaurantId/menu';
+
+  /// One dish, configurable (Module 11). Nested under the menu, so Android
+  /// back and the iOS swipe land on the menu the customer came from — with its
+  /// search and its scroll position still in place.
+  static const String menuItem = 'items/:itemId';
+
+  static String menuItemPath(
+    String tripId,
+    String restaurantId,
+    String itemId,
+  ) => '/trips/$tripId/route/restaurants/$restaurantId/menu/items/$itemId';
+
+  /// The customer's cart (Module 12). Nested under the journey and **not**
+  /// under a restaurant, matching the API: a cart already knows which kitchen
+  /// it belongs to, and a path that named a second one would be a chance for
+  /// the two to disagree.
+  ///
+  /// Reached by a push from wherever the customer is — the menu, a dish, the
+  /// restaurant — so the back gesture returns them to what they were doing
+  /// rather than unwinding to the journey.
+  static const String tripCart = 'cart';
+
+  static String tripCartPath(String tripId) => '/trips/$tripId/cart';
+
+  /// Choosing when to collect (Module 13). Under the cart, because that is
+  /// what is being collected — and addressed by the journey for the same reason
+  /// the cart is.
+  ///
+  /// Reached from the cart, so back returns the customer to their order rather
+  /// than unwinding to the journey.
+  static const String tripPickup = 'pickup';
+
+  static String tripPickupPath(String tripId) => '/trips/$tripId/cart/pickup';
+
+  /// The last screen before money (Module 14). Under the pickup time, because
+  /// a checkout cannot be prepared without one — the server refuses to quote a
+  /// basket that has no collection window — and so the back gesture returns the
+  /// customer to the choice the price depends on.
+  ///
+  /// Payment itself is Module 15 and lives beyond this path, not on it.
+  static const String tripCheckout = 'checkout';
+
+  /// Payment (Module 15), nested under the checkout it came from.
+  static const String tripPayment = 'payment';
+
+  static String tripCheckoutPath(String tripId) =>
+      '/trips/$tripId/cart/pickup/checkout';
+
+  static String tripPaymentPath(String tripId, String checkoutId) =>
+      '/trips/$tripId/cart/pickup/checkout/payment?checkout=$checkoutId';
+
+  /// The controlled destination for anything not built yet. Takes the feature
+  /// name and owning module as query parameters so one screen serves them all.
+  /*
+   | Order confirmation lives under Orders, NOT under the trip checkout stack.
+   |
+   | This is the screen a customer lands on after paying, and the case it has
+   | to survive is the app being killed mid-payment. Hanging it off
+   | /trips/:tripId/checkout/payment would make it reachable only while that
+   | whole stack is intact; a cold start has no trip in state and would have
+   | nowhere to land. An order is addressed by its own id because by this point
+   | the order, not the journey, is the thing that exists.
+   |
+   | Back from here goes to the Orders tab, which is correct: there is no route
+   | backwards to payment, and that is the point.
+   */
+  static const String orderConfirmation = ':orderId/confirmation';
+
+  static String orderConfirmationPath(String orderId) =>
+      '/orders/$orderId/confirmation';
+
+  /*
+   | Tracking sits beside confirmation, under Orders.
+   |
+   | Same reasoning as the confirmation route: an order is addressed by its own
+   | id because by this point the order, not the journey, is the thing that
+   | exists -- and a customer arriving from a notification or a cold start has
+   | no trip in state to hang the route off.
+   */
+  static const String orderTracking = ':orderId/track';
+
+  static String orderTrackingPath(String orderId) => '/orders/$orderId/track';
+
+  static const String comingSoon = '/coming-soon';
+
+  static String comingSoonFor({
+    required String feature,
+    required String module,
+  }) =>
+      '$comingSoon?feature=${Uri.encodeComponent(feature)}&module=${Uri.encodeComponent(module)}';
+}

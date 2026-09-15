@@ -1,0 +1,34 @@
+# Publishing the review stack on a plain HTTP port.
+#
+# WHY THIS IS A SEPARATE FILE, and not a flag in the main one. The default
+# compose binds the app to 127.0.0.1:8090 — reachable only from the box itself.
+# Publishing it to the internet is a deliberate act with a real cost, so it is
+# an extra file you have to name, rather than a setting somebody might leave on
+# without noticing.
+#
+# WHAT IT COSTS, said plainly, because the browser's "Not secure" is a warning
+# people have learned to click past: THERE IS NO TLS. The one-time code at
+# sign-in and the session token afterwards travel in clear text and are readable
+# by anyone on the network path between the viewer and this box. For a review
+# deployment holding seeded test data, no real customers and no real payments,
+# that is a contained risk. It is not a configuration to carry into anything
+# real, and `deploy/README.md` says the same where it describes the tunnel.
+#
+# HOW TO USE IT
+#
+#   docker compose -f docker-compose.yml -f docker-compose.public-http.yml up -d
+#
+# Then http://techpio.tech:8080 answers — no certificate, and no DNS change
+# beyond the A record that already points at this box.
+#
+# TO STOP PUBLISHING IT, bring the stack up without this file:
+#
+#   docker compose up -d --remove-orphans
+#
+# Compose APPENDS to `ports` when merging files, so only the new binding is
+# listed here. Repeating 127.0.0.1:8090:80 would try to bind it twice.
+
+services:
+  web:
+    ports:
+      - '8080:80'

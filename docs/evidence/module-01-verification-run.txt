@@ -1,0 +1,152 @@
+==========================================================
+ FoodOnTheGo — Module 01 verification run
+ 2026-09-03 19:57:44 UTC
+==========================================================
+
+--- TOOLCHAIN ---
+PHP 8.4.19 (cli) (built: Mar 30 2026 19:28:35) (NTS)
+/usr/sbin/mysqld  Ver 8.0.46-0ubuntu0.24.04.4 for Linux on x86_64 ((Ubuntu))
+Redis server v=7.0.15 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=b30e82fcf6da7c56
+v22.22.2
+Flutter 3.47.2 • channel stable • https://github.com/flutter/flutter.git
+
+--- BACKEND: php artisan test ---
+
+  Tests:    67 passed (205 assertions)
+  Duration: 1.13s
+
+
+--- BACKEND: vendor/bin/pint --test ---
+{"tool":"pint","result":"passed"}
+--- BACKEND: composer audit ---
+No security vulnerability advisories found.
+
+--- WEB: npm run typecheck ---
+TypeScript errors: 0
+
+--- WEB: npm test ---
+ Test Files  2 passed (2)
+      Tests  18 passed (18)
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+
+--- WEB: builds ---
+✓ built in 3.86s
+✓ built in 3.98s
+
+--- WEB: npm audit ---
+found 0 vulnerabilities
+
+--- MOBILE: flutter analyze --fatal-infos ---
+No issues found! (ran in 5.1s)
+
+--- MOBILE: dart format check ---
+Formatted 14 files (0 changed) in 0.07 seconds.
+
+--- MOBILE: flutter test ---
+00:02 +19: All tests passed!
+
+--- MOBILE: flutter doctor (Android/iOS availability) ---
+[✓] Flutter (Channel stable, 3.47.2, on Ubuntu 24.04.4 LTS 6.18.44-fc-v24, locale en_US)
+[✗] Android toolchain - develop for Android devices
+[✗] Chrome - develop for the web (Cannot find Chrome executable at google-chrome)
+[✗] Linux toolchain - develop for Linux desktop
+[✓] Connected device (1 available)
+[✓] Network resources
+
+--- LIVE API ---
+$ curl -s localhost:8000/api/v1/health/ready
+{
+    "data": {
+        "status": "ready",
+        "environment": "local",
+        "checks": {
+            "database": {
+                "healthy": true,
+                "latency_ms": 1.9
+            },
+            "redis": {
+                "healthy": true,
+                "latency_ms": 0.59
+            }
+        }
+    },
+    "meta": {
+        "request_id": "2fb2b719-71a7-4e0a-802c-283c09fed19c"
+    }
+}
+
+$ curl -s localhost:8000/api/v1/nope  (error contract)
+{
+    "error": {
+        "code": "NOT_FOUND",
+        "message": "Unknown API endpoint. The current API version is v1.",
+        "request_id": "c543de6c-d4b2-41ad-a63f-1bccd11a762f"
+    }
+}
+
+$ curl -X POST localhost:8000/api/v1/health/live  (405)
+status: 405
+code: METHOD_NOT_ALLOWED
+
+$ curl -H 'Origin: https://attacker.example' (CORS refused)
+Access-Control-Allow-Origin headers returned: 0
+
+$ curl -H 'Origin: http://localhost:5174' (CORS allowed)
+Access-Control-Allow-Origin: http://localhost:5174
+
+--- STRUCTURED LOG SAMPLE (redaction live) ---
+{
+    "timestamp": "2026-09-03T19:58:55.501+00:00",
+    "level": "INFO",
+    "channel": "local",
+    "message": "api.request",
+    "request_id": "2390b5b8-b1cc-41a1-bdce-dc681836b619",
+    "actor_id": null,
+    "actor_role": null,
+    "context": {
+        "method": "GET",
+        "route": "api/v1/meta",
+        "path": "api/v1/meta",
+        "status": 200,
+        "duration_ms": 4.56,
+        "ip": "127.0.0.1"
+    }
+}
+
+--- LIVE VIEW: browser sweep (8 widths x 2 shells, 25 routes) ---
+restaurant: 11 nav links -> Overview, Orders, Availability, Menu, Restaurant, Staff, Earnings, Reports, Reviews, Support, Settings
+admin: 14 nav links -> Overview, Customers, Restaurants, Routes, Orders, Payments, Promotions, Reviews, Support, Analytics, Administration, Settings, Audit Logs, System Health
+system-health tiles: Ready | Connected | Connected
+
+✅ No console errors, no overflow, no small touch targets.
+
+--- SCREENSHOTS CAPTURED ---
+admin-1440.png
+admin-360.png
+admin-768.png
+admin-api-down-768.png
+admin-collapsed.png
+admin-dark.png
+admin-drawer.png
+admin-system-health.png
+flutter-android-small.png
+flutter-dark.png
+flutter-iphone-15-pro-max.png
+flutter-iphone-15.png
+flutter-iphone-se.png
+flutter-tab-alerts.png
+flutter-tab-home.png
+flutter-tab-orders.png
+flutter-tab-profile.png
+flutter-tab-trips.png
+restaurant-1440.png
+restaurant-360.png
+restaurant-390.png
+restaurant-768.png
+restaurant-collapsed.png
+restaurant-dark.png
+restaurant-drawer.png
+restaurant-placeholder.png

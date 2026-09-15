@@ -1,0 +1,179 @@
+FoodOnTheGo — Module 10 verification run
+Menu, categories and menu item browsing
+
+PHP 8.4.19 / Laravel 12.69.1 / MySQL 8.0.46 / Redis 7.0.15 / Flutter 3.47.2
+ROUTE_PROVIDER=development  PLACES_PROVIDER=development  OTP_PROVIDER=log
+
+================================================================
+BACKEND — PHPUnit
+================================================================
+  ✓ email is unique                                                      0.02s  
+  ✓ a new account defaults to the least privileged role                  0.01s  
+
+  Tests:    864 passed (3616 assertions)
+  Duration: 31.61s
+
+
+================================================================
+BACKEND — Laravel Pint
+================================================================
+{"tool":"pint","result":"passed"}
+================================================================
+MOBILE — dart analyze
+================================================================
+📎
+Analyzing mobile...
+No issues found!
+
+================================================================
+MOBILE — flutter test
+================================================================
+01:23 +684: /home/user/foodonthego/mobile/test/location_permission_test.dart: an approximate fix is used, and the customer is told it is approximate
+01:23 +685: /home/user/foodonthego/mobile/test/location_permission_test.dart: an approximate fix is used, and the customer is told it is approximate
+01:23 +686: All tests passed!
+
+================================================================
+INTEGRATION — tool/menu_smoke.dart (live backend, real MySQL)
+================================================================
+  PASS  the restaurants this module needs are on the route
+  PASS  the menu belongs to the restaurant that was opened
+  PASS  the sections come back in the order the operator set
+  PASS  a dish carries what the restaurant published
+  PASS  a dish with nothing optional carries nothing optional
+  PASS  every price is integer minor units with its currency
+  PASS  a free item is zero, not missing
+  PASS  a five-figure price groups the way the locale does
+  PASS  the wire carries no rendered price string
+  PASS  a withdrawn item is absent
+  PASS  a withdrawn category takes its items with it
+  PASS  a section outside its serving hours is absent
+  PASS  a sold-out dish is present and marked
+  PASS  a search narrows the menu
+  PASS  an empty search result is not an empty menu
+  PASS  a search cannot reach a withdrawn item
+  PASS  an injection string is a search term and nothing more
+  PASS  a punctuation-only search is not reported as a search
+  PASS  an oversized search is refused rather than truncated
+  PASS  one item can be read on its own
+  PASS  the preview reflects a price that has since changed
+  PASS  another restaurant's item cannot be read through this one
+  PASS  an item in a withdrawn category is not reachable by id
+  PASS  a withdrawn item is not reachable by id
+  PASS  another customer's trip does not open this menu
+  PASS  a suspended restaurant will not serve a menu to a known id
+  PASS  a restaurant with no menu says so, rather than failing
+  PASS  a closed restaurant still serves its menu
+  PASS  no operator-private field is on the wire
+  PASS  no internal database key is exposed
+  PASS  a customer has no way to change a menu
+  PASS  opening a menu asks no routing provider
+32 passed, 0 failed
+
+================================================================
+LIVE VIEW — release web build, semantics tree, 30 states
+================================================================
+Driving the live app at http://localhost:5173/ as +919999907101
+  ok    menu: "Highway Spice Kitchen"
+  ok    menu: "Starters"
+  ok    menu: "Paneer Tikka"
+  captured state-01-menu
+  ok    price: "249 rupees"
+  ok    price: no "24900"
+  captured state-02-prices
+  ok    metadata: "Paneer Tikka. Veg"
+  ok    metadata: "Chicken Seekh Kebab. Non-veg"
+  BAD   metadata: saw "Dal Makhani. Veg"
+  captured state-03-declared-metadata
+  ok    sold-out: "Tandoori Mushroom"
+  ok    sold-out: "Sold out"
+  captured state-04-sold-out
+  ok    bare-item: "Papad"
+  captured state-05-nothing-optional
+  ok    withdrawn: no "Discontinued Kebab"
+  ok    withdrawn: no "Desserts"
+  ok    withdrawn: no "Gulab Jamun"
+  captured state-06-withdrawn-absent
+  ok    sections: "Main Course"
+  ok    sections: "Beverages"
+  captured state-07-section-selector
+  ok    jump: "Masala Chai"
+  captured state-08-jumped-to-section
+  ok    free: "Table Water"
+  ok    free: "Table Water. Vegan. 0 rupees"
+  captured state-09-free-item
+  ok    grouping: "12,999 rupees"
+  captured state-10-large-price
+  captured state-11-scroll-syncs-selector
+  ok    long-name: "Paneer Tikka Masala with Roasted Capsicum"
+  captured state-12-long-item-name
+  ok    preview: "Cottage cheese marinated"
+  ok    preview: "Takes about 15 minutes to cook"
+  ok    preview: "not a pickup time"
+  ok    preview: "Ordering opens soon"
+  captured state-13-item-preview
+  ok    read-only: no "Add to cart"
+  ok    read-only: no "Add to bag"
+  ok    read-only: no "Quantity"
+  ok    read-only: no "Customise"
+  captured state-14-no-ordering
+  ok    search: "Paneer Tikka"
+  ok    search: no "Chicken Seekh Kebab"
+  captured state-15-search
+  ok    search-empty: "Nothing matched"
+  ok    search-empty: "Clear search"
+  ok    search-empty: no "No menu yet"
+  captured state-16-search-empty
+  ok    cleared: "Paneer Tikka"
+  ok    cleared: "Chicken Seekh Kebab"
+  captured state-17-search-cleared
+  ok    back: "On your route"
+  captured state-18-back-to-restaurant
+  ok    empty-menu: "No menu yet"
+  ok    empty-menu: no "Try again"
+  captured state-19-no-menu
+  ok    paused: "Not taking orders right now"
+  captured state-20-paused-browse-only
+  ok    closed: "Closed now"
+  captured state-21-closed-browse-only
+  ok    load-failed: "We couldn't load this menu"
+  captured state-22-load-failed
+  ok    withdrawn: "This restaurant is no longer available"
+  captured state-23-withdrawn
+  ok    offline-before: "Paneer Tikka"
+  ok    offline: "Offline"
+  ok    offline-kept: "Paneer Tikka"
+  captured state-24-offline-cached
+  captured state-25-loading
+  ok    menu-320: "Paneer Tikka"
+  captured state-26-320-menu
+  ok    menu-360: "Paneer Tikka"
+  captured state-27-360-menu
+  ok    menu-430: "Paneer Tikka"
+  captured state-28-430-menu
+  ok    dark: "Paneer Tikka"
+  captured state-29-dark-menu
+  ok    large-text: "Paneer Tikka"
+  captured state-30-large-text
+
+1 problem(s):
+  - [metadata] did NOT expect to see "Dal Makhani. Veg"
+
+--- state 03 re-run with the corrected probe ---
+  (the full run's assertion named Dal Makhani as the undeclared dish;
+   the seeder declares that one vegetarian. Papad is the bare fixture.)
+  ok    metadata: "Paneer Tikka. Veg"
+  ok    metadata: "Chicken Seekh Kebab. Non-veg"
+  ok    metadata: "Papad. 49 rupees"
+  ok    metadata: no "Papad. Veg"
+  No problems found.
+
+================================================================
+REGRESSION — Modules 01-09
+================================================================
+integration_smoke            13 passed, 0 failed
+profile_addresses_smoke      24 passed, 0 failed
+trip_planner_smoke           31 passed, 0 failed
+route_smoke                  21 passed, 0 failed
+discovery_smoke              22 passed, 0 failed
+discovery_filters_smoke      28 passed, 0 failed
+restaurant_detail_smoke      25 passed, 0 failed

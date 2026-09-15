@@ -1,0 +1,274 @@
+@import "./base.css";
+
+/*
+ * FoodOnTheGo design tokens — the single source of visual truth for both web
+ * shells. The Flutter theme (mobile/lib/core/theme) mirrors these values, and
+ * docs/08-design-system.md is the contract between them.
+ *
+ * Rules:
+ *   - Components reference tokens. A hex code inside a component is a bug.
+ *   - Semantic names, not literal ones: --color-danger, never --color-red.
+ *   - The light palette is defined on bare :root; dark REDEFINES only the tokens,
+ *     so a value can never exist in one theme and be missing in the other.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* ---- brand ------------------------------------------------------------
+     Amber/saffron reads as food and as "on the road" signage, and is distinct
+     from the red every delivery competitor uses. Warm enough to be appetising,
+     dark enough at 600 to carry white text at AA on the primary button. */
+  --color-primary-50:  #fff8ed;
+  --color-primary-100: #ffefd4;
+  --color-primary-200: #ffdaa8;
+  --color-primary-300: #ffbf71;
+  --color-primary-400: #ff9a38;
+  --color-primary-500: #fe7d12;
+  --color-primary-600: #ef6008;
+  --color-primary-700: #c64709;
+  --color-primary-800: #9d3810;
+  --color-primary-900: #7e3010;
+
+  /* Deep teal — the journey/route half of the product. Used for maps, routes
+     and ETA, so "the road" and "the food" are never the same colour. */
+  --color-secondary-50:  #f0fdfa;
+  --color-secondary-100: #ccfbf1;
+  --color-secondary-300: #5eead4;
+  --color-secondary-500: #14b8a6;
+  --color-secondary-600: #0d9488;
+  --color-secondary-700: #0f766e;
+  --color-secondary-900: #134e4a;
+
+  --color-accent-500: #7c3aed;
+
+  /* ---- neutrals ---------------------------------------------------------- */
+  --color-neutral-0:   #ffffff;
+  --color-neutral-50:  #fafaf9;
+  --color-neutral-100: #f5f5f4;
+  --color-neutral-200: #e7e5e4;
+  --color-neutral-300: #d6d3d1;
+  --color-neutral-400: #a8a29e;
+  --color-neutral-500: #78716c;
+  --color-neutral-600: #57534e;
+  --color-neutral-700: #44403c;
+  --color-neutral-800: #292524;
+  --color-neutral-900: #1c1917;
+  --color-neutral-950: #0c0a09;
+
+  /* ---- semantic status --------------------------------------------------- */
+  --color-success: #15803d;
+  --color-success-surface: #f0fdf4;
+  --color-warning: #b45309;
+  --color-warning-surface: #fffbeb;
+  --color-error: #b91c1c;
+  --color-error-surface: #fef2f2;
+  --color-info: #1d4ed8;
+  --color-info-surface: #eff6ff;
+
+  /* ---- semantic surfaces / text ------------------------------------------ */
+  --color-background: var(--color-neutral-50);
+  --color-surface: var(--color-neutral-0);
+  --color-surface-raised: var(--color-neutral-0);
+  --color-surface-sunken: var(--color-neutral-100);
+  --color-surface-inverse: var(--color-neutral-900);
+  --color-border: var(--color-neutral-200);
+  --color-border-strong: var(--color-neutral-300);
+  --color-text-primary: var(--color-neutral-900);
+  --color-text-secondary: var(--color-neutral-600);
+  --color-text-disabled: var(--color-neutral-400);
+  --color-text-inverse: var(--color-neutral-0);
+  --color-text-on-primary: #ffffff;
+  /*
+   * The shade to use whenever white text sits on the brand colour. primary-600
+   * (#ef6008) against white is 3.31:1 — below the WCAG AA 4.5:1 floor for normal
+   * text; primary-700 (#c64709) is 4.88:1. primary-600 stays correct for rails,
+   * dots and other decoration that carries no text on top of it.
+   */
+  --color-primary-interactive: var(--color-primary-700);
+  --color-primary-interactive-hover: var(--color-primary-800);
+
+  --color-focus-ring: var(--color-primary-600);
+
+  /* ---- typography --------------------------------------------------------
+     16px body minimum. This is read in a moving vehicle and at arm's length on
+     a phone mount; the usual 13px SaaS body text is not legible there. */
+  --font-family-base: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+
+  --font-size-display: 2.5rem;   /* 40 */
+  --font-size-h1:      2rem;     /* 32 */
+  --font-size-h2:      1.5rem;   /* 24 */
+  --font-size-h3:      1.25rem;  /* 20 */
+  --font-size-h4:      1.125rem; /* 18 */
+  --font-size-body-lg: 1.125rem; /* 18 */
+  --font-size-body:    1rem;     /* 16 */
+  --font-size-body-sm: 0.9375rem;/* 15 — the floor for prose */
+  --font-size-label:   0.875rem; /* 14 */
+  --font-size-caption: 0.8125rem;/* 13 — metadata only, never prose */
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.2;
+  --line-height-snug: 1.35;
+  --line-height-normal: 1.55;
+
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.04em;
+
+  /* ---- spacing (4px base) ------------------------------------------------ */
+  --space-1: 0.25rem;  /* 4  */
+  --space-2: 0.5rem;   /* 8  */
+  --space-3: 0.75rem;  /* 12 */
+  --space-4: 1rem;     /* 16 */
+  --space-5: 1.25rem;  /* 20 */
+  --space-6: 1.5rem;   /* 24 */
+  --space-8: 2rem;     /* 32 */
+  --space-10: 2.5rem;  /* 40 */
+  --space-12: 3rem;    /* 48 */
+  --space-16: 4rem;    /* 64 */
+
+  /* ---- radius ------------------------------------------------------------ */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* ---- elevation ---------------------------------------------------------
+     Four steps only. More than that and nothing reads as "raised" any more. */
+  --shadow-xs: 0 1px 2px rgb(28 25 23 / 6%);
+  --shadow-sm: 0 1px 3px rgb(28 25 23 / 8%), 0 1px 2px rgb(28 25 23 / 4%);
+  --shadow-md: 0 4px 12px rgb(28 25 23 / 8%), 0 2px 4px rgb(28 25 23 / 4%);
+  --shadow-lg: 0 12px 32px rgb(28 25 23 / 12%), 0 4px 8px rgb(28 25 23 / 6%);
+
+  /* ---- motion ------------------------------------------------------------ */
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-normal: 220ms;
+  --duration-slow: 320ms;
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --easing-decelerate: cubic-bezier(0, 0, 0, 1);
+  --easing-emphasized: cubic-bezier(0.2, 0, 0, 1.2);
+
+  /* ---- control sizing ----------------------------------------------------
+     44px is the WCAG 2.2 / Apple HIG minimum touch target, so it is the FLOOR
+     for anything tappable, not just a comfortable default. */
+  --control-height-sm: 36px;
+  --control-height-md: 44px;
+  --control-height-lg: 52px;
+  --touch-target-min: 44px;
+
+  /* ---- layout ------------------------------------------------------------ */
+  --sidebar-width: 264px;
+  --sidebar-width-collapsed: 72px;
+  --topbar-height: 64px;
+  --content-max-width: 1440px;
+
+  /* ---- z-index -----------------------------------------------------------
+     Declared as a scale so no component invents z-index: 99999. */
+  --z-base: 0;
+  --z-sticky: 100;
+  --z-sidebar: 200;
+  --z-topbar: 300;
+  --z-overlay: 400;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-toast: 700;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-background: var(--color-neutral-950);
+    --color-surface: var(--color-neutral-900);
+    --color-surface-raised: var(--color-neutral-800);
+    --color-surface-sunken: #16120f;
+    --color-surface-inverse: var(--color-neutral-50);
+    --color-border: #2b2522;
+    --color-border-strong: #3d3532;
+    --color-text-primary: var(--color-neutral-50);
+    --color-text-secondary: var(--color-neutral-400);
+    --color-text-disabled: var(--color-neutral-600);
+    --color-text-inverse: var(--color-neutral-900);
+
+    /* Saturated mid-tones dim against a dark ground; the ramp lightens so the
+       contrast ratio is preserved rather than the hex value. */
+    --color-success: #4ade80;
+    --color-success-surface: #0f2417;
+    --color-warning: #fbbf24;
+    --color-warning-surface: #241a06;
+    --color-error: #f87171;
+    --color-error-surface: #2a1414;
+    --color-info: #60a5fa;
+    --color-info-surface: #0f1e38;
+
+    --color-focus-ring: var(--color-primary-400);
+    /* On a dark ground the light end of the ramp is the accessible one. */
+    --color-primary-interactive: var(--color-primary-500);
+    --color-primary-interactive-hover: var(--color-primary-400);
+    --color-text-on-primary: #1c1917;
+
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-sm: 0 1px 3px rgb(0 0 0 / 45%), 0 1px 2px rgb(0 0 0 / 30%);
+    --shadow-md: 0 4px 12px rgb(0 0 0 / 45%), 0 2px 4px rgb(0 0 0 / 30%);
+    --shadow-lg: 0 12px 32px rgb(0 0 0 / 55%), 0 4px 8px rgb(0 0 0 / 35%);
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-background: var(--color-neutral-950);
+  --color-surface: var(--color-neutral-900);
+  --color-surface-raised: var(--color-neutral-800);
+  --color-surface-sunken: #16120f;
+  --color-surface-inverse: var(--color-neutral-50);
+  --color-border: #2b2522;
+  --color-border-strong: #3d3532;
+  --color-text-primary: var(--color-neutral-50);
+  --color-text-secondary: var(--color-neutral-400);
+  --color-text-disabled: var(--color-neutral-600);
+  --color-text-inverse: var(--color-neutral-900);
+  --color-success: #4ade80;
+  --color-success-surface: #0f2417;
+  --color-warning: #fbbf24;
+  --color-warning-surface: #241a06;
+  --color-error: #f87171;
+  --color-error-surface: #2a1414;
+  --color-info: #60a5fa;
+  --color-info-surface: #0f1e38;
+  --color-focus-ring: var(--color-primary-400);
+  --color-primary-interactive: var(--color-primary-500);
+  --color-primary-interactive-hover: var(--color-primary-400);
+  --color-text-on-primary: #1c1917;
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 45%), 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 45%), 0 2px 4px rgb(0 0 0 / 30%);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 55%), 0 4px 8px rgb(0 0 0 / 35%);
+}
+
+/*
+ * Respecting prefers-reduced-motion is an accessibility requirement, not a nicety:
+ * vestibular disorders make large transitions genuinely unpleasant. Durations are
+ * zeroed at the token level so every animation in both apps is covered at once.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 0ms;
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

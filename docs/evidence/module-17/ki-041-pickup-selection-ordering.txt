@@ -1,0 +1,62 @@
+KI-041 — a pickup selection vanished while the cart still held it
+==================================================================
+
+THE ANDROID DUMP that identified it (run 34735783465, job 103668280372,
+commit f348e44, iOS passed 41/41 on the same commit):
+
+  ##[group]❌ module_13_pickup_test.dart: the readiness verdict comes from the server (failed)
+  Timed out waiting for the Check my order button to become enabled — if this times
+  out with a pickup time on screen, the selection reached the cart but not the controller.
+  On screen instead: Choose a time | 10:50 am – 11:00 am | 11:00 am – 11:10 am |
+  11:10 am – 11:20 am | 11:20 am – 11:30 am | 11:30 am – 11:40 am | 11:40 am – 11:50 am |
+  11:50 am – 12:00 pm | 12:00 pm – 12:10 pm | How we worked this out |
+  You're about 66 minutes away | You arrive around 10:40 am | The kitchen needs about
+  20 minutes | Plus 5 minutes to bag it up | Ready from 9:58 am | These are estimates.
+  Traffic and kitchens both vary. | Times shown in Asia/Kolkata | Check my order |
+  When will you collect? | Home | Trips | Orders | Alerts | Profile
+
+  ##[notice title=Android device tests] 40 tests passed, 1 failed (flutter test exited 1)
+  ##[notice title=iOS device tests] 41 tests passed (flutter test exited 0)
+
+READ FOR WHAT IS MISSING: no "Your pickup time" card, and none of the four
+notices the screen draws for a stale selection, an invalid one, a stale route or
+a failed edit. The client's selection.status was `none` — nothing chosen.
+
+The server cannot report that for a cart that has chosen:
+PickupSelectionEvaluator::statusFor returns NONE only when the stored status is
+not SELECTED, and pickup_selection_status is written in exactly one place in the
+backend, only ever to SELECTED. A moved fingerprint reads STALE, with a notice.
+
+REPRODUCTION, BEFORE THE FIX (flutter test test/pickup_controller_ordering_test.dart):
+
+  00:00 +0 -1: a load that answers after a choice does not undo the choice [E]
+    Expected: PickupSelectionStatus:<PickupSelectionStatus.selected>
+      Actual: PickupSelectionStatus:<PickupSelectionStatus.none>
+    an answer issued before the choice was allowed to overwrite it — the
+    selection card vanishes and the chooser goes blank
+
+AFTER THE FIX:
+
+  00:00 +0: loading /home/user/foodonthego/mobile/test/pickup_controller_ordering_test.dart
+  00:00 +0: a load that answers after a choice does not undo the choice
+  00:00 +1: a load that answers after a newer load is the one discarded
+  00:00 +2: an answer with nothing newer behind it is still applied
+  00:00 +3: All tests passed!
+
+THE CONTROLS, on a deliberately mutated fix (ticket != _generation -> ticket > 1,
+i.e. a controller that ignores every answer after the first):
+
+  00:00 +0: loading /home/user/foodonthego/mobile/test/pickup_controller_ordering_test.dart
+  00:00 +0: a load that answers after a choice does not undo the choice
+  00:00 +0 -1: a load that answers after a choice does not undo the choice [E]
+  00:00 +0 -1: a load that answers after a newer load is the one discarded
+  00:00 +0 -2: a load that answers after a newer load is the one discarded [E]
+  00:00 +0 -2: an answer with nothing newer behind it is still applied
+  00:00 +0 -3: an answer with nothing newer behind it is still applied [E]
+  00:00 +0 -3: Some tests failed.
+
+All three fail, the control included — a fix that froze the state instead of
+ordering it would not pass this file.
+
+FULL MOBILE SUITE after the fix:
+  01:31 +1019: All tests passed!

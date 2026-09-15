@@ -1,0 +1,56 @@
+MODULE 13 — LIVE VERIFICATION RUN
+Recorded 2026-09-07 23:25:09Z against a real Laravel server, real MySQL and
+real Redis. Every line below is output from the run, not a transcription.
+
+Backend: php artisan serve on 127.0.0.1:8000, migrate:fresh +
+DiscoveryTestRestaurantSeeder + MenuTestDataSeeder. Requests made over HTTP with a
+bearer token from tool/issue_token.dart.
+
+--- the flow ---
+trip            aa021c98-9456-4a0f-948c-2b0369bd41dc
+route           {"data": {"trip": {"id": "aa021c98-9456-4a0f-948c-2b0369bd41dc", "status": "ROUTE_PENDING", "route_status": "READY", "origin": {"source_type": "PLACE_SEARCH", "display_name": "", "formatted_address": 
+restaurant      [TEST] Highway Spice Kitchen f385bc33-0dac-491d-8362-b87bf3dbc574
+released cart on 6e3ca632-7534-467c-b917-fa177fa46c19
+add to cart     ok
+feasible        True | reason: None
+travel          66 min, arrive 2026-09-08T00:31:19+00:00
+preparation     20 min; buffer 5 ; lead 10
+earliest ready  2026-09-07T23:50:09+00:00
+timezone        Asia/Kolkata
+options         8
+    2026-09-08T06:10:00+05:30 -> 2026-09-08T06:20:00+05:30 recommended
+    2026-09-08T06:20:00+05:30 -> 2026-09-08T06:30:00+05:30 
+    2026-09-08T06:30:00+05:30 -> 2026-09-08T06:40:00+05:30 
+selection       NONE
+option id len   64 | hex: True
+after select    SELECTED 2026-09-08T00:40:00+00:00 -> 2026-09-08T00:50:00+00:00 Asia/Kolkata
+ready           True | status SELECTED
+issues          []
+replay same id  PICKUP_OPTION_EXPIRED
+forged id       PICKUP_OPTION_EXPIRED
+tampered body   PICKUP_OPTION_EXPIRED
+
+READ THE ARITHMETIC: arrival 00:31Z is 06:01 in Asia/Kolkata; the kitchen is ready at
+23:49Z, which is 05:19 local. max(arrival, ready) is 06:01, rounded FORWARD onto the
+ten-minute grid gives 06:10 — which is the window the server recommended. The stored
+selection reads 00:40Z, and 00:40Z is 06:10 in Asia/Kolkata: the instant is UTC and
+the clock face is the counter's.
+
+The used option id, a forged one, and a request carrying its own pickup time are all
+refused with the SAME code. Telling them apart would answer 'does this id exist' for
+anybody who asked.
+
+--- staleness, and preparation as a maximum ---
+before change  ready=True status=SELECTED issues=[]
+second dish     ok
+after change   ready=False status=STALE issues=['PICKUP_TIME_STALE']
+preparation     20 min for two dishes
+
+TWO dishes, and preparation is 20 minutes rather than 40. A kitchen cooks several
+dishes at once; summing them would push every recommendation later than it needs to be.
+
+--- tables that must not exist in Module 13 ---
+orders: absent
+order_items: absent
+payments: absent
+pickup_codes: absent

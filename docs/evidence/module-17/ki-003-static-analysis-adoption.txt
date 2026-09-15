@@ -1,0 +1,110 @@
+KI-003 — adopting static analysis, and what it found
+====================================================
+
+TOOLING
+  PHPStan 2.2.13 + Larastan 3.12.0, configured in backend/phpstan.neon.
+  Gate: level 3, clean. Run with `composer analyse` or in CI.
+
+WHY IT COULD NOT BE INSTALLED BEFORE, AND WHY THAT REASON WAS WRONG
+
+  KI-003 recorded, from Module 01: "Composer resolves dist archives to GitHub
+  zipball URLs, and the environment's egress policy rejects them." The proxy
+  was blamed.
+
+  Re-checked before working around it. The proxy's own status endpoint
+  reported no relay failures at all, and the 403 body says something else
+  entirely:
+
+    {"message":"GitHub access to this repository is not enabled for this
+     session. Use add_repo to request access. ..."}
+
+  That is this development session's repository scoping -- access is limited
+  to the project's own repository -- not an organisation egress policy, and
+  not something CI has ever been subject to. Two of the three packages
+  installed from git source on the first try; only phpstan/phpstan is
+  published dist-only, with no source entry in the lock, so it alone could
+  not be fetched that way.
+
+  The lesson is the cheap one: the entry blamed the component that reports
+  failures rather than the one that caused them, and nobody re-read it for
+  sixteen modules.
+
+THE FIRST RUN: 434 ERRORS, AND WHY 210 OF THEM WERE NOT REAL
+
+  Larastan could not see the models' types, so every Eloquent attribute was
+  effectively unknown and every comparison against the enum a column is cast
+  to reported as "always false" -- 56 undefined properties, 72 assignment
+  types, ~45 impossible comparisons, all against correct code.
+
+  Two settings fix it and BOTH are required:
+
+    databaseMigrationsPath   which columns exist        (from the migrations)
+    parseModelCastsMethod    what they are cast to      (from casts())
+
+  Adding the first alone moved the count from 434 to exactly 434. A control
+  that stays silent has told you something; what it said was that the schema
+  was only half the missing information. This project declares casts in
+  Laravel 11's casts() METHOD, which Larastan does not read unless asked.
+
+    434  first run
+    224  after both settings          (-210 artefacts)
+    183  after annotating Trip        (-41)
+    167  after 2 test-helper fixes    (-16)
+    133  at level 6 today
+
+  Trip needed @property annotations because its migration declares the
+  endpoint columns in a `foreach (['origin','destination'] as $end)` loop as
+  "{$end}_latitude". That is the right way to write the migration; it is also
+  unreadable to anything that parses the file without executing it.
+
+THE LADDER, MEASURED RATHER THAN INTENDED
+
+    level 3     0 errors    <- the CI gate
+    level 4    45
+    level 5    50
+    level 6   133
+
+  KI-003 named level 6. Level 3 is what the code passes today, and a gate is
+  only a gate if it is green. Levels 4-6 are almost entirely missing generics
+  and array value types: real work, and not work worth rushing to reach a
+  number.
+
+FOUR REAL DEFECTS, NONE OF WHICH 1,301 TESTS COULD SEE
+
+  1. THE API REQUEST LOG HAD NO ACTOR. AT ALL.
+     LogApiRequests read `is_string($user->role ?? null) ? $user->role : null`
+     -- true when users.role was a string column, permanently false since it
+     became a backed enum. Fixing that exposed the larger fault: the whole
+     block sat ABOVE $next(), while these middleware are prepended to the api
+     GROUP and auth:sanctum is applied per route. At that point nothing had
+     authenticated anybody and $request->user() fell through to the default
+     `web` session guard, which a stateless API request never satisfies.
+     setActor() was never called even once. Every api.request line ever
+     written carried no actor id and no actor role.
+     Fixed by reading the actor after $next() and before the line is written.
+     tests/Feature/Logging/ActorContextTest.php now asserts both, with an
+     anonymous-request control; the first assertion failed before the fix.
+
+  2. AN UNREACHABLE GUARD IN THE POLYLINE DECODER.
+     `if ($points === [])` after the decode loop could never fire: an empty
+     string is refused at the top of the method, so the loop always runs at
+     least once. Its error message was unproducible. No test could find it,
+     because no input reaches an unreachable branch.
+
+  3. OUTBOX TIMESTAMPS CAST MUTABLE, WRITTEN IMMUTABLE.
+     available_at and published_at were cast 'datetime' (mutable Carbon) while
+     every writer assigned a CarbonImmutable. Harmless until something mutates
+     one in place. Now immutable_datetime.
+
+  4. A DOCBLOCK THAT LIED ABOUT ITS OWN KEYS.
+     PhoneNormalizer::COUNTRIES was tagged array<string, ...>. PHP converts
+     numeric string keys to int, so '91' has always been 91 -- the code knew
+     (it casts at array_keys()) and the tag did not.
+
+  Plus 14 sites assigning a mutable Carbon to an immutable-cast column, and
+  10 Eloquent relations with no generic annotation.
+
+VERIFICATION
+  PHPStan level 3: no errors.
+  Pint: passed.
+  Backend suite: 1,303 passed, 5,758 assertions.

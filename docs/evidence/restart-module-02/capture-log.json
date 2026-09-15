@@ -1,0 +1,289 @@
+[
+  {
+    "name": "restart-m02-web-logged-out",
+    "path": "/",
+    "width": 390,
+    "status": "http 200",
+    "landedOn": "/login",
+    "note": "anonymous visitor asking for Home",
+    "consoleErrors": [],
+    "apiCallCount": 0,
+    "apiCalls": [],
+    "externalRequests": [],
+    "visibleText": "Sign in to FoodOnTheGo Order ahead and collect it on your way. Signing in on the web is not available yet Phone sign-in arrives with the next release of the web app. In the meantime the FoodOnTheGo mobile app can sign you in."
+  },
+  {
+    "name": "restart-m02-web-protected-route-logged-out",
+    "path": "/orders",
+    "width": 390,
+    "status": "http 200",
+    "landedOn": "/login",
+    "note": "anonymous visitor deep-linking a protected route",
+    "consoleErrors": [],
+    "apiCallCount": 0,
+    "apiCalls": [],
+    "externalRequests": [],
+    "visibleText": "Sign in to FoodOnTheGo Order ahead and collect it on your way. Signing in on the web is not available yet Phone sign-in arrives with the next release of the web app. In the meantime the FoodOnTheGo mobile app can sign you in."
+  },
+  {
+    "name": "restart-m02-web-home-desktop",
+    "path": "/",
+    "width": 1440,
+    "status": "http 200",
+    "landedOn": "/",
+    "note": "real session, real API",
+    "consoleErrors": [],
+    "apiCallCount": 1,
+    "apiCalls": [
+      "/api/v1/customer/home"
+    ],
+    "externalRequests": [],
+    "visibleText": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Good afternoon, Rahul Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find food worth stopping for along it. Plan a journey No active jou"
+  },
+  {
+    "name": "restart-m02-web-home-mobile",
+    "path": "/",
+    "width": 390,
+    "status": "http 200",
+    "landedOn": "/",
+    "note": "real session, real API",
+    "consoleErrors": [],
+    "apiCallCount": 1,
+    "apiCalls": [
+      "/api/v1/customer/home"
+    ],
+    "externalRequests": [],
+    "visibleText": "Skip to content Good afternoon, Rahul Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find food worth stopping for along it. Plan a journey No active journey Plan a journey to discover food along your route."
+  },
+  {
+    "name": "restart-m02-empty-home",
+    "path": "/",
+    "width": 1024,
+    "status": "http 200",
+    "landedOn": "/",
+    "note": "no journey, no order",
+    "consoleErrors": [],
+    "apiCallCount": 1,
+    "apiCalls": [
+      "/api/v1/customer/home"
+    ],
+    "externalRequests": [],
+    "visibleText": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Good afternoon, Rahul Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find food worth stopping for along it. Plan a journey No active jou"
+  },
+  {
+    "name": "restart-m02-web-trips",
+    "path": "/trips",
+    "width": 1280,
+    "status": "http 200",
+    "landedOn": "/trips",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 0,
+    "apiCalls": [],
+    "externalRequests": [],
+    "visibleText": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Trips Journeys you have planned will appear here."
+  },
+  {
+    "name": "restart-m02-web-orders",
+    "path": "/orders",
+    "width": 1280,
+    "status": "http 200",
+    "landedOn": "/orders",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 0,
+    "apiCalls": [],
+    "externalRequests": [],
+    "visibleText": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Orders Orders you have placed will appear here."
+  },
+  {
+    "name": "restart-m02-web-notifications",
+    "path": "/notifications",
+    "width": 1280,
+    "status": "http 200",
+    "landedOn": "/notifications",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 0,
+    "apiCalls": [],
+    "externalRequests": [],
+    "visibleText": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Notifications No notifications yet. We’ll tell you when an order is accepted or ready."
+  },
+  {
+    "name": "restart-m02-web-profile",
+    "path": "/profile",
+    "width": 1280,
+    "status": "http 200",
+    "landedOn": "/profile",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 0,
+    "apiCalls": [],
+    "externalRequests": [],
+    "visibleText": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Profile Your details and saved addresses will appear here."
+  },
+  {
+    "name": "restart-m02-web-plan-journey",
+    "path": "/trips/plan",
+    "width": 1280,
+    "status": "http 200",
+    "landedOn": "/trips/plan",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 0,
+    "apiCalls": [],
+    "externalRequests": [],
+    "visibleText": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Plan a journey Choose where you are starting from and where you are going."
+  },
+  {
+    "name": "restart-m02-web-360",
+    "path": "/",
+    "width": 360,
+    "status": "http 200",
+    "landedOn": "/",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 1,
+    "apiCalls": [
+      "/api/v1/customer/home"
+    ],
+    "externalRequests": [],
+    "visibleText": "Skip to content Good afternoon, Rahul Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find food worth stopping for along it. Plan a journey No active journey Plan a journey to discover food along your route."
+  },
+  {
+    "name": "restart-m02-web-390",
+    "path": "/",
+    "width": 390,
+    "status": "http 200",
+    "landedOn": "/",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 1,
+    "apiCalls": [
+      "/api/v1/customer/home"
+    ],
+    "externalRequests": [],
+    "visibleText": "Skip to content Good afternoon, Rahul Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find food worth stopping for along it. Plan a journey No active journey Plan a journey to discover food along your route."
+  },
+  {
+    "name": "restart-m02-web-430",
+    "path": "/",
+    "width": 430,
+    "status": "http 200",
+    "landedOn": "/",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 1,
+    "apiCalls": [
+      "/api/v1/customer/home"
+    ],
+    "externalRequests": [],
+    "visibleText": "Skip to content Good afternoon, Rahul Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find food worth stopping for along it. Plan a journey No active journey Plan a journey to discover food along your route."
+  },
+  {
+    "name": "restart-m02-web-768",
+    "path": "/",
+    "width": 768,
+    "status": "http 200",
+    "landedOn": "/",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 1,
+    "apiCalls": [
+      "/api/v1/customer/home"
+    ],
+    "externalRequests": [],
+    "visibleText": "Skip to content Good afternoon, Rahul Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find food worth stopping for along it. Plan a journey No active journey Plan a journey to discover food along your route."
+  },
+  {
+    "name": "restart-m02-web-1024",
+    "path": "/",
+    "width": 1024,
+    "status": "http 200",
+    "landedOn": "/",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 1,
+    "apiCalls": [
+      "/api/v1/customer/home"
+    ],
+    "externalRequests": [],
+    "visibleText": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Good afternoon, Rahul Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find food worth stopping for along it. Plan a journey No active jou"
+  },
+  {
+    "name": "restart-m02-web-1280",
+    "path": "/",
+    "width": 1280,
+    "status": "http 200",
+    "landedOn": "/",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 1,
+    "apiCalls": [
+      "/api/v1/customer/home"
+    ],
+    "externalRequests": [],
+    "visibleText": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Good afternoon, Rahul Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find food worth stopping for along it. Plan a journey No active jou"
+  },
+  {
+    "name": "restart-m02-web-1440",
+    "path": "/",
+    "width": 1440,
+    "status": "http 200",
+    "landedOn": "/",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 1,
+    "apiCalls": [
+      "/api/v1/customer/home"
+    ],
+    "externalRequests": [],
+    "visibleText": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Good afternoon, Rahul Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find food worth stopping for along it. Plan a journey No active jou"
+  },
+  {
+    "name": "restart-m02-web-1920",
+    "path": "/",
+    "width": 1920,
+    "status": "http 200",
+    "landedOn": "/",
+    "note": "",
+    "consoleErrors": [],
+    "apiCallCount": 1,
+    "apiCalls": [
+      "/api/v1/customer/home"
+    ],
+    "externalRequests": [],
+    "visibleText": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Good afternoon, Rahul Order ahead and collect it on your way. Where are you travelling today? Tell us your route and we’ll find food worth stopping for along it. Plan a journey No active jou"
+  },
+  {
+    "name": "restart-m02-web-home-error",
+    "path": "/",
+    "width": 1024,
+    "status": "http 200",
+    "landedOn": "/",
+    "note": "home request rejected; CTA must survive",
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "apiCallCount": 1,
+    "apiCalls": [
+      "/api/v1/customer/home"
+    ],
+    "externalRequests": [],
+    "visibleText": "Skip to content F FoodOnTheGo Home Trips Orders Notifications Profile Welcome to FoodOnTheGo We couldn’t load your home screen Check your connection and try again. Reference: a2228a46-eaa7-4008-ad52-564549a6eb7f Try again Where are you travelling today? Plan a"
+  },
+  {
+    "name": "restart-m02-web-keyboard-focus",
+    "tabOrder": [
+      "a:Skip to content",
+      "a:Home",
+      "a:Trips",
+      "a:Orders",
+      "a:Notifications",
+      "a:Profile",
+      "a:Plan a journey",
+      "body:Skip to contentFFoodOnTh",
+      "a:Skip to content"
+    ]
+  }
+]

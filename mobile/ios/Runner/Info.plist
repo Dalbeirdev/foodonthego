@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  The Google Maps SDK key, read by AppDelegate before any map view exists.
+
+	  Empty in this repository because no key exists (MF-08). Supplied at build
+	  time through the GMS_API_KEY build setting and never committed: pass the key
+	  to `flutter build ipa` as the FOTG_MAPS_API_KEY Dart define and as an extra
+	  Xcode argument setting GMS_API_KEY. The exact flags are in
+	  docs/RESTART-MODULE-06-ROUTING-MAPS.md, spelled out where an XML comment
+	  cannot swallow them: a double hyphen is illegal inside one, so a flag
+	  written with its leading dashes here makes this file unparseable.
+
+	  AppDelegate leaves the SDK unprovided when this is empty, because providing
+	  an empty key is what makes it throw.
+	-->
+	<key>GMSApiKey</key>
+	<string>$(GMS_API_KEY)</string>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Foodonthego</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>foodonthego</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<!--
+	  iOS does not treat a missing usage description as a permission denial: the
+	  system terminates the app the moment it asks. The journey planner asks on
+	  the first screen that needs a starting point, so without this key the app
+	  does not misbehave, it disappears.
+
+	  The text is what the customer reads in the system prompt, so it says what
+	  the location is for rather than that the app would like it.
+	-->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>FoodOnTheGo uses your location to set the start of your journey and to find restaurants along the route you are driving.</string>
+	<!--
+	  Cleartext HTTP, for one named host and nothing else.
+
+	  App Transport Security blocks plain HTTP by default, which is correct. The
+	  review deployment is served on http://techpio.tech:8080 because port 443 of
+	  that host belongs to a different product, so a reviewer's build has to be
+	  allowed to reach it. NSAllowsArbitraryLoads is deliberately absent: this
+	  opens one domain, not the internet.
+
+	  This whole block comes out when the review site is reachable over TLS.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>techpio.tech</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>

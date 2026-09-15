@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+vendor/
+.dart_tool/
+.packages
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+/backend/public/build/
+/backend/public/hot
+/mobile/android/app/debug
+/mobile/android/app/profile
+/mobile/android/app/release
+
+# Environment — never commit a real credential
+.env
+.env.*
+!.env.example
+!.env.development
+
+# Laravel runtime
+/backend/storage/*.key
+/backend/storage/logs/*.log
+/backend/storage/framework/cache/data/*
+/backend/storage/framework/sessions/*
+/backend/storage/framework/views/*
+/backend/bootstrap/cache/*.php
+
+# Flutter
+*.iml
+.flutter-plugins
+.flutter-plugins-dependencies
+/mobile/ios/Pods/
+/mobile/ios/.symlinks/
+/mobile/android/.gradle/
+/mobile/android/local.properties
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Coverage
+coverage/
+/mobile/coverage/
+
+# Deployment secrets. The example is committed; the real one never is.
+deploy/.env
+
+# A stray SQLite file this project does not use. Written once by a mistaken
+# `migrate:fresh --database=sqlite` and committed before it was noticed; ignored
+# so the next mistake is caught by git rather than by a reviewer.
+backend/foodonthego_local

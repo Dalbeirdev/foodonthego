@@ -1,0 +1,341 @@
+/*
+ * Trip planner, trips list and one journey.
+ *
+ * The same page-width rule Home uses: a max-width and auto margins, because a
+ * two-field form stretched across 1920px is the desktop bug Restart Module 02
+ * found (MF-02) and it comes straight back the moment a new screen forgets it.
+ */
+
+.planner,
+.trips,
+.trip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 44rem;
+  margin-inline: auto;
+  width: 100%;
+}
+
+.planner__title,
+.trips__title,
+.trip__title {
+  font-size: var(--font-size-h1);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+  margin: 0;
+}
+
+.planner__sub {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+}
+
+.planner__head { margin: 0; }
+
+.planner__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ---- the two location fields ------------------------------------------- */
+
+.planner__field { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.planner__field-label {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.planner__field-row { display: flex; align-items: stretch; gap: var(--space-2); }
+
+.planner__field-button {
+  flex: 1;
+  min-width: 0; /* lets a long address ellipsise instead of widening the row */
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: left;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+  /* 56px: a target somebody can hit at a set of lights without looking. */
+  min-height: 3.5rem;
+}
+
+.planner__field-button:hover { border-color: var(--color-primary-400); }
+
+.planner__field-button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.planner__field-button--empty { color: var(--color-text-secondary); }
+
+.planner__field-icon { display: inline-flex; color: var(--color-primary-interactive); }
+
+.planner__field-text { display: flex; flex-direction: column; min-width: 0; }
+
+.planner__field-primary {
+  font-weight: var(--font-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planner__field-secondary {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planner__field-placeholder { color: var(--color-text-secondary); }
+
+.planner__swap-row { display: flex; justify-content: center; }
+
+.planner__error {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-error-surface);
+  color: var(--color-error);
+  font-size: var(--font-size-body-sm);
+}
+
+.planner__cta { width: 100%; justify-content: center; }
+
+.planner__note,
+.planner__hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  text-align: center;
+}
+
+/* ---- the picker dialog --------------------------------------------------- */
+
+.picker__scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(12 10 9 / 55%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 40;
+}
+
+.picker {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  width: min(34rem, 100%);
+  max-height: min(42rem, 92vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.picker__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.picker__title { margin: 0; font-size: var(--font-size-h3); }
+
+.picker__body {
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.picker__section { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.picker__section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--color-text-secondary);
+}
+
+.picker__current { width: 100%; justify-content: center; }
+
+.picker__input {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  /* 16px minimum: anything smaller makes iOS Safari zoom the page on focus. */
+  font-size: var(--font-size-body);
+  font-family: inherit;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.picker__input:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.picker__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+
+.picker__option {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  font: inherit;
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  min-height: 2.75rem;
+}
+
+.picker__option:hover,
+.picker__option--active { background: var(--color-surface-sunken); border-color: var(--color-border); }
+
+.picker__option:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+
+.picker__option--unusable { cursor: default; opacity: 0.65; }
+.picker__option--unusable:hover { background: none; border-color: transparent; }
+
+.picker__option-text { display: flex; flex-direction: column; min-width: 0; }
+.picker__option-primary { font-weight: var(--font-weight-medium); }
+.picker__option-secondary { font-size: var(--font-size-body-sm); color: var(--color-text-secondary); }
+
+.picker__results { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.picker__hint {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+}
+
+.picker__error {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-error-surface);
+  color: var(--color-error);
+  font-size: var(--font-size-body-sm);
+}
+
+.picker__empty { display: flex; flex-direction: column; gap: var(--space-2); }
+.picker__empty p { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-body-sm); }
+.picker__link { color: var(--color-primary-interactive); font-weight: var(--font-weight-semibold); }
+
+.picker__spin { animation: picker-spin 1s linear infinite; }
+
+@keyframes picker-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Honours the system setting: a spinner that cannot be turned off is a
+   vestibular trigger, and the loading state is already carried in words. */
+@media (prefers-reduced-motion: reduce) {
+  .picker__spin { animation: none; }
+}
+
+/* ---- trips list ---------------------------------------------------------- */
+
+.trips__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+
+.trips__new {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-interactive);
+}
+
+.trips__new--block { margin-top: var(--space-3); }
+
+.trips__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+
+.trip-row { display: flex; flex-direction: column; gap: var(--space-2); }
+.trip-row__ends { display: flex; align-items: flex-start; gap: var(--space-2); }
+.trip-row__text { font-weight: var(--font-weight-medium); }
+.trip-row__to-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.trip-row__meta { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-body-sm); }
+.trip-row__cta { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-primary-interactive); font-weight: var(--font-weight-semibold); }
+
+.trips__empty-title { margin: 0 0 var(--space-2); font-size: var(--font-size-h3); }
+.trips__empty-line { margin: 0; color: var(--color-text-secondary); }
+.trips__error { margin: 0 0 var(--space-3); color: var(--color-error); }
+
+/* ---- one journey --------------------------------------------------------- */
+
+.trip__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+
+.trip__saved {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-success);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.trip__card { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.trip__endpoint { display: flex; align-items: flex-start; gap: var(--space-3); }
+.trip__endpoint-icon { color: var(--color-primary-interactive); display: inline-flex; padding-top: 2px; }
+.trip__endpoint-text { display: flex; flex-direction: column; min-width: 0; }
+.trip__endpoint-label { font-size: var(--font-size-label); color: var(--color-text-secondary); }
+.trip__endpoint-primary { font-weight: var(--font-weight-semibold); }
+.trip__endpoint-secondary { font-size: var(--font-size-body-sm); color: var(--color-text-secondary); }
+
+.trip__rule { height: 1px; background: var(--color-border); margin-inline-start: 2.1rem; }
+
+.trip__pending-title { margin: 0 0 var(--space-2); font-size: var(--font-size-h3); }
+.trip__pending-line { margin: 0 0 var(--space-3); color: var(--color-text-secondary); }
+.trip__pending-meta { margin: 0; font-size: var(--font-size-caption); color: var(--color-text-secondary); }
+.trip__pending-meta code { font-family: var(--font-family-mono); }
+
+.trip__back { color: var(--color-primary-interactive); font-weight: var(--font-weight-semibold); }
+
+/* ---- phones -------------------------------------------------------------- */
+
+@media (max-width: 600px) {
+  .picker__scrim { padding: 0; align-items: flex-end; }
+
+  /* Full height on a phone. A centred card with a scrolling list inside it is
+     two scroll containers on a small screen, and the outer one always wins. */
+  .picker {
+    width: 100%;
+    max-height: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .planner__title,
+  .trips__title,
+  .trip__title { font-size: var(--font-size-h2); }
+}
