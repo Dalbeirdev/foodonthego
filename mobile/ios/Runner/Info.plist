@@ -6,9 +6,13 @@
 	  The Google Maps SDK key, read by AppDelegate before any map view exists.
 
 	  Empty in this repository because no key exists (MF-08). Supplied at build
-	  time through the GMS_API_KEY build setting and never committed:
-	    flutter build ipa --dart-define=FOTG_MAPS_API_KEY=$KEY \
-	      --extra-xcode-args GMS_API_KEY=$KEY
+	  time through the GMS_API_KEY build setting and never committed: pass the key
+	  to `flutter build ipa` as the FOTG_MAPS_API_KEY Dart define and as an extra
+	  Xcode argument setting GMS_API_KEY. The exact flags are in
+	  docs/RESTART-MODULE-06-ROUTING-MAPS.md, spelled out where an XML comment
+	  cannot swallow them: a double hyphen is illegal inside one, so a flag
+	  written with its leading dashes here makes this file unparseable.
+
 	  AppDelegate leaves the SDK unprovided when this is empty, because providing
 	  an empty key is what makes it throw.
 	-->

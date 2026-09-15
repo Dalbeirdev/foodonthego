@@ -58,6 +58,21 @@ from a `GMS_API_KEY` build setting, and
 `mobile/test/maps_key_reaches_the_sdks_test.dart` — seven assertions that read
 the build files themselves so the wiring cannot quietly disappear again.
 
+Two things went wrong inside that fix, and both are worth reading:
+
+1. The explanatory comment I put in the manifest contained a Dart define flag
+   written with its leading dashes. **XML forbids a double hyphen inside a
+   comment**, so the manifest — and `Info.plist`, which had the same text —
+   became unparseable. `flutter test`, `flutter analyze` and `dart format` all
+   passed, because none of them parses XML, and this environment has no Android
+   SDK to build with. CI found it three minutes into `assembleDebug`.
+2. The first attempt to guard against it parsed both files with the `xml`
+   package. **That check could not fail:** reintroducing the exact double hyphen
+   left it green, because that parser is more lenient than Android's manifest
+   merger. Only running the control caught it. The dependency was removed and
+   replaced with a lexical check of the rule that actually broke — which does
+   fail on that input, and says which comment is at fault.
+
 Supplying the key is now one build flag per platform:
 
 ```

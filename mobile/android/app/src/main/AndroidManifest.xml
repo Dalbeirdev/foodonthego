@@ -54,8 +54,13 @@
           Filled from the `mapsApiKey` Gradle property or the FOTG_MAPS_API_KEY
           environment variable at build time, and empty in this repository
           because no key exists (MF-08). The SDK reads it from here and from
-          nowhere else; a --dart-define does not reach it, which is why this
+          nowhere else: a Dart define never reaches it, which is why this
           element has to exist even while the value is empty.
+
+          Mind the comment text. XML forbids a double hyphen inside a comment,
+          and writing a Dart define flag with its leading dashes here made this
+          file unparseable — which no Dart test, analyzer run or formatter
+          noticed, because none of them parse XML. Only `assembleDebug` did.
         -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"

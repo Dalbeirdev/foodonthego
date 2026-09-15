@@ -34,6 +34,64 @@ File _file(String path) {
 }
 
 void main() {
+  /*
+   * This came second, and it is the one that would have caught the mistake the
+   * others did not.
+   *
+   * The original version of this file read both files as strings and searched
+   * them for substrings. That passes on a file Android cannot parse — and it
+   * did: the comment explaining the Android key contained a Dart define flag
+   * written with its leading dashes, and **XML forbids a double hyphen inside a
+   * comment**. `flutter test`, `flutter analyze` and `dart format` all passed,
+   * because none of them parses XML. CI's `assembleDebug` failed with
+   * "Error parsing AndroidManifest.xml" three minutes into an Android build
+   * this environment cannot run.
+   *
+   * The first attempt at a fix was to parse both files with the `xml` package.
+   * That check could not fail: reintroducing the exact double hyphen left it
+   * green, because that parser is more lenient than Android's manifest merger.
+   * A control is the only reason that was noticed instead of shipped, and the
+   * dependency was removed again rather than left in looking useful.
+   *
+   * So this checks the rule that actually broke, lexically and exactly.
+   */
+  group('the XML files Android and iOS parse', () {
+    for (final path in const [
+      'android/app/src/main/AndroidManifest.xml',
+      'ios/Runner/Info.plist',
+    ]) {
+      test('$path has no double hyphen inside a comment', () {
+        final source = _file(path).readAsStringSync();
+        final comments = RegExp(
+          r'<!--(.*?)-->',
+          dotAll: true,
+        ).allMatches(source);
+
+        expect(
+          comments,
+          isNotEmpty,
+          reason:
+              'If this file has no comments the check below proves '
+              'nothing, and something has gone wrong with the extraction.',
+        );
+
+        for (final comment in comments) {
+          final body = comment.group(1)!;
+
+          expect(
+            body.contains('--'),
+            isFalse,
+            reason:
+                'XML forbids "--" inside a comment, and Android\'s manifest '
+                'merger enforces it. Write flag names without their leading '
+                'dashes, or put them in the documentation instead.\n'
+                'Offending comment: ${body.trim()}',
+          );
+        }
+      });
+    }
+  });
+
   group('the Android Maps key', () {
     test('has a manifest element for the SDK to read', () {
       final manifest = _file('android/app/src/main/AndroidManifest.xml')
