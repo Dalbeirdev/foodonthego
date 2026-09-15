@@ -4,7 +4,8 @@ import { HomeScreen } from './home/HomeScreen.js';
 import { SectionComingLater } from './shell/SectionComingLater.js';
 import { TripPlannerScreen } from './trips/TripPlannerScreen.js';
 import { TripsScreen } from './trips/TripsScreen.js';
-import { TripScreen } from './trips/TripScreen.js';
+import { RouteScreen } from './route/RouteScreen.js';
+import { RestaurantsHandoffScreen } from './route/RestaurantsHandoffScreen.js';
 import { AddressesScreen } from './addresses/AddressesScreen.js';
 import { ProfileScreen } from './session/ProfileScreen.js';
 import { RequireSession } from './session/RequireSession.js';
@@ -51,7 +52,15 @@ export const App = () => (
           here is documentation rather than load-bearing — but the next person
           to add /trips/something should not have to know that. */}
       <Route path="/trips/plan" element={<TripPlannerScreen />} />
-      <Route path="/trips/:tripId" element={<TripScreen />} />
+      {/* Restart Module 06 replaced the placeholder journey screen with the
+          real route screen: map, distance, travel time, alternatives and the
+          handoff onward. */}
+      <Route path="/trips/:tripId" element={<RouteScreen />} />
+
+      {/* Where "Find food on this route" lands. Restart Module 07 owns the
+          listing; until then this is an honest screen rather than a dead
+          click, and it carries the trip and route ids that module needs. */}
+      <Route path="/trips/:tripId/restaurants" element={<RestaurantsHandoffScreen />} />
       <Route
         path="/orders"
         element={

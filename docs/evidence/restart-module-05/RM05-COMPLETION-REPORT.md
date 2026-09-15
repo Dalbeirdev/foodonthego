@@ -64,9 +64,21 @@ RUNTIME ENVIRONMENT UNAVAILABLE. Do not mark PASS."
 
 ## F. Android
 
-APK: not built here — no SDK. SHA-256: n/a. Device: **none reachable**.
-Android version: n/a. **All feature results: PENDING — environment.** CI builds
-and runs the release APK on a Pixel 6 emulator on every pull request.
+APK: **not built here** — no Android SDK in this environment. CI built one on the
+pull-request run for `e5aacf3`, artifact
+`android-review-build-e5aacf3a68afabea1a9d1a707dbcfb4cd1f3f2dd`, 82,725,699
+bytes.
+
+**SHA-256 of the APK: not known.** The value GitHub publishes for that artifact —
+`sha256:997282…c74c60` — is the digest of the **zip archive** it wraps the build
+in, not of the `.apk` inside it. Quoting it as the APK's hash would be wrong in a
+way nobody would catch, so it is not quoted as one. Getting the real figure means
+downloading the artifact and hashing the file, and an artifact download needs an
+authenticated GitHub token this session does not have.
+
+Device: **none reachable**. Android version: n/a. **All feature results:
+PENDING — environment.** CI runs the release APK on a Pixel 6 emulator on every
+pull request.
 
 ## G. iOS
 
@@ -317,7 +329,7 @@ Every item, with its honest answer.
 - [ ] **Flutter logs inspected — NO.** Nothing ran to produce any
 - [x] Actual screenshots · [x] Client guide updated · [x] Platform parity updated
 - [x] Missing features updated · [x] Frontend traceability updated · [x] Bug register updated
-- [ ] **Review APK rebuilt / APK SHA-256 — NOT DONE.** No Android toolchain here; CI builds it
+- [~] **Review APK rebuilt — YES, by CI** on the pull-request run. **APK SHA-256 — NOT KNOWN:** the published artifact digest is the zip archive's, not the APK's, and downloading the artifact to hash the file needs a token this session lacks
 - [x] Module 06 input documented
 
 Eleven unchecked items, all of them the same fact stated in different places:

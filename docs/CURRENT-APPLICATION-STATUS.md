@@ -139,3 +139,52 @@ PHPStan is not in preflight (it needs MySQL for database reflection); CI runs it
 | **Apple Developer** | Account, certificate, provisioning profile | An installable iOS build |
 | **TLS on the review host** | A Cloudflare Tunnel or equivalent | HTTPS — and with it browser geolocation, which browsers refuse over http |
 | **A decision on staff sign-in** | Email + password, or phone + OTP | Every operator screen. No staff login exists at all |
+
+---
+
+# Status after Restart Module 06
+
+## What a customer can now do in a browser, end to end
+
+Everything Restart Module 05 delivered, and then: the journey's route is worked
+out, the route's real shape is drawn with both ends marked, the distance and
+travel time are shown with the time they were calculated, the route can be
+worked out again on demand, an alternative can be chosen where the provider
+returns one — and **Find food on this route** carries the journey and the chosen
+route to the next screen, which says honestly that Restart Module 07 owns the
+listing.
+
+Opening that screen again costs nothing: **0 billed provider calls across five
+refreshes, five navigations and a fresh session**, measured on the production
+build.
+
+## What the screen tells the customer it cannot do
+
+Two notices, both permanent until a credential arrives, and both deliberate:
+
+- **No map tiles.** MF-08. The route shape is real; the imagery under it needs a
+  Google Maps key.
+- **These figures are not a real route.** MF-12. No routing provider is
+  configured, so distance and time come from a straight-line stand-in.
+
+## The finding worth acting on
+
+A Maps key had **no path into Android or iOS**. Supplying one would have turned
+the map on in the app and left both native SDKs unauthenticated — a blank grey
+Android map and an iOS throw, arriving on the day the credential did. That is
+now wired on both platforms and guarded by a test, so the key is one build flag
+away from working.
+
+## Test results — commands actually run on this commit
+
+| Command | Result |
+| --- | --- |
+| `backend: vendor/bin/phpunit` | see the completion report |
+| `backend: vendor/bin/pint --test` | **passed** |
+| `web: npm run typecheck` | **passed** |
+| `web: npm test` | **159 passed** — customer 126, ui 22, admin 7, restaurant 4 |
+| `mobile: flutter analyze --fatal-infos` | **passed** |
+| `mobile: flutter test` | see the completion report |
+| `scripts/preflight.sh` | **all runnable checks passed** |
+| Android on a device | **NOT PERFORMED** — no SDK or emulator here |
+| iOS on a device or simulator | **PENDING — environment unavailable** |

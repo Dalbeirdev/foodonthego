@@ -41,6 +41,33 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        /*
+         | The Google Maps SDK key, for the manifest.
+         |
+         | The Android Maps SDK reads its key from a manifest meta-data element
+         | and from nowhere else — a --dart-define never reaches it. Until
+         | Restart Module 06 there was no meta-data element and no placeholder,
+         | so the moment anybody supplied a key the app would have turned its
+         | map on (MapsConfig.canRenderMap reads the Dart define) and the SDK
+         | would have had nothing to authenticate with. The result is a blank
+         | grey map with an authorization failure in logcat — which is exactly
+         | the "Android map is blank" outcome the module's completion rule names
+         | as a blocker, arriving on the day the credential did.
+         |
+         | Empty by default and empty in this repository, because no key exists
+         | (MF-08). An empty placeholder keeps the manifest valid and leaves the
+         | SDK unauthenticated, which is the honest state; MapsConfig is given
+         | the same value through --dart-define so the app knows not to attempt
+         | a map at all.
+         |
+         | Supplied at build time and never committed:
+         |   flutter build apk -PmapsApiKey=$KEY --dart-define=FOTG_MAPS_API_KEY=$KEY
+         */
+        manifestPlaceholders["mapsApiKey"] =
+            (project.findProperty("mapsApiKey") as String?)
+                ?: System.getenv("FOTG_MAPS_API_KEY")
+                ?: ""
     }
 
     buildTypes {

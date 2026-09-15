@@ -120,3 +120,66 @@ they are on Android and iOS. That gap is recorded as MF-26.
 - **Real place search.** Until a Places API key is supplied, search covers
   twelve real, well-known places at their real published coordinates — enough to
   drive the whole flow, and obviously not a gazetteer of India.
+
+---
+
+# Reviewing your route
+
+Added by Restart Module 06.
+
+## 8. Your route appears
+
+`restart-module-06/restart-m06-web-route-desktop.png`
+`restart-module-06/restart-m06-web-route-mobile.png`
+
+As soon as the journey is created, the route is worked out — and if it was
+worked out recently enough, it is simply shown again rather than recalculated,
+so opening the screen repeatedly costs nothing.
+
+While it is being worked out you see **"Working out your route…"**:
+`restart-module-06/restart-m06-route-loading.png`.
+
+## 9. What you see
+
+- **The shape of your journey**, drawn from the route's own coordinates, with
+  your starting point and destination marked.
+- **Distance** and **estimated travel time**.
+- **When it was worked out** — because traffic ages, and a figure from an hour
+  ago is not "current".
+- **Route options**, if your provider returned more than one.
+
+Two notices you will see in this build, and should:
+
+- **"Map tiles are not available in this build."** The drawing is the real route
+  geometry; the map imagery underneath it needs a Google Maps key, which has not
+  been supplied.
+- **"These figures are not a real route."** No routing provider is configured
+  either, so the distance and time come from a straight-line stand-in. Both
+  notices disappear on their own once the credentials exist.
+
+## 10. Choosing a different route
+
+Where the provider returns alternatives, each is a card with its own distance
+and time, and tapping one selects it. Your choice is saved on the server, so it
+survives a refresh, a new browser session and a restart of the app.
+
+In this build the provider returns one route, so the screen says so rather than
+inventing a second.
+
+## 11. Tap Find food on this route
+
+`restart-module-06/restart-m06-find-food-cta.png`
+
+This carries your journey and your chosen route onward. The restaurant listing
+itself is the next thing being built, and the screen says so — it is not an
+empty list pretending to be a search that found nothing.
+
+## What this section does not cover
+
+- **A map.** There are no tiles to show, on any platform, until a Maps key
+  exists.
+- **Real distances and times.** They need a routing provider.
+- **Android and iOS.** The same route screen exists in the mobile app, and no
+  screenshot of it exists from this environment.
+- **Arrival time.** Route duration only. Working out when you would actually
+  arrive somewhere is a later module that has not been specified.

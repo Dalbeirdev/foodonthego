@@ -105,8 +105,8 @@ The three columns no longer come from one codebase, so each is stated separately
 | LOGIN | **VERIFIED COMPLETE** — live, new and existing customer, screenshots | VERIFIED COMPLETE | VERIFIED COMPLETE |
 | HOME | **VERIFIED COMPLETE** — live, real data, screenshot | IMPLEMENTED, device pending | **VERIFIED COMPLETE** — `GET /customer/home` |
 | PLAN JOURNEY | **VERIFIED COMPLETE** — live: saved places, place search, current location, validation, create, handoff | IMPLEMENTED, device pending | VERIFIED COMPLETE |
-| ROUTE | handoff screen live, route content R-06 | IMPLEMENTED | map tiles BLOCKED (MF-08) |
-| RESTAURANTS | **MISSING — R-07** | IMPLEMENTED | VERIFIED COMPLETE |
+| ROUTE | **VERIFIED COMPLETE** — live: distance, travel time, route shape, markers, refresh, handoff. Map tiles blocked (MF-08) | IMPLEMENTED, device pending | VERIFIED COMPLETE |
+| RESTAURANTS | honest handoff screen live, listing **MISSING — R-07** | IMPLEMENTED | VERIFIED COMPLETE |
 | RESTAURANT | **MISSING — R-09** | IMPLEMENTED | VERIFIED COMPLETE |
 | MENU | **MISSING — R-10** | IMPLEMENTED | VERIFIED COMPLETE |
 | ITEM | **MISSING — R-11** | IMPLEMENTED | VERIFIED COMPLETE |
@@ -118,7 +118,7 @@ The three columns no longer come from one codebase, so each is stated separately
 | TRACKING | **MISSING — R-17** | IMPLEMENTED | PARTIAL — nothing advances state |
 | ETA | MISSING | MISSING | **NOT YET SCHEDULED** |
 
-Choosing React created a real web gap that did not exist before: ten journey
+Choosing React created a real web gap that did not exist before: nine journey
 stages are on Android and iOS and not yet on the web. That is the cost the client
 accepted, it is tracked here rather than glossed, and each stage is closed by its
 own restart module.
@@ -162,3 +162,29 @@ HOME  ──"Plan a journey"──▶  /trips/plan
 
 Current location is offered for the starting point only. A destination that
 defaults to where somebody already is is not a journey.
+
+
+## Added by Restart Module 06
+
+| Route | Screen | State |
+| --- | --- | --- |
+| `/trips/:tripId` | Route — map shape, distance, travel time, alternatives, selection | **LIVE** (replaced the Restart Module 05 placeholder) |
+| `/trips/:tripId/restaurants?route=…` | Restaurant listing handoff | **LIVE, honestly pending Restart Module 07** |
+
+```
+TRIP PLANNER ──▶ /trips/{id}   (route calculated or reused)
+                     │
+                     ├─ map shape · origin · destination · polyline
+                     ├─ distance · travel time · traffic when real
+                     ├─ route options, when the provider returns more than one
+                     │
+                     └─ "Find food on this route"
+                            │  tripId + selected routeId, identifiers only
+                            ▼
+                /trips/{id}/restaurants?route={routeId}
+                            │
+                            └── PENDING RESTART MODULE 07
+```
+
+The CTA is disabled without a selected route, and the no-route state does not
+render it at all: there is nothing to be "along" without a route.

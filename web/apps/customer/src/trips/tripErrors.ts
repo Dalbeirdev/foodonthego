@@ -22,6 +22,27 @@ const SAFE_CODES = new Set([
   'PLACE_LOOKUP_FAILED',
   'PLACE_NOT_FOUND',
   'RATE_LIMITED',
+
+  /*
+   | Restart Module 06's route codes.
+   |
+   | Added because the allow-list was doing its job too well: a real 503 from
+   | the calculate endpoint carried "We could not work out a route right now."
+   | — written for a customer, and cleared by the backend's own test that a
+   | provider failure says nothing about our quota or our key — and this file
+   | replaced it with the generic line because it had never heard of the code.
+   | Found by driving the provider-error state in a browser.
+   |
+   | Each of these has been read. None of them names a provider, a project, a
+   | key or a quota; `RouteProviderRateLimited` answers "Route planning is busy
+   | right now", which is the customer's version of that fact.
+   */
+  'ROUTE_NOT_FOUND',
+  'ROUTE_STALE',
+  'ROUTE_INPUT_INVALID',
+  'ROUTE_SELECTION_INVALID',
+  'ROUTE_PROVIDER_UNAVAILABLE',
+  'ROUTE_PROVIDER_RATE_LIMITED',
 ]);
 
 export const GENERIC_FAILURE = 'Something went wrong. Please try again.';

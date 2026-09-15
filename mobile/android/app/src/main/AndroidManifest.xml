@@ -48,6 +48,19 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!--
+          The Google Maps SDK key.
+
+          Filled from the `mapsApiKey` Gradle property or the FOTG_MAPS_API_KEY
+          environment variable at build time, and empty in this repository
+          because no key exists (MF-08). The SDK reads it from here and from
+          nowhere else; a --dart-define does not reach it, which is why this
+          element has to exist even while the value is empty.
+        -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

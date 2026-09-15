@@ -2,6 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!--
+	  The Google Maps SDK key, read by AppDelegate before any map view exists.
+
+	  Empty in this repository because no key exists (MF-08). Supplied at build
+	  time through the GMS_API_KEY build setting and never committed:
+	    flutter build ipa --dart-define=FOTG_MAPS_API_KEY=$KEY \
+	      --extra-xcode-args GMS_API_KEY=$KEY
+	  AppDelegate leaves the SDK unprovided when this is empty, because providing
+	  an empty key is what makes it throw.
+	-->
+	<key>GMSApiKey</key>
+	<string>$(GMS_API_KEY)</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

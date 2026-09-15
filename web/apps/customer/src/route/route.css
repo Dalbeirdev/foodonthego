@@ -1,0 +1,357 @@
+/*
+ * The route screen: map, summary, options, handoff.
+ *
+ * Same page-width discipline as the planner, with one difference: on a wide
+ * screen the map and the route details sit side by side, because a map squeezed
+ * into a 44rem column is a map nobody can read — and "do not make the map tiny"
+ * is a requirement, not a preference.
+ */
+
+.route {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 64rem;
+  margin-inline: auto;
+  width: 100%;
+}
+
+.route__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.route__title {
+  margin: 0;
+  font-size: var(--font-size-h1);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.route__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-primary-interactive);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body-sm);
+}
+
+.route__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- endpoints ----------------------------------------------------------- */
+
+.route__endpoints { display: flex; flex-direction: column; gap: var(--space-3); }
+.route__endpoint { display: flex; align-items: flex-start; gap: var(--space-3); }
+.route__endpoint-icon { color: var(--color-primary-interactive); display: inline-flex; padding-top: 2px; }
+.route__endpoint-text { display: flex; flex-direction: column; min-width: 0; }
+.route__endpoint-label { font-size: var(--font-size-label); color: var(--color-text-secondary); }
+.route__endpoint-primary { font-weight: var(--font-weight-semibold); }
+.route__rule { height: 1px; background: var(--color-border); margin-inline-start: 2.1rem; }
+
+/* ---- the synthetic-provider notice --------------------------------------- */
+
+.route__synthetic {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-surface);
+  color: var(--color-warning);
+  border: 1px solid currentColor;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-normal);
+}
+
+.route__synthetic svg { flex: none; margin-top: 2px; }
+
+/* ---- the map ------------------------------------------------------------- */
+
+.route-map {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+}
+
+.route-map__canvas {
+  width: 100%;
+  /* A real map, not a letterbox. 16:10 on a phone, taller relative to width on
+     desktop where the split layout gives it a column of its own. */
+  aspect-ratio: 16 / 10;
+  min-height: 15rem;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface-sunken);
+}
+
+.route-shape {
+  width: 100%;
+  /* No aspect-ratio: the SVG's own viewBox is shaped like the journey, so the
+     element takes its height from the geometry rather than forcing the geometry
+     into a box it does not fill. */
+  height: auto;
+  display: block;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.route-shape__line { stroke-linecap: round; stroke-linejoin: round; }
+
+/* Design tokens, not arbitrary colours. The selected route is the brand shade
+   at full weight; alternatives are neutral and thinner, so which one is chosen
+   is obvious without reading a legend. */
+.route-shape__line--selected { stroke: var(--color-primary-600); stroke-width: 7; }
+.route-shape__line--alternate { stroke: var(--color-neutral-400); stroke-width: 4; }
+
+.route-shape__marker circle { stroke: var(--color-neutral-0); stroke-width: 2.5; }
+.route-shape__marker--origin circle { fill: var(--color-secondary-600); }
+.route-shape__marker--destination circle { fill: var(--color-primary-700); }
+.route-shape__pip { fill: var(--color-neutral-0); stroke: none; }
+
+.route-map__note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-secondary);
+}
+
+.route-map__note svg { flex: none; margin-top: 1px; }
+
+/* ---- summary ------------------------------------------------------------- */
+
+.route__summary { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.route__summary-title {
+  margin: 0;
+  font-size: var(--font-size-h4);
+  line-height: var(--line-height-snug);
+}
+
+.route__figures {
+  display: flex;
+  gap: var(--space-8);
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.route__figures dt {
+  font-size: var(--font-size-label);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-1);
+}
+
+.route__figures dd {
+  margin: 0;
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.route__traffic { margin: 0; color: var(--color-text-primary); font-size: var(--font-size-body-sm); }
+.route__no-traffic,
+.route__calculated,
+.route__single {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+}
+
+.route__refresh { align-self: flex-start; }
+
+/* ---- route options ------------------------------------------------------- */
+
+.route__options { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.route__options-title {
+  margin: 0;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--color-text-secondary);
+}
+
+.route__options-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+
+.route-option {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  text-align: left;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+  min-height: 3.5rem;
+}
+
+.route-option:hover:not(:disabled) { border-color: var(--color-primary-400); }
+.route-option:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+/* The selected card keeps full contrast while being non-interactive: it is
+   disabled because re-choosing it does nothing, not because it is unavailable. */
+.route-option--selected {
+  border-color: var(--color-primary-interactive);
+  background: var(--color-primary-50);
+  cursor: default;
+  opacity: 1;
+}
+
+.route-option:disabled:not(.route-option--selected) { cursor: progress; }
+
+.route-option__head { display: flex; align-items: center; gap: var(--space-3); }
+.route-option__label { font-weight: var(--font-weight-semibold); }
+
+.route-option__selected {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-primary-interactive);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.route-option__figures { display: flex; align-items: baseline; gap: var(--space-3); }
+.route-option__duration { font-size: var(--font-size-h4); font-weight: var(--font-weight-semibold); }
+.route-option__distance { color: var(--color-text-secondary); }
+.route-option__traffic { font-size: var(--font-size-body-sm); color: var(--color-text-secondary); }
+
+/* ---- status cards -------------------------------------------------------- */
+
+.route__status { display: flex; flex-direction: column; gap: var(--space-3); }
+.route__status-icon { color: var(--color-primary-interactive); }
+.route__status-title { margin: 0; font-size: var(--font-size-h3); }
+.route__status-line { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-weight: var(--font-weight-semibold); }
+.route__status-sub { margin: 0; color: var(--color-text-secondary); }
+.route__status-actions { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+
+.route__handoff { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-2) 0 0; }
+.route__handoff dt { font-size: var(--font-size-label); color: var(--color-text-secondary); }
+.route__handoff dd { margin: 0; }
+.route__handoff code { font-family: var(--font-family-mono); font-size: var(--font-size-caption); word-break: break-all; }
+
+/* ---- the handoff CTA ----------------------------------------------------- */
+
+.route__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-interactive);
+  color: var(--color-text-on-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body-lg);
+  min-height: 3.25rem;
+  /* A filled button that is really a link. Without this it inherits the global
+     link underline and reads as a mistake. */
+  text-decoration: none;
+}
+
+.route__cta:hover { background: var(--color-primary-interactive-hover); }
+.route__cta:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+.route__cta--disabled {
+  background: var(--color-surface-sunken);
+  color: var(--color-neutral-500);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.route__cta-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-primary-interactive);
+  font-weight: var(--font-weight-semibold);
+}
+
+.route__spin { animation: route-spin 1s linear infinite; }
+
+@keyframes route-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .route__spin { animation: none; }
+}
+
+/* ---- wide screens: map beside the details -------------------------------- */
+
+/*
+ * 1200, not 1024.
+ *
+ * At 1024 the navigation rail takes 272px, so splitting what is left 1.35:1
+ * gave the map a 430px column — *narrower* than the single-column layout at
+ * 768, where it gets the full 710px. The map got smaller as the screen got
+ * bigger, which is the "do not make the map tiny" rule broken by a breakpoint
+ * rather than by a style. Measured at all eight widths; nothing else showed it.
+ */
+@media (min-width: 1200px) {
+  .route {
+    /*
+     * Wider than the 64rem the single-column layout uses.
+     *
+     * The reading-width cap is there to keep prose lines short; a map has no
+     * such limit and this layout has a column of its own for the text. Leaving
+     * the cap at 64rem meant a 1920px screen drew the same 514px map as a
+     * 1280px one, with the extra space going to margins.
+     */
+    max-width: 78rem;
+    display: grid;
+    /* The map gets the larger share; the details column stays readable rather
+       than stretching to whatever is left. */
+    grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 1fr);
+    grid-template-areas:
+      'head      head'
+      'synthetic synthetic'
+      'map       endpoints'
+      'map       summary'
+      'map       options'
+      'map       cta'
+      'map       .';
+    align-content: start;
+    gap: var(--space-5);
+  }
+
+  .route__head      { grid-area: head; }
+  .route__synthetic { grid-area: synthetic; }
+  .route-map        { grid-area: map; position: sticky; top: var(--space-6); align-self: start; }
+  .route__endpoints { grid-area: endpoints; }
+  .route__summary   { grid-area: summary; }
+  .route__options,
+  .route__single    { grid-area: options; }
+  .route__cta       { grid-area: cta; }
+  .route__status    { grid-column: 1 / -1; }
+
+  /* Only the Google canvas needs a forced shape — it fills with tiles, so a
+     tall panel is a taller map rather than more empty space. */
+  .route-map__canvas { aspect-ratio: 3 / 4; min-height: 26rem; }
+}
+
+@media (max-width: 600px) {
+  .route__title { font-size: var(--font-size-h2); }
+  .route__figures { gap: var(--space-6); }
+}

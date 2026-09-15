@@ -409,6 +409,78 @@ final class TripRouteApiTest extends TestCase
 
     // --- authentication -----------------------------------------------------
 
+    /**
+     * Two devices choosing two different routes at the same moment.
+     *
+     * The failure this guards against is not a lost update — either answer is a
+     * legitimate outcome — it is **two rows with `is_selected = true`**, which
+     * would make "the selected route" ambiguous for Module 07's discovery, for
+     * the cart's trip binding and for anything that reads it afterwards.
+     *
+     * Serialised here rather than genuinely parallel, because PHPUnit is one
+     * process: what this proves is that the *service* clears before it sets and
+     * does both inside one transaction. The database carries the other half — a
+     * unique index over (trip_id, is_selected) that
+     * {@see TripRouteOwnershipTest::test_the_database_refuses_two_selected_routes_on_one_trip}
+     * exercises directly — so a real race is refused by the engine rather than
+     * relying on application ordering alone.
+     */
+    public function test_two_selections_in_flight_leave_exactly_one_selected(): void
+    {
+        $this->useProvider(new RecordingRouteProvider(alternatives: 2));
+        $trip = $this->trip();
+        $this->asRahul()->postJson($this->calculateUrl($trip))->assertOk();
+
+        $routes = TripRoute::query()->forTrip($trip)->orderBy('provider_route_index')->get();
+
+        $this->assertGreaterThan(1, $routes->count(), 'This test needs alternatives.');
+
+        $first = $routes->first();
+        $last = $routes->last();
+
+        $this->asRahul()
+            ->postJson("/api/v1/customer/trips/{$trip->uuid}/routes/{$last->uuid}/select")
+            ->assertOk();
+
+        $this->asRahul()
+            ->postJson("/api/v1/customer/trips/{$trip->uuid}/routes/{$first->uuid}/select")
+            ->assertOk();
+
+        $selected = TripRoute::query()->forTrip($trip)->where('is_selected', true)->get();
+
+        $this->assertCount(1, $selected);
+        $this->assertSame($first->uuid, $selected->first()?->uuid);
+    }
+
+    /**
+     * A `customer_id` in a route request body changes nothing.
+     *
+     * There is no shape of request that can reassign a trip or a route to
+     * somebody else, because who the caller is comes from the token and the
+     * body is never consulted for it.
+     */
+    public function test_a_customer_id_in_the_body_cannot_move_a_route(): void
+    {
+        $this->useProvider(new RecordingRouteProvider);
+        $trip = $this->trip();
+        $this->asRahul()->postJson($this->calculateUrl($trip))->assertOk();
+
+        $route = TripRoute::query()->forTrip($trip)->firstOrFail();
+
+        $this->asRahul()
+            ->postJson("/api/v1/customer/trips/{$trip->uuid}/routes/{$route->uuid}/select", [
+                'customer_id' => 999_999,
+                'trip_id' => 999_999,
+            ])
+            ->assertOk();
+
+        $this->assertSame(
+            $this->rahul->getKey(),
+            $trip->refresh()->customer_id,
+            'The trip must still belong to the customer who created it.',
+        );
+    }
+
     public function test_every_route_endpoint_needs_a_token(): void
     {
         $this->useProvider(new RecordingRouteProvider);

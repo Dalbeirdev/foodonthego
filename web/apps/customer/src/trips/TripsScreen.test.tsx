@@ -2,7 +2,6 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TripsScreen } from './TripsScreen.js';
-import { TripScreen } from './TripScreen.js';
 import { SessionProvider } from '../session/SessionProvider.js';
 
 /** The trips tab, and the journey screen Restart Module 06 will take over. */
@@ -42,7 +41,6 @@ const renderAt = (path: string) => {
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/trips" element={<TripsScreen />} />
-          <Route path="/trips/:tripId" element={<TripScreen />} />
         </Routes>
       </MemoryRouter>
     </SessionProvider>,
@@ -84,25 +82,5 @@ describe('TripsScreen', () => {
     const links = screen.getAllByRole('link', { name: /Plan a journey/ });
     expect(links).toHaveLength(2);
     for (const link of links) expect(link).toHaveAttribute('href', '/trips/plan');
-  });
-});
-
-describe('TripScreen', () => {
-  it('loads the journey from the server by id', async () => {
-    stub(trip());
-    renderAt('/trips/trip-uuid-1');
-
-    expect(await screen.findByText('Your journey')).toBeInTheDocument();
-    expect(screen.getByText('From')).toBeInTheDocument();
-    expect(screen.getByText('To')).toBeInTheDocument();
-    expect(screen.getByText('Route not calculated yet')).toBeInTheDocument();
-  });
-
-  it('answers a journey that is not the customer’s the same way as one that does not exist', async () => {
-    stub(null, false, 404);
-    renderAt('/trips/somebody-elses-trip');
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('That journey does not exist.');
-    expect(screen.getByRole('link', { name: /Back to your trips/ })).toBeInTheDocument();
   });
 });

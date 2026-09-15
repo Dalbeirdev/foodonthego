@@ -134,3 +134,42 @@ Browser geolocation requires a secure context. On the review deployment
 "Use my current location" reports the insecure-context message to every visitor
 there. Android and iOS have no such restriction. This is not a parity defect in
 the code — it is **MF-28**, and it closes when **MF-16** (TLS) does.
+
+---
+
+# Restart Module 06 — routing and maps parity
+
+Web is the React customer app driven live against the real API on a production
+build. Android and iOS are the Flutter app: the code exists and its tests pass,
+and **no Android SDK, emulator or Apple hardware is reachable here**, so no
+screen on either was looked at by a person.
+
+| Feature | Web | Android | iOS | Backend | Live | Screenshot | Gap |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Route screen | ✅ | code + tests | code + tests | ✅ | Web | ✅ | device runtime |
+| Map (tiles) | ❌ | ❌ | ❌ | — | — | — | **no Maps key — MF-08** |
+| Map (route shape, no tiles) | ✅ | ✅ | ✅ | — | Web | ✅ | — |
+| Origin marker | ✅ | code + tests | code + tests | — | Web | ✅ | device runtime |
+| Destination marker | ✅ | code + tests | code + tests | — | Web | ✅ | device runtime |
+| Polyline | ✅ | code + tests | code + tests | ✅ | Web | ✅ | device runtime |
+| Distance | ✅ | code + tests | code + tests | ✅ | Web | ✅ | synthetic provider — MF-12 |
+| Duration | ✅ | code + tests | code + tests | ✅ | Web | ✅ | synthetic provider — MF-12 |
+| Traffic duration | ✅ (absence handled) | ✅ | ✅ | ✅ | Web | ✅ | **never returned — MF-12** |
+| Single route | ✅ | code + tests | code + tests | ✅ | Web | ✅ | — |
+| Route alternatives | ✅ tests | code + tests | code + tests | ✅ | — | — | **NOT RETURNED BY PROVIDER — MF-35** |
+| Route selection | ✅ tests | code + tests | code + tests | ✅ | API | — | needs alternatives to drive live |
+| Route persistence | ✅ | code + tests | code + tests | ✅ | Web | ✅ | device runtime |
+| Route refresh | ✅ | code + tests | code + tests | ✅ | Web + API | ✅ | — |
+| Stale route | ✅ | code + tests | code + tests | ✅ | API | — | — |
+| Provider error | ✅ | code + tests | code + tests | ✅ | Web | ✅ | — |
+| No route | ✅ | code + tests | code + tests | ✅ | Web | ✅ | — |
+| Offline cached route | ❌ | ❌ | ❌ | — | — | — | **not implemented — MF-30** |
+| Find Food CTA | ✅ | code + tests | code + tests | — | Web | ✅ | listing is Module 07 |
+
+## Where the platforms genuinely differ
+
+Nothing in this module's design. Both the web and the Flutter app gate the map
+on a key and render an honest map-unavailable state without one — and until
+Restart Module 06 the mobile halves would have rendered a **broken** map rather
+than that state the moment a key arrived, because the key never reached either
+native SDK. That is now wired on all three.

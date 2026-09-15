@@ -244,3 +244,88 @@ that this environment cannot measure.
 
 `docs/evidence/restart-module-05/` — 27 files, all captured from the running
 application. None is a mockup.
+
+---
+
+# Restart Module 06 — routing and maps
+
+Chromium 1194 against the **production build** (`npm run build`, served with the
+same same-origin `/api` proxy nginx provides) on `http://127.0.0.1:5180`, and the
+Laravel API on `http://127.0.0.1:8000`.
+
+Production rather than `vite dev` on purpose: React's StrictMode double-invokes
+effects in development, which doubles every read and would have made the cost
+figures wrong in the reassuring direction.
+
+Backend: `ROUTE_PROVIDER=development`, `PLACES_PROVIDER=development`, MySQL
+`foodonthego_local`. The journey is the real one Restart Module 05 created —
+Green Park, New Delhi → Jaipur International Airport.
+
+## The before state
+
+`restart-m06-before-web-route.png`. A trip whose `route_status` was **READY**,
+with a calculated and selected route in the database, rendered as
+**"Route not calculated yet"** — no map, no distance, no travel time, no CTA.
+
+## What was driven
+
+| # | State | Result |
+| --- | --- | --- |
+| 1 | Route loading | "Working out your route…" with a spinner |
+| 2 | Route ready | 237 km, 3 hr 56 min, from the server |
+| 3 | Route shape | One polyline path, decoded from the stored geometry |
+| 4 | Origin and destination markers | Both present, at the polyline's ends |
+| 5 | Fit to bounds | The drawing is shaped from the route's own bounds |
+| 6 | Map tiles unavailable | Stated in words, with the reason |
+| 7 | Synthetic provider | Warning banner — "These figures are not a real route" |
+| 8 | Traffic absent | "Traffic information is not available for this route." |
+| 9 | Freshness | "Worked out 7 min ago" |
+| 10 | Single route | "Your provider returned one route for this journey." |
+| 11 | Explicit refresh | `calculated_at` moved; the provider was asked again |
+| 12 | Provider error (503) | "We could not work out a route right now." + Try again + Change journey |
+| 13 | No route | "No driving route found" — and **no Find Food CTA at all** |
+| 14 | Offline mid-session | "We could not reach FoodOnTheGo…" + retry |
+| 15 | Find Food CTA | `/trips/{id}/restaurants?route={routeId}` |
+| 16 | Handoff screen | Names both identifiers, says Module 07 owns the listing |
+| 17 | 360 / 390 / 430 / 768 / 1024 / 1280 / 1440 / 1920 | 0 px overflow at every width |
+| 18 | Keyboard only | Tab reaches refresh and the CTA; Enter navigates |
+| 19 | Screen reader | Every figure the drawing shows is also in text |
+
+**Console errors: none**, on every capture, with console, page errors and every
+HTTP response ≥ 400 collected.
+
+## Provider cost, measured
+
+| Action | Billed `calculate` | Free `GET` | Maps tiles | Restaurants | Razorpay |
+| --- | --- | --- | --- | --- | --- |
+| First open of a new journey | **1** | 1 | 0 | 0 | 0 |
+| 5 page refreshes | **0** | 5 | 0 | 0 | 0 |
+| 5 × Home → Route | **0** | 5 | 0 | 0 | 0 |
+| Fresh session | **0** | 1 | 0 | 0 | 0 |
+
+Negative control at the API: a second `calculate` inside the freshness window
+left `calculated_at` unchanged; `?refresh=true` changed it. So the reuse is the
+freshness window working, not the endpoint failing silently.
+
+## Map size across the breakpoints
+
+Measured because "do not make the map tiny" is a requirement, and because the
+first attempt broke it invisibly.
+
+| Width | Map |
+| --- | --- |
+| 360 | 302 × 109 |
+| 768 | 710 × 256 |
+| 1024 | 678 × 244 |
+| 1280 | 514 × 185 |
+| 1440 | 606 × 218 |
+| 1920 | 679 × 245 |
+
+The 1280 figure is smaller than 1024 because the two-column layout trades map
+width for showing the map and every detail at once. It is stated rather than
+smoothed over.
+
+## Screenshots
+
+`docs/evidence/restart-module-06/` — 10 files, all from the running application.
+None is a mockup, and none shows a map: there are no tiles to show.
